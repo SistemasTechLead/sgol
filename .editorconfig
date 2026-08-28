@@ -13,3 +13,11 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+# xUnit test names use underscores to preserve scenario readability and traceability.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+
+# EF Core owns these generated migration artifacts; sealing them would be overwritten.
+[src/**/Infrastructure/Persistence/Migrations/*.cs]
+dotnet_diagnostic.CA1852.severity = none
