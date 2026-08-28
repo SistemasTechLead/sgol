@@ -15,5 +15,10 @@ Este directorio registra el mapeo verificable entre identificadores aprobados, c
 | TECH-BASE-002 | PostgreSQL real local/CI aislado y primera conexión | `Sgol.IntegrationTests.PostgreSqlPersistenceTests.EmptyMigration_ConnectsToPostgreSql_WithoutFunctionalTables`; `docs/operations/postgresql-local.md` |
 | TECH-BASE-002 | Migración vacía, versionada, repetible y sin tablas funcionales | `20260827000000_InitializePersistence`; la prueba aplica la migración dos veces y comprueba que sólo existe `__EFMigrationsHistory` |
 | TECH-BASE-002 | Configuración de conexión fuera de Git | `Sgol.Web.Infrastructure.Persistence.PersistenceServiceCollectionExtensions`; `ConnectionStrings__Sgol` documentada sin valor |
+| TECH-BASE-003 | Pipeline reproducible exclusivo de pull request | `.github/workflows/pull-request.yml`; SDK, acciones y Gitleaks fijados por versión e integridad |
+| TECH-BASE-003 | Restore bloqueado, build Release con análisis estático, pruebas y formato | Pasos nombrados con los cuatro comandos obligatorios; `Directory.Build.props` trata advertencias de analizadores como errores |
+| TECH-BASE-003 | Integración aislada con PostgreSQL real | La suite ejecuta `Sgol.IntegrationTests.PostgreSqlPersistenceTests.EmptyMigration_ConnectsToPostgreSql_WithoutFunctionalTables` mediante Testcontainers |
+| TECH-BASE-003 | Dependencias directas/transitivas y secretos | `scripts/ci/Assert-NoVulnerablePackages.ps1`; Gitleaks 8.30.1 verificado por SHA-256 y ejecutado con redacción |
+| TECH-BASE-003 | Protección de `Fuentes/`, permisos mínimos y ausencia de despliegue | Diff base/cabeza del PR; `contents: read`; checkout sin credenciales persistentes; `docs/operations/pull-request-pipeline.md` |
 
 Los resultados de cada ejecución se reportan en la entrega de la tarea; este archivo conserva el formato y la relación estable, no un estado transitorio de ejecución.

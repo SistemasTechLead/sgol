@@ -1,0 +1,49 @@
+# Pipeline de pull request para TECH-BASE-003
+
+El workflow `.github/workflows/pull-request.yml` se ejecuta exclusivamente para `pull_request`. No despliega, publica imágenes ni accede a staging o producción. El job usa `permissions: contents: read`, no conserva credenciales de checkout y no recibe secretos del repositorio.
+
+## Gates
+
+Los pasos tienen nombres independientes para que GitHub identifique el gate que falla:
+
+1. checkout completo sin credenciales persistentes;
+2. rechazo de cualquier cambio entre base y cabeza del PR dentro de `Fuentes/`;
+3. escaneo de secretos sobre el árbol y los commits del PR con salida redactada;
+4. SDK .NET exactamente `10.0.400`;
+5. `dotnet restore --locked-mode`;
+6. `dotnet build --no-restore --configuration Release` con analizadores .NET, nivel recomendado vigente del SDK y advertencias tratadas como errores;
+7. `dotnet test --no-build --configuration Release`, que ejecuta unitarias, arquitectura e integración con PostgreSQL real y efímero mediante Testcontainers;
+8. `dotnet format --verify-no-changes`;
+9. consulta de paquetes NuGet directos y transitivos contra vulnerabilidades conocidas. Cualquier hallazgo falla mientras no exista un tratamiento explícitamente aprobado.
+
+La prueba de integración conserva la imagen PostgreSQL fijada por `TECH-BASE-002`, genera su credencial en memoria y elimina el contenedor al terminar. No se admite SQLite ni un mock como sustituto.
+
+El análisis estático conserva dos excepciones estrechas en `.editorconfig`: CA1707 únicamente en pruebas xUnit, cuyos nombres con guiones bajos expresan el escenario trazable, y CA1852 únicamente en artefactos de migración generados por EF Core, que serían sobrescritos por la herramienta. No se desactiva globalmente ningún analizador.
+
+## Versiones, integridad y licencias
+
+| Componente | Versión fijada | Integridad | Licencia revisada |
+|---|---:|---|---|
+| `actions/checkout` | 7.0.1 | SHA de commit `3d3c42e5aac5ba805825da76410c181273ba90b1` | MIT |
+| `actions/setup-dotnet` | 6.0.0 | SHA de commit `a98b56852c35b8e3190ac28c8c2271da59106c68` | MIT |
+| Gitleaks | 8.30.1 | SHA-256 Linux x64 `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb` | MIT |
+| .NET SDK | 10.0.400 | `global.json`, entrada exacta del workflow y comprobación en ejecución | MIT y licencias .NET aplicables |
+| PostgreSQL de integración | `postgres:18.6-alpine3.23` | etiqueta de imagen aprobada en `TECH-BASE-002` | PostgreSQL License |
+
+Gitleaks se descarga desde el release oficial, se valida antes de extraer y se ejecuta sin `gitleaks-action`, licencias comerciales ni credenciales. No se escriben reportes de hallazgos como artefactos: el log conserva el gate, ruta y regla necesarias para investigar, pero `--redact` evita mostrar el valor detectado.
+
+La revisión del 2026-08-28 no encontró avisos publicados en las páginas de seguridad de [`actions/checkout`](https://github.com/actions/checkout/security/advisories), [`actions/setup-dotnet`](https://github.com/actions/setup-dotnet/security/advisories) ni [Gitleaks](https://github.com/gitleaks/gitleaks/security/advisories). Es una revisión puntual: las versiones deben reevaluarse cuando se actualice el workflow o aparezca un aviso nuevo.
+
+## Verificación local
+
+Desde la raíz, con .NET, Git y Docker operativos:
+
+```powershell
+dotnet restore --locked-mode
+dotnet build --no-restore --configuration Release
+dotnet test --no-build --configuration Release
+dotnet format --verify-no-changes
+./scripts/ci/Assert-NoVulnerablePackages.ps1
+```
+
+La sintaxis y el comportamiento del workflow sólo quedan verificados en GitHub cuando se publica la rama y se abre un pull request. Un resultado local no sustituye esa ejecución ni la revisión humana.
