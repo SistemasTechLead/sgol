@@ -35,6 +35,16 @@ Toda escritura crítica conserva historia e inserta auditoría en la misma trans
 
 No registres secretos, contraseñas, TOTP, códigos de recuperación, cookies, URLs firmadas, cadenas de conexión ni contenido de evidencia. No confirmes una carga hasta que el archivo esté `LIMPIO`.
 
+## Inicio incremental de tareas
+
+1. Lee primero `docs/traceability/IMPLEMENTATION_STATUS.md`.
+2. Ejecuta únicamente las comprobaciones rápidas iniciales: `git status --short --branch`, `git rev-parse HEAD`, verificación de que el último commit aceptado es ancestro de `HEAD`, ausencia de cambios en `Fuentes/` y versiones de las herramientas estrictamente necesarias.
+3. Si el checkout contiene el último commit aceptado y no contradice el estado registrado, acepta como evidencia previa las tareas ya Terminadas; no repitas sus análisis ni sus gates antes de editar.
+4. Lee sólo la fila de la tarea actual, las secciones expresamente autorizadas en su prompt y los archivos directamente afectados.
+5. No vuelvas a analizar íntegramente F00–F07 ni reconstruyas decisiones aprobadas salvo que exista una contradicción, un cambio de hash, una dependencia incompleta o una diferencia respecto al estado registrado.
+6. Limita el informe previo a alcance, dependencias, archivos previstos y plan de gates, en un máximo de ocho puntos; después comienza la implementación.
+7. Ejecuta al finalizar todos los gates aplicables sobre el nuevo cambio. No uses esta optimización para omitir un gate de salida, una revisión humana ni una comprobación exigida expresamente por la tarea.
+
 ## Forma de trabajo
 
 1. Inspecciona el estado del repositorio y no reviertas cambios ajenos.
