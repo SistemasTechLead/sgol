@@ -4,6 +4,8 @@ Este directorio registra el mapeo verificable entre identificadores aprobados, c
 
 El estado aceptado para el inicio incremental del siguiente chat se mantiene en [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). Ese archivo evita revalidar tareas cerradas cuando su commit permanece en la ascendencia del checkout, sin sustituir los gates de salida de la tarea actual.
 
+La plantilla reutilizable para registrar una ejecución sin datos sensibles está en [`TEST_EVIDENCE_TEMPLATE.md`](TEST_EVIDENCE_TEMPLATE.md).
+
 | ID | Criterio | Prueba o evidencia definida |
 |---|---|---|
 | INIT-CA-001 | SDK .NET 10 fijado y restore bloqueado reproducible | `global.json`; `Directory.Packages.props`; `packages.lock.json`; `dotnet --version`; `dotnet restore --locked-mode` |
@@ -22,5 +24,9 @@ El estado aceptado para el inicio incremental del siguiente chat se mantiene en 
 | TECH-BASE-003 | Integración aislada con PostgreSQL real | La suite ejecuta `Sgol.IntegrationTests.PostgreSqlPersistenceTests.EmptyMigration_ConnectsToPostgreSql_WithoutFunctionalTables` mediante Testcontainers |
 | TECH-BASE-003 | Dependencias directas/transitivas y secretos | `scripts/ci/Assert-NoVulnerablePackages.ps1`; Gitleaks 8.30.1 verificado por SHA-256 y ejecutado con redacción |
 | TECH-BASE-003 | Protección de `Fuentes/`, permisos mínimos y ausencia de despliegue | Diff base/cabeza del PR; `contents: read`; checkout sin credenciales persistentes; `docs/operations/pull-request-pipeline.md` |
+| TECH-BASE-004 / RT-003 | Dirección permitida y límites de `Domain`, hosts, módulos y `Sgol.BuildingBlocks` | `Sgol.ArchitectureTests.ArchitectureBoundaryTests.Repository_RespectsApprovedDependencyDirection`; reglas `ARCH-001` a `ARCH-004` |
+| TECH-BASE-004 / RT-003 | Una dependencia prohibida produce un diagnóstico identificable | `Sgol.ArchitectureTests.ArchitectureBoundaryTests.SyntheticForbiddenDependencies_AreDetectedWithRuleDiagnostics` |
+| TECH-BASE-004 | Plantilla HU–CAP–CA/CP/CAT/NFR–prueba completa y sin datos sensibles | `docs/traceability/TEST_EVIDENCE_TEMPLATE.md`; `Sgol.ArchitectureTests.TraceabilityTemplateTests.EvidenceTemplate_ContainsRequiredTraceabilityAndSafetyFields` |
+| TECH-BASE-004 | Ejecución automática en todo PR | El proyecto `Sgol.ArchitectureTests` pertenece a `SGOL.slnx` y se ejecuta en el paso `dotnet test --no-build --configuration Release` del pipeline PR |
 
 Los resultados de cada ejecución se reportan en la entrega de la tarea; este archivo conserva el formato y la relación estable, no un estado transitorio de ejecución.
