@@ -28,5 +28,10 @@ La plantilla reutilizable para registrar una ejecución sin datos sensibles est�
 | TECH-BASE-004 / RT-003 | Una dependencia prohibida produce un diagnóstico identificable | `Sgol.ArchitectureTests.ArchitectureBoundaryTests.SyntheticForbiddenDependencies_AreDetectedWithRuleDiagnostics` |
 | TECH-BASE-004 | Plantilla HU–CAP–CA/CP/CAT/NFR–prueba completa y sin datos sensibles | `docs/traceability/TEST_EVIDENCE_TEMPLATE.md`; `Sgol.ArchitectureTests.TraceabilityTemplateTests.EvidenceTemplate_ContainsRequiredTraceabilityAndSafetyFields` |
 | TECH-BASE-004 | Ejecución automática en todo PR | El proyecto `Sgol.ArchitectureTests` pertenece a `SGOL.slnx` y se ejecuta en el paso `dotnet test --no-build --configuration Release` del pipeline PR |
+| TECH-BASE-005 | Reloj UTC y UUID v7 son puertos inyectables y deterministas en prueba | `Sgol.UnitTests.PrimitiveTests.ClockPort_AllowsDeterministicTime`; `Sgol.UnitTests.PrimitiveTests.UuidGenerator_UsesInjectedClockAndCreatesVersion7Uuid` |
+| TECH-BASE-005 | `correlationId` UUID v7 se propaga o se reemplaza de forma segura | `Sgol.UnitTests.HttpPrimitiveTests.ValidUuid7CorrelationId_IsPropagatedInHeaderAndBody`; `Sgol.UnitTests.HttpPrimitiveTests.InvalidCorrelationId_IsReplacedByUuid7` |
+| TECH-BASE-005 | Errores usan Problem Details correlacionado sin exponer secretos | `Sgol.UnitTests.HttpPrimitiveTests.MissingRoute_ReturnsProblemDetailsWithCorrelationId`; `Sgol.UnitTests.HttpPrimitiveTests.UnhandledError_DoesNotExposeSecretInProblemDetailsOrLogs` |
+| TECH-BASE-005 / NFR-010 | El reloj compartido expone instantes UTC | `Sgol.BuildingBlocks.Time`; `Sgol.UnitTests.PrimitiveTests.ClockPort_AllowsDeterministicTime` |
+| TECH-BASE-005 | Logs JSON minimizados y contrato operativo documentado | `docs/operations/http-primitives.md`; revisión de `Sgol.Web.Infrastructure.Http` |
 
 Los resultados de cada ejecución se reportan en la entrega de la tarea; este archivo conserva el formato y la relación estable, no un estado transitorio de ejecución.
