@@ -12,11 +12,13 @@ Los pasos tienen nombres independientes para que GitHub identifique el gate que 
 4. SDK .NET exactamente `10.0.400`;
 5. `dotnet restore --locked-mode`;
 6. `dotnet build --no-restore --configuration Release` con analizadores .NET, nivel recomendado vigente del SDK y advertencias tratadas como errores;
-7. `dotnet test --no-build --configuration Release`, que ejecuta unitarias, arquitectura e integración con PostgreSQL real y efímero mediante Testcontainers;
+7. `dotnet test --no-build --configuration Release`, que ejecuta unitarias, arquitectura, validación de la plantilla de trazabilidad e integración con PostgreSQL real y efímero mediante Testcontainers;
 8. `dotnet format --verify-no-changes`;
 9. consulta de paquetes NuGet directos y transitivos contra vulnerabilidades conocidas. Cualquier hallazgo falla mientras no exista un tratamiento explícitamente aprobado.
 
 La prueba de integración conserva la imagen PostgreSQL fijada por `TECH-BASE-002`, genera su credencial en memoria y elimina el contenedor al terminar. No se admite SQLite ni un mock como sustituto.
+
+Las pruebas de arquitectura de `TECH-BASE-004` recorren los proyectos y fuentes bajo `src/` y emiten diagnósticos `ARCH-001` a `ARCH-004`: aislamiento de `Domain`, hosts Web/Worker sin reglas de negocio, ausencia de acceso a la implementación interna de otro módulo y dirección de dependencias de `Sgol.BuildingBlocks`. Un escenario sintético prohibido comprueba que las cuatro reglas detectan y nombran la infracción. La plantilla `docs/traceability/TEST_EVIDENCE_TEMPLATE.md` también se valida dentro de `dotnet test`, por lo que el mismo gate protege sus campos mínimos y advertencias de seguridad.
 
 El análisis estático conserva dos excepciones estrechas en `.editorconfig`: CA1707 únicamente en pruebas xUnit, cuyos nombres con guiones bajos expresan el escenario trazable, y CA1852 únicamente en artefactos de migración generados por EF Core, que serían sobrescritos por la herramienta. No se desactiva globalmente ningún analizador.
 

@@ -16,6 +16,21 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 | `Fuentes/` | 73 archivos sin cambios; huella agregada `97EA9F86C185D597F5F43D9FCC244897572CE29CE5C50C268EF9F2CEC81C8962` |
 | Siguiente tarea propuesta | `TECH-BASE-004` — Pruebas de límites modulares y plantilla de trazabilidad HU/CA/CP |
 
+## Incremento actual pendiente de aceptación
+
+| Campo | Valor |
+|---|---|
+| Tarea | `TECH-BASE-004` — Pruebas de límites modulares y plantilla de trazabilidad HU/CA/CP |
+| Estado | Implementada y con pipeline PR satisfactorio; **no Terminada** |
+| Evidencia candidata | Reglas `ARCH-001` a `ARCH-004`, caso positivo del repositorio, validación negativa sintética y plantilla `TEST_EVIDENCE_TEMPLATE.md` |
+| Pull request | `#3` |
+| Commit implementado | `42ca8c28492088c136837ff2e7000e6ebd272b8b` |
+| Commit incorporado | Pendiente |
+| Pipeline PR | `TECH-BASE-003 / PR gates`: PASS, GitHub Actions run `33259956795`, 2026-08-29 |
+| Revisión y aceptación humana | Pendiente |
+
+La tabla de **Base aceptada** permanece en `TECH-BASE-003`. Este apartado sólo podrá promoverse a esa tabla y declarar `TECH-BASE-004` Terminada después de pipeline PR satisfactorio, revisión humana e incorporación a `master`.
+
 ## Comprobación rápida para el siguiente chat
 
 ```powershell
