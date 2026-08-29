@@ -2,6 +2,8 @@
 
 Este directorio registra el mapeo verificable entre identificadores aprobados, criterios y pruebas o comandos. Una fila sólo declara la evidencia indicada; no implica cobertura funcional adicional.
 
+El estado aceptado para el inicio incremental del siguiente chat se mantiene en [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). Ese archivo evita revalidar tareas cerradas cuando su commit permanece en la ascendencia del checkout, sin sustituir los gates de salida de la tarea actual.
+
 | ID | Criterio | Prueba o evidencia definida |
 |---|---|---|
 | INIT-CA-001 | SDK .NET 10 fijado y restore bloqueado reproducible | `global.json`; `Directory.Packages.props`; `packages.lock.json`; `dotnet --version`; `dotnet restore --locked-mode` |
