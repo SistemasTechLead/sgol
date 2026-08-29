@@ -33,7 +33,11 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("alive", payload?.Status);
+        Assert.True(response.Headers.TryGetValues("X-Correlation-ID", out var values));
+        Assert.Equal(payload?.Meta.CorrelationId, Assert.Single(values));
     }
 
-    private sealed record LiveResponse(string Status);
+    private sealed record LiveResponse(string Status, ResponseMeta Meta);
+
+    private sealed record ResponseMeta(string CorrelationId);
 }
