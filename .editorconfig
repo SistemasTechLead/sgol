@@ -21,3 +21,4 @@ dotnet_diagnostic.CA1707.severity = none
 # EF Core owns these generated migration artifacts; sealing them would be overwritten.
 [src/**/Infrastructure/Persistence/Migrations/*.cs]
 dotnet_diagnostic.CA1852.severity = none
+dotnet_diagnostic.CA1861.severity = none
