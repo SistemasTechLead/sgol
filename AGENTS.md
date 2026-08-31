@@ -22,6 +22,15 @@ No busques, abras, generes ni descomprimas archivos ZIP; no cambies rutas ni mod
 - No ejecutes búsquedas recursivas sobre `Fuentes/`, `bin/`, `obj/`, `.vs/` ni sobre archivos `.xlsx` o `.xlsm`. Los binarios de Excel no se abren ni se convierten.
 - Durante el desarrollo lee las copias de la raíz; `Fuentes/` conserva el original congelado y `scripts/ci/verify-fuentes-mirror.ps1` comprueba su equivalencia.
 
+## Entorno conocido
+
+- Ejecuta `scripts/ci/preflight.ps1` como única comprobación inicial. No diagnostiques el entorno más allá de su salida.
+- Ejecuta `dotnet restore --locked-mode` con acceso autorizado fuera del aislamiento; no rediagnostiques la carga de la jerarquía de configuración de NuGet dentro del aislamiento.
+- Docker y Testcontainers funcionan correctamente. El error `Acceso denegado` dentro del aislamiento no indica un problema de `PATH`, entorno ni instalación. No ejecutes `docker version`, no busques rutas, no modifiques variables de entorno y no interpretes un fallo de aislamiento como Docker ausente.
+- Las pruebas de integración con PostgreSQL las ejecuta el desarrollador fuera de la sesión. Escribe las pruebas, pero no las ejecutes: solicita su resultado en un solo mensaje al llegar a los gates.
+- En migraciones EF, elimina siempre el BOM del archivo generado y sustituye el cuerpo de `Down()` por una excepción de reversión bloqueada. Es una regla fija; no la redescubras ni la consultes.
+- Ejecuta `dotnet format --verify-no-changes` y la suite completa una sola vez, al final. Durante el desarrollo usa `dotnet test --filter` sobre las pruebas nuevas.
+
 ## Arquitectura obligatoria
 
 - .NET 10 LTS, ASP.NET Core, EF Core, Razor Pages/MVC y API REST `/api/v1`.
@@ -44,7 +53,7 @@ No registres secretos, contraseñas, TOTP, códigos de recuperación, cookies, U
 ## Inicio incremental de tareas
 
 1. Lee primero `docs/traceability/IMPLEMENTATION_STATUS.md`.
-2. Ejecuta únicamente las comprobaciones rápidas iniciales: `git status --short --branch`, `git rev-parse HEAD`, verificación de que el último commit aceptado es ancestro de `HEAD`, ausencia de cambios en `Fuentes/` y versiones de las herramientas estrictamente necesarias.
+2. Ejecuta `scripts/ci/preflight.ps1` como única comprobación inicial y no diagnostiques el entorno más allá de su salida.
 3. Si el checkout contiene el último commit aceptado y no contradice el estado registrado, acepta como evidencia previa las tareas ya Terminadas; no repitas sus análisis ni sus gates antes de editar.
 4. Lee sólo la fila de la tarea actual, las secciones expresamente autorizadas en su prompt y los archivos directamente afectados.
 5. No vuelvas a analizar íntegramente F00–F07 ni reconstruyas decisiones aprobadas salvo que exista una contradicción, un cambio de hash, una dependencia incompleta o una diferencia respecto al estado registrado.
@@ -84,9 +93,7 @@ dotnet test --no-build --configuration Release
 dotnet format --verify-no-changes
 ```
 
-Además ejecuta las pruebas específicas de arquitectura, PostgreSQL, API/contrato, seguridad o navegador exigidas por la historia. Un gate omitido debe quedar marcado como no verificado y con causa; no lo presentes como aprobado.
-
-En Codex, si un gate de PostgreSQL real o Testcontainers necesita Docker, ejecútalo directamente con autorización fuera del aislamiento. En este equipo `docker.exe` está instalado en `C:\Users\loret\AppData\Local\Programs\DockerDesktop\resources\bin` y el cliente/servidor funcionan fuera del sandbox; un error `Acceso denegado` dentro del sandbox se considera aislamiento de Codex. No repitas comprobaciones de `PATH`, `Path` persistente ni existencia del ejecutable antes del gate, y no modifiques variables de entorno para intentar resolverlo.
+Además ejecuta las pruebas específicas de arquitectura, API/contrato, seguridad o navegador exigidas por la historia. Un gate omitido debe quedar marcado como no verificado y con causa; no lo presentes como aprobado. Las pruebas de integración con PostgreSQL quedan a cargo del desarrollador fuera de la sesión, conforme a «Entorno conocido».
 
 ## Entrega
 

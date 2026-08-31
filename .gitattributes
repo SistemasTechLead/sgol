@@ -1,2 +1,9 @@
+*.cs text eol=lf
+*.csproj text eol=lf
+*.props text eol=lf
+*.json text eol=lf
+*.ps1 text eol=lf
+*.yml text eol=lf
+
 # Protected consultation sources must remain byte-for-byte identical.
-Fuentes/** -text
+Fuentes/** -text -eol
