@@ -12,40 +12,45 @@
 ## 2. Plantilla de implementación
 
 ```text
-Implementa [ID — resultado concreto] del backlog aprobado de SGOL.
+Implementa exclusivamente [ID] — [resultado concreto].
 
-Corte y épica:
-- [CV-##]
-- [EP-##]
+Ejecuta scripts/ci/preflight.ps1 y aplica el inicio incremental de AGENTS.md.
+Lee docs/traceability/IMPLEMENTATION_STATUS.md y localiza en docs/INDICE_IDS.md
+únicamente [ID] y sus referencias autorizadas. No leas ningún documento completo.
 
-Fuentes autorizadas:
-- [documento, sección y IDs]
-- [documento, sección y IDs]
+Acepta como evidencia previa todas las tareas registradas como Terminadas. No
+repitas sus análisis ni sus gates. No recalcules la huella de Fuentes/.
 
-Resultado requerido:
+Rama: codex/[slug].
+
+Alcance:
+
 - [resultado observable único]
+- [segundo elemento si el incremento vertical lo exige]
 
-Criterios de aceptación y pruebas:
-- [CA/CP/CAT/NFR]
-- [caso positivo]
-- [caso negativo, autorización, auditoría y no-efecto aplicables]
+Fuera de alcance: [lo adyacente que NO debe tocarse].
+No inventes campos, estados, permisos, eventos ni contratos. Si un dato
+indispensable no está definido en los documentos aprobados, detén esa parte y
+preséntame la contradicción.
 
-Dependencias terminadas:
-- [IDs]
+Pruebas exigidas: [positiva, negativa, autorización, auditoría, no-efecto según
+aplique].
 
-Límites:
-- No implementes capacidades posteriores, opcionales o fuera de alcance.
-- No renombres, muevas, sobrescribas ni elimines archivos de Fuentes/.
-- No cambies decisiones aprobadas; si detectas contradicción, detén esa parte y repórtala.
+Autorizaciones previas de esta tarea, no vuelvas a pedirlas:
+publicar la rama en SistemasTechLead/sgol y crear el pull request con gh.
+Detente únicamente antes del merge y espera mi aprobación explícita.
 
-Trabajo esperado:
-1. Inspecciona el repositorio y confirma brevemente alcance, dependencias y plan de verificación.
-2. Implementa el incremento vertical mínimo, incluidos persistencia, autorización, auditoría, API/UI y documentación sólo donde apliquen.
-3. Añade las pruebas y trazabilidad requeridas.
-4. Ejecuta los gates aplicables de F07_DEFINICIONES_DE_CONTROL.md.
-5. Entrega archivos cambiados, criterios satisfechos, comandos/resultados, riesgos y pendientes.
+Gates: restore bloqueado, build Release, suite unitaria y de arquitectura,
+dotnet format, dependencias y secretos. Una sola ejecución, al final.
+Las pruebas de integración con PostgreSQL NO las ejecutas: escríbelas y pídeme
+su resultado en un único mensaje cuando llegues a los gates.
 
-No declares Terminado si falta un gate o aprobación requerida.
+Antes de editar, resume en máximo seis puntos: alcance, dependencias, fuentes,
+archivos previstos y gates. No narres comprobaciones de entorno.
+
+Entrega un solo bloque final: archivos cambiados, criterios satisfechos, gates
+con resultado, número de PR, riesgos y decisiones humanas necesarias. Sin
+confirmaciones intermedias.
 ```
 
 ## 3. Plantilla de corrección de defecto

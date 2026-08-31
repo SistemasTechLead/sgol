@@ -10,6 +10,8 @@ No implementes funciones posteriores, opcionales o fuera de alcance. El MVP se l
 
 Si una instrucción contradice un entregable aprobado, no elijas silenciosamente: detén esa parte, cita la contradicción y solicita decisión. Distingue entre hecho documentado, inferencia, propuesta, pregunta y decisión aprobada, y conserva literalmente los identificadores estables.
 
+Para el cierre de tareas, aplica la enmienda específica `F07_ENMIENDA_001_CIERRE_DE_TAREA_EN_UN_PR.md`. Conserva sin cambios el documento histórico `F07_DEFINICIONES_DE_CONTROL.md` y su copia en `Fuentes/`.
+
 ## Protección de `Fuentes`
 
 `Fuentes/` es de solo lectura lógica. No renombres, muevas, sobrescribas, elimines ni generes archivos dentro de ella. No uses `Fuentes/` como salida de compilación, prueba, migración o ejecución. No abras ni ejecutes macros. La incorporación documental posterior a una aprobación no forma parte de una tarea de código ordinaria.
@@ -69,6 +71,15 @@ No registres secretos, contraseñas, TOTP, códigos de recuperación, cookies, U
 5. Actualiza trazabilidad y documentación afectadas en el mismo cambio.
 6. Ejecuta los gates aplicables y reporta comandos, resultados y límites no comprobados.
 
+## Cierre de tarea en un pull request
+
+1. Incluye la implementación y la actualización de `docs/traceability/IMPLEMENTATION_STATUS.md` en el mismo commit y pull request.
+2. En la rama del PR, el registro es una propuesta: no declara la tarea Terminada ni habilita dependencias.
+3. Usa el commit que contiene la implementación y el registro, el PR y sus checks como evidencia primaria. Si el registro viaja en ese mismo commit, identifícalo como `commit que contiene esta actualización`; no intentes escribir un SHA autorreferencial. El hash de merge y el número de run son complementarios y no bloqueantes.
+4. Requiere un pipeline válido sobre el commit exacto, una aprobación humana y un merge a `master`.
+5. Sólo después del merge, y si el registro y el commit implementado pertenecen a la historia de `master`, la tarea queda Terminada.
+6. No abras otro PR ni generes un commit automático únicamente para completar el hash de merge o el número de run.
+
 No inventes campos, estados, permisos, endpoints o reglas. Una ausencia documental no autoriza una decisión. Las correcciones de defectos no amplían alcance.
 
 Trabaja en entregables pequeños, verificables y trazables. No declares terminada una fase si faltan entregables o existen bloqueos críticos. Si la fase está bloqueada, enumera lo necesario para desbloquearla y no indiques que se puede avanzar. Responde en español.
@@ -97,6 +108,6 @@ Además ejecuta las pruebas específicas de arquitectura, API/contrato, segurida
 
 ## Entrega
 
-La respuesta final debe indicar: resultado concreto, archivos cambiados, criterios satisfechos, pruebas ejecutadas con resultado, trazabilidad actualizada, riesgos o pendientes y cualquier decisión humana necesaria. No declares la historia terminada si la Definición de Terminado de F07 no se cumple.
+La respuesta final debe indicar: resultado concreto, archivos cambiados, criterios satisfechos, pruebas ejecutadas con resultado, trazabilidad actualizada, riesgos o pendientes y cualquier decisión humana necesaria. No declares la historia terminada si la Definición de Terminado de F07 y la condición de merge de `F07_ENMIENDA_001_CIERRE_DE_TAREA_EN_UN_PR.md` no se cumplen.
 
 Al cerrar una fase documental, genera sus documentos finales en Markdown fuera de `Fuentes/`, solicita su aprobación e incorporación conforme al plan y entrega el nombre exacto del siguiente chat con un mensaje listo para copiar y pegar.

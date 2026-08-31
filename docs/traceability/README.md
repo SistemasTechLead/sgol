@@ -2,7 +2,7 @@
 
 Este directorio registra el mapeo verificable entre identificadores aprobados, criterios y pruebas o comandos. Una fila sólo declara la evidencia indicada; no implica cobertura funcional adicional.
 
-El estado aceptado para el inicio incremental del siguiente chat se mantiene en [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). Ese archivo evita revalidar tareas cerradas cuando su commit permanece en la ascendencia del checkout, sin sustituir los gates de salida de la tarea actual.
+El estado aceptado para el inicio incremental del siguiente chat se mantiene en [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). Ese archivo evita revalidar tareas cerradas cuando su commit permanece en la ascendencia del checkout, sin sustituir los gates de salida de la tarea actual. Su cierre en un único pull request se rige por `F07_ENMIENDA_001_CIERRE_DE_TAREA_EN_UN_PR.md`: el registro preparado en una rama sólo adquiere eficacia cuando él y el commit implementado están en `master` y se conservan los checks y la aprobación requeridos.
 
 La plantilla reutilizable para registrar una ejecución sin datos sensibles está en [`TEST_EVIDENCE_TEMPLATE.md`](TEST_EVIDENCE_TEMPLATE.md).
 
