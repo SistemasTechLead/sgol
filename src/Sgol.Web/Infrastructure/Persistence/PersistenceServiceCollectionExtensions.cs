@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Sgol.Web.Infrastructure.Persistence.Auditing;
 
 namespace Sgol.Web.Infrastructure.Persistence;
 
@@ -23,6 +24,7 @@ public static class PersistenceServiceCollectionExtensions
                 connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(SgolDbContext).Assembly.FullName));
         });
+        services.AddScoped<AuditTransaction>();
 
         return services;
     }
