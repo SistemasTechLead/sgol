@@ -86,6 +86,8 @@ dotnet format --verify-no-changes
 
 Además ejecuta las pruebas específicas de arquitectura, PostgreSQL, API/contrato, seguridad o navegador exigidas por la historia. Un gate omitido debe quedar marcado como no verificado y con causa; no lo presentes como aprobado.
 
+En Codex, si un gate de PostgreSQL real o Testcontainers necesita Docker, ejecútalo directamente con autorización fuera del aislamiento. En este equipo `docker.exe` está instalado en `C:\Users\loret\AppData\Local\Programs\DockerDesktop\resources\bin` y el cliente/servidor funcionan fuera del sandbox; un error `Acceso denegado` dentro del sandbox se considera aislamiento de Codex. No repitas comprobaciones de `PATH`, `Path` persistente ni existencia del ejecutable antes del gate, y no modifiques variables de entorno para intentar resolverlo.
+
 ## Entrega
 
 La respuesta final debe indicar: resultado concreto, archivos cambiados, criterios satisfechos, pruebas ejecutadas con resultado, trazabilidad actualizada, riesgos o pendientes y cualquier decisión humana necesaria. No declares la historia terminada si la Definición de Terminado de F07 no se cumple.
