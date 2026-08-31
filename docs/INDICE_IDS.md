@@ -311,3 +311,4 @@ El índice apunta a la definición canónica de cada identificador, no a sus men
 | `TECH-INIT-001` | `F07_BACKLOG_DE_IMPLEMENTACION.md` | 52 | 52 |
 | `TECH-JOBS-001` | `F07_BACKLOG_DE_IMPLEMENTACION.md` | 121 | 121 |
 | `TECH-OPS-001` | `F07_BACKLOG_DE_IMPLEMENTACION.md` | 122 | 122 |
+| `TOOL-FLOW-001` | `F07_ENMIENDA_001_CIERRE_DE_TAREA_EN_UN_PR.md` | 7 | 7 |
