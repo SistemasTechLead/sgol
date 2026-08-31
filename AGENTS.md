@@ -14,7 +14,13 @@ Si una instrucción contradice un entregable aprobado, no elijas silenciosamente
 
 `Fuentes/` es de solo lectura lógica. No renombres, muevas, sobrescribas, elimines ni generes archivos dentro de ella. No uses `Fuentes/` como salida de compilación, prueba, migración o ejecución. No abras ni ejecutes macros. La incorporación documental posterior a una aprobación no forma parte de una tarea de código ordinaria.
 
-Las fuentes se consultan directamente en su ubicación actual. No busques, abras, generes ni descomprimas archivos ZIP; no cambies rutas ni modifiques originales. Ignora archivos temporales como los que comienzan con `~$` y no revivas anomalías de versiones anteriores ya corregidas.
+No busques, abras, generes ni descomprimas archivos ZIP; no cambies rutas ni modifiques originales. Ignora archivos temporales como los que comienzan con `~$` y no revivas anomalías de versiones anteriores ya corregidas.
+
+## Localización de contexto
+
+- Para localizar un identificador, consulta primero `docs/INDICE_IDS.md` y lee únicamente el rango de líneas indicado.
+- No ejecutes búsquedas recursivas sobre `Fuentes/`, `bin/`, `obj/`, `.vs/` ni sobre archivos `.xlsx` o `.xlsm`. Los binarios de Excel no se abren ni se convierten.
+- Durante el desarrollo lee las copias de la raíz; `Fuentes/` conserva el original congelado y `scripts/ci/verify-fuentes-mirror.ps1` comprueba su equivalencia.
 
 ## Arquitectura obligatoria
 
