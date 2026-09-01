@@ -1,0 +1,15 @@
+@model ProblemDetailsPresentation
+<div class="alerta alerta--peligro" role="alert">
+    <span class="alerta__icono" aria-hidden="true">!</span>
+    <div class="alerta__contenido">
+        <p class="alerta__titulo">@Model.Title</p>
+        <p class="alerta__texto">@Model.Message</p>
+        @if (!string.IsNullOrWhiteSpace(Model.CorrelationId))
+        {
+            <details class="alerta__detalle">
+                <summary>Ver detalles técnicos</summary>
+                <code>Identificador: @Model.CorrelationId</code>
+            </details>
+        }
+    </div>
+</div>

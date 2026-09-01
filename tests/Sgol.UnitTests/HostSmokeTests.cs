@@ -38,6 +38,18 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Theory]
+    [InlineData("/css/tokens.css", "--color-acento")]
+    [InlineData("/css/components.css", ".navegacion-lateral__item")]
+    public async Task SharedInterfaceStyles_AreServed(string path, string expectedContract)
+    {
+        var response = await _client.GetAsync(path);
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(expectedContract, content, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("/bootstrap")]
     [InlineData("/api/v1/bootstrap")]
     [InlineData("/api/v1/auth/bootstrap")]

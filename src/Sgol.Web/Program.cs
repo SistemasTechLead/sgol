@@ -19,6 +19,7 @@ builder.Services.AddSgolPersistence(builder.Configuration);
 var app = builder.Build();
 
 app.UseSgolHttpPrimitives();
+app.UseStaticFiles();
 
 app.MapGet("/health/live", (HttpContext context) => Results.Ok(new
 {

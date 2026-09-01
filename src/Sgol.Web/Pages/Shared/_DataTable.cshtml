@@ -1,0 +1,43 @@
+@model DataTableViewModel
+<div class="tabla-contenedor">
+    <table class="tabla">
+        <caption>@Model.Caption</caption>
+        <thead class="tabla__encabezado">
+            <tr>
+                @foreach (var header in Model.Headers)
+                {
+                    <th scope="col">@header</th>
+                }
+            </tr>
+        </thead>
+        @if (Model.IsLoading)
+        {
+            <tbody class="tabla__cuerpo tabla__cuerpo--cargando" aria-busy="true" aria-live="polite">
+                @for (var row = 0; row < 3; row++)
+                {
+                    <tr class="tabla__fila-esqueleto">
+                        <td colspan="@Model.Headers.Count"><span class="esqueleto"></span></td>
+                    </tr>
+                }
+            </tbody>
+        }
+        else
+        {
+            <tbody class="tabla__cuerpo">
+                @foreach (var row in Model.Rows)
+                {
+                    <tr class="tabla__fila">
+                        @foreach (var cell in row)
+                        {
+                            <td>@cell</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        }
+    </table>
+    @if (!Model.IsLoading && Model.Rows.Count == 0 && Model.EmptyState is not null)
+    {
+        <partial name="_EmptyState" model="Model.EmptyState" />
+    }
+</div>

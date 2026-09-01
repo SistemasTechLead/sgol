@@ -1,0 +1,49 @@
+@model FormFieldViewModel
+@{
+    var hasError = !string.IsNullOrWhiteSpace(Model.ErrorMessage);
+    var errorId = $"{Model.Id}-error";
+    var fieldClass = hasError ? "campo campo--error" : "campo";
+}
+<label class="@fieldClass" for="@Model.Id">
+    <span class="campo__etiqueta">@Model.Label</span>
+    @if (Model.Options is null)
+    {
+        <input id="@Model.Id"
+               name="@Model.Id"
+               class="campo__control"
+               type="text"
+               value="@Model.Value"
+               disabled="@Model.IsDisabled"
+               aria-invalid="@hasError.ToString().ToLowerInvariant()"
+               aria-describedby="@(hasError ? errorId : null)" />
+    }
+    else
+    {
+        <select id="@Model.Id"
+                name="@Model.Id"
+                class="campo__control campo__control--select"
+                disabled="@(Model.IsDisabled || Model.IsLoading)"
+                aria-busy="@Model.IsLoading.ToString().ToLowerInvariant()"
+                aria-invalid="@hasError.ToString().ToLowerInvariant()"
+                aria-describedby="@(hasError ? errorId : null)">
+            @if (Model.IsLoading)
+            {
+                <option selected>Cargando…</option>
+            }
+            else
+            {
+                @foreach (var option in Model.Options)
+                {
+                    <option value="@option.Value" selected="@option.IsSelected">@option.Label</option>
+                }
+            }
+        </select>
+    }
+    @if (hasError)
+    {
+        <span id="@errorId" class="campo__mensaje-error">
+            <span aria-hidden="true">!</span>
+            @Model.ErrorMessage
+        </span>
+    }
+</label>
