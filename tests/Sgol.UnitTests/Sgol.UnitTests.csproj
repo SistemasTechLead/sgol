@@ -13,6 +13,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Organization\Sgol.Organization.csproj" />
     <ProjectReference Include="..\..\src\Sgol.Web\Sgol.Web.csproj" />
   </ItemGroup>
 </Project>

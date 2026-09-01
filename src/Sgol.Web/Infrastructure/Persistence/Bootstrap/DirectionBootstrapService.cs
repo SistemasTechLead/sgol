@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Sgol.Organization.Contracts;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Sgol.BuildingBlocks.Identifiers;
@@ -83,7 +84,7 @@ public sealed class DirectionBootstrapService(
             Action = "DIRECTION_BOOTSTRAP_COMPLETED",
             ResourceType = "APP_USER",
             ResourceId = userId,
-            BranchId = BootstrapContract.LorettaBranchId,
+            BranchId = BranchScope.LorettaId,
             CorrelationId = uuidGenerator.NewUuid(),
             AfterData = afterData,
             Outcome = "SUCCESS",
@@ -113,7 +114,7 @@ public sealed class DirectionBootstrapService(
                     {
                         Id = uuidGenerator.NewUuid(),
                         PersonId = personId,
-                        BranchId = BootstrapContract.LorettaBranchId,
+                        BranchId = BranchScope.LorettaId,
                         Status = BootstrapContract.ActivePersonStatus,
                         ValidFrom = now,
                         RowVersion = 1,
@@ -124,7 +125,7 @@ public sealed class DirectionBootstrapService(
                     {
                         Id = roleAssignmentId,
                         UserId = userId,
-                        BranchId = BootstrapContract.LorettaBranchId,
+                        BranchId = BranchScope.LorettaId,
                         RoleCode = BootstrapContract.DirectionRoleCode,
                         Status = BootstrapContract.ActiveRoleStatus,
                         ValidFrom = now,

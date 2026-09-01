@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
@@ -7,6 +8,8 @@ namespace Sgol.Web.Infrastructure.Persistence;
 public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbContext(options)
 {
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+
+    public DbSet<Branch> Branches => Set<Branch>();
 
     public DbSet<Person> People => Set<Person>();
 

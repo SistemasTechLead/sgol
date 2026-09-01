@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Modules/Organization/Sgol.Organization.csproj" />
     <Project Path="src/Sgol.Admin/Sgol.Admin.csproj" />
     <Project Path="src/Sgol.BuildingBlocks/Sgol.BuildingBlocks.csproj" />
     <Project Path="src/Sgol.Web/Sgol.Web.csproj" />

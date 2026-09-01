@@ -1,0 +1,56 @@
+@page "/branches/{branchCode}"
+@model Sgol.Web.Pages.Branches.DetailsModel
+@{
+    ViewData["Title"] = "Sucursal Loretta";
+}
+
+<header class="encabezado-pagina">
+    <p class="encabezado-pagina__contexto">Organización</p>
+    <h1 class="encabezado-pagina__titulo">Sucursal Loretta</h1>
+    <p class="encabezado-pagina__descripcion">Alcance operativo único del MVP de SGOL.</p>
+</header>
+
+@if (Model.Error is not null)
+{
+    <partial name="_ProblemAlert" model="Model.Error" />
+}
+else if (Model.IsLoading)
+{
+    <table class="tabla">
+        <caption>Sucursal reconocida</caption>
+        <thead class="tabla__encabezado">
+            <tr><th scope="col">Código</th><th scope="col">Nombre</th><th scope="col">Estado</th><th scope="col">Zona horaria</th></tr>
+        </thead>
+        <tbody class="tabla__cuerpo tabla__cuerpo--cargando" aria-busy="true" aria-live="polite">
+            <tr class="tabla__fila-esqueleto"><td colspan="4"><span class="esqueleto"></span></td></tr>
+        </tbody>
+    </table>
+}
+else if (Model.Branch is not null)
+{
+    <div class="tabla-contenedor" aria-live="polite">
+        <table class="tabla">
+            <caption>Sucursal reconocida</caption>
+            <thead class="tabla__encabezado">
+                <tr>
+                    <th scope="col">Código</th>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Zona horaria</th>
+                </tr>
+            </thead>
+            <tbody class="tabla__cuerpo">
+                <tr class="tabla__fila">
+                    <td><code>@Model.Branch.Code</code></td>
+                    <td>@Model.Branch.Name</td>
+                    <td><partial name="_StatusBadge" model="Model.ActiveBadge" /></td>
+                    <td>@Model.Branch.TimeZone</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+}
+else if (Model.EmptyState is not null)
+{
+    <partial name="_EmptyState" model="Model.EmptyState" />
+}

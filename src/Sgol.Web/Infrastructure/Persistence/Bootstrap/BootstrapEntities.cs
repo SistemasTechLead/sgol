@@ -2,26 +2,10 @@ namespace Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
 public static class BootstrapContract
 {
-    public static readonly Guid LorettaBranchId = Guid.Parse("019d2d67-2c00-7000-8000-000000000001");
-
-    public const string LorettaBranchCode = "LOR-001";
     public const string DirectionRoleCode = "DIRECCION";
     public const string ActivePersonStatus = "ACTIVA";
     public const string ActiveAccountStatus = "ACTIVA";
     public const string ActiveRoleStatus = "ACTIVO";
-}
-
-public sealed class Branch
-{
-    public Guid Id { get; init; }
-
-    public required string Code { get; init; }
-
-    public required string Name { get; init; }
-
-    public required string Status { get; init; }
-
-    public required string TimeZone { get; init; }
 }
 
 public sealed class Person

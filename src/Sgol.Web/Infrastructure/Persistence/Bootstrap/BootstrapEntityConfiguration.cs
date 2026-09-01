@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Sgol.Organization.Contracts;
 
 namespace Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
@@ -15,13 +16,16 @@ internal sealed class BranchConfiguration : IEntityTypeConfiguration<Branch>
         builder.Property(branch => branch.Status).HasColumnName("status");
         builder.Property(branch => branch.TimeZone).HasColumnName("timezone");
         builder.HasIndex(branch => branch.Code).IsUnique();
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_branch_mvp_code",
+            "code = 'LOR-001'"));
         builder.HasData(new Branch
         {
-            Id = BootstrapContract.LorettaBranchId,
-            Code = BootstrapContract.LorettaBranchCode,
-            Name = "Loretta",
-            Status = "ACTIVA",
-            TimeZone = "America/Mexico_City",
+            Id = BranchScope.LorettaId,
+            Code = BranchScope.LorettaCode,
+            Name = BranchScope.LorettaName,
+            Status = BranchScope.ActiveStatus,
+            TimeZone = BranchScope.TimeZone,
         });
     }
 }

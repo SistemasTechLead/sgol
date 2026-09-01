@@ -20,6 +20,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string InitialMigrationId = "20260827000000_InitializePersistence";
     private const string AuditMigrationId = "20260831192942_AddAuditEvent";
     private const string BootstrapMigrationId = "20260901190333_AddDirectionBootstrap";
+    private const string BranchScopeMigrationId = "20260901223021_EnforceLorettaBranchScope";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -27,7 +28,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     public async Task DisposeAsync() => await _postgres.DisposeAsync();
 
     [Fact]
-    public async Task Migrations_CreateOnlyTheApprovedTechnicalAndBootstrapTables()
+    public async Task Migrations_CreateOnlyTheApprovedTables()
     {
         await using var factory = CreateFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -38,7 +39,9 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
         await context.Database.OpenConnectionAsync();
 
         var appliedMigrations = await context.Database.GetAppliedMigrationsAsync();
-        Assert.Equal([InitialMigrationId, AuditMigrationId, BootstrapMigrationId], appliedMigrations);
+        Assert.Equal(
+            [InitialMigrationId, AuditMigrationId, BootstrapMigrationId, BranchScopeMigrationId],
+            appliedMigrations);
 
         await using var command = context.Database.GetDbConnection().CreateCommand();
         command.CommandText =
