@@ -20,6 +20,19 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 Mientras este archivo permanezca fuera de `master`, la tabla anterior es una propuesta y `TOOL-PLAN-004` no está Terminada. Al cumplirse las condiciones de eficacia indicadas al inicio, los valores autorreferenciales se resuelven con el PR, sus checks y la historia Git sin reescribir el documento.
 
+## Rebaselización excepcional de fuente
+
+| Campo | Valor |
+|---|---|
+| Archivo | `Fuentes/SGOL v2.0 Sistema de Gestion Operativa Loretta - S050_BKP_PRE_NORMALIZACION_V1.xlsm` |
+| Motivo | Guardado accidental informado por el responsable; se autoriza que el archivo resultante sea la nueva fuente |
+| Blob Git anterior | `07688ab93b219317118099e1954ad2715d1004f8` |
+| SHA-256 aceptado | `77C6761B9FF4F390A2D19AE9CBEAA66CF67B2992C3C3340F39372E46229FD302` |
+| Aprobación humana | Recibida el 2026-09-01 en la solicitud de rebaselización |
+| Eficacia | Propuesta en esta rama; efectiva sólo cuando el archivo, el manifiesto y el verificador estén incorporados juntos en `master` con el check requerido aprobado |
+
+La excepción comprueba una sola transición desde el blob anterior al contenido aceptado. Después de su incorporación no autoriza otro guardado del libro ni modifica la regla general de sólo lectura lógica de `Fuentes/`.
+
 ## Tareas insertadas por adenda
 
 Esta tabla forma parte de la comprobación de precedencia obligatoria antes de iniciar cualquier tarea. Una tarea con estado distinto de `Terminada` bloquea la tarea indicada en `Ejecutar antes de` y toda historia posterior que dependa de esa precedencia.

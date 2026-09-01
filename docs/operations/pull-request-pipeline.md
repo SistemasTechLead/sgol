@@ -7,7 +7,7 @@ El workflow `.github/workflows/pull-request.yml` se ejecuta exclusivamente para 
 Los pasos tienen nombres independientes para que GitHub identifique el gate que falla:
 
 1. checkout completo sin credenciales persistentes;
-2. rechazo de cualquier cambio entre base y cabeza del PR dentro de `Fuentes/`;
+2. rechazo de cualquier cambio entre base y cabeza del PR dentro de `Fuentes/`, salvo la transición excepcional, exacta y de un solo uso registrada en `scripts/ci/fuentes-approved-rebaseline.json`;
 3. escaneo de secretos sobre el árbol y los commits del PR con salida redactada;
 4. SDK .NET exactamente `10.0.400`;
 5. `dotnet restore --locked-mode`;
@@ -17,6 +17,8 @@ Los pasos tienen nombres independientes para que GitHub identifique el gate que 
 9. consulta de paquetes NuGet directos y transitivos contra vulnerabilidades conocidas. Cualquier hallazgo falla mientras no exista un tratamiento explícitamente aprobado.
 
 La prueba de integración conserva la imagen PostgreSQL fijada por `TECH-BASE-002`, genera su credencial en memoria y elimina el contenedor al terminar. No se admite SQLite ni un mock como sustituto.
+
+La excepción de rebaselización sólo acepta `Fuentes/SGOL v2.0 Sistema de Gestion Operativa Loretta - S050_BKP_PRE_NORMALIZACION_V1.xlsm` cuando el PR parte del blob Git anterior `07688ab93b219317118099e1954ad2715d1004f8` y llega exactamente al SHA-256 `77C6761B9FF4F390A2D19AE9CBEAA66CF67B2992C3C3340F39372E46229FD302`. Una vez incorporada esa transición, el blob base deja de ser el anterior y la excepción no puede reutilizarse; cualquier modificación posterior vuelve a ser rechazada.
 
 Las pruebas de arquitectura de `TECH-BASE-004` recorren los proyectos y fuentes bajo `src/` y emiten diagnósticos `ARCH-001` a `ARCH-004`: aislamiento de `Domain`, hosts Web/Worker sin reglas de negocio, ausencia de acceso a la implementación interna de otro módulo y dirección de dependencias de `Sgol.BuildingBlocks`. Un escenario sintético prohibido comprueba que las cuatro reglas detectan y nombran la infracción. La plantilla `docs/traceability/TEST_EVIDENCE_TEMPLATE.md` también se valida dentro de `dotnet test`, por lo que el mismo gate protege sus campos mínimos y advertencias de seguridad.
 

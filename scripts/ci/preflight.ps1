@@ -1,7 +1,11 @@
 $headValue = git rev-parse HEAD
 $branchValue = git branch --show-current
 $treeCleanValue = [string]::IsNullOrEmpty((git status --porcelain))
-$fuentesCleanValue = [string]::IsNullOrEmpty((git status --porcelain -- Fuentes))
+$fuentesVerification = @(& (Join-Path $PSScriptRoot 'verify-fuentes-protection.ps1') 2>&1)
+$fuentesCleanValue = $LASTEXITCODE -eq 0
+$fuentesRebaselinePendingValue = @($fuentesVerification | Where-Object {
+    $_.ToString() -match '^PASS_REBASELINE_PENDING:'
+}).Count -gt 0
 $dotnetVersionValue = dotnet --version
 $ghCommand = Get-Command gh -ErrorAction SilentlyContinue
 
@@ -17,5 +21,6 @@ Write-Output "head=$headValue"
 Write-Output "branch=$branchValue"
 Write-Output "treeClean=$($treeCleanValue.ToString().ToLowerInvariant())"
 Write-Output "fuentesClean=$($fuentesCleanValue.ToString().ToLowerInvariant())"
+Write-Output "fuentesRebaselinePending=$($fuentesRebaselinePendingValue.ToString().ToLowerInvariant())"
 Write-Output "dotnetVersion=$dotnetVersionValue"
 Write-Output "ghSession=$ghSessionValue"

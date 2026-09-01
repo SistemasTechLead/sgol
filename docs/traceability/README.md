@@ -14,7 +14,7 @@ La plantilla reutilizable para registrar una ejecución sin datos sensibles est�
 | INIT-CA-004 | Host inicia y vida responde sin dependencias externas | `Sgol.UnitTests.HostSmokeTests.LiveEndpoint_ReturnsSuccessWithoutBusinessData` |
 | INIT-CA-005 | `Sgol.BuildingBlocks` no depende de `Sgol.Web` | `Sgol.ArchitectureTests.BuildingBlocksDependencyTests.BuildingBlocks_DoesNotDependOnWeb` |
 | INIT-CA-006 | Sin función, tabla, secreto ni dependencia no justificada | Revisión de diff y proyectos; `dotnet format --verify-no-changes` |
-| INIT-CA-007 | `Fuentes/` permanece sin cambios y no es salida | `git diff -- Fuentes`; comparación de inventario SHA-256 antes/después |
+| INIT-CA-007 | `Fuentes/` permanece sin cambios y no es salida, salvo una rebaselización explícita y exacta | `scripts/ci/verify-fuentes-protection.ps1`; transición de un solo uso registrada en `scripts/ci/fuentes-approved-rebaseline.json` |
 | INIT-CA-008 | Requisitos y operación local no secreta documentados | `README.md` |
 | TECH-BASE-002 | PostgreSQL real local/CI aislado y primera conexión | `Sgol.IntegrationTests.PostgreSqlPersistenceTests.EmptyMigration_ConnectsToPostgreSql_WithoutFunctionalTables`; `docs/operations/postgresql-local.md` |
 | TECH-BASE-002 | Migración vacía, versionada, repetible y sin tablas funcionales | `20260827000000_InitializePersistence`; la prueba aplica la migración dos veces y comprueba que sólo existe `__EFMigrationsHistory` |

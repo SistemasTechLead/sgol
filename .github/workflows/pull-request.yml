@@ -25,17 +25,11 @@ jobs:
           persist-credentials: false
 
       - name: Protect Fuentes
-        shell: bash
+        shell: pwsh
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          if ! git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- Fuentes/; then
-            echo "::error::Fuentes/ is protected and must not change in a pull request."
-            git diff --name-status "$BASE_SHA" "$HEAD_SHA" -- Fuentes/
-            exit 1
-          fi
-          echo "PASS: Fuentes/ has no changes in this pull request."
+        run: ./scripts/ci/verify-fuentes-protection.ps1 -BaseSha $env:BASE_SHA -HeadSha $env:HEAD_SHA
 
       - name: Scan secrets with pinned Gitleaks
         shell: bash
