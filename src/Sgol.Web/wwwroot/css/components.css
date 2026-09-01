@@ -10,6 +10,31 @@ body {
     min-height: 100%;
 }
 
+.encabezado-pagina {
+    display: grid;
+    gap: var(--espacio-8);
+    margin-bottom: var(--espacio-32);
+}
+
+.encabezado-pagina__contexto,
+.encabezado-pagina__titulo,
+.encabezado-pagina__descripcion {
+    margin: 0;
+}
+
+.encabezado-pagina__contexto {
+    color: var(--color-texto-secundario);
+    font: var(--tipografia-pequena);
+}
+
+.encabezado-pagina__titulo {
+    font: var(--tipografia-titulo);
+}
+
+.encabezado-pagina__descripcion {
+    color: var(--color-texto-secundario);
+}
+
 body {
     color: var(--color-texto-primario);
     background: var(--color-superficie);
@@ -292,6 +317,20 @@ summary:focus-visible {
 
 .tabla__fila:hover {
     background: var(--color-superficie-elevada);
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--espacio-4);
+    padding: var(--espacio-4) var(--espacio-8);
+    border-radius: var(--radio-pastilla);
+    font: var(--tipografia-pequena);
+}
+
+.badge--exito {
+    color: var(--color-exito);
+    background: var(--color-exito-fondo);
 }
 
 .esqueleto {

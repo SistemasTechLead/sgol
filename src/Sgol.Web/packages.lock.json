@@ -194,6 +194,9 @@
       "sgol.buildingblocks": {
         "type": "Project"
       },
+      "sgol.organization": {
+        "type": "Project"
+      },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",
         "requested": "[10.0.11, )",

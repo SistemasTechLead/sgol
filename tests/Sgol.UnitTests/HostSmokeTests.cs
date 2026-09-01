@@ -60,6 +60,15 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task BranchApi_RequiresAnAuthenticatedSession()
+    {
+        using var response = await _client.GetAsync("/api/v1/branches/LOR-001");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
     private sealed record LiveResponse(string Status, ResponseMeta Meta);
 
     private sealed record ResponseMeta(string CorrelationId);

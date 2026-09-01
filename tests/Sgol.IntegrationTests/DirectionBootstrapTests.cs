@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Testcontainers.PostgreSql;
@@ -42,7 +43,7 @@ public sealed class DirectionBootstrapTests : IAsyncLifetime
 
         Assert.Equal(result.PersonId, person.Id);
         Assert.Equal(BootstrapContract.ActivePersonStatus, employment.Status);
-        Assert.Equal(BootstrapContract.LorettaBranchId, employment.BranchId);
+        Assert.Equal(BranchScope.LorettaId, employment.BranchId);
         Assert.Equal(result.UserId, user.Id);
         Assert.Equal(BootstrapContract.ActiveAccountStatus, user.Status);
         Assert.True(user.MustChangePassword);
@@ -147,8 +148,8 @@ public sealed class DirectionBootstrapTests : IAsyncLifetime
         await ResetDatabaseAsync(context);
 
         Assert.Equal(
-            BootstrapContract.LorettaBranchCode,
-            await context.Set<Branch>().Select(branch => branch.Code).SingleAsync());
+            BranchScope.LorettaCode,
+            await context.Branches.Select(branch => branch.Code).SingleAsync());
         Assert.False(await context.DirectionBootstrapMarkers.AnyAsync());
         Assert.False(await context.People.AnyAsync());
         Assert.False(await context.EmploymentVersions.AnyAsync());

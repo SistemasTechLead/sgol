@@ -540,11 +540,15 @@
       "sgol.buildingblocks": {
         "type": "Project"
       },
+      "sgol.organization": {
+        "type": "Project"
+      },
       "sgol.web": {
         "type": "Project",
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "Sgol.BuildingBlocks": "[1.0.0, )"
+          "Sgol.BuildingBlocks": "[1.0.0, )",
+          "Sgol.Organization": "[1.0.0, )"
         }
       },
       "Microsoft.EntityFrameworkCore": {

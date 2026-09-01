@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Console;
 using Sgol.Web.Infrastructure.Http;
 using Sgol.Web.Infrastructure.Persistence;
+using Sgol.Web.Presentation.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +28,7 @@ app.MapGet("/health/live", (HttpContext context) => Results.Ok(new
     meta = new { correlationId = context.GetCorrelationId() }
 }));
 app.MapRazorPages();
+app.MapBranchApi();
 
 app.Run();
 
