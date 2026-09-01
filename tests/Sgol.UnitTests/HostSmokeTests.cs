@@ -37,6 +37,17 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(payload?.Meta.CorrelationId, Assert.Single(values));
     }
 
+    [Theory]
+    [InlineData("/bootstrap")]
+    [InlineData("/api/v1/bootstrap")]
+    [InlineData("/api/v1/auth/bootstrap")]
+    public async Task PublicBootstrapEndpoint_DoesNotExist(string path)
+    {
+        using var response = await _client.PostAsync(path, content: null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private sealed record LiveResponse(string Status, ResponseMeta Meta);
 
     private sealed record ResponseMeta(string CorrelationId);

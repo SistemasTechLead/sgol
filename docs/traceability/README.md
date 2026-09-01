@@ -33,5 +33,11 @@ La plantilla reutilizable para registrar una ejecución sin datos sensibles est�
 | TECH-BASE-005 | Errores usan Problem Details correlacionado sin exponer secretos | `Sgol.UnitTests.HttpPrimitiveTests.MissingRoute_ReturnsProblemDetailsWithCorrelationId`; `Sgol.UnitTests.HttpPrimitiveTests.UnhandledError_DoesNotExposeSecretInProblemDetailsOrLogs` |
 | TECH-BASE-005 / NFR-010 | El reloj compartido expone instantes UTC | `Sgol.BuildingBlocks.Time`; `Sgol.UnitTests.PrimitiveTests.ClockPort_AllowsDeterministicTime` |
 | TECH-BASE-005 | Logs JSON minimizados y contrato operativo documentado | `docs/operations/http-primitives.md`; revisión de `Sgol.Web.Infrastructure.Http` |
+| TECH-ID-BOOT-001 / F07-JP-001 | Primera persona, cuenta activa y rol `DIRECCION` se crean con auditoría en una transacción | `DirectionBootstrapTests.InitialExecution_CreatesActiveDirectionIdentityAndAuditInOneTransaction` |
+| TECH-ID-BOOT-001 / F07-JP-001 | Segunda ejecución rechazada permanentemente por integridad PostgreSQL y sin efectos | `DirectionBootstrapTests.SecondExecution_IsPermanentlyRejectedWithoutAdditionalEffects`; PK/check de `direction_bootstrap` |
+| TECH-ID-BOOT-001 / F07-JP-001 | Fallo en persona, cuenta, rol o auditoría revierte toda la creación | `DirectionBootstrapTests.FailureInAnyCreationOrAuditStep_RollsBackEverything` |
+| TECH-ID-BOOT-001 / F07-JP-001 | Primer acceso conserva cambio de contraseña y enrolamiento TOTP pendientes | `must_change_password=true`; `mfa_enrolled_at IS NULL`; prueba positiva de bootstrap |
+| TECH-ID-BOOT-001 / F07-JP-001 | Secreto efímero ausente de texto persistido, auditoría y errores | `DirectionBootstrapTests.Secret_IsAbsentFromErrorsAuditAndPersistedPlainText`; `DirectionBootstrapInput.ToString`; salida genérica de `Sgol.Admin` |
+| TECH-ID-BOOT-001 / F07-JP-001 | Sin endpoint público, cuenta predeterminada ni datos funcionales precargados | `HostSmokeTests.PublicBootstrapEndpoint_DoesNotExist`; `DirectionBootstrapTests.Migration_DoesNotPreloadAnAccountRoleOrFunctionalData` |
 
 Los resultados de cada ejecución se reportan en la entrega de la tarea; este archivo conserva el formato y la relación estable, no un estado transitorio de ejecución.

@@ -19,14 +19,15 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
 {
     private const string InitialMigrationId = "20260827000000_InitializePersistence";
     private const string AuditMigrationId = "20260831192942_AddAuditEvent";
-    private readonly PostgreSqlContainer _postgres = CreateContainer();
+    private const string BootstrapMigrationId = "20260901190333_AddDirectionBootstrap";
+    private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
 
     public async Task DisposeAsync() => await _postgres.DisposeAsync();
 
     [Fact]
-    public async Task AuditMigration_CreatesOnlyTheApprovedTechnicalTable()
+    public async Task Migrations_CreateOnlyTheApprovedTechnicalAndBootstrapTables()
     {
         await using var factory = CreateFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -37,7 +38,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
         await context.Database.OpenConnectionAsync();
 
         var appliedMigrations = await context.Database.GetAppliedMigrationsAsync();
-        Assert.Equal([InitialMigrationId, AuditMigrationId], appliedMigrations);
+        Assert.Equal([InitialMigrationId, AuditMigrationId, BootstrapMigrationId], appliedMigrations);
 
         await using var command = context.Database.GetDbConnection().CreateCommand();
         command.CommandText =
@@ -51,7 +52,19 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
             tables.Add(reader.GetString(0));
         }
 
-        Assert.Equal(["__EFMigrationsHistory", "audit_event"], tables);
+        Assert.Equal(
+            [
+                "__EFMigrationsHistory",
+                "app_user",
+                "audit_event",
+                "branch",
+                "direction_bootstrap",
+                "employment_version",
+                "identity_credential",
+                "person",
+                "role_assignment_version",
+            ],
+            tables);
     }
 
     [Fact]
@@ -239,7 +252,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
         return (bool)(await command.ExecuteScalarAsync() ?? false);
     }
 
-    private static PostgreSqlContainer CreateContainer()
+    internal static PostgreSqlContainer CreateContainerForTests()
     {
         var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
 

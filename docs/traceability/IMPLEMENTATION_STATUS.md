@@ -4,6 +4,23 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 En una rama de pull request, la sección siguiente es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
+## Propuesta actual en rama
+
+| Campo | Valor |
+|---|---|
+| Tarea | `TECH-ID-BOOT-001` — bootstrap controlado y de un solo uso de la primera cuenta `DIRECCION` |
+| Estado | Propuesta implementada en rama; no `Terminada` |
+| Dependencias aceptadas | `TECH-BASE-002`, `TECH-BASE-005`, `TECH-AUD-001`; decisión `F07-JP-001` |
+| Pull request | PR que incorpora esta actualización |
+| Commit implementado | Commit que contiene esta actualización |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
+| Aceptación humana | Pendiente de revisión de implementación |
+| Commit incorporado en `master` | Pendiente de merge |
+| `Fuentes/` | Protección requerida en los checks del PR |
+| Siguiente tarea propuesta | `TECH-UI-001` — no iniciar hasta que esta propuesta cumpla pipeline, revisión humana y merge |
+
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `TECH-ID-BOOT-001` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
 ## Base aceptada
 
 | Campo | Valor |
