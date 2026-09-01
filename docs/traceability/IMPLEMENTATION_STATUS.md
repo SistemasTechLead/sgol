@@ -8,34 +8,34 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `TECH-ID-BOOT-001` — bootstrap controlado y de un solo uso de la primera cuenta `DIRECCION` |
+| Tarea | `TECH-UI-001` — Base de interfaz compartida |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `TECH-BASE-002`, `TECH-BASE-005`, `TECH-AUD-001`; decisión `F07-JP-001` |
+| Dependencias aceptadas | `TECH-BASE-005`, `TECH-AUD-001`, `TECH-ID-BOOT-001` |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
 | Aceptación humana | Pendiente de revisión de implementación |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Siguiente tarea propuesta | `TECH-UI-001` — no iniciar hasta que esta propuesta cumpla pipeline, revisión humana y merge |
+| Siguiente tarea propuesta | `HU-005` — no iniciar hasta que esta propuesta cumpla pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `TECH-ID-BOOT-001` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `TECH-UI-001` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
 
 ## Base aceptada
 
 | Campo | Valor |
 |---|---|
-| Última tarea Terminada | `TOOL-PLAN-004` — Regla permanente de construcción de interfaz a partir de `docs/design` |
-| Corte y épica | Tarea de herramientas autorizada fuera del backlog; no pertenece a un CV/EP funcional |
-| Pull request | PR que incorpora esta actualización |
-| Commit implementado | Commit que contiene esta actualización |
-| Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Recibida el 2026-08-31 |
-| Commit incorporado en `master` | `pendiente de merge` |
-| `Fuentes/` | Protección requerida en los checks del PR |
-| Siguiente tarea propuesta | `TECH-UI-001` — Base de interfaz compartida; depende de `TECH-BASE-005`, `TECH-AUD-001` y `TECH-ID-BOOT-001`; insertada antes de `HU-005` por `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` |
+| Última tarea Terminada | `TECH-ID-BOOT-001` — bootstrap controlado y de un solo uso de la primera cuenta `DIRECCION` |
+| Corte y épica | Tarea técnica de base; F07 no la asigna a un CV/EP funcional |
+| Pull request | `#12` |
+| Commit implementado | `02b43dab088e14cd70935cc97d3028b447378eaa` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; aceptado como evidencia previa conforme a la instrucción de inicio de `TECH-UI-001` |
+| Aceptación humana | Recibida el 2026-09-01 |
+| Commit incorporado en `master` | `0843a6a` |
+| `Fuentes/` | Sin cambios; integridad confirmada por el preflight de inicio de `TECH-UI-001` |
+| Siguiente tarea propuesta | `TECH-UI-001` — Base de interfaz compartida; insertada antes de `HU-005` por `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` |
 
-Mientras este archivo permanezca fuera de `master`, la tabla anterior es una propuesta y `TOOL-PLAN-004` no está Terminada. Al cumplirse las condiciones de eficacia indicadas al inicio, los valores autorreferenciales se resuelven con el PR, sus checks y la historia Git sin reescribir el documento.
+La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `TECH-ID-BOOT-001`.
 
 ## Rebaselización excepcional de fuente
 
@@ -56,8 +56,17 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 
 | Tarea insertada | Adenda de origen | Ejecutar antes de | Estado |
 |---|---|---|---|
-| `TECH-UI-001` | `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` | `HU-005` | Pendiente |
+| `TECH-UI-001` | `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` | `HU-005` | Propuesta implementada en rama; no `Terminada` |
 | `TECH-VER-001` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | `HU-008` | Pendiente |
+
+## Base aceptada anterior — `TOOL-PLAN-004`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `TOOL-PLAN-004` — Regla permanente de construcción de interfaz a partir de `docs/design` |
+| Corte y épica | Tarea de herramientas autorizada fuera del backlog; no pertenece a un CV/EP funcional |
+| Aceptación humana | Recibida el 2026-08-31 |
+| `Fuentes/` | Protección requerida en los checks del PR |
 
 ## Base aceptada anterior — registro histórico inmutable
 

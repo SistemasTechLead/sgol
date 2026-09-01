@@ -1,0 +1,43 @@
+@{
+    var title = ViewData["Title"] as string ?? "SGOL";
+    var navigationItems = ViewData["NavigationItems"] as IEnumerable<NavigationItem> ?? [];
+    var visibleItems = RoleAwareNavigation.VisibleTo(User, navigationItems);
+}
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@title — SGOL</title>
+    <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
+</head>
+<body>
+    <a class="salto-contenido" href="#contenido-principal">Saltar al contenido principal</a>
+    <div class="aplicacion">
+        <header class="encabezado-aplicacion">
+            <span class="encabezado-aplicacion__marca" aria-label="Sistema de Gestión Operativa Loretta">SGOL</span>
+        </header>
+        <aside class="barra-lateral">
+            <nav class="navegacion-lateral" aria-label="Navegación principal">
+                <ul class="navegacion-lateral__lista">
+                    @foreach (var item in visibleItems)
+                    {
+                        <li>
+                            <a class="navegacion-lateral__item"
+                               href="@item.Href"
+                               aria-current="@(Context.Request.Path.Equals(item.Href, StringComparison.OrdinalIgnoreCase) ? "page" : null)">
+                                @item.Label
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </nav>
+        </aside>
+        <main id="contenido-principal" class="contenido-principal" tabindex="-1">
+            @RenderBody()
+        </main>
+    </div>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

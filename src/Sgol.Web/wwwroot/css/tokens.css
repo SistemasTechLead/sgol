@@ -1,0 +1,56 @@
+:root {
+    --color-marca-crema: #F6F1EC;
+    --color-marca-arena: #EAD9C8;
+    --color-marca-durazno: #F0C3A7;
+    --color-marca-decorativo: #E8927A;
+
+    --color-superficie: #FFFFFF;
+    --color-superficie-elevada: #F6F1EC;
+    --color-borde: #E4DDD5;
+    --color-borde-fuerte: #9E9285;
+    --color-texto-primario: #2B2521;
+    --color-texto-secundario: #6B6055;
+    --color-texto-deshabilitado: #A99E92;
+
+    --color-acento: #B64120;
+    --color-acento-hover: #9C371C;
+    --color-acento-texto: #FFFFFF;
+
+    --color-exito: #2F7A4F;
+    --color-exito-fondo: #E7F3EC;
+    --color-advertencia: #92600B;
+    --color-advertencia-fondo: #FBF0DC;
+    --color-peligro: #B23A2E;
+    --color-peligro-fondo: #FBEAE7;
+    --color-info: #2A5F8A;
+    --color-info-fondo: #E8F1F7;
+
+    --fuente-marca: "The Seasons", Georgia, "Times New Roman", serif;
+    --fuente-base: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    --tipografia-micro: 400 11px/16px var(--fuente-base);
+    --tipografia-pequena: 400 12px/16px var(--fuente-base);
+    --tipografia-base: 400 14px/20px var(--fuente-base);
+    --tipografia-media: 500 16px/24px var(--fuente-base);
+    --tipografia-grande: 600 20px/28px var(--fuente-base);
+    --tipografia-titulo: 700 24px/32px var(--fuente-base);
+
+    --espacio-4: 4px;
+    --espacio-8: 8px;
+    --espacio-12: 12px;
+    --espacio-16: 16px;
+    --espacio-24: 24px;
+    --espacio-32: 32px;
+    --espacio-48: 48px;
+
+    --radio-control: 4px;
+    --radio-tarjeta: 8px;
+    --radio-pastilla: 999px;
+
+    --sombra-baja: 0 1px 2px rgba(43, 37, 33, 0.08);
+    --sombra-media: 0 2px 8px rgba(43, 37, 33, 0.12);
+    --sombra-alta: 0 8px 24px rgba(43, 37, 33, 0.18);
+
+    --ancho-contenido: 1280px;
+    --ancho-formulario: 640px;
+    --ancho-modal: 480px;
+}
