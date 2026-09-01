@@ -25,6 +25,17 @@ No busques, abras, generes ni descomprimas archivos ZIP; no cambies rutas ni mod
 - No ejecutes búsquedas recursivas sobre `Fuentes/`, `bin/`, `obj/`, `.vs/` ni sobre archivos `.xlsx` o `.xlsm`. Los binarios de Excel no se abren ni se convierten.
 - Durante el desarrollo lee las copias de la raíz; `Fuentes/` conserva el original congelado y `scripts/ci/verify-fuentes-mirror.ps1` comprueba su equivalencia.
 
+## Construcción de interfaz
+
+Antes de escribir cualquier vista, componente, hoja de estilo o marcado, lee `docs/design/tokens.md`, `docs/design/componentes.md`, `docs/design/estados-y-mensajes.md`, `docs/design/estados-de-dominio.md` y `docs/design/accesibilidad.md`; esta lectura es obligatoria, no opcional.
+Toda propiedad visual se expresa mediante las variables CSS definidas en `tokens.md`.
+Está prohibido escribir un color, tamaño de fuente, radio, sombra o valor de espaciado literal fuera de `docs/design` y de la hoja que declara las variables.
+Si falta en `docs/design` un componente, estado o mensaje necesario para la historia, detente y presenta la carencia al responsable.
+No inventes el componente, no improvises un color ni copies el estilo de otra pantalla.
+`Fuentes/IdentidadMarca/` está congelado y nunca se abre: no leas PDF, `.ai`, `.psd` ni archivos de tipografía; `docs/design` es la única fuente operativa de diseño.
+Toda pantalla implementa los estados de `componentes.md`: normal, foco, deshabilitado, error, cargando y vacío.
+Una historia con UI no está completa si omite el estado vacío o el de error.
+
 ## Entorno conocido
 
 - Ejecuta `scripts/ci/preflight.ps1` como única comprobación inicial. No diagnostiques el entorno más allá de su salida.

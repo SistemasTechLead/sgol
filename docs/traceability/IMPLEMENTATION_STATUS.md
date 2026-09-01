@@ -8,17 +8,17 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Última tarea Terminada | `TOOL-FLOW-001` — Cierre de tarea en un solo pull request |
+| Última tarea Terminada | `TOOL-PLAN-004` — Regla permanente de construcción de interfaz a partir de `docs/design` |
 | Corte y épica | Tarea de herramientas autorizada fuera del backlog; no pertenece a un CV/EP funcional |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Aprobación requerida en el PR que incorpora este registro |
+| Aceptación humana | Recibida el 2026-08-31 |
 | Commit incorporado en `master` | `pendiente de merge` |
 | `Fuentes/` | Protección requerida en los checks del PR |
 | Siguiente tarea propuesta | `TECH-UI-001` — Base de interfaz compartida; depende de `TECH-BASE-005`, `TECH-AUD-001` y `TECH-ID-BOOT-001`; insertada antes de `HU-005` por `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` |
 
-Mientras este archivo permanezca fuera de `master`, la tabla anterior es una propuesta y `TOOL-FLOW-001` no está Terminada. Al cumplirse las condiciones de eficacia indicadas al inicio, los valores autorreferenciales se resuelven con el PR, sus checks y la historia Git sin reescribir el documento.
+Mientras este archivo permanezca fuera de `master`, la tabla anterior es una propuesta y `TOOL-PLAN-004` no está Terminada. Al cumplirse las condiciones de eficacia indicadas al inicio, los valores autorreferenciales se resuelven con el PR, sus checks y la historia Git sin reescribir el documento.
 
 ## Tareas insertadas por adenda
 
