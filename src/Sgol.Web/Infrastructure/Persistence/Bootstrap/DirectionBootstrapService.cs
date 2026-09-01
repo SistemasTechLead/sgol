@@ -132,6 +132,8 @@ public sealed class DirectionBootstrapService(
 
                 },
                 cancellationToken);
+
+            dbContext.ChangeTracker.Clear();
         }
         catch (DbUpdateException exception) when (
             exception.InnerException is PostgresException
