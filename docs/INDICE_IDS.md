@@ -316,3 +316,4 @@ El índice apunta a la definición canónica de cada identificador, no a sus men
 | `TOOL-FLOW-001` | `F07_ENMIENDA_001_CIERRE_DE_TAREA_EN_UN_PR.md` | 7 | 7 |
 | `TOOL-PLAN-001` | `F07_ADENDA_05_PLANTILLA_DE_TAREA_VIGENTE.md` | 7 | 7 |
 | `TOOL-PLAN-002` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | 7 | 7 |
+| `TOOL-PLAN-004` | `F07_ADENDA_04_CRITERIO_DE_INTERFAZ.md` | 10 | 10 |
