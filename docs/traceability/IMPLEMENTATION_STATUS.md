@@ -27,6 +27,7 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | Tarea insertada | Adenda de origen | Ejecutar antes de | Estado |
 |---|---|---|---|
 | `TECH-UI-001` | `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` | `HU-005` | Pendiente |
+| `TECH-VER-001` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | `HU-008` | Pendiente |
 
 ## Base aceptada anterior — registro histórico inmutable
 
