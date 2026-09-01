@@ -91,7 +91,13 @@ try {
 
     $currentHeadOutput = @(Invoke-Git -Arguments @('rev-parse', 'HEAD'))
     if ($currentHeadOutput[0] -ne $HeadSha) {
-        throw 'El checkout actual no corresponde a HeadSha; no se puede validar la huella del archivo del pull request.'
+        & git merge-base --is-ancestor $HeadSha HEAD
+        $containsHeadSha = $LASTEXITCODE -eq 0
+        & git merge-base --is-ancestor $BaseSha HEAD
+        $containsBaseSha = $LASTEXITCODE -eq 0
+        if (-not $containsHeadSha -or -not $containsBaseSha) {
+            throw 'El checkout actual no corresponde a HeadSha ni a un merge sintetico verificable del pull request.'
+        }
     }
 
     $changedPaths = @(Invoke-Git -Arguments @('diff', '--name-only', $BaseSha, $HeadSha, '--', 'Fuentes'))
