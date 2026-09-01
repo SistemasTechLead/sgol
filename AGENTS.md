@@ -21,6 +21,7 @@ No busques, abras, generes ni descomprimas archivos ZIP; no cambies rutas ni mod
 ## Localización de contexto
 
 - Para localizar un identificador, consulta primero `docs/INDICE_IDS.md` y lee únicamente el rango de líneas indicado.
+- Los documentos F00–F07 de la raíz son copias del contenido congelado y no se editan; toda modificación de su contenido se registra como adenda F07 en la raíz.
 - No ejecutes búsquedas recursivas sobre `Fuentes/`, `bin/`, `obj/`, `.vs/` ni sobre archivos `.xlsx` o `.xlsm`. Los binarios de Excel no se abren ni se convierten.
 - Durante el desarrollo lee las copias de la raíz; `Fuentes/` conserva el original congelado y `scripts/ci/verify-fuentes-mirror.ps1` comprueba su equivalencia.
 
@@ -55,12 +56,13 @@ No registres secretos, contraseñas, TOTP, códigos de recuperación, cookies, U
 ## Inicio incremental de tareas
 
 1. Lee primero `docs/traceability/IMPLEMENTATION_STATUS.md`.
-2. Ejecuta `scripts/ci/preflight.ps1` como única comprobación inicial y no diagnostiques el entorno más allá de su salida.
-3. Si el checkout contiene el último commit aceptado y no contradice el estado registrado, acepta como evidencia previa las tareas ya Terminadas; no repitas sus análisis ni sus gates antes de editar.
-4. Lee sólo la fila de la tarea actual, las secciones expresamente autorizadas en su prompt y los archivos directamente afectados.
-5. No vuelvas a analizar íntegramente F00–F07 ni reconstruyas decisiones aprobadas salvo que exista una contradicción, un cambio de hash, una dependencia incompleta o una diferencia respecto al estado registrado.
-6. Limita el informe previo a alcance, dependencias, archivos previstos y plan de gates, en un máximo de ocho puntos; después comienza la implementación.
-7. Ejecuta al finalizar todos los gates aplicables sobre el nuevo cambio. No uses esta optimización para omitir un gate de salida, una revisión humana ni una comprobación exigida expresamente por la tarea.
+2. El orden efectivo es `F07_BACKLOG_DE_IMPLEMENTACION.md` más las adendas F07 vigentes. Antes de comenzar cualquier tarea, verifica en `Tareas insertadas por adenda` que no exista una tarea pendiente que deba ejecutarse antes. Si existe, detente, indícala y no inicies la tarea del backlog.
+3. Ejecuta `scripts/ci/preflight.ps1` como única comprobación inicial y no diagnostiques el entorno más allá de su salida.
+4. Si el checkout contiene el último commit aceptado y no contradice el estado registrado, acepta como evidencia previa las tareas ya Terminadas; no repitas sus análisis ni sus gates antes de editar.
+5. Lee sólo la fila de la tarea actual, las secciones expresamente autorizadas en su prompt y los archivos directamente afectados.
+6. No vuelvas a analizar íntegramente F00–F07 ni reconstruyas decisiones aprobadas salvo que exista una contradicción, un cambio de hash, una dependencia incompleta o una diferencia respecto al estado registrado.
+7. Limita el informe previo a alcance, dependencias, archivos previstos y plan de gates, en un máximo de ocho puntos; después comienza la implementación.
+8. Ejecuta al finalizar todos los gates aplicables sobre el nuevo cambio. No uses esta optimización para omitir un gate de salida, una revisión humana ni una comprobación exigida expresamente por la tarea.
 
 ## Forma de trabajo
 

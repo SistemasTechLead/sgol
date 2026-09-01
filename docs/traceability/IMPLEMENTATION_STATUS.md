@@ -16,9 +16,18 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 | Aceptación humana | Aprobación requerida en el PR que incorpora este registro |
 | Commit incorporado en `master` | `pendiente de merge` |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Siguiente tarea propuesta | `TECH-ID-BOOT-001` — Primera cuenta `DIRECCION`, cambio de contraseña, enrolamiento TOTP y deshabilitación de la vía de arranque |
+| Siguiente tarea propuesta | `TECH-UI-001` — Base de interfaz compartida; depende de `TECH-BASE-005`, `TECH-AUD-001` y `TECH-ID-BOOT-001`; insertada antes de `HU-005` por `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` |
 
 Mientras este archivo permanezca fuera de `master`, la tabla anterior es una propuesta y `TOOL-FLOW-001` no está Terminada. Al cumplirse las condiciones de eficacia indicadas al inicio, los valores autorreferenciales se resuelven con el PR, sus checks y la historia Git sin reescribir el documento.
+
+## Tareas insertadas por adenda
+
+Esta tabla forma parte de la comprobación de precedencia obligatoria antes de iniciar cualquier tarea. Una tarea con estado distinto de `Terminada` bloquea la tarea indicada en `Ejecutar antes de` y toda historia posterior que dependa de esa precedencia.
+
+| Tarea insertada | Adenda de origen | Ejecutar antes de | Estado |
+|---|---|---|---|
+| `TECH-UI-001` | `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` | `HU-005` | Pendiente |
+| `TECH-VER-001` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | `HU-008` | Pendiente |
 
 ## Base aceptada anterior — registro histórico inmutable
 

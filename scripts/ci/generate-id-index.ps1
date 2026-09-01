@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRootPath = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $outputPath = Join-Path $repositoryRootPath 'docs\INDICE_IDS.md'
-$idPattern = '(?:F\d{2}-)?JP-\d{3}|(?:F\d{2}-)?DEF-\d{3}|TECH-[A-Z]+(?:-[A-Z]+)*-\d{3}|HU-\d{3}|CAP-\d{3}|TAR-\d{4}|CA-\d{3}|CP-\d{3}-[PN]|CAT-\d{3}|NFR-\d{3}|ADR-\d{3}|RN-\d{3}|CV-\d{2}|EP-\d{2}'
+$idPattern = '(?:F\d{2}-)?JP-\d{3}|(?:F\d{2}-)?DEF-\d{3}|(?:TECH|TOOL)-[A-Z]+(?:-[A-Z]+)*-\d{3}|HU-\d{3}|CAP-\d{3}|TAR-\d{4}|CA-\d{3}|CP-\d{3}-[PN]|CAT-\d{3}|NFR-\d{3}|ADR-\d{3}|RN-\d{3}|CV-\d{2}|EP-\d{2}'
 $idRegex = [regex]::new("(?<![A-Z0-9-])(?:$idPattern)(?![A-Z0-9-])")
 $headingRegex = [regex]::new("^(?<marks>#{1,6})\s+`?(?<id>$idPattern)`?(?=\s|—|–|:|$)")
 $canonicalFiles = @{
@@ -60,6 +60,14 @@ function Add-Candidate {
 
 $candidates = [System.Collections.Generic.List[object]]::new()
 $mentionedIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+$previousIndexedIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+if (Test-Path -LiteralPath $outputPath -PathType Leaf) {
+    foreach ($line in (Get-Content -LiteralPath $outputPath)) {
+        if (-not $line.TrimStart().StartsWith('|')) { continue }
+        $match = $idRegex.Match($line)
+        if ($match.Success) { [void]$previousIndexedIds.Add($match.Value) }
+    }
+}
 $markdownFiles = Get-ChildItem -LiteralPath $repositoryRootPath -File -Filter '*.md' | Sort-Object -Property Name
 
 foreach ($file in $markdownFiles) {
@@ -105,6 +113,15 @@ foreach ($file in $markdownFiles) {
                         Add-Candidate -Candidates $candidates -Id $match.Value -File $file.Name -StartLine ($index + 1) -EndLine ($index + 1) -Kind 'Table'
                     }
                 }
+            }
+            continue
+        }
+
+        if ($cells.Count -ge 2 -and $cells[0] -in @('ID de implementación', 'Tarea de planeación')) {
+            $secondCellMatch = $idRegex.Match($cells[1])
+            $secondCellRemainder = if ($secondCellMatch.Success) { $cells[1].Substring($secondCellMatch.Length).Trim() } else { '' }
+            if ($secondCellMatch.Success -and $secondCellMatch.Index -eq 0 -and $secondCellRemainder -eq '') {
+                Add-Candidate -Candidates $candidates -Id $secondCellMatch.Value -File $file.Name -StartLine ($index + 1) -EndLine ($index + 1) -Kind 'Table'
             }
             continue
         }
@@ -161,7 +178,13 @@ $content.Add('|---|---|---:|---:|')
 foreach ($entry in $sorted) {
     $content.Add("| ``$($entry.Id)`` | ``$($entry.File)`` | $($entry.Start) | $($entry.End) |")
 }
-$content.Add('')
+
+$selectedIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($entry in $sorted) { [void]$selectedIds.Add($entry.Id) }
+$lostIds = @($previousIndexedIds | Where-Object { -not $selectedIds.Contains($_) } | Sort-Object)
+if ($lostIds.Count -gt 0) {
+    throw "La regeneración perdería IDs previamente indexados: $($lostIds -join ', ')"
+}
 
 $outputDirectory = Split-Path -Parent $outputPath
 if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
@@ -169,9 +192,7 @@ if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
 }
 [IO.File]::WriteAllLines($outputPath, $content, [Text.UTF8Encoding]::new($false))
 Write-Output "Índice generado: $($sorted.Count) identificadores en $outputPath"
-$selectedIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-foreach ($entry in $sorted) { [void]$selectedIds.Add($entry.Id) }
 $unmappedMentions = @($mentionedIds | Where-Object { -not $selectedIds.Contains($_) } | Sort-Object)
 if ($unmappedMentions.Count -gt 0) {
-    Write-Warning "Menciones sin definición indexable: $($unmappedMentions -join ', ')"
+    Write-Output "INFO: Menciones sin definición indexable: $($unmappedMentions -join ', ')"
 }
