@@ -33,6 +33,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();
+        services.AddScoped<IAvailabilityAdministrationService, EfAvailabilityAdministrationService>();
         services.AddScoped<IAccountAdministrationService, EfAccountAdministrationService>();
         services.AddScoped<EfRoleAssignmentService>();
         services.AddScoped<IRoleAssignmentService>(provider => provider.GetRequiredService<EfRoleAssignmentService>());

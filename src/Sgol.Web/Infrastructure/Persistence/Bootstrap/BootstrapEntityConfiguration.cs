@@ -81,6 +81,40 @@ internal sealed class EmploymentVersionConfiguration : IEntityTypeConfiguration<
     }
 }
 
+internal sealed class AvailabilityDayVersionConfiguration : IEntityTypeConfiguration<AvailabilityDayVersion>
+{
+    public void Configure(EntityTypeBuilder<AvailabilityDayVersion> builder)
+    {
+        builder.ToTable("availability_day_version");
+        builder.HasKey(availability => availability.Id);
+        builder.Property(availability => availability.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(availability => availability.PersonId).HasColumnName("person_id");
+        builder.Property(availability => availability.BranchId).HasColumnName("branch_id");
+        builder.Property(availability => availability.LocalDate).HasColumnName("local_date").HasColumnType("date");
+        builder.Property(availability => availability.IsAvailable).HasColumnName("is_available");
+        builder.Property(availability => availability.Status).HasColumnName("status");
+        builder.Property(availability => availability.SupersedesId).HasColumnName("supersedes_id");
+        builder.Property(availability => availability.ChangedBy).HasColumnName("changed_by");
+        builder.Property(availability => availability.RowVersion).HasColumnName("row_version").HasDefaultValue(1L).IsConcurrencyToken();
+        builder.HasOne<Person>().WithMany().HasForeignKey(availability => availability.PersonId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Branch>().WithMany().HasForeignKey(availability => availability.BranchId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AppUser>().WithMany().HasForeignKey(availability => availability.ChangedBy).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AvailabilityDayVersion>().WithMany().HasForeignKey(availability => availability.SupersedesId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(availability => new { availability.PersonId, availability.BranchId, availability.LocalDate })
+            .IsUnique()
+            .HasFilter("status = 'VIGENTE'");
+        builder.HasIndex(availability => availability.SupersedesId)
+            .IsUnique()
+            .HasFilter("supersedes_id IS NOT NULL");
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_availability_day_version_status",
+            "status IN ('VIGENTE', 'HISTORICA')"));
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_availability_day_version_row_version",
+            "row_version >= 1"));
+    }
+}
+
 public sealed class IdempotencyRecord
 {
     public required string Scope { get; init; }

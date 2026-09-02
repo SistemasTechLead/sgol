@@ -8,20 +8,37 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-007` — Dirección asigna un rol canónico activo |
+| Tarea | `HU-003` — Dirección registra disponibilidad binaria diaria |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-006`, `TECH-ID-BOOT-001`; `HU-006` es la última base aceptada |
+| Dependencias aceptadas | `HU-001`, `HU-007`; `HU-007` es la última base aceptada |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
 | Aceptación humana | Pendiente de revisión de implementación |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-003` ni `HU-008` hasta que esta propuesta cumpla pipeline, revisión humana y merge |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-008` ni otra historia hasta que esta propuesta cumpla pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-007` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-003` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
 
 ## Base aceptada
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-007` — Dirección asigna un rol canónico activo |
+| Corte y épica | `CV-01` / `EP-01` |
+| Pull request | `#18` |
+| Commit implementado | `e249ef6d934c0ddb36e7294d5431d05e67829467` |
+| SHA final del PR | `5057e9e3c2ca53288141c7e96e168cc61837fb17` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; PASS, run `33674953778` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `b72377ee2a31a0b7033771dc5d249a913d7c7f56` |
+| `Fuentes/` | Sin cambios; integridad confirmada al iniciar `HU-003` |
+| Siguiente tarea propuesta | `HU-003` — Dirección registra disponibilidad binaria diaria |
+
+La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-007`.
+
+## Base aceptada anterior — `HU-006`
 
 | Campo | Valor |
 |---|---|
@@ -32,10 +49,7 @@ Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-00
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; PASS, run `33669367457` |
 | Aceptación humana | Recibida explícitamente |
 | Commit incorporado en `master` | `ff8296993aa2531e4d6d6c06ef363a542969fdda` |
-| `Fuentes/` | Sin cambios; integridad confirmada al iniciar `HU-007` |
-| Siguiente tarea propuesta | `HU-007` — Dirección asigna un rol canónico activo |
-
-La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-006`.
+| `Fuentes/` | Sin cambios |
 
 ## Base aceptada anterior — `HU-002`
 

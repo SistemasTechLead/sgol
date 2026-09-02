@@ -23,6 +23,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string BranchScopeMigrationId = "20260901223021_EnforceLorettaBranchScope";
     private const string PersonAdministrationMigrationId = "20260901233438_AddPersonAdministration";
     private const string RoleAdministrationMigrationId = "20260902190915_AddRoleAdministration";
+    private const string AvailabilityAdministrationMigrationId = "20260902200533_AddAvailabilityAdministration";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -49,6 +50,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 BranchScopeMigrationId,
                 PersonAdministrationMigrationId,
                 RoleAdministrationMigrationId,
+                AvailabilityAdministrationMigrationId,
             ],
             appliedMigrations);
 
@@ -69,6 +71,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "__EFMigrationsHistory",
                 "app_user",
                 "audit_event",
+                "availability_day_version",
                 "branch",
                 "direction_bootstrap",
                 "employment_version",
