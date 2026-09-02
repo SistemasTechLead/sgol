@@ -34,6 +34,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();
         services.AddScoped<IAccountAdministrationService, EfAccountAdministrationService>();
+        services.AddScoped<EfRoleAssignmentService>();
+        services.AddScoped<IRoleAssignmentService>(provider => provider.GetRequiredService<EfRoleAssignmentService>());
+        services.AddScoped<IRoleHierarchyResolver>(provider => provider.GetRequiredService<EfRoleAssignmentService>());
 
         return services;
     }

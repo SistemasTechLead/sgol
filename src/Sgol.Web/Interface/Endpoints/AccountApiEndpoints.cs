@@ -13,6 +13,7 @@ public static class AccountApiEndpoints
         users.MapPost("", HandleCreateAsync);
         users.MapPost("/{userId:guid}/deactivate", HandleDeactivateAsync);
         users.MapPost("/{userId:guid}/reactivate", HandleReactivateAsync);
+        users.MapPost("/{userId:guid}/role-assignments", RoleApiEndpoints.HandleChangeAsync);
         return endpoints;
     }
 

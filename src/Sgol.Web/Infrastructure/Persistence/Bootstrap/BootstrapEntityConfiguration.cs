@@ -167,6 +167,7 @@ internal sealed class RoleAssignmentVersionConfiguration : IEntityTypeConfigurat
         builder.Property(role => role.ValidFrom).HasColumnName("valid_from").HasColumnType("timestamp with time zone");
         builder.Property(role => role.ValidTo).HasColumnName("valid_to").HasColumnType("timestamp with time zone");
         builder.Property(role => role.SupersedesId).HasColumnName("supersedes_id");
+        builder.Property(role => role.RowVersion).HasColumnName("row_version").HasDefaultValue(1L).IsConcurrencyToken();
         builder.HasOne<AppUser>().WithMany().HasForeignKey(role => role.UserId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Branch>().WithMany().HasForeignKey(role => role.BranchId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<RoleAssignmentVersion>().WithMany().HasForeignKey(role => role.SupersedesId).OnDelete(DeleteBehavior.Restrict);
@@ -176,6 +177,12 @@ internal sealed class RoleAssignmentVersionConfiguration : IEntityTypeConfigurat
         builder.ToTable(table => table.HasCheckConstraint(
             "CK_role_assignment_version_role_code",
             "role_code IN ('DIRECCION', 'ADMINISTRACION', 'SUBCOORDINACION', 'PISO_VENTAS')"));
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_role_assignment_version_status",
+            "status IN ('ACTIVO', 'SUSTITUIDO')"));
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_role_assignment_version_interval",
+            "(status = 'ACTIVO' AND valid_to IS NULL) OR (status = 'SUSTITUIDO' AND valid_to IS NOT NULL AND valid_to >= valid_from)"));
     }
 }
 

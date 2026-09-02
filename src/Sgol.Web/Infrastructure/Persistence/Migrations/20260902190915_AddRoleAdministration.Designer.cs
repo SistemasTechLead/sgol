@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Sgol.Web.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using Sgol.Web.Infrastructure.Persistence;
 namespace Sgol.Web.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(SgolDbContext))]
-    partial class SgolDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902190915_AddRoleAdministration")]
+    partial class AddRoleAdministration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -159,7 +162,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.HasIndex("StableCode")
                         .IsUnique();
 
-                    b.ToTable("person", t =>
+                    b.ToTable("person", null, t =>
                         {
                             t.HasCheckConstraint("CK_person_stable_code_not_blank", "btrim(stable_code) <> ''");
                         });
