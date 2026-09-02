@@ -46,13 +46,15 @@ public sealed class RoleAssignmentVersion
 
     public required string RoleCode { get; init; }
 
-    public required string Status { get; init; }
+    public required string Status { get; set; }
 
     public DateTimeOffset ValidFrom { get; init; }
 
-    public DateTimeOffset? ValidTo { get; init; }
+    public DateTimeOffset? ValidTo { get; set; }
 
     public Guid? SupersedesId { get; init; }
+
+    public long RowVersion { get; set; } = 1;
 }
 
 public sealed class DirectionBootstrapMarker
