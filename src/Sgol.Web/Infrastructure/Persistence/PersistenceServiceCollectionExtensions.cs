@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Sgol.Configuration.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Configuration;
 using Sgol.Web.Infrastructure.Persistence.Identity;
 using Sgol.Web.Infrastructure.Persistence.Organization;
 using Sgol.Web.Infrastructure.Persistence.Versioning;
@@ -32,6 +34,7 @@ public static class PersistenceServiceCollectionExtensions
         });
         services.AddScoped<AuditTransaction>();
         services.AddScoped<VersioningTransaction>();
+        services.AddScoped<IConfigurationReleaseService, EfConfigurationReleaseService>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();

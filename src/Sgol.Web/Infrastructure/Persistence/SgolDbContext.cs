@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Sgol.Configuration.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Configuration;
 
 namespace Sgol.Web.Infrastructure.Persistence;
 
@@ -27,6 +29,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
+    public DbSet<ConfigurationRelease> ConfigurationReleases => Set<ConfigurationRelease>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -40,5 +44,6 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new RoleAssignmentVersionConfiguration());
         modelBuilder.ApplyConfiguration(new DirectionBootstrapMarkerConfiguration());
         modelBuilder.ApplyConfiguration(new IdempotencyRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new ConfigurationReleaseConfiguration());
     }
 }

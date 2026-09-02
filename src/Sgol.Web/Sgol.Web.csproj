@@ -7,6 +7,7 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Modules\Configuration\Sgol.Configuration.csproj" />
     <ProjectReference Include="..\Modules\Identity\Sgol.Identity.csproj" />
     <ProjectReference Include="..\Modules\Organization\Sgol.Organization.csproj" />
     <ProjectReference Include="..\Sgol.BuildingBlocks\Sgol.BuildingBlocks.csproj" />

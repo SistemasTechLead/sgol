@@ -194,6 +194,12 @@
       "sgol.buildingblocks": {
         "type": "Project"
       },
+      "sgol.configuration": {
+        "type": "Project",
+        "dependencies": {
+          "Sgol.BuildingBlocks": "[1.0.0, )"
+        }
+      },
       "sgol.identity": {
         "type": "Project"
       },
