@@ -8,20 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `TECH-VER-001` — Núcleo técnico reutilizable de versionado |
+| Tarea | `HU-008` — Dirección publica configuración versionada |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `TECH-AUD-001`, `TECH-UI-001`; `HU-003` es la última base aceptada |
+| Dependencias aceptadas | `HU-007`; `HU-033 mínimo transaccional` satisfecho por `TECH-AUD-001` conforme a la adenda; `TECH-VER-001` `Terminada` |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
 | Aceptación humana | Pendiente de revisión de implementación |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-008` hasta que esta propuesta cumpla pipeline, revisión humana y merge |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-009` ni otra historia hasta que esta propuesta cumpla pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `TECH-VER-001` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-008` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
 
 ## Base aceptada
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `TECH-VER-001` — Núcleo técnico reutilizable de versionado |
+| Pull request | `#20` |
+| Commit implementado | `9d7c001275e119c13bed81b544347d3bd2f55e16` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33682634449` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `70222cd1997bf64ad29638f9a27c5268058e118a` |
+| Pruebas PostgreSQL/Testcontainers específicas | `4/4` |
+| `Fuentes/` | Sin cambios |
+| Siguiente tarea propuesta | `HU-008` — Dirección publica configuración versionada |
+
+La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `TECH-VER-001`.
+
+## Base aceptada anterior — `HU-003`
 
 | Campo | Valor |
 |---|---|
@@ -34,9 +50,6 @@ Esta propuesta no habilita dependencias ni modifica el cierre histórico. `TECH-
 | Commit incorporado en `master` | `89f82bafb66d4dc3b04ffee1d4fc6c80644ea826` |
 | Pruebas PostgreSQL/Testcontainers específicas | `8/8` |
 | `Fuentes/` | Sin cambios |
-| Siguiente tarea propuesta | `TECH-VER-001` — Núcleo técnico reutilizable de versionado |
-
-La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-003`.
 
 ## Base aceptada anterior — `HU-007`
 
@@ -140,7 +153,7 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | Tarea insertada | Adenda de origen | Ejecutar antes de | Estado |
 |---|---|---|---|
 | `TECH-UI-001` | `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` | `HU-005` | `Terminada`; PR `#13`, commit `d723d2fb91a86bf34e886ebc84dda77c72bd1dec`, merge `0209cec724c13ce27de9a27afb183f458385b9b2` |
-| `TECH-VER-001` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | `HU-008` | Propuesta implementada en rama; no `Terminada` |
+| `TECH-VER-001` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | `HU-008` | `Terminada`; PR `#20`, commit `9d7c001275e119c13bed81b544347d3bd2f55e16`, merge `70222cd1997bf64ad29638f9a27c5268058e118a` |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`
 

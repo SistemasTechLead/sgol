@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using System.Text.Json;
 using Sgol.BuildingBlocks.Versioning;
+using Sgol.Configuration.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Versioning;
@@ -187,13 +188,17 @@ public sealed class VersioningPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ApplicationModel_DoesNotContainTechnicalOrFunctionalVersionEntities()
+    public void ApplicationModel_ContainsOnlyApprovedFunctionalVersionConsumers()
     {
         using var context = CreateApplicationContext();
 
-        Assert.DoesNotContain(
-            context.Model.GetEntityTypes(),
-            entity => typeof(IVersionedEntity).IsAssignableFrom(entity.ClrType));
+        var consumers = context.Model.GetEntityTypes()
+            .Where(entity => typeof(IVersionedEntity).IsAssignableFrom(entity.ClrType))
+            .Select(entity => entity.ClrType)
+            .ToArray();
+
+        Assert.Equal([typeof(ConfigurationRelease)], consumers);
+        Assert.DoesNotContain(consumers, type => type.Assembly == typeof(IVersionedEntity).Assembly);
     }
 
     private ProbeDbContext CreateProbeContext() => new(

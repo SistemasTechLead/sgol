@@ -31,6 +31,7 @@ app.MapRazorPages();
 app.MapBranchApi();
 app.MapPersonApi();
 app.MapAccountApi();
+app.MapConfigurationApi();
 
 app.Run();
 
