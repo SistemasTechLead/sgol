@@ -296,6 +296,137 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
         Assert.Equal(2, await staleContext.AuditEvents.AsNoTracking().CountAsync(item => item.ResourceId == personId));
     }
 
+    [Fact]
+    public async Task PositionDirector_VersionsLaborDataWithoutChangingRoleOrGrantingDirectionAccess()
+    {
+        var actorUserId = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator(Now.AddMinutes(1)), Now.AddMinutes(1));
+        var created = await service.CreateAsync(new CreatePersonCommand(
+            actorUserId,
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            "PER-LABOR",
+            "Persona laboral sintética"));
+        var targetUserId = Guid.CreateVersion7();
+        context.AppUsers.Add(new AppUser
+        {
+            Id = targetUserId,
+            PersonId = created.Person.Id,
+            Status = BootstrapContract.ActiveAccountStatus,
+            MustChangePassword = false,
+            MfaEnrolledAt = Now,
+            SecurityStamp = "synthetic-target-security-stamp",
+        });
+        context.RoleAssignmentVersions.Add(new RoleAssignmentVersion
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = targetUserId,
+            BranchId = BranchScope.LorettaId,
+            RoleCode = "PISO_VENTAS",
+            Status = BootstrapContract.ActiveRoleStatus,
+            ValidFrom = Now,
+        });
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var current = Assert.Single(created.Person.EmploymentHistory);
+        var changed = await service.ChangeEmploymentAsync(new ChangeEmploymentCommand(
+            actorUserId,
+            Guid.CreateVersion7(),
+            created.Person.Id,
+            EmploymentStatus.Active,
+            current.RowVersion,
+            "Corrección laboral sintética",
+            PositionText: "Director",
+            ShiftText: "Vespertino"));
+
+        Assert.Equal(2, changed.Person.EmploymentHistory.Count);
+        Assert.Equal("Director", changed.Person.EmploymentHistory[1].PositionText);
+        Assert.Equal("Vespertino", changed.Person.EmploymentHistory[1].ShiftText);
+        var role = await context.RoleAssignmentVersions
+            .AsNoTracking()
+            .SingleAsync(item => item.UserId == targetUserId);
+        Assert.Equal("PISO_VENTAS", role.RoleCode);
+        Assert.Null(role.ValidTo);
+        var audit = await context.AuditEvents
+            .AsNoTracking()
+            .SingleAsync(item =>
+                item.ResourceId == created.Person.Id &&
+                item.Action == "PERSON_EMPLOYMENT_CHANGED");
+        Assert.Equal("Director", audit.AfterData!.RootElement.GetProperty("positionText").GetString());
+        Assert.Equal("Vespertino", audit.AfterData.RootElement.GetProperty("shiftText").GetString());
+
+        await Assert.ThrowsAsync<PersonAccessDeniedException>(() =>
+            service.ListAsync(targetUserId, Guid.CreateVersion7()));
+        Assert.Equal("PISO_VENTAS", (await context.RoleAssignmentVersions
+            .AsNoTracking()
+            .SingleAsync(item => item.UserId == targetUserId)).RoleCode);
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task LaborAuditFailure_RollsBackVersionWithoutChangingRole()
+    {
+        var actorUserId = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);
+        Guid personId;
+        await using (var seedContext = CreateContext())
+        {
+            var seedService = CreateService(seedContext, NewUuidGenerator(Now), Now);
+            personId = (await seedService.CreateAsync(new CreatePersonCommand(
+                actorUserId,
+                Guid.CreateVersion7(),
+                Guid.CreateVersion7(),
+                "PER-LABOR-ROLLBACK",
+                "Persona rollback laboral sintética"))).Person.Id;
+        }
+
+        var duplicateAuditId = Guid.CreateVersion7();
+        await using (var auditContext = CreateContext())
+        {
+            auditContext.AuditEvents.Add(new AuditEvent
+            {
+                Id = duplicateAuditId,
+                OccurredAt = Now,
+                ActorUserId = actorUserId,
+                ActorType = "APP_USER",
+                Action = "SYNTHETIC_EXISTING_EVENT",
+                ResourceType = "PERSON",
+                BranchId = BranchScope.LorettaId,
+                CorrelationId = Guid.CreateVersion7(),
+                Outcome = "SUCCESS",
+            });
+            await auditContext.SaveChangesAsync();
+        }
+
+        await using var context = CreateContext();
+        var service = CreateService(
+            context,
+            new SequenceUuidGenerator(Guid.CreateVersion7(), duplicateAuditId),
+            Now.AddMinutes(1));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            service.ChangeEmploymentAsync(new ChangeEmploymentCommand(
+                actorUserId,
+                Guid.CreateVersion7(),
+                personId,
+                EmploymentStatus.Active,
+                1,
+                "Rollback laboral sintético",
+                PositionText: "Director",
+                ShiftText: "Nocturno")));
+
+        var persisted = Assert.Single(await context.EmploymentVersions
+            .AsNoTracking()
+            .Where(item => item.PersonId == personId)
+            .ToListAsync());
+        Assert.Null(persisted.PositionText);
+        Assert.Null(persisted.ShiftText);
+        Assert.Null(persisted.ValidTo);
+        Assert.Equal(1, persisted.RowVersion);
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
     private async Task<Guid> ResetAndSeedActorAsync(
         string roleCode,
         string employmentStatus = EmploymentStatus.Active)

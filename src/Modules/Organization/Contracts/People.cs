@@ -8,7 +8,9 @@ public sealed record EmploymentVersionSnapshot(
     DateTimeOffset ValidFrom,
     DateTimeOffset? ValidTo,
     Guid? SupersedesId,
-    long RowVersion);
+    long RowVersion,
+    string? PositionText = null,
+    string? ShiftText = null);
 
 public sealed record PersonDetails(
     Guid Id,
@@ -31,7 +33,9 @@ public sealed record ChangeEmploymentCommand(
     string Status,
     long ExpectedRowVersion,
     string Reason,
-    Guid? IdempotencyKey = null);
+    Guid? IdempotencyKey = null,
+    string? PositionText = null,
+    string? ShiftText = null);
 
 public sealed record PersonMutationResult(PersonDetails Person, bool Replayed);
 
@@ -68,5 +72,7 @@ public sealed class PersonIdempotencyConflictException() : Exception("The idempo
 public sealed class PersonNotFoundException() : Exception("The person does not exist.");
 
 public sealed class PersonStateConflictException() : Exception("The requested employment status is already current.");
+
+public sealed class PersonEmploymentNoChangeException() : Exception("The requested employment data is already current.");
 
 public sealed class PersonValidationException(string message) : Exception(message);
