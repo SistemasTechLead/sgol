@@ -5,6 +5,7 @@ using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Identity;
 using Sgol.Web.Infrastructure.Persistence.Organization;
+using Sgol.Web.Infrastructure.Persistence.Versioning;
 
 namespace Sgol.Web.Infrastructure.Persistence;
 
@@ -30,6 +31,7 @@ public static class PersistenceServiceCollectionExtensions
                 npgsql => npgsql.MigrationsAssembly(typeof(SgolDbContext).Assembly.FullName));
         });
         services.AddScoped<AuditTransaction>();
+        services.AddScoped<VersioningTransaction>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();
