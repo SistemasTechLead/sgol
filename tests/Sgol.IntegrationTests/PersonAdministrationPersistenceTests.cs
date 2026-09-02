@@ -248,6 +248,54 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
         Assert.Empty(secondContext.ChangeTracker.Entries());
     }
 
+    [Fact]
+    public async Task StaleEmploymentVersion_IsRejectedAndClearsChangeTrackerWithoutEffect()
+    {
+        var actorUserId = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);
+        Guid personId;
+        await using (var createContext = CreateContext())
+        {
+            var createService = CreateService(createContext, NewUuidGenerator(Now), Now);
+            var created = await createService.CreateAsync(new CreatePersonCommand(
+                actorUserId,
+                Guid.CreateVersion7(),
+                Guid.CreateVersion7(),
+                "PER-STALE",
+                "Persona versión obsoleta sintética"));
+            personId = created.Person.Id;
+        }
+
+        await using (var changeContext = CreateContext())
+        {
+            var changeService = CreateService(changeContext, NewUuidGenerator(Now.AddMinutes(1)), Now.AddMinutes(1));
+            await changeService.ChangeEmploymentAsync(new ChangeEmploymentCommand(
+                actorUserId,
+                Guid.CreateVersion7(),
+                personId,
+                EmploymentStatus.Inactive,
+                1,
+                "Cambio previo sintético",
+                Guid.CreateVersion7()));
+        }
+
+        await using var staleContext = CreateContext();
+        var staleService = CreateService(staleContext, NewUuidGenerator(Now.AddMinutes(2)), Now.AddMinutes(2));
+
+        await Assert.ThrowsAsync<PersonVersionConflictException>(() =>
+            staleService.ChangeEmploymentAsync(new ChangeEmploymentCommand(
+                actorUserId,
+                Guid.CreateVersion7(),
+                personId,
+                EmploymentStatus.Active,
+                1,
+                "Versión obsoleta sintética",
+                Guid.CreateVersion7())));
+
+        Assert.Empty(staleContext.ChangeTracker.Entries());
+        Assert.Equal(2, await staleContext.EmploymentVersions.AsNoTracking().CountAsync(item => item.PersonId == personId));
+        Assert.Equal(2, await staleContext.AuditEvents.AsNoTracking().CountAsync(item => item.ResourceId == personId));
+    }
+
     private async Task<Guid> ResetAndSeedActorAsync(
         string roleCode,
         string employmentStatus = EmploymentStatus.Active)

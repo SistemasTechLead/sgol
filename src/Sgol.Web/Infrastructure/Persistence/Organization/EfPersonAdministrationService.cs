@@ -186,16 +186,19 @@ public sealed class EfPersonAdministrationService(
             var personExists = await dbContext.People
                 .AsNoTracking()
                 .AnyAsync(person => person.Id == command.PersonId, cancellationToken);
+            dbContext.ChangeTracker.Clear();
             throw personExists ? new PersonVersionConflictException() : new PersonNotFoundException();
         }
 
         if (current.RowVersion != command.ExpectedRowVersion)
         {
+            dbContext.ChangeTracker.Clear();
             throw new PersonVersionConflictException();
         }
 
         if (current.Status == command.Status)
         {
+            dbContext.ChangeTracker.Clear();
             throw new PersonStateConflictException();
         }
 
