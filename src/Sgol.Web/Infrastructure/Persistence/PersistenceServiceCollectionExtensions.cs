@@ -30,6 +30,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<AuditTransaction>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
+        services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();
 
         return services;
     }

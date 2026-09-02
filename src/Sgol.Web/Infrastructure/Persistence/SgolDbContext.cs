@@ -23,6 +23,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<DirectionBootstrapMarker> DirectionBootstrapMarkers => Set<DirectionBootstrapMarker>();
 
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -34,5 +36,6 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new IdentityCredentialConfiguration());
         modelBuilder.ApplyConfiguration(new RoleAssignmentVersionConfiguration());
         modelBuilder.ApplyConfiguration(new DirectionBootstrapMarkerConfiguration());
+        modelBuilder.ApplyConfiguration(new IdempotencyRecordConfiguration());
     }
 }

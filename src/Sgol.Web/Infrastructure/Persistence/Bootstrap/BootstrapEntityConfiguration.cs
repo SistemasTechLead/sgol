@@ -41,6 +41,9 @@ internal sealed class PersonConfiguration : IEntityTypeConfiguration<Person>
         builder.Property(person => person.DisplayName).HasColumnName("display_name");
         builder.Property(person => person.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
         builder.HasIndex(person => person.StableCode).IsUnique();
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_person_stable_code_not_blank",
+            "btrim(stable_code) <> ''"));
     }
 }
 
@@ -65,7 +68,55 @@ internal sealed class EmploymentVersionConfiguration : IEntityTypeConfiguration<
         builder.HasOne<EmploymentVersion>().WithMany().HasForeignKey(employment => employment.SupersedesId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(employment => new { employment.PersonId, employment.BranchId })
             .IsUnique()
-            .HasFilter("status = 'ACTIVA'");
+            .HasFilter("valid_to IS NULL");
+        builder.HasIndex(employment => employment.SupersedesId)
+            .IsUnique()
+            .HasFilter("supersedes_id IS NOT NULL");
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_employment_version_status",
+            "status IN ('ACTIVA', 'INACTIVA')"));
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_employment_version_interval",
+            "valid_to IS NULL OR valid_to >= valid_from"));
+    }
+}
+
+public sealed class IdempotencyRecord
+{
+    public required string Scope { get; init; }
+
+    public Guid Key { get; init; }
+
+    public required string RequestHash { get; init; }
+
+    public required string Status { get; init; }
+
+    public required string ResourceType { get; init; }
+
+    public Guid ResourceId { get; init; }
+
+    public int ResponseCode { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public DateTimeOffset ExpiresAt { get; init; }
+}
+
+internal sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<IdempotencyRecord>
+{
+    public void Configure(EntityTypeBuilder<IdempotencyRecord> builder)
+    {
+        builder.ToTable("idempotency_record");
+        builder.HasKey(record => new { record.Scope, record.Key });
+        builder.Property(record => record.Scope).HasColumnName("scope");
+        builder.Property(record => record.Key).HasColumnName("key").ValueGeneratedNever();
+        builder.Property(record => record.RequestHash).HasColumnName("request_hash").HasColumnType("character(64)");
+        builder.Property(record => record.Status).HasColumnName("status");
+        builder.Property(record => record.ResourceType).HasColumnName("resource_type");
+        builder.Property(record => record.ResourceId).HasColumnName("resource_id");
+        builder.Property(record => record.ResponseCode).HasColumnName("response_code");
+        builder.Property(record => record.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
+        builder.Property(record => record.ExpiresAt).HasColumnName("expires_at").HasColumnType("timestamp with time zone");
     }
 }
 
