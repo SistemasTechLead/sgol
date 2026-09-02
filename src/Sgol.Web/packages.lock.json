@@ -194,6 +194,9 @@
       "sgol.buildingblocks": {
         "type": "Project"
       },
+      "sgol.identity": {
+        "type": "Project"
+      },
       "sgol.organization": {
         "type": "Project"
       },

@@ -439,6 +439,9 @@
       "sgol.buildingblocks": {
         "type": "Project"
       },
+      "sgol.identity": {
+        "type": "Project"
+      },
       "sgol.organization": {
         "type": "Project"
       },
@@ -447,6 +450,7 @@
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "Sgol.BuildingBlocks": "[1.0.0, )",
+          "Sgol.Identity": "[1.0.0, )",
           "Sgol.Organization": "[1.0.0, )"
         }
       },
