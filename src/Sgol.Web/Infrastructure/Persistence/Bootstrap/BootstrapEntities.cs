@@ -14,13 +14,13 @@ public sealed class AppUser
 
     public Guid PersonId { get; init; }
 
-    public required string Status { get; init; }
+    public required string Status { get; set; }
 
-    public bool MustChangePassword { get; init; }
+    public bool MustChangePassword { get; set; }
 
-    public DateTimeOffset? MfaEnrolledAt { get; init; }
+    public DateTimeOffset? MfaEnrolledAt { get; set; }
 
-    public required string SecurityStamp { get; init; }
+    public required string SecurityStamp { get; set; }
 
     public bool RequiresFirstAccessSetup => MustChangePassword || MfaEnrolledAt is null;
 }
@@ -33,7 +33,7 @@ public sealed class IdentityCredential
 
     public required string NormalizedUserName { get; init; }
 
-    public required string PasswordHash { get; init; }
+    public required string PasswordHash { get; set; }
 }
 
 public sealed class RoleAssignmentVersion

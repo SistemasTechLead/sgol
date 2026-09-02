@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Identity;
 using Sgol.Web.Infrastructure.Persistence.Organization;
 
 namespace Sgol.Web.Infrastructure.Persistence;
@@ -31,6 +33,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();
+        services.AddScoped<IAccountAdministrationService, EfAccountAdministrationService>();
 
         return services;
     }

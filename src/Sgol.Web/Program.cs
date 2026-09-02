@@ -30,6 +30,7 @@ app.MapGet("/health/live", (HttpContext context) => Results.Ok(new
 app.MapRazorPages();
 app.MapBranchApi();
 app.MapPersonApi();
+app.MapAccountApi();
 
 app.Run();
 
