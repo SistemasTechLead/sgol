@@ -15,6 +15,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<EmploymentVersion> EmploymentVersions => Set<EmploymentVersion>();
 
+    public DbSet<AvailabilityDayVersion> AvailabilityDayVersions => Set<AvailabilityDayVersion>();
+
     public DbSet<AppUser> AppUsers => Set<AppUser>();
 
     public DbSet<IdentityCredential> IdentityCredentials => Set<IdentityCredential>();
@@ -32,6 +34,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new BranchConfiguration());
         modelBuilder.ApplyConfiguration(new PersonConfiguration());
         modelBuilder.ApplyConfiguration(new EmploymentVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new AvailabilityDayVersionConfiguration());
         modelBuilder.ApplyConfiguration(new AppUserConfiguration());
         modelBuilder.ApplyConfiguration(new IdentityCredentialConfiguration());
         modelBuilder.ApplyConfiguration(new RoleAssignmentVersionConfiguration());

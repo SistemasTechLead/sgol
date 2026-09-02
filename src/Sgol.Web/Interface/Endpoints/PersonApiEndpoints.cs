@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Http;
 
@@ -16,7 +17,95 @@ public static class PersonApiEndpoints
         people.MapPatch("/{personId:guid}/employment", HandlePatchEmploymentAsync);
         people.MapPost("/{personId:guid}/deactivate", HandleDeactivateAsync);
         people.MapPost("/{personId:guid}/reactivate", HandleReactivateAsync);
+        people.MapGet("/{personId:guid}/availability", HandleGetAvailabilityAsync);
+        people.MapPut("/{personId:guid}/availability/{date}", HandlePutAvailabilityAsync);
         return endpoints;
+    }
+
+    public static async Task<IResult> HandleGetAvailabilityAsync(
+        Guid personId,
+        HttpContext context,
+        IAvailabilityAdministrationService service,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(context, out var actorUserId, out var denied))
+        {
+            return denied;
+        }
+
+        if (!TryGetLocalDate(context.Request.Query["fromDate"], "fromDate", context, out var fromDate, out var invalidFrom))
+        {
+            return invalidFrom;
+        }
+
+        if (!TryGetLocalDate(context.Request.Query["toDate"], "toDate", context, out var toDate, out var invalidTo))
+        {
+            return invalidTo;
+        }
+
+        try
+        {
+            var values = await service.GetAsync(
+                actorUserId,
+                GetCorrelationId(context),
+                personId,
+                fromDate,
+                toDate,
+                cancellationToken);
+            return Ok(context, values);
+        }
+        catch (Exception exception)
+        {
+            return MapAvailabilityException(context, exception);
+        }
+    }
+
+    public static async Task<IResult> HandlePutAvailabilityAsync(
+        Guid personId,
+        string date,
+        JsonElement request,
+        HttpContext context,
+        IAvailabilityAdministrationService service,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(context, out var actorUserId, out var denied))
+        {
+            return denied;
+        }
+
+        if (!TryGetLocalDate(date, "date", context, out var localDate, out var invalidDate))
+        {
+            return invalidDate;
+        }
+
+        if (!TryGetAvailabilityValue(request, context, out var isAvailable, out var invalidBody))
+        {
+            return invalidBody;
+        }
+
+        if (!TryGetOptionalRowVersion(context, out var rowVersion, out var invalidVersion))
+        {
+            return invalidVersion;
+        }
+
+        try
+        {
+            var value = await service.PutAsync(
+                new PutAvailabilityCommand(
+                    actorUserId,
+                    GetCorrelationId(context),
+                    personId,
+                    localDate,
+                    isAvailable,
+                    rowVersion),
+                cancellationToken);
+            context.Response.Headers.ETag = $"\"{value.RowVersion.ToString(CultureInfo.InvariantCulture)}\"";
+            return Ok(context, value);
+        }
+        catch (Exception exception)
+        {
+            return MapAvailabilityException(context, exception);
+        }
     }
 
     public static async Task<IResult> HandleListAsync(
@@ -260,6 +349,110 @@ public static class PersonApiEndpoints
         invalid = null!;
         return true;
     }
+
+    private static bool TryGetLocalDate(
+        string? value,
+        string fieldName,
+        HttpContext context,
+        out DateOnly date,
+        out IResult invalid)
+    {
+        if (DateOnly.TryParseExact(
+                value,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out date))
+        {
+            invalid = null!;
+            return true;
+        }
+
+        invalid = Problem(
+            context,
+            StatusCodes.Status400BadRequest,
+            "FECHA_INVALIDA",
+            $"{fieldName} debe usar el formato YYYY-MM-DD");
+        return false;
+    }
+
+    private static bool TryGetAvailabilityValue(
+        JsonElement request,
+        HttpContext context,
+        out bool isAvailable,
+        out IResult invalid)
+    {
+        isAvailable = default;
+        if (request.ValueKind != JsonValueKind.Object)
+        {
+            invalid = InvalidAvailabilityBody(context);
+            return false;
+        }
+
+        var properties = request.EnumerateObject().ToArray();
+        if (properties.Length != 1 ||
+            !properties[0].NameEquals("isAvailable") ||
+            properties[0].Value.ValueKind is not JsonValueKind.True and not JsonValueKind.False)
+        {
+            invalid = InvalidAvailabilityBody(context);
+            return false;
+        }
+
+        isAvailable = properties[0].Value.GetBoolean();
+        invalid = null!;
+        return true;
+    }
+
+    private static IResult InvalidAvailabilityBody(HttpContext context) => Problem(
+        context,
+        StatusCodes.Status400BadRequest,
+        "DISPONIBILIDAD_INVALIDA",
+        "El cuerpo debe contener únicamente isAvailable con un valor booleano");
+
+    private static bool TryGetOptionalRowVersion(
+        HttpContext context,
+        out long? rowVersion,
+        out IResult invalid)
+    {
+        var value = context.Request.Headers.IfMatch.ToString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            rowVersion = null;
+            invalid = null!;
+            return true;
+        }
+
+        if (long.TryParse(
+                value.Trim('"'),
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var parsed) && parsed >= 1)
+        {
+            rowVersion = parsed;
+            invalid = null!;
+            return true;
+        }
+
+        rowVersion = null;
+        invalid = Problem(
+            context,
+            StatusCodes.Status400BadRequest,
+            "IF_MATCH_INVALIDO",
+            "If-Match debe contener el ETag vigente");
+        return false;
+    }
+
+    private static IResult MapAvailabilityException(HttpContext context, Exception exception) => exception switch
+    {
+        AvailabilityValidationException => Problem(context, 400, "CONSULTA_DISPONIBILIDAD_INVALIDA", exception.Message),
+        AvailabilityAccessDeniedException => Problem(context, 403, "ACCESO_DENEGADO", $"Se requiere {AvailabilityAuthorization.Administer} vigente en LOR-001"),
+        AvailabilityPersonNotFoundException => Problem(context, 404, "PERSONA_NO_ENCONTRADA", "No se encontró la persona"),
+        AvailabilityPersonInactiveException => Problem(context, 409, "PERSONA_INACTIVA", "La persona no está activa"),
+        AvailabilityPersonOutOfScopeException => Problem(context, 409, "PERSONA_FUERA_DE_ALCANCE", "La persona no pertenece a LOR-001"),
+        AvailabilityIfMatchRequiredException => Problem(context, 400, "IF_MATCH_INVALIDO", "If-Match es obligatorio para corregir disponibilidad"),
+        AvailabilityVersionConflictException => Problem(context, 412, "VERSION_CONFLICT", "La versión cambió; vuelve a cargar el recurso"),
+        _ => throw exception,
+    };
 
     private static bool TryGetRowVersion(HttpContext context, out long rowVersion, out IResult invalid)
     {
