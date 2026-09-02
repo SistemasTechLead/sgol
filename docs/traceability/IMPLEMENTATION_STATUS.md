@@ -8,20 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-001` — Dirección crea/corrige persona y vigencia con historia |
+| Tarea | `HU-002` — Dirección registra puesto/turno sin conceder permisos |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-005`, `TECH-AUD-001`, `TECH-ID-BOOT-001` |
+| Dependencias aceptadas | `HU-001` |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
 | Aceptación humana | Pendiente de revisión de implementación |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Siguiente tarea propuesta | `HU-002` — no iniciar hasta que esta propuesta cumpla pipeline, revisión humana y merge |
+| Siguiente tarea propuesta | `HU-006` — no iniciar hasta que esta propuesta cumpla pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-001` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-002` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
 
 ## Base aceptada
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-001` — Dirección crea/corrige persona y vigencia con historia |
+| Corte y épica | `CV-01` / `EP-01` |
+| Pull request | `#15` |
+| Commit implementado | `48c549c8fc31f0c7c5a0197ca53e98b4e2769cc7` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; aceptado como evidencia previa conforme a la instrucción de inicio de `HU-002` |
+| Aceptación humana | Recibida el 2026-09-01 |
+| Commit incorporado en `master` | `b74ab4ade5b0b8d0bab5e99530e38c05afdaff41` |
+| `Fuentes/` | Sin cambios; integridad confirmada por el preflight de inicio de `HU-002` |
+| Siguiente tarea propuesta | `HU-002` — Dirección registra puesto/turno sin conceder permisos |
+
+La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-001`.
+
+## Base aceptada anterior — `HU-005`
 
 | Campo | Valor |
 |---|---|
@@ -29,13 +45,8 @@ Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-00
 | Corte y épica | `CV-01` / `EP-01` |
 | Pull request | `#14` |
 | Commit implementado | `a9588f6f7dda5d443d346e35eaebb73c95174aee` |
-| Pipeline requerido | `TECH-BASE-003 / PR gates`; aceptado como evidencia previa conforme a la instrucción de inicio de `HU-001` |
 | Aceptación humana | Recibida el 2026-09-01 |
 | Commit incorporado en `master` | `6b5183025641415c4b6dc7dde1975406bf41e66a` |
-| `Fuentes/` | Sin cambios; integridad confirmada por el preflight de inicio de `HU-001` |
-| Siguiente tarea propuesta | `HU-001` — Dirección crea/corrige persona y vigencia con historia |
-
-La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-005`.
 
 ## Base aceptada anterior — `TECH-UI-001`
 

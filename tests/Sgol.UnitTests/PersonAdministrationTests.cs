@@ -21,7 +21,9 @@ public sealed class PersonAdministrationTests
             PersonId,
             BranchScope.LorettaId,
             EmploymentStatus.Active,
-            startedAt);
+            startedAt,
+            positionText: "Piso",
+            shiftText: "Matutino");
 
         var inactive = active.CreateSuccessor(Guid.CreateVersion7(), EmploymentStatus.Inactive, changedAt);
 
@@ -29,9 +31,41 @@ public sealed class PersonAdministrationTests
         Assert.Equal(2, active.RowVersion);
         Assert.Equal(active.Id, inactive.SupersedesId);
         Assert.Equal(EmploymentStatus.Inactive, inactive.Status);
+        Assert.Equal("Piso", inactive.PositionText);
+        Assert.Equal("Matutino", inactive.ShiftText);
         Assert.Equal(2, inactive.RowVersion);
         Assert.Throws<InvalidOperationException>(() =>
             active.CreateSuccessor(Guid.CreateVersion7(), EmploymentStatus.Active, changedAt.AddMinutes(1)));
+    }
+
+    [Fact]
+    public void LaborDataCorrection_VersionsPositionAndShiftWithoutAuthorityData()
+    {
+        var startedAt = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+        var changedAt = startedAt.AddHours(1);
+        var active = new EmploymentVersion(
+            Guid.CreateVersion7(),
+            PersonId,
+            BranchScope.LorettaId,
+            EmploymentStatus.Active,
+            startedAt,
+            positionText: "Piso",
+            shiftText: "Matutino");
+
+        var corrected = active.CreateSuccessor(
+            Guid.CreateVersion7(),
+            EmploymentStatus.Active,
+            "Director",
+            "Vespertino",
+            changedAt);
+
+        Assert.Equal(changedAt, active.ValidTo);
+        Assert.Equal("Piso", active.PositionText);
+        Assert.Equal("Matutino", active.ShiftText);
+        Assert.Equal("Director", corrected.PositionText);
+        Assert.Equal("Vespertino", corrected.ShiftText);
+        Assert.Equal(active.Id, corrected.SupersedesId);
+        Assert.Equal(2, corrected.RowVersion);
     }
 
     [Fact]
@@ -111,6 +145,30 @@ public sealed class PersonAdministrationTests
             CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status412PreconditionFailed, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+    }
+
+    [Fact]
+    public async Task EmploymentChange_ForwardsPositionAndShiftAsLaborData()
+    {
+        var service = new RecordingPersonService(CreateDetails());
+        var context = CreateContext(authenticated: true);
+        context.Request.Headers.IfMatch = "\"1\"";
+
+        var result = await PersonApiEndpoints.HandlePatchEmploymentAsync(
+            PersonId,
+            new ChangeEmploymentRequest(
+                EmploymentStatus.Active,
+                "Corrección sintética",
+                "Director",
+                "Vespertino"),
+            context,
+            service,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal("Director", service.ChangeCommand?.PositionText);
+        Assert.Equal("Vespertino", service.ChangeCommand?.ShiftText);
+        Assert.Equal(EmploymentStatus.Active, service.ChangeCommand?.Status);
     }
 
     private static DefaultHttpContext CreateContext(bool authenticated)

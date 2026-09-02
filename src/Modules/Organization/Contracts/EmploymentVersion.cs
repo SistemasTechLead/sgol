@@ -13,7 +13,9 @@ public sealed class EmploymentVersion
         string status,
         DateTimeOffset validFrom,
         Guid? supersedesId = null,
-        long rowVersion = 1)
+        long rowVersion = 1,
+        string? positionText = null,
+        string? shiftText = null)
     {
         if (status is not EmploymentStatus.Active and not EmploymentStatus.Inactive)
         {
@@ -26,6 +28,8 @@ public sealed class EmploymentVersion
         PersonId = personId;
         BranchId = branchId;
         Status = status;
+        PositionText = positionText;
+        ShiftText = shiftText;
         ValidFrom = validFrom;
         SupersedesId = supersedesId;
         RowVersion = rowVersion;
@@ -52,6 +56,22 @@ public sealed class EmploymentVersion
     public long RowVersion { get; private set; }
 
     public EmploymentVersion CreateSuccessor(Guid id, string status, DateTimeOffset changedAt)
+        => CreateSuccessorCore(id, status, PositionText, ShiftText, changedAt);
+
+    public EmploymentVersion CreateSuccessor(
+        Guid id,
+        string status,
+        string? positionText,
+        string? shiftText,
+        DateTimeOffset changedAt) =>
+        CreateSuccessorCore(id, status, positionText, shiftText, changedAt);
+
+    private EmploymentVersion CreateSuccessorCore(
+        Guid id,
+        string status,
+        string? positionText,
+        string? shiftText,
+        DateTimeOffset changedAt)
     {
         if (ValidTo is not null)
         {
@@ -70,7 +90,9 @@ public sealed class EmploymentVersion
             status,
             changedAt,
             Id,
-            RowVersion);
+            RowVersion,
+            positionText,
+            shiftText);
     }
 }
 

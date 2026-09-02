@@ -122,6 +122,8 @@ public static class PersonApiEndpoints
             personId,
             request.Status,
             request.Reason,
+            request.PositionText,
+            request.ShiftText,
             requiresIdempotencyKey: false,
             context,
             service,
@@ -137,6 +139,8 @@ public static class PersonApiEndpoints
             personId,
             EmploymentStatus.Inactive,
             request.Reason,
+            positionText: null,
+            shiftText: null,
             requiresIdempotencyKey: true,
             context,
             service,
@@ -152,6 +156,8 @@ public static class PersonApiEndpoints
             personId,
             EmploymentStatus.Active,
             request.Reason,
+            positionText: null,
+            shiftText: null,
             requiresIdempotencyKey: true,
             context,
             service,
@@ -161,6 +167,8 @@ public static class PersonApiEndpoints
         Guid personId,
         string status,
         string reason,
+        string? positionText,
+        string? shiftText,
         bool requiresIdempotencyKey,
         HttpContext context,
         IPersonAdministrationService service,
@@ -197,7 +205,9 @@ public static class PersonApiEndpoints
                     status,
                     rowVersion,
                     reason,
-                    idempotencyKey),
+                    idempotencyKey,
+                    positionText,
+                    shiftText),
                 cancellationToken);
             SetETag(context, result.Person);
             return Ok(context, result.Person);
@@ -275,6 +285,7 @@ public static class PersonApiEndpoints
         PersonNotFoundException => Problem(context, 404, "PERSONA_NO_ENCONTRADA", "No se encontró la persona"),
         PersonCodeConflictException => Problem(context, 409, "CODIGO_PERSONA_DUPLICADO", "El código estable ya está registrado"),
         PersonStateConflictException => Problem(context, 409, "VIGENCIA_SIN_CAMBIO", "La vigencia solicitada ya es la vigente"),
+        PersonEmploymentNoChangeException => Problem(context, 409, "DATOS_LABORALES_SIN_CAMBIO", "Puesto y turno ya son los vigentes"),
         PersonIdempotencyConflictException => Problem(context, 409, "IDEMPOTENCY_KEY_CONFLICT", "La clave ya fue usada con otro contenido"),
         PersonVersionConflictException => Problem(context, 412, "VERSION_CONFLICT", "La versión cambió; vuelve a cargar el recurso"),
         _ => throw exception,
@@ -312,6 +323,10 @@ public static class PersonApiEndpoints
 
 public sealed record CreatePersonRequest(string StableCode, string DisplayName);
 
-public sealed record ChangeEmploymentRequest(string Status, string Reason);
+public sealed record ChangeEmploymentRequest(
+    string Status,
+    string Reason,
+    string? PositionText = null,
+    string? ShiftText = null);
 
 public sealed record EmploymentReasonRequest(string Reason);

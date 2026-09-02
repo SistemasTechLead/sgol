@@ -161,11 +161,19 @@ public sealed class EfPersonAdministrationService(
             throw new PersonValidationException("status must be ACTIVA or INACTIVA.");
         }
 
+        var updatesLaborData = command.PositionText is not null || command.ShiftText is not null;
+        var positionText = command.PositionText is null ? null : RequireValue(command.PositionText, "positionText");
+        var shiftText = command.ShiftText is null ? null : RequireValue(command.ShiftText, "shiftText");
+
         var requestHash = ComputeHash(
             command.PersonId.ToString("D", CultureInfo.InvariantCulture),
             command.Status,
             command.ExpectedRowVersion.ToString(CultureInfo.InvariantCulture),
-            reason);
+            reason,
+            command.PositionText is null ? "0" : "1",
+            positionText ?? string.Empty,
+            command.ShiftText is null ? "0" : "1",
+            shiftText ?? string.Empty);
         if (command.IdempotencyKey is Guid idempotencyKey)
         {
             var replay = await FindReplayAsync(EmploymentScope, idempotencyKey, requestHash, cancellationToken);
@@ -196,19 +204,39 @@ public sealed class EfPersonAdministrationService(
             throw new PersonVersionConflictException();
         }
 
-        if (current.Status == command.Status)
+        if (!updatesLaborData && current.Status == command.Status)
         {
             dbContext.ChangeTracker.Clear();
             throw new PersonStateConflictException();
         }
 
+        var effectivePositionText = positionText ?? current.PositionText;
+        var effectiveShiftText = shiftText ?? current.ShiftText;
+        if (updatesLaborData &&
+            current.Status == command.Status &&
+            string.Equals(current.PositionText, effectivePositionText, StringComparison.Ordinal) &&
+            string.Equals(current.ShiftText, effectiveShiftText, StringComparison.Ordinal))
+        {
+            dbContext.ChangeTracker.Clear();
+            throw new PersonEmploymentNoChangeException();
+        }
+
         var now = clock.UtcNow;
-        var successor = current.CreateSuccessor(uuidGenerator.NewUuid(), command.Status, now);
+        var successor = updatesLaborData
+            ? current.CreateSuccessor(
+                uuidGenerator.NewUuid(),
+                command.Status,
+                effectivePositionText,
+                effectiveShiftText,
+                now)
+            : current.CreateSuccessor(uuidGenerator.NewUuid(), command.Status, now);
         using var beforeData = JsonSerializer.SerializeToDocument(new
         {
             schemaVersion = 1,
             employmentVersionId = current.Id,
             employmentStatus = current.Status,
+            positionText = current.PositionText,
+            shiftText = current.ShiftText,
             rowVersion = command.ExpectedRowVersion,
         });
         using var afterData = JsonSerializer.SerializeToDocument(new
@@ -216,6 +244,8 @@ public sealed class EfPersonAdministrationService(
             schemaVersion = 1,
             employmentVersionId = successor.Id,
             employmentStatus = successor.Status,
+            positionText = successor.PositionText,
+            shiftText = successor.ShiftText,
             rowVersion = successor.RowVersion,
             supersedesId = successor.SupersedesId,
         });
@@ -372,7 +402,9 @@ public sealed class EfPersonAdministrationService(
         var history = await dbContext.EmploymentVersions
             .AsNoTracking()
             .Where(employment => employment.PersonId == personId && employment.BranchId == BranchScope.LorettaId)
-            .OrderBy(employment => employment.ValidFrom)
+            .OrderBy(employment => employment.RowVersion)
+            .ThenBy(employment => employment.ValidTo == null)
+            .ThenBy(employment => employment.ValidFrom)
             .ThenBy(employment => employment.Id)
             .Select(employment => new EmploymentVersionSnapshot(
                 employment.Id,
@@ -380,7 +412,9 @@ public sealed class EfPersonAdministrationService(
                 employment.ValidFrom,
                 employment.ValidTo,
                 employment.SupersedesId,
-                employment.RowVersion))
+                employment.RowVersion,
+                employment.PositionText,
+                employment.ShiftText))
             .ToListAsync(cancellationToken);
 
         return new PersonDetails(
