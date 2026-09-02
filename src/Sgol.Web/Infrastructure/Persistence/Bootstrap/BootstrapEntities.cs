@@ -8,40 +8,6 @@ public static class BootstrapContract
     public const string ActiveRoleStatus = "ACTIVO";
 }
 
-public sealed class Person
-{
-    public Guid Id { get; init; }
-
-    public required string StableCode { get; init; }
-
-    public required string DisplayName { get; init; }
-
-    public DateTimeOffset CreatedAt { get; init; }
-}
-
-public sealed class EmploymentVersion
-{
-    public Guid Id { get; init; }
-
-    public Guid PersonId { get; init; }
-
-    public Guid BranchId { get; init; }
-
-    public required string Status { get; init; }
-
-    public string? PositionText { get; init; }
-
-    public string? ShiftText { get; init; }
-
-    public DateTimeOffset ValidFrom { get; init; }
-
-    public DateTimeOffset? ValidTo { get; init; }
-
-    public Guid? SupersedesId { get; init; }
-
-    public long RowVersion { get; init; }
-}
-
 public sealed class AppUser
 {
     public Guid Id { get; init; }

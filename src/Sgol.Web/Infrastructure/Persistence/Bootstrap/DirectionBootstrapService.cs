@@ -110,15 +110,12 @@ public sealed class DirectionBootstrapService(
                         DisplayName = input.PersonDisplayName.Trim(),
                         CreatedAt = now,
                     });
-                    dbContext.EmploymentVersions.Add(new EmploymentVersion
-                    {
-                        Id = uuidGenerator.NewUuid(),
-                        PersonId = personId,
-                        BranchId = BranchScope.LorettaId,
-                        Status = BootstrapContract.ActivePersonStatus,
-                        ValidFrom = now,
-                        RowVersion = 1,
-                    });
+                    dbContext.EmploymentVersions.Add(new EmploymentVersion(
+                        uuidGenerator.NewUuid(),
+                        personId,
+                        BranchScope.LorettaId,
+                        BootstrapContract.ActivePersonStatus,
+                        now));
                     dbContext.AppUsers.Add(user);
                     dbContext.IdentityCredentials.Add(credential);
                     dbContext.RoleAssignmentVersions.Add(new RoleAssignmentVersion

@@ -8,34 +8,44 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-005` — Reconocer únicamente `LOR-001` y rechazar otra sucursal |
+| Tarea | `HU-001` — Dirección crea/corrige persona y vigencia con historia |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `TECH-BASE-002`, `TECH-BASE-005`, `TECH-UI-001` |
+| Dependencias aceptadas | `HU-005`, `TECH-AUD-001`, `TECH-ID-BOOT-001` |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
 | Aceptación humana | Pendiente de revisión de implementación |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Siguiente tarea propuesta | `HU-001` — no iniciar hasta que esta propuesta cumpla pipeline, revisión humana y merge |
+| Siguiente tarea propuesta | `HU-002` — no iniciar hasta que esta propuesta cumpla pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-005` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-001` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
 
 ## Base aceptada
 
 | Campo | Valor |
 |---|---|
+| Última tarea Terminada | `HU-005` — Reconocer únicamente `LOR-001` y rechazar otra sucursal |
+| Corte y épica | `CV-01` / `EP-01` |
+| Pull request | `#14` |
+| Commit implementado | `a9588f6f7dda5d443d346e35eaebb73c95174aee` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; aceptado como evidencia previa conforme a la instrucción de inicio de `HU-001` |
+| Aceptación humana | Recibida el 2026-09-01 |
+| Commit incorporado en `master` | `6b5183025641415c4b6dc7dde1975406bf41e66a` |
+| `Fuentes/` | Sin cambios; integridad confirmada por el preflight de inicio de `HU-001` |
+| Siguiente tarea propuesta | `HU-001` — Dirección crea/corrige persona y vigencia con historia |
+
+La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-005`.
+
+## Base aceptada anterior — `TECH-UI-001`
+
+| Campo | Valor |
+|---|---|
 | Última tarea Terminada | `TECH-UI-001` — Base de interfaz compartida |
-| Corte y épica | Tarea técnica de base; F07 no la asigna a un CV/EP funcional |
 | Pull request | `#13` |
 | Commit implementado | `d723d2fb91a86bf34e886ebc84dda77c72bd1dec` |
-| Pipeline requerido | `TECH-BASE-003 / PR gates`; aceptado como evidencia previa conforme a la instrucción de inicio de `HU-005` |
 | Aceptación humana | Recibida el 2026-09-01 |
 | Commit incorporado en `master` | `0209cec724c13ce27de9a27afb183f458385b9b2` |
-| `Fuentes/` | Sin cambios; integridad confirmada por el preflight de inicio de `HU-005` |
-| Siguiente tarea propuesta | `HU-005` — Reconocer únicamente `LOR-001` y rechazar otra sucursal |
-
-La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `TECH-UI-001`.
 
 ## Base aceptada anterior — `TECH-ID-BOOT-001`
 
