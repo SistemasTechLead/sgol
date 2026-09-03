@@ -41,6 +41,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<EligibilityPolicyVersion> EligibilityPolicyVersions => Set<EligibilityPolicyVersion>();
 
+    public DbSet<ActivationRuleVersion> ActivationRuleVersions => Set<ActivationRuleVersion>();
+
     public DbSet<WeekPeriod> WeekPeriods => Set<WeekPeriod>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -61,6 +63,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new TaskDefinitionConfiguration());
         modelBuilder.ApplyConfiguration(new TaskDefinitionVersionConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityPolicyVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new ActivationRuleVersionConfiguration());
         modelBuilder.ApplyConfiguration(new WeekPeriodConfiguration());
     }
 }

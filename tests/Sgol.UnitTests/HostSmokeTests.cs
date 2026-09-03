@@ -26,6 +26,8 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
                     services.AddDataProtection().UseEphemeralDataProtectionProvider();
                     services.RemoveAll<ITaskDefinitionService>();
                     services.AddSingleton<ITaskDefinitionService, UnusedTaskDefinitionService>();
+                    services.RemoveAll<IActivationPolicyService>();
+                    services.AddSingleton<IActivationPolicyService, UnusedActivationPolicyService>();
                 });
             })
             .CreateClient();
@@ -107,7 +109,6 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Theory]
-    [InlineData("/api/v1/task-definitions/TAR-0005/activation-policy")]
     [InlineData("/api/v1/task-definitions/TAR-0005/evidence-policy")]
     [InlineData("/api/v1/task-definitions/TAR-0005/validation-policy")]
     public async Task LaterPolicyEndpoints_DoNotExist(string path)
@@ -115,6 +116,17 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         using var response = await _client.PutAsync(path, content: null);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ActivationPolicyEndpoint_RequiresAuthentication()
+    {
+        using var response = await _client.PutAsync(
+            "/api/v1/task-definitions/TAR-0005/activation-policy",
+            JsonContent.Create(new { }));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
@@ -140,5 +152,12 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         public Task<TaskDefinitionVersionDetails> PublishVersionAsync(PublishTaskDefinitionVersionCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<TaskDefinitionVersionDetails> DeactivateNewAsync(DeactivateTaskDefinitionCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class UnusedActivationPolicyService : IActivationPolicyService
+    {
+        public Task<ActivationRuleVersionDetails> PutAsync(
+            PutActivationPolicyCommand command,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }
