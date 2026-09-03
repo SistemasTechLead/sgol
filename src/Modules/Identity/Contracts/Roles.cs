@@ -19,6 +19,16 @@ public static class RoleAssignmentStatus
 
 public static class RoleHierarchy
 {
+    public static bool CanAccessLevel(string actorRoleCode, string targetRoleCode)
+    {
+        if (!CanonicalRole.IsDefined(actorRoleCode) || !CanonicalRole.IsDefined(targetRoleCode))
+        {
+            return false;
+        }
+
+        return Rank(actorRoleCode) >= Rank(targetRoleCode);
+    }
+
     public static bool CanAccess(string actorRoleCode, string targetRoleCode, bool sameUser)
     {
         if (!CanonicalRole.IsDefined(actorRoleCode) || !CanonicalRole.IsDefined(targetRoleCode))

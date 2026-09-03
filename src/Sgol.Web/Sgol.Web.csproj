@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Modules\Configuration\Sgol.Configuration.csproj" />
+    <ProjectReference Include="..\Modules\Generation\Sgol.Generation.csproj" />
     <ProjectReference Include="..\Modules\Identity\Sgol.Identity.csproj" />
     <ProjectReference Include="..\Modules\Organization\Sgol.Organization.csproj" />
     <ProjectReference Include="..\Modules\Planning\Sgol.Planning.csproj" />

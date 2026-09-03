@@ -8,20 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-012` — Dirección configura alta manual/recurrencia permitida |
+| Tarea | `HU-014` — Actor autorizado solicita generación idempotente |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-009`, `HU-011`, `HU-017`, `HU-008` y `TECH-VER-001` `Terminadas`; reutiliza calendario, definiciones TAR, `ConfigurationRelease`, autorización, versionado, idempotencia y auditoría |
+| Dependencias aceptadas | `HU-012`, `HU-017`, `HU-011`, `HU-010`, `HU-007` y `TECH-AUD-001` `Terminadas`; reutiliza reglas de activación, políticas de elegibilidad, semana, jerarquía, idempotencia y auditoría |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Pendiente para `HU-012`; la aprobación del contrato mínimo de `TAR-0026` no sustituye la revisión y aprobación del PR |
+| Aceptación humana | Recibida explícitamente; autoriza commit, publicación y merge sujetos al pipeline requerido sobre el SHA exacto |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `88/88` efectivas, 0 omitidas: ejecución completa posterior a la corrección de migración `86/88` y reejecución enfocada de los dos controles corregidos `2/2`; el primer intento `0/88` detectó `jsonb_object_length` no disponible y quedó sustituido por una guarda PostgreSQL compatible |
-| Decisión específica | Aprobada: `TAR-0026` usa `BUSINESS_DAYS_BEFORE_DUE_DATE`, tres días hábiles, hora local requerida, ajuste previo al hábil anterior, zona `America/Mexico_City` y `SERVICE_DUE_DATE_REFERENCE_V1` con `serviceKey`, `dueDate` y `reference` |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-014`, `HU-013` ni otra historia hasta que esta propuesta cumpla pruebas PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `93/93` efectivas, 0 omitidas: ejecución completa `91/93` y reejecución enfocada de los dos controles corregidos `2/2`; se actualizaron la lista aprobada de migraciones/tablas y el mapeo funcional de origen vacío |
+| Decisión específica | `HU-034 mínimo` se aplica a una sola `generation_request`; `obligation_id` permanece nulo y `work_obligation` no se materializa hasta `HU-015` |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-015`, `HU-016`, `HU-013` ni otra historia hasta que esta propuesta cumpla pruebas PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-012` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-014` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-012`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-012` — Dirección configura alta manual/recurrencia permitida |
+| Pull request | `#26` |
+| Commit implementado | `1a49f534c7d6831c15659ccc72bbe3464f2cc119` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33805254360` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `efdec44acccd9ba4e56ef61f636e7c9bf73abd53` |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `88/88` efectivas, 0 omitidas; ejecución completa `86/88` y reejecución enfocada de los dos controles corregidos `2/2` |
+| `Fuentes/` | Sin cambios; protección verificada en el cierre aceptado |
+| Siguiente tarea propuesta | `HU-014` — Actor autorizado solicita generación idempotente |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-012`.
 
 ## Base aceptada — `HU-017`
 
