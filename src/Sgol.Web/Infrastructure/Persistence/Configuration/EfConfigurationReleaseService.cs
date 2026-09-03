@@ -25,6 +25,9 @@ public sealed class EfConfigurationReleaseService(
     private const string OneCurrentIndex = "IX_configuration_release_one_current";
     private const string SuccessorIndex = "IX_configuration_release_supersedes_id";
     private const string ValidityConstraint = "EX_configuration_release_validity";
+    private const string CalendarCurrentIndex = "IX_calendar_day_version_one_current";
+    private const string CalendarSuccessorIndex = "IX_calendar_day_version_supersedes_id";
+    private const string CalendarValidityConstraint = "EX_calendar_day_version_validity";
 
     public async Task<IReadOnlyList<ConfigurationReleaseDetails>> ListAsync(
         Guid actorUserId,
@@ -189,6 +192,10 @@ public sealed class EfConfigurationReleaseService(
                         .Where(release => release.BranchId == BranchScope.LorettaId)
                         .MaxAsync(release => (int?)release.VersionNo, token) ?? 0) + 1;
                     var publishedAt = clock.UtcNow;
+                    var calendarPlans = await PlanCalendarPublicationAsync(
+                        draft.Id,
+                        command.EffectiveFrom,
+                        token);
 
                     var beforeData = JsonSerializer.SerializeToDocument(new
                     {
@@ -199,10 +206,27 @@ public sealed class EfConfigurationReleaseService(
                     if (current is not null)
                     {
                         current.ApplySuperseded(plan.Superseded!);
+                    }
+
+                    foreach (var calendarPlan in calendarPlans.Where(item => item.Current is not null))
+                    {
+                        calendarPlan.Current!.ApplySuperseded(calendarPlan.Plan.Superseded!);
+                    }
+
+                    if (current is not null || calendarPlans.Any(item => item.Current is not null))
+                    {
                         await dbContext.SaveChangesAsync(token);
                     }
 
                     draft.ApplyPublished(plan.Published, nextVersion, command.ActorUserId, publishedAt);
+                    foreach (var calendarPlan in calendarPlans)
+                    {
+                        calendarPlan.Draft.ApplyPublished(calendarPlan.Plan.Published);
+                        dbContext.AuditEvents.Add(NewCalendarPublicationAuditEvent(
+                            command.ActorUserId,
+                            command.CorrelationId,
+                            calendarPlan));
+                    }
                     dbContext.IdempotencyRecords.Add(new IdempotencyRecord
                     {
                         Scope = scope,
@@ -245,12 +269,15 @@ public sealed class EfConfigurationReleaseService(
             dbContext.ChangeTracker.Clear();
             throw new VersionConflictException();
         }
-        catch (DbUpdateException exception) when (GetConstraintName(exception) is OneCurrentIndex or SuccessorIndex)
+        catch (DbUpdateException exception) when (
+            GetConstraintName(exception) is OneCurrentIndex or SuccessorIndex or
+                CalendarCurrentIndex or CalendarSuccessorIndex)
         {
             dbContext.ChangeTracker.Clear();
             throw new VersionConflictException();
         }
-        catch (DbUpdateException exception) when (GetConstraintName(exception) == ValidityConstraint)
+        catch (DbUpdateException exception) when (
+            GetConstraintName(exception) is ValidityConstraint or CalendarValidityConstraint)
         {
             dbContext.ChangeTracker.Clear();
             throw new VersioningOverlapException();
@@ -297,29 +324,106 @@ public sealed class EfConfigurationReleaseService(
     }
 
     private Task<bool> IsAuthorizedAsync(Guid actorUserId, CancellationToken cancellationToken) =>
-        (
-            from user in dbContext.AppUsers.AsNoTracking()
-            join role in dbContext.RoleAssignmentVersions.AsNoTracking()
-                on user.Id equals role.UserId
-            join employment in dbContext.EmploymentVersions.AsNoTracking()
-                on user.PersonId equals employment.PersonId
-            where user.Id == actorUserId &&
-                user.Status == BootstrapContract.ActiveAccountStatus &&
-                role.BranchId == BranchScope.LorettaId &&
-                role.RoleCode == BootstrapContract.DirectionRoleCode &&
-                role.Status == BootstrapContract.ActiveRoleStatus &&
-                role.ValidTo == null &&
-                employment.BranchId == BranchScope.LorettaId &&
-                employment.Status == EmploymentStatus.Active &&
-                employment.ValidTo == null
-            select user.Id)
-        .AnyAsync(cancellationToken);
+        ConfigurationAuthorizationQuery.IsDirectionAsync(
+            dbContext,
+            actorUserId,
+            cancellationToken);
 
     private async Task LockLorettaScopeAsync(CancellationToken cancellationToken) =>
         _ = await dbContext.Branches
             .FromSqlInterpolated($"SELECT * FROM branch WHERE id = {BranchScope.LorettaId} FOR UPDATE")
             .AsTracking()
             .SingleAsync(cancellationToken);
+
+    private async Task<IReadOnlyList<CalendarPublicationPlan>> PlanCalendarPublicationAsync(
+        Guid releaseId,
+        DateTimeOffset effectiveFrom,
+        CancellationToken cancellationToken)
+    {
+        var drafts = await dbContext.CalendarDayVersions
+            .FromSqlInterpolated(
+                $"""
+                SELECT *
+                FROM calendar_day_version
+                WHERE release_id = {releaseId}
+                  AND status = {VersionStatuses.Draft}
+                ORDER BY local_date, id
+                FOR UPDATE
+                """)
+            .AsTracking()
+            .ToListAsync(cancellationToken);
+        var plans = new List<CalendarPublicationPlan>(drafts.Count);
+        foreach (var calendarDraft in drafts)
+        {
+            var current = await dbContext.CalendarDayVersions
+                .FromSqlInterpolated(
+                    $"""
+                    SELECT *
+                    FROM calendar_day_version
+                    WHERE branch_id = {BranchScope.LorettaId}
+                      AND local_date = {calendarDraft.LocalDate}
+                      AND status = {VersionStatuses.Current}
+                    FOR UPDATE
+                    """)
+                .AsTracking()
+                .SingleOrDefaultAsync(cancellationToken);
+            var historicalDays = await dbContext.CalendarDayVersions
+                .AsNoTracking()
+                .Where(day =>
+                    day.BranchId == BranchScope.LorettaId &&
+                    day.LocalDate == calendarDraft.LocalDate &&
+                    day.Status != VersionStatuses.Draft)
+                .ToListAsync(cancellationToken);
+            var history = historicalDays.Select(day => day.ToVersionRecord());
+            var publicationPlan = VersioningRules.PlanPublication(
+                calendarDraft.ToVersionRecord(),
+                current?.ToVersionRecord(),
+                history,
+                calendarDraft.RowVersion,
+                effectiveFrom,
+                calendarDraft.PendingReason!);
+            plans.Add(new CalendarPublicationPlan(
+                calendarDraft,
+                current,
+                publicationPlan,
+                current is null ? null : EfCalendarService.AuditValue(current),
+                EfCalendarService.AuditValue(calendarDraft)));
+        }
+
+        return plans;
+    }
+
+    private AuditEvent NewCalendarPublicationAuditEvent(
+        Guid actorUserId,
+        Guid correlationId,
+        CalendarPublicationPlan calendarPlan) => new()
+        {
+            Id = uuidGenerator.NewUuid(),
+            OccurredAt = clock.UtcNow,
+            ActorUserId = actorUserId,
+            ActorType = "APP_USER",
+            Action = "CALENDAR_DAY_PUBLISHED",
+            ResourceType = "CALENDAR_DAY",
+            ResourceId = calendarPlan.Draft.Id,
+            BranchId = BranchScope.LorettaId,
+            CorrelationId = correlationId,
+            BeforeData = JsonSerializer.SerializeToDocument(new
+            {
+                schemaVersion = 1,
+                draft = calendarPlan.DraftBefore,
+                current = calendarPlan.CurrentBefore,
+            }),
+            AfterData = JsonSerializer.SerializeToDocument(new
+            {
+                schemaVersion = 1,
+                published = EfCalendarService.AuditValue(calendarPlan.Draft),
+                superseded = calendarPlan.Current is null
+                    ? null
+                    : EfCalendarService.AuditValue(calendarPlan.Current),
+            }),
+            Reason = calendarPlan.Draft.Reason,
+            Outcome = "SUCCESS",
+        };
 
     private async Task<ConfigurationReleaseDetails?> FindReplayAsync(
         string scope,
@@ -414,4 +518,11 @@ public sealed class EfConfigurationReleaseService(
 
     private static string? GetConstraintName(DbUpdateException exception) =>
         (exception.InnerException as PostgresException)?.ConstraintName;
+
+    private sealed record CalendarPublicationPlan(
+        CalendarDayVersion Draft,
+        CalendarDayVersion? Current,
+        VersionPublicationPlan Plan,
+        object? CurrentBefore,
+        object DraftBefore);
 }

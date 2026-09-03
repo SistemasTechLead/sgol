@@ -8,20 +8,38 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-008` — Dirección publica configuración versionada |
+| Tarea | `HU-009` — Dirección administra calendario de `LOR-001` |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-007`; `HU-033 mínimo transaccional` satisfecho por `TECH-AUD-001` conforme a la adenda; `TECH-VER-001` `Terminada` |
+| Dependencias aceptadas | `HU-005`; `HU-008` `Terminada`; reutiliza `TECH-VER-001` y la publicación de configuración de `HU-008` |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Pendiente de revisión de implementación |
+| Aceptación humana | Recibida explícitamente el 2026-09-03; autorización de publicación y merge registrada en el chat |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-009` ni otra historia hasta que esta propuesta cumpla pipeline, revisión humana y merge |
+| Pruebas PostgreSQL/Testcontainers específicas | `7/7`; ejecución externa informada por el desarrollador, 0 errores y 0 omitidas |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-010` ni otra historia hasta que esta propuesta cumpla pruebas PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-008` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-009` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
 
 ## Base aceptada
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-008` — Dirección publica configuración versionada |
+| Pull request | `#21` |
+| Commit implementado | `3aa62b2aa88a6983db1446cb75a466ebcc1fa8d1` |
+| Commit correctivo | `c2e46a0c7fa4d77f5c56abde97d58b360acf4088` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33696761780` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `d37516e78dbc023fa5feef2994934c1b7d1c15db` |
+| Pruebas PostgreSQL/Testcontainers específicas | `5/5`; prueba correctiva `1/1` |
+| `Fuentes/` | Sin cambios |
+| Siguiente tarea propuesta | `HU-009` — Dirección administra calendario de `LOR-001` |
+
+La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-008`, `TECH-VER-001` o sus dependencias.
+
+## Base aceptada anterior — `TECH-VER-001`
 
 | Campo | Valor |
 |---|---|
@@ -33,9 +51,6 @@ Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-00
 | Commit incorporado en `master` | `70222cd1997bf64ad29638f9a27c5268058e118a` |
 | Pruebas PostgreSQL/Testcontainers específicas | `4/4` |
 | `Fuentes/` | Sin cambios |
-| Siguiente tarea propuesta | `HU-008` — Dirección publica configuración versionada |
-
-La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `TECH-VER-001`.
 
 ## Base aceptada anterior — `HU-003`
 

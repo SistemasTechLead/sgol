@@ -35,6 +35,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<AuditTransaction>();
         services.AddScoped<VersioningTransaction>();
         services.AddScoped<IConfigurationReleaseService, EfConfigurationReleaseService>();
+        services.AddScoped<ICalendarService, EfCalendarService>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();

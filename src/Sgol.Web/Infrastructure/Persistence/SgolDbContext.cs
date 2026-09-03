@@ -31,6 +31,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<ConfigurationRelease> ConfigurationReleases => Set<ConfigurationRelease>();
 
+    public DbSet<CalendarDayVersion> CalendarDayVersions => Set<CalendarDayVersion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -45,5 +47,6 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new DirectionBootstrapMarkerConfiguration());
         modelBuilder.ApplyConfiguration(new IdempotencyRecordConfiguration());
         modelBuilder.ApplyConfiguration(new ConfigurationReleaseConfiguration());
+        modelBuilder.ApplyConfiguration(new CalendarDayVersionConfiguration());
     }
 }
