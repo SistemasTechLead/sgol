@@ -189,6 +189,11 @@ public static class ConfigurationApiEndpoints
             422,
             "VIGENCIA_SOLAPADA",
             "La vigencia se solapa con otra versión publicada"),
+        EligibilityPolicyCoverageException or EligibilityPolicyDefinitionPreconditionException => Problem(
+            context,
+            422,
+            "POLITICA_ELEGIBILIDAD_INCOMPLETA",
+            exception.Message),
         VersioningValidationException or VersioningStateException => Problem(
             context,
             422,

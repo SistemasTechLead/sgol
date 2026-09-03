@@ -198,7 +198,7 @@ public sealed class VersioningPersistenceTests : IAsyncLifetime
             .ToHashSet();
 
         Assert.True(consumers.SetEquals(
-            [typeof(ConfigurationRelease), typeof(CalendarDayVersion), typeof(TaskDefinitionVersion)]));
+            [typeof(ConfigurationRelease), typeof(CalendarDayVersion), typeof(TaskDefinitionVersion), typeof(EligibilityPolicyVersion)]));
         Assert.DoesNotContain(consumers, type => type.Assembly == typeof(IVersionedEntity).Assembly);
     }
 

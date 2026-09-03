@@ -34,6 +34,7 @@ app.MapAccountApi();
 app.MapConfigurationApi();
 app.MapCalendarApi();
 app.MapTaskDefinitionApi();
+app.MapEligibilityPolicyApi();
 app.MapWeekApi();
 
 app.Run();

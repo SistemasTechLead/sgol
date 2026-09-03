@@ -195,6 +195,7 @@ public sealed record TaskDefinitionDetails(
     string TaskCode,
     string Name,
     TaskDefinitionVersionDetails? Current,
+    EligibilityPolicyVersionDetails? CurrentEligibilityPolicy,
     IReadOnlyList<TaskDefinitionVersionDetails> History);
 
 public sealed record CreateTaskDefinitionVersionCommand(
