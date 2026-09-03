@@ -8,21 +8,37 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-010` — Usuario autorizado obtiene semana ISO única |
+| Tarea | `HU-011` — Dirección mantiene sólo ocho definiciones TAR |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-009` `Terminada`; reutiliza `IClock`, `IUuidGenerator`, `LOR-001` y la autorización vigente |
+| Dependencias aceptadas | `HU-010`, `HU-008` y `TECH-VER-001` `Terminadas`; reutiliza `ConfigurationRelease`, `IClock`, `IUuidGenerator`, `AuditTransaction`, `LOR-001`, idempotencia y autorización vigentes |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Pendiente para `HU-010`; la autorización de merge de `HU-009` no se transfiere |
+| Aceptación humana | Pendiente para `HU-011`; la autorización contractual de implementación no sustituye la revisión y aprobación del PR |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas PostgreSQL/Testcontainers específicas | `6/6`; ejecución externa informada por el desarrollador, 0 errores y 0 omitidas |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-011` ni otra historia hasta que esta propuesta cumpla pruebas PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `17/17`; ejecución externa informada por el desarrollador, 0 errores y 0 omitidas tras corregir una expectativa de lectura autenticada |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-017`, `HU-012` ni otra historia hasta que esta propuesta cumpla pruebas PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-010` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-011` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
 
 ## Base aceptada
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-010` — Usuario autorizado obtiene semana ISO única |
+| Pull request | `#23` |
+| Commit implementado | `dc2c734c5a8ee1e6fb71d0824e92c3aeca91cb1c` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33783854341` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `9b9ec7fea55b8361ec890cf992c9d58a1880df3f` |
+| Pruebas PostgreSQL/Testcontainers específicas | `6/6` |
+| `Fuentes/` | Sin cambios; 29 documentos Markdown idénticos byte por byte |
+| Siguiente tarea propuesta | `HU-011` — Dirección mantiene sólo ocho definiciones TAR |
+
+La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-010`, `HU-009`, `HU-008`, `TECH-VER-001` o sus dependencias.
+
+## Base aceptada anterior — `HU-009`
 
 | Campo | Valor |
 |---|---|
@@ -36,7 +52,7 @@ Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-01
 | `Fuentes/` | Sin cambios; 29 documentos Markdown idénticos byte por byte |
 | Siguiente tarea propuesta | `HU-010` — Usuario autorizado obtiene semana ISO única |
 
-La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-009`, `HU-008`, `TECH-VER-001` o sus dependencias.
+La evidencia anterior se conserva como cierre histórico de `HU-009`.
 
 ## Base aceptada anterior — `HU-008`
 

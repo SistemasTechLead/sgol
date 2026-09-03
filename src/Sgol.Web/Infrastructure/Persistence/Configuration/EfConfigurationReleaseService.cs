@@ -28,6 +28,10 @@ public sealed class EfConfigurationReleaseService(
     private const string CalendarCurrentIndex = "IX_calendar_day_version_one_current";
     private const string CalendarSuccessorIndex = "IX_calendar_day_version_supersedes_id";
     private const string CalendarValidityConstraint = "EX_calendar_day_version_validity";
+    private const string TaskCurrentIndex = "IX_task_definition_version_one_live";
+    private const string TaskSuccessorIndex = "IX_task_definition_version_supersedes_id";
+    private const string TaskVersionIndex = "IX_task_definition_version_number";
+    private const string TaskValidityConstraint = "EX_task_definition_version_validity";
 
     public async Task<IReadOnlyList<ConfigurationReleaseDetails>> ListAsync(
         Guid actorUserId,
@@ -130,7 +134,12 @@ public sealed class EfConfigurationReleaseService(
             command.ReleaseId.ToString("D"),
             command.ExpectedRowVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
             command.EffectiveFrom.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
-            normalizedReason);
+            normalizedReason,
+            command.TaskDirective?.TaskCode ?? string.Empty,
+            command.TaskDirective?.VersionId?.ToString("D") ?? string.Empty,
+            command.TaskDirective?.ExpectedRowVersion.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+            command.TaskDirective?.ActiveForNew.ToString() ?? string.Empty,
+            command.TaskDirective?.CreateDraft.ToString() ?? string.Empty);
         var replay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken);
         if (replay is not null)
         {
@@ -196,6 +205,12 @@ public sealed class EfConfigurationReleaseService(
                         draft.Id,
                         command.EffectiveFrom,
                         token);
+                    var taskPlans = await PlanTaskPublicationAsync(
+                        draft.Id,
+                        command.EffectiveFrom,
+                        normalizedReason,
+                        command.TaskDirective,
+                        token);
 
                     var beforeData = JsonSerializer.SerializeToDocument(new
                     {
@@ -213,7 +228,14 @@ public sealed class EfConfigurationReleaseService(
                         calendarPlan.Current!.ApplySuperseded(calendarPlan.Plan.Superseded!);
                     }
 
-                    if (current is not null || calendarPlans.Any(item => item.Current is not null))
+                    foreach (var taskPlan in taskPlans.Where(item => item.Current is not null))
+                    {
+                        taskPlan.Current!.ApplySuperseded(taskPlan.Plan.Superseded!);
+                    }
+
+                    if (current is not null ||
+                        calendarPlans.Any(item => item.Current is not null) ||
+                        taskPlans.Any(item => item.Current is not null))
                     {
                         await dbContext.SaveChangesAsync(token);
                     }
@@ -226,6 +248,14 @@ public sealed class EfConfigurationReleaseService(
                             command.ActorUserId,
                             command.CorrelationId,
                             calendarPlan));
+                    }
+                    foreach (var taskPlan in taskPlans)
+                    {
+                        taskPlan.Draft.ApplyPublished(taskPlan.Plan.Published, taskPlan.ActiveForNew);
+                        dbContext.AuditEvents.Add(NewTaskPublicationAuditEvent(
+                            command.ActorUserId,
+                            command.CorrelationId,
+                            taskPlan));
                     }
                     dbContext.IdempotencyRecords.Add(new IdempotencyRecord
                     {
@@ -271,13 +301,14 @@ public sealed class EfConfigurationReleaseService(
         }
         catch (DbUpdateException exception) when (
             GetConstraintName(exception) is OneCurrentIndex or SuccessorIndex or
-                CalendarCurrentIndex or CalendarSuccessorIndex)
+                CalendarCurrentIndex or CalendarSuccessorIndex or
+                TaskCurrentIndex or TaskSuccessorIndex or TaskVersionIndex)
         {
             dbContext.ChangeTracker.Clear();
             throw new VersionConflictException();
         }
         catch (DbUpdateException exception) when (
-            GetConstraintName(exception) is ValidityConstraint or CalendarValidityConstraint)
+            GetConstraintName(exception) is ValidityConstraint or CalendarValidityConstraint or TaskValidityConstraint)
         {
             dbContext.ChangeTracker.Clear();
             throw new VersioningOverlapException();
@@ -425,6 +456,172 @@ public sealed class EfConfigurationReleaseService(
             Outcome = "SUCCESS",
         };
 
+    private async Task<IReadOnlyList<TaskPublicationPlan>> PlanTaskPublicationAsync(
+        Guid releaseId,
+        DateTimeOffset effectiveFrom,
+        string reason,
+        TaskPublicationDirective? directive,
+        CancellationToken cancellationToken)
+    {
+        var drafts = await dbContext.TaskDefinitionVersions
+            .FromSqlInterpolated(
+                $"""
+                SELECT *
+                FROM task_definition_version
+                WHERE release_id = {releaseId}
+                  AND status = {VersionStatuses.Draft}
+                ORDER BY task_definition_id, version_no
+                FOR UPDATE
+                """)
+            .AsTracking()
+            .ToListAsync(cancellationToken);
+
+        if (directive?.CreateDraft == true)
+        {
+            var seed = TaskDefinitionCatalog.Require(directive.TaskCode);
+            if (drafts.Any(item => item.TaskDefinitionId == seed.Id))
+            {
+                throw new VersionConflictException();
+            }
+
+            var current = await LockCurrentTaskVersionAsync(seed.Id, cancellationToken)
+                ?? throw new TaskDefinitionNotFoundException();
+            VersioningRules.RequireExpectedRowVersion(current.RowVersion, directive.ExpectedRowVersion);
+            var nextVersionNo = (await dbContext.TaskDefinitionVersions
+                .Where(item => item.TaskDefinitionId == seed.Id)
+                .MaxAsync(item => (int?)item.VersionNo, cancellationToken) ?? 0) + 1;
+            using var emptyPayload = JsonDocument.Parse("{}");
+            var deactivation = new TaskDefinitionVersion(
+                uuidGenerator.NewUuid(),
+                seed.Id,
+                nextVersionNo,
+                TaskDefinitionCatalog.SchemaVersion,
+                emptyPayload,
+                releaseId);
+            dbContext.TaskDefinitionVersions.Add(deactivation);
+            drafts.Add(deactivation);
+        }
+
+        var definitionCodes = await dbContext.TaskDefinitions
+            .AsNoTracking()
+            .ToDictionaryAsync(item => item.Id, item => item.TaskCode, cancellationToken);
+        var plans = new List<TaskPublicationPlan>(drafts.Count);
+        var directiveMatched = directive is null;
+        foreach (var taskDraft in drafts)
+        {
+            var taskCode = definitionCodes[taskDraft.TaskDefinitionId];
+            var isTarget = directive is not null &&
+                string.Equals(taskCode, directive.TaskCode, StringComparison.Ordinal) &&
+                (directive.CreateDraft || directive.VersionId == taskDraft.Id);
+            if (directive is not null &&
+                string.Equals(taskCode, directive.TaskCode, StringComparison.Ordinal) && !isTarget)
+            {
+                throw new TaskDefinitionNotFoundException();
+            }
+
+            if (isTarget)
+            {
+                VersioningRules.RequireExpectedRowVersion(taskDraft.RowVersion, directive!.CreateDraft ? 1 : directive.ExpectedRowVersion);
+                directiveMatched = true;
+            }
+
+            var current = await LockCurrentTaskVersionAsync(taskDraft.TaskDefinitionId, cancellationToken);
+            var history = await dbContext.TaskDefinitionVersions
+                .AsNoTracking()
+                .Where(item =>
+                    item.TaskDefinitionId == taskDraft.TaskDefinitionId &&
+                    item.Status == VersionStatuses.Superseded)
+                .ToListAsync(cancellationToken);
+            var normalizedCurrent = current is null
+                ? null
+                : current.ToVersionRecord() with { Status = VersionStatuses.Current };
+            var plan = VersioningRules.PlanPublication(
+                taskDraft.ToVersionRecord(),
+                normalizedCurrent,
+                history.Select(item => item.ToVersionRecord()),
+                taskDraft.RowVersion,
+                effectiveFrom,
+                reason);
+            plans.Add(new TaskPublicationPlan(
+                taskCode,
+                taskDraft,
+                current,
+                plan,
+                !isTarget || directive!.ActiveForNew,
+                current is null ? null : TaskAuditValue(taskCode, current),
+                TaskAuditValue(taskCode, taskDraft)));
+        }
+
+        if (!directiveMatched)
+        {
+            throw new TaskDefinitionNotFoundException();
+        }
+
+        return plans;
+    }
+
+    private async Task<TaskDefinitionVersion?> LockCurrentTaskVersionAsync(
+        Guid taskDefinitionId,
+        CancellationToken cancellationToken) =>
+        await dbContext.TaskDefinitionVersions
+            .FromSqlInterpolated(
+                $"""
+                SELECT *
+                FROM task_definition_version
+                WHERE task_definition_id = {taskDefinitionId}
+                  AND status IN ({VersionStatuses.Current}, {TaskDefinitionStatuses.InactiveForNew})
+                FOR UPDATE
+                """)
+            .AsTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+
+    private AuditEvent NewTaskPublicationAuditEvent(
+        Guid actorUserId,
+        Guid correlationId,
+        TaskPublicationPlan taskPlan) => new()
+        {
+            Id = uuidGenerator.NewUuid(),
+            OccurredAt = clock.UtcNow,
+            ActorUserId = actorUserId,
+            ActorType = "APP_USER",
+            Action = taskPlan.ActiveForNew ? "TASK_DEFINITION_VERSION_PUBLISHED" : "TASK_DEFINITION_DEACTIVATED_NEW",
+            ResourceType = "TASK_DEFINITION_VERSION",
+            ResourceId = taskPlan.Draft.Id,
+            BranchId = BranchScope.LorettaId,
+            CorrelationId = correlationId,
+            BeforeData = JsonSerializer.SerializeToDocument(new
+            {
+                schemaVersion = 1,
+                draft = taskPlan.DraftBefore,
+                current = taskPlan.CurrentBefore,
+            }),
+            AfterData = JsonSerializer.SerializeToDocument(new
+            {
+                schemaVersion = 1,
+                published = TaskAuditValue(taskPlan.TaskCode, taskPlan.Draft),
+                superseded = taskPlan.Current is null ? null : TaskAuditValue(taskPlan.TaskCode, taskPlan.Current),
+            }),
+            Reason = taskPlan.Draft.Reason,
+            Outcome = "SUCCESS",
+        };
+
+    internal static object TaskAuditValue(string taskCode, TaskDefinitionVersion version) => new
+    {
+        schemaVersion = 1,
+        taskCode,
+        taskDefinitionVersionId = version.Id,
+        versionNo = version.VersionNo,
+        status = version.Status,
+        effectiveFrom = version.EffectiveFrom,
+        effectiveTo = version.EffectiveTo,
+        payloadSchemaVersion = version.SchemaVersion,
+        taskPayload = version.TaskPayload.RootElement,
+        releaseId = version.ReleaseId,
+        reason = version.Reason,
+        supersedesId = version.SupersedesId,
+        rowVersion = version.RowVersion,
+    };
+
     private async Task<ConfigurationReleaseDetails?> FindReplayAsync(
         string scope,
         Guid key,
@@ -523,6 +720,15 @@ public sealed class EfConfigurationReleaseService(
         CalendarDayVersion Draft,
         CalendarDayVersion? Current,
         VersionPublicationPlan Plan,
+        object? CurrentBefore,
+        object DraftBefore);
+
+    private sealed record TaskPublicationPlan(
+        string TaskCode,
+        TaskDefinitionVersion Draft,
+        TaskDefinitionVersion? Current,
+        VersionPublicationPlan Plan,
+        bool ActiveForNew,
         object? CurrentBefore,
         object DraftBefore);
 }

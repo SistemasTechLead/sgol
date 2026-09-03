@@ -36,7 +36,9 @@ public static class PersistenceServiceCollectionExtensions
         });
         services.AddScoped<AuditTransaction>();
         services.AddScoped<VersioningTransaction>();
-        services.AddScoped<IConfigurationReleaseService, EfConfigurationReleaseService>();
+        services.AddScoped<EfConfigurationReleaseService>();
+        services.AddScoped<IConfigurationReleaseService>(provider => provider.GetRequiredService<EfConfigurationReleaseService>());
+        services.AddScoped<ITaskDefinitionService, EfTaskDefinitionService>();
         services.AddScoped<ICalendarService, EfCalendarService>();
         services.AddScoped<IWeekPeriodService, EfWeekPeriodService>();
         services.AddDirectionBootstrap();

@@ -112,7 +112,8 @@ public sealed record PublishConfigurationReleaseCommand(
     Guid ReleaseId,
     long ExpectedRowVersion,
     DateTimeOffset EffectiveFrom,
-    string Reason);
+    string Reason,
+    TaskPublicationDirective? TaskDirective = null);
 
 public interface IConfigurationReleaseService
 {

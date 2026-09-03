@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Sgol.Configuration.Contracts;
 using Xunit;
 
 namespace Sgol.UnitTests;
@@ -20,7 +22,11 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
             {
                 builder.ConfigureLogging(logging => logging.ClearProviders());
                 builder.ConfigureServices(services =>
-                    services.AddDataProtection().UseEphemeralDataProtectionProvider());
+                {
+                    services.AddDataProtection().UseEphemeralDataProtectionProvider();
+                    services.RemoveAll<ITaskDefinitionService>();
+                    services.AddSingleton<ITaskDefinitionService, UnusedTaskDefinitionService>();
+                });
             })
             .CreateClient();
     }
@@ -89,7 +95,51 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("/api/v1/task-definitions")]
+    [InlineData("/api/v1/task-definitions/TAR-0005")]
+    public async Task TaskDefinitionQueries_RequireAuthentication(string path)
+    {
+        using var response = await _client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Theory]
+    [InlineData("/api/v1/task-definitions/TAR-0005/activation-policy")]
+    [InlineData("/api/v1/task-definitions/TAR-0005/eligibility-policy")]
+    [InlineData("/api/v1/task-definitions/TAR-0005/evidence-policy")]
+    [InlineData("/api/v1/task-definitions/TAR-0005/validation-policy")]
+    public async Task LaterPolicyEndpoints_DoNotExist(string path)
+    {
+        using var response = await _client.PutAsync(path, content: null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TaskDefinitionDeletionEndpoint_DoesNotExist()
+    {
+        using var response = await _client.DeleteAsync("/api/v1/task-definitions/TAR-0005");
+
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+    }
+
     private sealed record LiveResponse(string Status, ResponseMeta Meta);
 
     private sealed record ResponseMeta(string CorrelationId);
+
+    private sealed class UnusedTaskDefinitionService : ITaskDefinitionService
+    {
+        public Task<IReadOnlyList<TaskDefinitionDetails>> ListAsync(Guid actorUserId, Guid correlationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<TaskDefinitionDetails> GetAsync(Guid actorUserId, Guid correlationId, string taskCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<TaskDefinitionVersionDetails> CreateVersionAsync(CreateTaskDefinitionVersionCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<TaskDefinitionVersionDetails> PublishVersionAsync(PublishTaskDefinitionVersionCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<TaskDefinitionVersionDetails> DeactivateNewAsync(DeactivateTaskDefinitionCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
 }
