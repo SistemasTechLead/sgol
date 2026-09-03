@@ -25,9 +25,6 @@ public sealed class GenerationRequestConfiguration : IEntityTypeConfiguration<Ge
                 table.HasCheckConstraint(
                     "CK_generation_request_origin",
                     "btrim(origin_type) <> '' AND btrim(origin_reference) <> ''");
-                table.HasCheckConstraint(
-                    "CK_generation_request_hu014_no_obligation",
-                    "obligation_id IS NULL");
             });
 
         builder.HasKey(request => request.Id);
@@ -58,6 +55,10 @@ public sealed class GenerationRequestConfiguration : IEntityTypeConfiguration<Ge
         })
             .IsUnique()
             .HasDatabaseName(FunctionalKeyIndex);
+        builder.HasIndex(request => request.ObligationId)
+            .IsUnique()
+            .HasDatabaseName("UX_generation_request_obligation_id")
+            .HasFilter("obligation_id IS NOT NULL");
 
         builder.HasOne<ActivationRuleVersion>()
             .WithMany()
@@ -74,6 +75,11 @@ public sealed class GenerationRequestConfiguration : IEntityTypeConfiguration<Ge
         builder.HasOne<AppUser>()
             .WithMany()
             .HasForeignKey(request => request.RequestedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<WorkObligation>()
+            .WithOne()
+            .HasForeignKey<GenerationRequest>(request => new { request.ObligationId, request.Id })
+            .HasPrincipalKey<WorkObligation>(obligation => new { obligation.Id, obligation.GenerationRequestId })
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

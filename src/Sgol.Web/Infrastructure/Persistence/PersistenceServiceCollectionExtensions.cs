@@ -46,6 +46,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<ICalendarService, EfCalendarService>();
         services.AddScoped<IWeekPeriodService, EfWeekPeriodService>();
         services.AddScoped<IGenerationRequestService, EfGenerationRequestService>();
+        services.AddScoped<IWorkObligationMaterializer, EfWorkObligationMaterializer>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();

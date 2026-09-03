@@ -8,20 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-014` — Actor autorizado solicita generación idempotente |
+| Tarea | `HU-015` — SGOL crea o recupera una obligación única |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-012`, `HU-017`, `HU-011`, `HU-010`, `HU-007` y `TECH-AUD-001` `Terminadas`; reutiliza reglas de activación, políticas de elegibilidad, semana, jerarquía, idempotencia y auditoría |
+| Dependencias aceptadas | `HU-014` `Terminada`; reutiliza la solicitud aceptada, su clave funcional, la transacción y la auditoría |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
 | Aceptación humana | Recibida explícitamente; autoriza commit, publicación y merge sujetos al pipeline requerido sobre el SHA exacto |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `93/93` efectivas, 0 omitidas: ejecución completa `91/93` y reejecución enfocada de los dos controles corregidos `2/2`; se actualizaron la lista aprobada de migraciones/tablas y el mapeo funcional de origen vacío |
-| Decisión específica | `HU-034 mínimo` se aplica a una sola `generation_request`; `obligation_id` permanece nulo y `work_obligation` no se materializa hasta `HU-015` |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-015`, `HU-016`, `HU-013` ni otra historia hasta que esta propuesta cumpla pruebas PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `99/99` efectivas, 0 omitidas: ejecución completa `98/99` y reejecución enfocada `1/1` tras corregir la expectativa del SQLSTATE de la restricción que rechazó el vínculo divergente |
+| Decisión específica | Sólo se materializa `work_obligation`; `due_at` e `input_payload` permanecen nulos por ausencia de regla aprobada; no se crean responsable, candidatos, plan ni `plan_version_obligation` |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-016`, `HU-004`, `HU-020` ni otra historia dependiente hasta que esta propuesta cumpla suite PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-014` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-015` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-014`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-014` — Actor autorizado solicita generación idempotente |
+| Pull request | `#27` |
+| Commit implementado | `150cc3d07812a4db0aba7c9d1540affe2191e9ec` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33810084782` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `22967600ba62388a3469b6d7f6a926922260ed71` |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `93/93` efectivas |
+| `Fuentes/` | Sin cambios; protección confirmada por el preflight de HU-015 |
+| Siguiente tarea propuesta | `HU-015` — SGOL crea o recupera una obligación única |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-014`; `150cc3d0` es ancestro verificado de `origin/master` en el inicio de HU-015.
 
 ## Base aceptada — `HU-012`
 

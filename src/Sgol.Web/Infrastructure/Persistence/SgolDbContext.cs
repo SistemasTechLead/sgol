@@ -49,6 +49,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<GenerationRequest> GenerationRequests => Set<GenerationRequest>();
 
+    public DbSet<WorkObligation> WorkObligations => Set<WorkObligation>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -70,5 +72,6 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new ActivationRuleVersionConfiguration());
         modelBuilder.ApplyConfiguration(new WeekPeriodConfiguration());
         modelBuilder.ApplyConfiguration(new GenerationRequestConfiguration());
+        modelBuilder.ApplyConfiguration(new WorkObligationConfiguration());
     }
 }

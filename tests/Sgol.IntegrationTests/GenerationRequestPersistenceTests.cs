@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Sgol.BuildingBlocks.Identifiers;
 using Sgol.BuildingBlocks.Time;
 using Sgol.BuildingBlocks.Versioning;
@@ -52,10 +53,193 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
             item.Action == "GENERATION_REQUEST_ACCEPTED" && item.Outcome == "SUCCESS");
         Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item =>
             item.Action == "GENERATION_REQUEST_IDEMPOTENCY_CONFLICT" && item.Outcome == "CONFLICT");
+        Assert.Empty(await context.WorkObligations.AsNoTracking().ToListAsync());
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task AcceptedRequestMaterializesPendingAuditedObligationWithApprovedSnapshot()
+    {
+        var scenario = await ResetAndSeedAsync(CanonicalRole.Direction);
+        await using var context = CreateContext();
+        var request = await CreateService(context).CreateAsync(Command(scenario, Guid.CreateVersion7()));
+
+        var result = await CreateMaterializer(context).MaterializeAsync(new(
+            request.GenerationRequestId,
+            Guid.CreateVersion7()));
+
+        Assert.Equal(request.GenerationRequestId, result.GenerationRequestId);
+        Assert.Equal(scenario.TaskDefinitionVersionId, result.TaskDefinitionVersionId);
+        Assert.Equal(BranchScope.LorettaId, result.BranchId);
+        Assert.Equal(scenario.PeriodId, result.PeriodId);
+        Assert.Equal("synthetic-reference", result.OriginReference);
+        Assert.Equal(WorkObligationStatuses.Pending, result.ExecutionStatus);
+        var storedRequest = await context.GenerationRequests.AsNoTracking()
+            .SingleAsync(item => item.Id == request.GenerationRequestId);
+        var stored = await context.WorkObligations.AsNoTracking().SingleAsync();
+        Assert.Equal(stored.Id, storedRequest.ObligationId);
+        Assert.Null(stored.InputPayload);
+        Assert.Null(stored.DueAt);
+        Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item =>
+            item.Action == "WORK_OBLIGATION_CREATED" &&
+            item.ResourceId == stored.Id &&
+            item.ActorType == "SYSTEM" &&
+            item.Outcome == "SUCCESS");
         Assert.DoesNotContain(
             context.Model.GetEntityTypes(),
-            item => item.ClrType.Name == "WorkObligation");
+            item => item.ClrType.Name is "EligibilityCandidate" or "AssignmentVersion" or
+                "WorkPlan" or "PlanVersionObligation");
+    }
+
+    [Fact]
+    public async Task RetryAndDuplicateFunctionalKeyRecoverSameUnchangedObligation()
+    {
+        var scenario = await ResetAndSeedAsync(CanonicalRole.Direction);
+        await using var context = CreateContext();
+        var requestService = CreateService(context);
+        var firstRequest = await requestService.CreateAsync(Command(scenario, Guid.CreateVersion7()));
+        var sameFunctionalRequest = await requestService.CreateAsync(Command(scenario, Guid.CreateVersion7()));
+        var materializer = CreateMaterializer(context);
+
+        var created = await materializer.MaterializeAsync(new(firstRequest.GenerationRequestId, Guid.CreateVersion7()));
+        var before = await context.WorkObligations.AsNoTracking().SingleAsync();
+        var recovered = await materializer.MaterializeAsync(new(sameFunctionalRequest.GenerationRequestId, Guid.CreateVersion7()));
+        var after = await context.WorkObligations.AsNoTracking().SingleAsync();
+
+        Assert.Equal(firstRequest.GenerationRequestId, sameFunctionalRequest.GenerationRequestId);
+        Assert.Equal(created.ObligationId, recovered.ObligationId);
+        Assert.Equal(before.Id, after.Id);
+        Assert.Equal(before.TaskDefinitionVersionId, after.TaskDefinitionVersionId);
+        Assert.Equal(before.BranchId, after.BranchId);
+        Assert.Equal(before.PeriodId, after.PeriodId);
+        Assert.Equal(before.OriginReference, after.OriginReference);
+        Assert.Equal(before.ExecutionStatus, after.ExecutionStatus);
+        Assert.Equal(before.RowVersion, after.RowVersion);
+        Assert.Equal(1, await context.WorkObligations.CountAsync());
+    }
+
+    [Fact]
+    public async Task TwentyConcurrentMaterializationsCreateOnePostgreSqlObligation()
+    {
+        var scenario = await ResetAndSeedAsync(CanonicalRole.Direction);
+        Guid requestId;
+        await using (var requestContext = CreateContext())
+        {
+            requestId = (await CreateService(requestContext)
+                .CreateAsync(Command(scenario, Guid.CreateVersion7()))).GenerationRequestId;
+        }
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 20).Select(async _ =>
+        {
+            await using var context = CreateContext();
+            return await CreateMaterializer(context).MaterializeAsync(new(requestId, Guid.CreateVersion7()));
+        }));
+
+        Assert.Single(results.Select(item => item.ObligationId).Distinct());
+        await using var verification = CreateContext();
+        Assert.Equal(1, await verification.WorkObligations.CountAsync());
+        Assert.Equal(
+            results[0].ObligationId,
+            await verification.GenerationRequests
+                .Where(item => item.Id == requestId)
+                .Select(item => item.ObligationId)
+                .SingleAsync());
+    }
+
+    [Fact]
+    public async Task PostgreSqlRejectsDivergentRequestObligationLink()
+    {
+        var scenario = await ResetAndSeedAsync(CanonicalRole.Direction);
+        await using var context = CreateContext();
+        var requestService = CreateService(context);
+        var firstRequest = await requestService.CreateAsync(Command(
+            scenario,
+            Guid.CreateVersion7(),
+            originReference: "first-origin"));
+        var secondRequest = await requestService.CreateAsync(Command(
+            scenario,
+            Guid.CreateVersion7(),
+            originReference: "second-origin"));
+        var materializer = CreateMaterializer(context);
+        var first = await materializer.MaterializeAsync(new(firstRequest.GenerationRequestId, Guid.CreateVersion7()));
+        var second = await materializer.MaterializeAsync(new(secondRequest.GenerationRequestId, Guid.CreateVersion7()));
+
+        var exception = await Assert.ThrowsAsync<PostgresException>(() =>
+            context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE generation_request SET obligation_id = {second.ObligationId} WHERE id = {firstRequest.GenerationRequestId}"));
+
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, exception.SqlState);
+        Assert.Equal("UX_generation_request_obligation_id", exception.ConstraintName);
+        Assert.Equal(
+            first.ObligationId,
+            await context.GenerationRequests.AsNoTracking()
+                .Where(item => item.Id == firstRequest.GenerationRequestId)
+                .Select(item => item.ObligationId)
+                .SingleAsync());
+    }
+
+    [Fact]
+    public async Task AuditFailureBeforeCommitLeavesNoObligationLinkOrPartialAudit()
+    {
+        var scenario = await ResetAndSeedAsync(CanonicalRole.Direction);
+        await using var context = CreateContext();
+        var request = await CreateService(context).CreateAsync(Command(scenario, Guid.CreateVersion7()));
+        var duplicateAuditId = Guid.CreateVersion7();
+        context.AuditEvents.Add(new AuditEvent
+        {
+            Id = duplicateAuditId,
+            OccurredAt = Now,
+            ActorType = "SYSTEM",
+            Action = "SYNTHETIC_EXISTING_EVENT",
+            ResourceType = "WORK_OBLIGATION",
+            CorrelationId = Guid.CreateVersion7(),
+            Outcome = "SUCCESS",
+        });
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var auditCount = await context.AuditEvents.CountAsync();
+        var materializer = CreateMaterializer(
+            context,
+            new SequenceUuidGenerator(Guid.CreateVersion7(), duplicateAuditId));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => materializer.MaterializeAsync(new(
+            request.GenerationRequestId,
+            Guid.CreateVersion7())));
+
+        Assert.False(await context.WorkObligations.AsNoTracking().AnyAsync());
+        Assert.Null(await context.GenerationRequests.AsNoTracking()
+            .Where(item => item.Id == request.GenerationRequestId)
+            .Select(item => item.ObligationId)
+            .SingleAsync());
+        Assert.Equal(auditCount, await context.AuditEvents.CountAsync());
         Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task MissingAndRejectedRequestsHaveNoMaterializationEffects()
+    {
+        var scenario = await ResetAndSeedAsync(CanonicalRole.Direction);
+        await using var context = CreateContext();
+        var materializer = CreateMaterializer(context);
+
+        await Assert.ThrowsAsync<GenerationRequestNotFoundException>(() =>
+            materializer.MaterializeAsync(new(Guid.CreateVersion7(), Guid.CreateVersion7())));
+
+        var request = await CreateService(context).CreateAsync(Command(scenario, Guid.CreateVersion7()));
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE generation_request SET result = {"RECHAZADA"} WHERE id = {request.GenerationRequestId}");
+        context.ChangeTracker.Clear();
+        var auditCount = await context.AuditEvents.CountAsync();
+
+        await Assert.ThrowsAsync<GenerationRequestNotAcceptedException>(() =>
+            materializer.MaterializeAsync(new(request.GenerationRequestId, Guid.CreateVersion7())));
+
+        Assert.False(await context.WorkObligations.AsNoTracking().AnyAsync());
+        Assert.Null(await context.GenerationRequests.AsNoTracking()
+            .Where(item => item.Id == request.GenerationRequestId)
+            .Select(item => item.ObligationId)
+            .SingleAsync());
+        Assert.Equal(auditCount, await context.AuditEvents.CountAsync());
     }
 
     [Fact]
@@ -251,7 +435,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
         context.WeekPeriods.Add(period);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
-        return new Scenario(actor, ruleId, period.Id, originType);
+        return new Scenario(actor, ruleId, taskVersionId, period.Id, originType);
     }
 
     private async Task<Guid> SeedActorAsync(
@@ -328,6 +512,18 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
         return new EfGenerationRequestService(context, audit, hierarchy, clock, generator);
     }
 
+    private static EfWorkObligationMaterializer CreateMaterializer(
+        SgolDbContext context,
+        IUuidGenerator? uuidGenerator = null)
+    {
+        var clock = new FixedClock(Now);
+        return new EfWorkObligationMaterializer(
+            context,
+            new AuditTransaction(context),
+            clock,
+            uuidGenerator ?? new Uuid7Generator(clock));
+    }
+
     private static CreateGenerationRequestCommand Command(
         Scenario scenario,
         Guid key,
@@ -354,6 +550,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
     private sealed record Scenario(
         Guid ActorUserId,
         Guid RuleVersionId,
+        Guid TaskDefinitionVersionId,
         Guid PeriodId,
         string OriginType);
 
