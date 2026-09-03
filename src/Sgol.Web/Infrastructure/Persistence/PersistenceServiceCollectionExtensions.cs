@@ -39,6 +39,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<EfConfigurationReleaseService>();
         services.AddScoped<IConfigurationReleaseService>(provider => provider.GetRequiredService<EfConfigurationReleaseService>());
         services.AddScoped<ITaskDefinitionService, EfTaskDefinitionService>();
+        services.AddScoped<IEligibilityPolicyService, EfEligibilityPolicyService>();
         services.AddScoped<ICalendarService, EfCalendarService>();
         services.AddScoped<IWeekPeriodService, EfWeekPeriodService>();
         services.AddDirectionBootstrap();

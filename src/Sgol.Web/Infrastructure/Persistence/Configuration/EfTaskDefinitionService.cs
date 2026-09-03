@@ -37,9 +37,13 @@ public sealed class EfTaskDefinitionService(
             .Where(item => item.Status != VersionStatuses.Draft)
             .OrderByDescending(item => item.VersionNo)
             .ToListAsync(cancellationToken);
+        var policies = await dbContext.EligibilityPolicyVersions.AsNoTracking()
+            .Where(item => item.Status == VersionStatuses.Current)
+            .ToListAsync(cancellationToken);
         var result = definitions.Select(definition => ToDetails(
             definition,
-            versions.Where(item => item.TaskDefinitionId == definition.Id))).ToArray();
+            versions.Where(item => item.TaskDefinitionId == definition.Id),
+            policies.SingleOrDefault(item => item.TaskDefinitionId == definition.Id))).ToArray();
         dbContext.ChangeTracker.Clear();
         return result;
     }
@@ -59,7 +63,9 @@ public sealed class EfTaskDefinitionService(
             .Where(item => item.TaskDefinitionId == seed.Id && item.Status != VersionStatuses.Draft)
             .OrderByDescending(item => item.VersionNo)
             .ToListAsync(cancellationToken);
-        var result = ToDetails(definition, versions);
+        var policy = await dbContext.EligibilityPolicyVersions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.TaskDefinitionId == seed.Id && item.Status == VersionStatuses.Current, cancellationToken);
+        var result = ToDetails(definition, versions, policy);
         dbContext.ChangeTracker.Clear();
         return result;
     }
@@ -384,7 +390,8 @@ public sealed class EfTaskDefinitionService(
 
     private static TaskDefinitionDetails ToDetails(
         TaskDefinition definition,
-        IEnumerable<TaskDefinitionVersion> versions)
+        IEnumerable<TaskDefinitionVersion> versions,
+        EligibilityPolicyVersion? policy)
     {
         var ordered = versions.OrderByDescending(item => item.VersionNo).ToArray();
         var current = ordered.FirstOrDefault(item =>
@@ -394,6 +401,7 @@ public sealed class EfTaskDefinitionService(
             definition.TaskCode,
             definition.Name,
             current is null ? null : ToVersionDetails(current),
+            policy is null ? null : EfEligibilityPolicyService.ToDetails(definition.TaskCode, policy),
             ordered.Select(ToVersionDetails).ToArray());
     }
 

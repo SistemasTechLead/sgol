@@ -28,6 +28,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string CalendarAdministrationMigrationId = "20260903001027_AddCalendarAdministration";
     private const string WeekPeriodsMigrationId = "20260903170116_AddWeekPeriods";
     private const string TaskDefinitionsMigrationId = "20260903175354_AddTaskDefinitions";
+    private const string EligibilityPoliciesMigrationId = "20260903191642_AddEligibilityPolicies";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -59,6 +60,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 CalendarAdministrationMigrationId,
                 WeekPeriodsMigrationId,
                 TaskDefinitionsMigrationId,
+                EligibilityPoliciesMigrationId,
             ],
             appliedMigrations);
 
@@ -84,6 +86,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "calendar_day_version",
                 "configuration_release",
                 "direction_bootstrap",
+                "eligibility_policy_version",
                 "employment_version",
                 "idempotency_record",
                 "identity_credential",

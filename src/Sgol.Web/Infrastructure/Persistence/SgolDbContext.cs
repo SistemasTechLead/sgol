@@ -39,6 +39,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<TaskDefinitionVersion> TaskDefinitionVersions => Set<TaskDefinitionVersion>();
 
+    public DbSet<EligibilityPolicyVersion> EligibilityPolicyVersions => Set<EligibilityPolicyVersion>();
+
     public DbSet<WeekPeriod> WeekPeriods => Set<WeekPeriod>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -58,6 +60,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new CalendarDayVersionConfiguration());
         modelBuilder.ApplyConfiguration(new TaskDefinitionConfiguration());
         modelBuilder.ApplyConfiguration(new TaskDefinitionVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new EligibilityPolicyVersionConfiguration());
         modelBuilder.ApplyConfiguration(new WeekPeriodConfiguration());
     }
 }

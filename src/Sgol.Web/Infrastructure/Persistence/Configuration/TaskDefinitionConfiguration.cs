@@ -50,6 +50,8 @@ public sealed class TaskDefinitionVersionConfiguration : IEntityTypeConfiguratio
         builder.HasIndex(version => new { version.TaskDefinitionId, version.VersionNo })
             .IsUnique()
             .HasDatabaseName("IX_task_definition_version_number");
+        builder.HasAlternateKey(version => new { version.Id, version.TaskDefinitionId })
+            .HasName("AK_task_definition_version_id_task_definition_id");
         builder.HasIndex(version => version.TaskDefinitionId)
             .IsUnique()
             .HasDatabaseName("IX_task_definition_version_one_live")

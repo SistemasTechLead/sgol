@@ -108,7 +108,6 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
 
     [Theory]
     [InlineData("/api/v1/task-definitions/TAR-0005/activation-policy")]
-    [InlineData("/api/v1/task-definitions/TAR-0005/eligibility-policy")]
     [InlineData("/api/v1/task-definitions/TAR-0005/evidence-policy")]
     [InlineData("/api/v1/task-definitions/TAR-0005/validation-policy")]
     public async Task LaterPolicyEndpoints_DoNotExist(string path)
