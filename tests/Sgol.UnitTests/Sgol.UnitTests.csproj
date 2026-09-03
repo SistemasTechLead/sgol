@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Identity\Sgol.Identity.csproj" />
     <ProjectReference Include="..\..\src\Modules\Organization\Sgol.Organization.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Planning\Sgol.Planning.csproj" />
     <ProjectReference Include="..\..\src\Sgol.Web\Sgol.Web.csproj" />
   </ItemGroup>
 </Project>

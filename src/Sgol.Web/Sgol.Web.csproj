@@ -10,6 +10,7 @@
     <ProjectReference Include="..\Modules\Configuration\Sgol.Configuration.csproj" />
     <ProjectReference Include="..\Modules\Identity\Sgol.Identity.csproj" />
     <ProjectReference Include="..\Modules\Organization\Sgol.Organization.csproj" />
+    <ProjectReference Include="..\Modules\Planning\Sgol.Planning.csproj" />
     <ProjectReference Include="..\Sgol.BuildingBlocks\Sgol.BuildingBlocks.csproj" />
   </ItemGroup>
 </Project>

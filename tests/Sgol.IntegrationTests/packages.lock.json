@@ -552,6 +552,12 @@
       "sgol.organization": {
         "type": "Project"
       },
+      "sgol.planning": {
+        "type": "Project",
+        "dependencies": {
+          "Sgol.Configuration": "[1.0.0, )"
+        }
+      },
       "sgol.web": {
         "type": "Project",
         "dependencies": {
@@ -559,7 +565,8 @@
           "Sgol.BuildingBlocks": "[1.0.0, )",
           "Sgol.Configuration": "[1.0.0, )",
           "Sgol.Identity": "[1.0.0, )",
-          "Sgol.Organization": "[1.0.0, )"
+          "Sgol.Organization": "[1.0.0, )",
+          "Sgol.Planning": "[1.0.0, )"
         }
       },
       "Microsoft.EntityFrameworkCore": {
