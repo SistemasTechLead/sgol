@@ -200,6 +200,9 @@
           "Sgol.BuildingBlocks": "[1.0.0, )"
         }
       },
+      "sgol.generation": {
+        "type": "Project"
+      },
       "sgol.identity": {
         "type": "Project"
       },

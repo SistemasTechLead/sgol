@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Sgol.Configuration.Contracts;
+using Sgol.Generation.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Configuration;
+using Sgol.Web.Infrastructure.Persistence.Generation;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 
 namespace Sgol.Web.Infrastructure.Persistence;
@@ -45,6 +47,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<WeekPeriod> WeekPeriods => Set<WeekPeriod>();
 
+    public DbSet<GenerationRequest> GenerationRequests => Set<GenerationRequest>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -65,5 +69,6 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new EligibilityPolicyVersionConfiguration());
         modelBuilder.ApplyConfiguration(new ActivationRuleVersionConfiguration());
         modelBuilder.ApplyConfiguration(new WeekPeriodConfiguration());
+        modelBuilder.ApplyConfiguration(new GenerationRequestConfiguration());
     }
 }
