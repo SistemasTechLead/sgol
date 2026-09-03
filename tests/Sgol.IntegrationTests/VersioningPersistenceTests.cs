@@ -195,9 +195,9 @@ public sealed class VersioningPersistenceTests : IAsyncLifetime
         var consumers = context.Model.GetEntityTypes()
             .Where(entity => typeof(IVersionedEntity).IsAssignableFrom(entity.ClrType))
             .Select(entity => entity.ClrType)
-            .ToArray();
+            .ToHashSet();
 
-        Assert.Equal([typeof(ConfigurationRelease)], consumers);
+        Assert.True(consumers.SetEquals([typeof(ConfigurationRelease), typeof(CalendarDayVersion)]));
         Assert.DoesNotContain(consumers, type => type.Assembly == typeof(IVersionedEntity).Assembly);
     }
 

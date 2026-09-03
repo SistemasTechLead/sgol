@@ -25,6 +25,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string RoleAdministrationMigrationId = "20260902190915_AddRoleAdministration";
     private const string AvailabilityAdministrationMigrationId = "20260902200533_AddAvailabilityAdministration";
     private const string ConfigurationReleaseMigrationId = "20260902231629_AddConfigurationReleases";
+    private const string CalendarAdministrationMigrationId = "20260903001027_AddCalendarAdministration";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -53,6 +54,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 RoleAdministrationMigrationId,
                 AvailabilityAdministrationMigrationId,
                 ConfigurationReleaseMigrationId,
+                CalendarAdministrationMigrationId,
             ],
             appliedMigrations);
 
@@ -75,6 +77,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "audit_event",
                 "availability_day_version",
                 "branch",
+                "calendar_day_version",
                 "configuration_release",
                 "direction_bootstrap",
                 "employment_version",
