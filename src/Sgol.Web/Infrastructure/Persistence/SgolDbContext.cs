@@ -35,6 +35,10 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<CalendarDayVersion> CalendarDayVersions => Set<CalendarDayVersion>();
 
+    public DbSet<TaskDefinition> TaskDefinitions => Set<TaskDefinition>();
+
+    public DbSet<TaskDefinitionVersion> TaskDefinitionVersions => Set<TaskDefinitionVersion>();
+
     public DbSet<WeekPeriod> WeekPeriods => Set<WeekPeriod>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -52,6 +56,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new IdempotencyRecordConfiguration());
         modelBuilder.ApplyConfiguration(new ConfigurationReleaseConfiguration());
         modelBuilder.ApplyConfiguration(new CalendarDayVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new TaskDefinitionConfiguration());
+        modelBuilder.ApplyConfiguration(new TaskDefinitionVersionConfiguration());
         modelBuilder.ApplyConfiguration(new WeekPeriodConfiguration());
     }
 }
