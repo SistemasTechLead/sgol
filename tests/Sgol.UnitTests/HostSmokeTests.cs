@@ -69,6 +69,26 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
+    [Fact]
+    public async Task WeekApi_RequiresAnAuthenticatedSessionWithProblemDetails()
+    {
+        using var response = await _client.GetAsync("/api/v1/weeks/2026/37");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.True(response.Headers.Contains("X-Correlation-ID"));
+    }
+
+    [Theory]
+    [InlineData("/api/v1/weeks/2026/37/close")]
+    [InlineData("/api/v1/weeks/2026/37/reopen")]
+    public async Task FormalWeekCloseAndReopenEndpoints_DoNotExist(string path)
+    {
+        using var response = await _client.PostAsync(path, content: null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private sealed record LiveResponse(string Status, ResponseMeta Meta);
 
     private sealed record ResponseMeta(string CorrelationId);

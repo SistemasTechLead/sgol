@@ -206,6 +206,12 @@
       "sgol.organization": {
         "type": "Project"
       },
+      "sgol.planning": {
+        "type": "Project",
+        "dependencies": {
+          "Sgol.Configuration": "[1.0.0, )"
+        }
+      },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",
         "requested": "[10.0.11, )",

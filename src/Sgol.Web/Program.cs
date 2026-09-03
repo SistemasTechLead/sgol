@@ -33,6 +33,7 @@ app.MapPersonApi();
 app.MapAccountApi();
 app.MapConfigurationApi();
 app.MapCalendarApi();
+app.MapWeekApi();
 
 app.Run();
 

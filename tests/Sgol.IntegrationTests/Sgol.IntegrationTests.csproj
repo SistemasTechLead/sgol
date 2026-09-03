@@ -14,6 +14,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Planning\Sgol.Planning.csproj" />
     <ProjectReference Include="..\..\src\Sgol.Web\Sgol.Web.csproj" />
   </ItemGroup>
 </Project>
