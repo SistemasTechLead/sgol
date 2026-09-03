@@ -35,6 +35,7 @@ app.MapConfigurationApi();
 app.MapCalendarApi();
 app.MapTaskDefinitionApi();
 app.MapEligibilityPolicyApi();
+app.MapActivationPolicyApi();
 app.MapWeekApi();
 
 app.Run();

@@ -8,19 +8,35 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-017` — Dirección versiona elegibilidad por TAR |
+| Tarea | `HU-012` — Dirección configura alta manual/recurrencia permitida |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-003`, `HU-011`, `HU-008` y `TECH-VER-001` `Terminadas`; reutiliza definiciones TAR, `ConfigurationRelease`, disponibilidad, roles canónicos, versionado, idempotencia y auditoría |
+| Dependencias aceptadas | `HU-009`, `HU-011`, `HU-017`, `HU-008` y `TECH-VER-001` `Terminadas`; reutiliza calendario, definiciones TAR, `ConfigurationRelease`, autorización, versionado, idempotencia y auditoría |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Pendiente para `HU-017`; la autorización de la interpretación no sustituye la revisión y aprobación del PR |
+| Aceptación humana | Pendiente para `HU-012`; la aprobación del contrato mínimo de `TAR-0026` no sustituye la revisión y aprobación del PR |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `23/23`; ejecución externa informada por el desarrollador, 0 errores y 0 omitidas |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-012`, `HU-016` ni otra historia hasta que esta propuesta cumpla pruebas PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `88/88` efectivas, 0 omitidas: ejecución completa posterior a la corrección de migración `86/88` y reejecución enfocada de los dos controles corregidos `2/2`; el primer intento `0/88` detectó `jsonb_object_length` no disponible y quedó sustituido por una guarda PostgreSQL compatible |
+| Decisión específica | Aprobada: `TAR-0026` usa `BUSINESS_DAYS_BEFORE_DUE_DATE`, tres días hábiles, hora local requerida, ajuste previo al hábil anterior, zona `America/Mexico_City` y `SERVICE_DUE_DATE_REFERENCE_V1` con `serviceKey`, `dueDate` y `reference` |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-014`, `HU-013` ni otra historia hasta que esta propuesta cumpla pruebas PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-017` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-012` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-017`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-017` — Dirección versiona elegibilidad por TAR |
+| Pull request | `#25` |
+| Commit implementado | `e5828fab8d919165d167e9bd1139bcbcabfade16` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33799055901` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `7ed2982b6db0d988333bb1ccf96caf2b8701dc0d` |
+| `Fuentes/` | Sin cambios |
+| Siguiente tarea propuesta | `HU-012` — Dirección configura alta manual/recurrencia permitida |
+
+La evidencia anterior se acepta sin repetir los análisis ni gates históricos de `HU-017` o sus dependencias.
 
 ## Base aceptada — `HU-011`
 

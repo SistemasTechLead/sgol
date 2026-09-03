@@ -29,6 +29,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string WeekPeriodsMigrationId = "20260903170116_AddWeekPeriods";
     private const string TaskDefinitionsMigrationId = "20260903175354_AddTaskDefinitions";
     private const string EligibilityPoliciesMigrationId = "20260903191642_AddEligibilityPolicies";
+    private const string ActivationPoliciesMigrationId = "20260903201854_AddActivationPolicies";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -61,6 +62,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 WeekPeriodsMigrationId,
                 TaskDefinitionsMigrationId,
                 EligibilityPoliciesMigrationId,
+                ActivationPoliciesMigrationId,
             ],
             appliedMigrations);
 
@@ -79,6 +81,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
         Assert.Equal(
             [
                 "__EFMigrationsHistory",
+                "activation_rule_version",
                 "app_user",
                 "audit_event",
                 "availability_day_version",
