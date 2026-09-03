@@ -31,6 +31,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string EligibilityPoliciesMigrationId = "20260903191642_AddEligibilityPolicies";
     private const string ActivationPoliciesMigrationId = "20260903201854_AddActivationPolicies";
     private const string GenerationRequestsMigrationId = "20260903212356_AddGenerationRequests";
+    private const string WorkObligationsMigrationId = "20260903220652_AddWorkObligations";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -49,6 +50,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
         await context.Database.OpenConnectionAsync();
 
         var appliedMigrations = await context.Database.GetAppliedMigrationsAsync();
+        Assert.False(context.Database.HasPendingModelChanges());
         Assert.Equal(
             [
                 InitialMigrationId,
@@ -65,6 +67,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 EligibilityPoliciesMigrationId,
                 ActivationPoliciesMigrationId,
                 GenerationRequestsMigrationId,
+                WorkObligationsMigrationId,
             ],
             appliedMigrations);
 
@@ -101,6 +104,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "task_definition",
                 "task_definition_version",
                 "week_period",
+                "work_obligation",
             ],
             tables);
     }
