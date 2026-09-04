@@ -8,21 +8,37 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-018` — SGOL asigna por carga y desempates aprobados |
+| Tarea | `HU-019` — Superior corrige asignación inferior con motivo |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-004` y `HU-016` `Terminada`; usa carga derivada, snapshot de elegibilidad inmutable y `assignment_version` existente |
+| Dependencias aceptadas | `HU-018` y `TECH-AUD-001` `Terminada`; reutiliza `work_obligation.row_version`, historia de `assignment_version`, snapshot HU-016, idempotencia y auditoría |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Contrato de `F07_ADENDA_08_CONTRATO_DE_ASIGNACION_HU_018.md` aprobado; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
+| Aceptación humana | Contrato de `F07_ADENDA_09_CONTRATO_DE_CORRECCION_DE_ASIGNACION_HU_019.md` aprobado íntegramente; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas | Unitarias `188/188`; arquitectura `9/9`; PostgreSQL/Testcontainers `116/116`, 0 omitidas, mediante ejecución externa completa del desarrollador |
-| Gates de propuesta | Restore bloqueado, build Release, format, vulnerabilidades NuGet, modelo EF sin cambios, protección/espejo de `Fuentes/` y `git diff --check`: satisfactorios |
-| Decisión específica | `F07_ADENDA_08_CONTRATO_DE_ASIGNACION_HU_018.md`: comando e idempotencia, snapshot exacto, ranking, concurrencia, explicación, errores y auditoría |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-019` ni otra historia dependiente hasta que esta propuesta cumpla suite PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas | Unitarias `202/202`; arquitectura `9/9`; PostgreSQL/Testcontainers `122/122` efectivas, 0 omitidas: ejecución completa `120/122` y reejecución enfocada corregida `2/2` |
+| Gates de propuesta | Restore bloqueado, build Release, formato, paquetes vulnerables, modelo EF sin cambios pendientes y protección/espejo de `Fuentes/` satisfactorios |
+| Decisión específica | `F07_ADENDA_09_CONTRATO_DE_CORRECCION_DE_ASIGNACION_HU_019.md`: endpoint/comando, ETag de obligación, idempotencia, jerarquía estricta, revalidación, cadena, explicación, concurrencia, errores y auditoría |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-020` ni otra historia dependiente hasta que HU-019 cumpla suite PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-018` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-019` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-018`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-018` — SGOL asigna por carga y desempates aprobados |
+| Pull request | `#31` |
+| Commit implementado | `a77c908bc6f9f6c5a1c84981c2f0bd0d30f0a3c7` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33900052905` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `085f7fe54c6ca24e4ce257423361d6c67d515111` |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | Suite completa satisfactoria |
+| `Fuentes/` | Sin cambios; protección confirmada al iniciar `HU-019` |
+| Siguiente tarea propuesta | `HU-019` — Superior corrige asignación inferior con motivo |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-018`; `a77c908b` es ancestro verificado de `origin/master`.
 
 ## Base aceptada — `HU-004`
 

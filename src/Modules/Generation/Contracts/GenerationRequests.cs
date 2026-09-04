@@ -115,7 +115,17 @@ public sealed class WorkObligation
     public string ExecutionStatus { get; private init; } = null!;
     public DateTimeOffset? ConcludedAt { get; private init; }
     public Guid? ConcludedBy { get; private init; }
-    public long RowVersion { get; private init; }
+    public long RowVersion { get; private set; }
+
+    public void AdvanceRowVersion(long expectedRowVersion)
+    {
+        if (RowVersion != expectedRowVersion)
+        {
+            throw new InvalidOperationException("VERSION_CONFLICT");
+        }
+
+        RowVersion = checked(RowVersion + 1);
+    }
 }
 
 public sealed record MaterializeWorkObligationCommand(

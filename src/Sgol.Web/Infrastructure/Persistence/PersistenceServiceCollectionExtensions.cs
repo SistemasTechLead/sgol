@@ -51,6 +51,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IWorkObligationMaterializer, EfWorkObligationMaterializer>();
         services.AddScoped<IEligibilityEvaluationService, EfEligibilityEvaluationService>();
         services.AddScoped<IAutomaticAssignmentService, EfAutomaticAssignmentService>();
+        services.AddScoped<IAssignmentCorrectionService, EfAssignmentCorrectionService>();
         services.AddScoped<IActiveLoadReader, EfActiveLoadReader>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
