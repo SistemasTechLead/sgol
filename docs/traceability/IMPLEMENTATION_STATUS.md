@@ -8,21 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-021` — Superior publica su alcance incrementalmente |
+| Tarea | `TECH-JOBS-001` — Host Worker, bloqueo PostgreSQL, outbox y telemetría |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-020`, `HU-019`, `HU-010`, `HU-015`, `HU-007`, `HU-034 mínimo` y `TECH-AUD-001`; reutiliza plan único, obligación, asignación, rol canónico, idempotencia, auditoría, ETag y reloj |
+| Dependencias aceptadas | `HU-021` y dependencias anteriores registradas; reutiliza PostgreSQL, `SgolDbContext`, `IClock`, UUID v7 y telemetría estructurada |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Contrato de `F07_ADENDA_11_CONTRATO_DE_PUBLICACION_DE_PLAN_HU_021.md` aprobado íntegramente; commit, publicación, PR y merge permanecen pendientes de autorizaciones independientes |
+| Aceptación humana | Contrato de `F07_ADENDA_12_CONTRATO_DE_WORKER_OUTBOX_Y_JOBS_TECH_JOBS_001.md` aprobado íntegramente; commit, publicación, PR y merge permanecen pendientes de autorizaciones independientes |
 | Commit incorporado en `master` | Pendiente de merge |
-| `Fuentes/` | Sin cambios; protección y espejo de 29 documentos Markdown verificados al cerrar la propuesta |
-| Pruebas | Unitarias `221/221`; arquitectura `9/9`; PostgreSQL/Testcontainers `145/145` efectivas, 0 omitidas: corrida completa inicial `130/145` y reejecución enfocada corregida `15/15` |
-| Gates de propuesta | Restore bloqueado, build Release, pruebas, formato, vulnerabilidades NuGet, modelo EF sin cambios pendientes, protección/espejo de `Fuentes/` y `git diff --check` satisfactorios |
-| Decisión específica | `F07_ADENDA_11_CONTRATO_DE_PUBLICACION_DE_PLAN_HU_021.md`: alcance acumulado derivado, snapshot histórico, asignación congelada, idempotencia, ETag, concurrencia, auditoría y migración única |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-013`, `HU-022` ni otra historia mientras HU-021 no cumpla pipeline, revisión humana y merge |
+| `Fuentes/` | Sin cambios; protección y espejo final satisfactorios (`29` documentos idénticos byte por byte) |
+| Pruebas | Unitarias completas `228/228`; arquitectura completa `10/10`; suite PostgreSQL/Testcontainers externa `153/153`, 0 errores, 0 omitidas, 387.4 s tras corregir el check de payload incompatible detectado por la primera ejecución |
+| Gates de propuesta | Restore locked, build Release, unitarias, arquitectura, PostgreSQL/Testcontainers externo, format, vulnerabilidades, modelo EF, protección y espejo de `Fuentes/` y `git diff --check`: satisfactorios; pipeline, aprobación humana del cambio y merge pendientes |
+| Decisión específica | `F07_ADENDA_12_CONTRATO_DE_WORKER_OUTBOX_Y_JOBS_TECH_JOBS_001.md`: comandos, advisory lock, `FOR UPDATE SKIP LOCKED`, tablas, reintentos, recuperación, telemetría y migración única |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-013` ni otra historia mientras TECH-JOBS-001 no cumpla pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-021` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `TECH-JOBS-001` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-021`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-021` — Superior publica su alcance incrementalmente |
+| Pull request | `#34` |
+| Commit implementado | `6e22847081a10043fce0fe9c22ca25157e4e18bc` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33917438014` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `dc1ba3d92c998297d0bb9b4ad638551be222f781` |
+| `Fuentes/` | Sin cambios; protección confirmada al iniciar TECH-JOBS-001 |
+| Siguiente tarea propuesta | `TECH-JOBS-001` — Host Worker, bloqueo PostgreSQL, outbox y telemetría |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-021`; `6e228470` y `dc1ba3d` son ancestros verificados de `origin/master`.
 
 ## Base aceptada — `HU-020`
 

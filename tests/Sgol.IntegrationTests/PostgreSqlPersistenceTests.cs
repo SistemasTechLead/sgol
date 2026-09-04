@@ -36,6 +36,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string AssignmentVersionsMigrationId = "20260904155837_AddAssignmentVersions";
     private const string WorkPlansMigrationId = "20260904190309_AddWorkPlans";
     private const string PlanPublicationsMigrationId = "20260904200228_AddPlanPublications";
+    private const string JobInfrastructureMigrationId = "20260904211401_AddJobInfrastructure";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -76,6 +77,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 AssignmentVersionsMigrationId,
                 WorkPlansMigrationId,
                 PlanPublicationsMigrationId,
+                JobInfrastructureMigrationId,
             ],
             appliedMigrations);
 
@@ -110,10 +112,12 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "generation_request",
                 "idempotency_record",
                 "identity_credential",
+                "outbox_event",
                 "person",
                 "plan_version",
                 "plan_version_obligation",
                 "role_assignment_version",
+                "scheduled_job_run",
                 "task_definition",
                 "task_definition_version",
                 "week_period",

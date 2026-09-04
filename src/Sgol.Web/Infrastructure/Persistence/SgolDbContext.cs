@@ -9,6 +9,7 @@ using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Configuration;
 using Sgol.Web.Infrastructure.Persistence.Generation;
+using Sgol.JobInfrastructure;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 
 namespace Sgol.Web.Infrastructure.Persistence;
@@ -65,6 +66,10 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<AssignmentVersion> AssignmentVersions => Set<AssignmentVersion>();
 
+    public DbSet<OutboxEvent> OutboxEvents => Set<OutboxEvent>();
+
+    public DbSet<ScheduledJobRun> ScheduledJobRuns => Set<ScheduledJobRun>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -93,5 +98,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new EligibilityEvaluationConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityCandidateConfiguration());
         modelBuilder.ApplyConfiguration(new AssignmentVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new OutboxEventConfiguration());
+        modelBuilder.ApplyConfiguration(new ScheduledJobRunConfiguration());
     }
 }

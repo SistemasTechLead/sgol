@@ -19,5 +19,6 @@
     <ProjectReference Include="..\..\src\Modules\Organization\Sgol.Organization.csproj" />
     <ProjectReference Include="..\..\src\Modules\Planning\Sgol.Planning.csproj" />
     <ProjectReference Include="..\..\src\Sgol.Web\Sgol.Web.csproj" />
+    <ProjectReference Include="..\..\src\Sgol.Worker\Sgol.Worker.csproj" />
   </ItemGroup>
 </Project>
