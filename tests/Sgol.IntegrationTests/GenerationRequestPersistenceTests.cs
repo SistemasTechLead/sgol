@@ -85,10 +85,10 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
             item.ResourceId == stored.Id &&
             item.ActorType == "SYSTEM" &&
             item.Outcome == "SUCCESS");
+        Assert.Empty(await context.AssignmentVersions.AsNoTracking().ToListAsync());
         Assert.DoesNotContain(
             context.Model.GetEntityTypes(),
-            item => item.ClrType.Name is "AssignmentVersion" or "WorkPlan" or
-                "PlanVersionObligation");
+            item => item.ClrType.Name is "WorkPlan" or "PlanVersionObligation");
     }
 
     [Fact]

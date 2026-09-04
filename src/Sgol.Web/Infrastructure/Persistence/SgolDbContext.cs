@@ -57,6 +57,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<EligibilityCandidate> EligibilityCandidates => Set<EligibilityCandidate>();
 
+    public DbSet<AssignmentVersion> AssignmentVersions => Set<AssignmentVersion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -81,5 +83,6 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new WorkObligationConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityEvaluationConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityCandidateConfiguration());
+        modelBuilder.ApplyConfiguration(new AssignmentVersionConfiguration());
     }
 }

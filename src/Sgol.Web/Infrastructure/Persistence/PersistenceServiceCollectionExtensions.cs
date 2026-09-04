@@ -50,6 +50,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IGenerationRequestService, EfGenerationRequestService>();
         services.AddScoped<IWorkObligationMaterializer, EfWorkObligationMaterializer>();
         services.AddScoped<IEligibilityEvaluationService, EfEligibilityEvaluationService>();
+        services.AddScoped<IActiveLoadReader, EfActiveLoadReader>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();
