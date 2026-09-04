@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Sgol.Assignment.Contracts;
 using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
+using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Configuration;
 using Sgol.Web.Infrastructure.Persistence.Generation;
@@ -51,6 +53,10 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<WorkObligation> WorkObligations => Set<WorkObligation>();
 
+    public DbSet<EligibilityEvaluation> EligibilityEvaluations => Set<EligibilityEvaluation>();
+
+    public DbSet<EligibilityCandidate> EligibilityCandidates => Set<EligibilityCandidate>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -73,5 +79,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new WeekPeriodConfiguration());
         modelBuilder.ApplyConfiguration(new GenerationRequestConfiguration());
         modelBuilder.ApplyConfiguration(new WorkObligationConfiguration());
+        modelBuilder.ApplyConfiguration(new EligibilityEvaluationConfiguration());
+        modelBuilder.ApplyConfiguration(new EligibilityCandidateConfiguration());
     }
 }

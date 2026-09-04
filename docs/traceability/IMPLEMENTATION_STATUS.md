@@ -8,20 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-015` — SGOL crea o recupera una obligación única |
+| Tarea | `HU-016` — SGOL calcula candidatos y explica exclusiones |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-014` `Terminada`; reutiliza la solicitud aceptada, su clave funcional, la transacción y la auditoría |
+| Dependencias aceptadas | `HU-003`, `HU-007`, `HU-015` y `HU-017` `Terminada`; usa sus snapshots de disponibilidad, rol, obligación y política exacta |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Recibida explícitamente; autoriza commit, publicación y merge sujetos al pipeline requerido sobre el SHA exacto |
+| Aceptación humana | Contrato funcional de `HU-016` aprobado; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `99/99` efectivas, 0 omitidas: ejecución completa `98/99` y reejecución enfocada `1/1` tras corregir la expectativa del SQLSTATE de la restricción que rechazó el vínculo divergente |
-| Decisión específica | Sólo se materializa `work_obligation`; `due_at` e `input_payload` permanecen nulos por ausencia de regla aprobada; no se crean responsable, candidatos, plan ni `plan_version_obligation` |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-016`, `HU-004`, `HU-020` ni otra historia dependiente hasta que esta propuesta cumpla suite PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `105/105` efectivas, 0 omitidas; ejecución completa `104/105` y reejecución enfocada del control corregido `1/1` |
+| Decisión específica | `F07_ADENDA_06_CONTRATO_DE_ELEGIBILIDAD_HU_016.md`: fecha interna aprobada, reintento explícito, catálogo de razones, snapshot inmutable y campos de ranking/ganador nulos |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-004`, `HU-018` ni otra historia dependiente hasta que esta propuesta cumpla suite PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-015` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-016` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-015`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-015` — SGOL crea o recupera una obligación única |
+| Pull request | `#28` |
+| Commit implementado | `2a8d804743d10ec1213c78f375215318f38c5348` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33813046606` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `046c1c43e4c481498cbd536cd8e84a43ac5a7848` |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `99/99` efectivas, 0 omitidas |
+| `Fuentes/` | Sin cambios; ascendencia e integridad confirmadas al iniciar `HU-016` |
+| Siguiente tarea propuesta | `HU-016` — SGOL calcula candidatos y explica exclusiones |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-015`; `2a8d8047` es ancestro verificado de `origin/master`.
 
 ## Base aceptada — `HU-014`
 

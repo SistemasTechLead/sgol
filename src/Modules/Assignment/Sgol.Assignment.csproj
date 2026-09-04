@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Assignment and eligibility domain contracts for SGOL.</Description>
+  </PropertyGroup>
+</Project>

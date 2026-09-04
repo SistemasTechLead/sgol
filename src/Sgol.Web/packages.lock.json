@@ -191,6 +191,9 @@
           "System.Composition.Runtime": "9.0.0"
         }
       },
+      "sgol.assignment": {
+        "type": "Project"
+      },
       "sgol.buildingblocks": {
         "type": "Project"
       },

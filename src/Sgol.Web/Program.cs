@@ -38,6 +38,7 @@ app.MapEligibilityPolicyApi();
 app.MapActivationPolicyApi();
 app.MapWeekApi();
 app.MapGenerationRequestApi();
+app.MapEligibilityEvaluationApi();
 
 app.Run();
 
