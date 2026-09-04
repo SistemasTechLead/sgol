@@ -476,6 +476,12 @@
           "Sgol.Planning": "[1.0.0, )"
         }
       },
+      "sgol.worker": {
+        "type": "Project",
+        "dependencies": {
+          "Sgol.Web": "[1.0.0, )"
+        }
+      },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",
         "requested": "[10.0.11, )",

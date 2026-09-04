@@ -9,6 +9,7 @@
     <Project Path="src/Sgol.Admin/Sgol.Admin.csproj" />
     <Project Path="src/Sgol.BuildingBlocks/Sgol.BuildingBlocks.csproj" />
     <Project Path="src/Sgol.Web/Sgol.Web.csproj" />
+    <Project Path="src/Sgol.Worker/Sgol.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sgol.ArchitectureTests/Sgol.ArchitectureTests.csproj" />
