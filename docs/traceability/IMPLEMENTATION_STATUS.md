@@ -8,20 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-016` — SGOL calcula candidatos y explica exclusiones |
+| Tarea | `HU-004` — Superior consulta carga activa correcta |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-003`, `HU-007`, `HU-015` y `HU-017` `Terminada`; usa sus snapshots de disponibilidad, rol, obligación y política exacta |
+| Dependencias aceptadas | `HU-007`, `HU-015` y `HU-016` `Terminada`; usa rol canónico vigente, obligación persistida y los límites de elegibilidad aprobados |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Contrato funcional de `HU-016` aprobado; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
+| Aceptación humana | Contrato de `F07_ADENDA_07_CONTRATO_DE_CARGA_ACTIVA_HU_004.md` aprobado; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas PostgreSQL/Testcontainers específicas y afectadas | `105/105` efectivas, 0 omitidas; ejecución completa `104/105` y reejecución enfocada del control corregido `1/1` |
-| Decisión específica | `F07_ADENDA_06_CONTRATO_DE_ELEGIBILIDAD_HU_016.md`: fecha interna aprobada, reintento explícito, catálogo de razones, snapshot inmutable y campos de ranking/ganador nulos |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-004`, `HU-018` ni otra historia dependiente hasta que esta propuesta cumpla suite PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas | Unitarias `182/182`; arquitectura `9/9`; PostgreSQL/Testcontainers `109/109` efectivas mediante suite completa `107/109` y reejecución enfocada corregida `4/4`, 0 omitidas |
+| Decisión específica | `F07_ADENDA_07_CONTRATO_DE_CARGA_ACTIVA_HU_004.md`: infraestructura mínima de asignación, universo visible, snapshot, API, jerarquía y lectura sin efectos |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-018` ni otra historia dependiente hasta que esta propuesta cumpla suite PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-016` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-004` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-016`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-016` — SGOL calcula candidatos y explica exclusiones |
+| Pull request | `#29` |
+| Commit implementado | `1be3622658046f7cbfcb61e6e40fa03580b43856` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33890306730` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `4f28b5f2cd459be1944de47a5b6b98ce5e1d4ecc` |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | Suite completa satisfactoria |
+| `Fuentes/` | Sin cambios; protección y ascendencia confirmadas al iniciar `HU-004` |
+| Siguiente tarea propuesta | `HU-004` — Superior consulta carga activa correcta |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-016`; `1be36226` es ancestro verificado de `origin/master`.
 
 ## Base aceptada — `HU-015`
 

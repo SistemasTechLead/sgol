@@ -81,8 +81,9 @@ public sealed class EligibilityEvaluationPersistenceTests : IAsyncLifetime
         Assert.Equal(beforeEmployments.Count, await context.EmploymentVersions.CountAsync());
         Assert.Equal(beforeRoles.Count, await context.RoleAssignmentVersions.CountAsync());
         Assert.Equal(beforeAvailability.Count, await context.AvailabilityDayVersions.CountAsync());
+        Assert.Empty(await context.AssignmentVersions.AsNoTracking().ToListAsync());
         Assert.DoesNotContain(context.Model.GetEntityTypes(), item => item.ClrType.Name is
-            "AssignmentVersion" or "WorkPlan" or "PlanVersion" or "PlanVersionObligation");
+            "WorkPlan" or "PlanVersion" or "PlanVersionObligation");
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public sealed class EligibilityEvaluationPersistenceTests : IAsyncLifetime
         Assert.Equal(2, await context.EligibilityEvaluations.CountAsync());
         Assert.All(await context.EligibilityEvaluations.AsNoTracking().ToListAsync(), item =>
             Assert.Null(item.WinnerPersonId));
-        Assert.DoesNotContain(context.Model.GetEntityTypes(), item => item.ClrType.Name == "AssignmentVersion");
+        Assert.Empty(await context.AssignmentVersions.AsNoTracking().ToListAsync());
         Assert.Equal(WorkObligationStatuses.Pending, (await context.WorkObligations.AsNoTracking().SingleAsync()).ExecutionStatus);
 
         await Assert.ThrowsAsync<EligibilityEvaluationIdempotencyConflictException>(() =>
