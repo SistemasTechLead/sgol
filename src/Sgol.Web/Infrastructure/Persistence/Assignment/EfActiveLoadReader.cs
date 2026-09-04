@@ -117,24 +117,15 @@ public sealed class EfActiveLoadReader(
         }
 
         var personIds = page.Select(item => item.Id).ToArray();
-        var loads = personIds.Length == 0
-            ? new Dictionary<Guid, int>()
-            : await (
-                from assignment in dbContext.AssignmentVersions.AsNoTracking()
-                join obligation in dbContext.WorkObligations.AsNoTracking()
-                    on assignment.ObligationId equals obligation.Id
-                where personIds.Contains(assignment.PersonId) &&
-                    assignment.Status == AssignmentVersionStatuses.Current &&
-                    assignment.AssignedAt <= calculatedAt &&
-                    obligation.BranchId == BranchScope.LorettaId &&
-                    obligation.ExecutionStatus == WorkObligationStatuses.Pending
-                group assignment by assignment.PersonId into assignments
-                select new { PersonId = assignments.Key, Count = assignments.Count() })
-                .ToDictionaryAsync(item => item.PersonId, item => item.Count, cancellationToken);
+        var metrics = await EfAssignmentMetricsReader.ReadAsync(
+            dbContext,
+            personIds,
+            calculatedAt,
+            cancellationToken);
 
         var items = page.Select(person => new ActiveLoadItem(
             new ActiveLoadPerson(person.Id, person.StableCode, person.DisplayName),
-            loads.GetValueOrDefault(person.Id),
+            metrics.GetValueOrDefault(person.Id)?.ActiveLoad ?? 0,
             calculatedAt)).ToArray();
         var nextCursor = hasNextPage ? EncodeCursor(page[^1]) : null;
 

@@ -8,20 +8,37 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-004` — Superior consulta carga activa correcta |
+| Tarea | `HU-018` — SGOL asigna por carga y desempates aprobados |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-007`, `HU-015` y `HU-016` `Terminada`; usa rol canónico vigente, obligación persistida y los límites de elegibilidad aprobados |
+| Dependencias aceptadas | `HU-004` y `HU-016` `Terminada`; usa carga derivada, snapshot de elegibilidad inmutable y `assignment_version` existente |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Contrato de `F07_ADENDA_07_CONTRATO_DE_CARGA_ACTIVA_HU_004.md` aprobado; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
+| Aceptación humana | Contrato de `F07_ADENDA_08_CONTRATO_DE_ASIGNACION_HU_018.md` aprobado; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas | Unitarias `182/182`; arquitectura `9/9`; PostgreSQL/Testcontainers `109/109` efectivas mediante suite completa `107/109` y reejecución enfocada corregida `4/4`, 0 omitidas |
-| Decisión específica | `F07_ADENDA_07_CONTRATO_DE_CARGA_ACTIVA_HU_004.md`: infraestructura mínima de asignación, universo visible, snapshot, API, jerarquía y lectura sin efectos |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-018` ni otra historia dependiente hasta que esta propuesta cumpla suite PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas | Unitarias `188/188`; arquitectura `9/9`; PostgreSQL/Testcontainers `116/116`, 0 omitidas, mediante ejecución externa completa del desarrollador |
+| Gates de propuesta | Restore bloqueado, build Release, format, vulnerabilidades NuGet, modelo EF sin cambios, protección/espejo de `Fuentes/` y `git diff --check`: satisfactorios |
+| Decisión específica | `F07_ADENDA_08_CONTRATO_DE_ASIGNACION_HU_018.md`: comando e idempotencia, snapshot exacto, ranking, concurrencia, explicación, errores y auditoría |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-019` ni otra historia dependiente hasta que esta propuesta cumpla suite PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-004` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-018` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-004`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-004` — Superior consulta carga activa correcta |
+| Pull request | `#30` |
+| Commit implementado | `ff95e0a4c014a6000829bda1ccbde55d991a8c49` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33894988459` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `697f402ac2a4b8c0a45bac317c8a3422c860fa0f` |
+| Pruebas PostgreSQL/Testcontainers específicas y afectadas | Suite completa satisfactoria |
+| `Fuentes/` | Sin cambios; protección confirmada al iniciar `HU-018` |
+| Siguiente tarea propuesta | `HU-018` — SGOL asigna por carga y desempates aprobados |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-004`; `ff95e0a4` es ancestro verificado de `origin/master`.
 
 ## Base aceptada — `HU-016`
 
