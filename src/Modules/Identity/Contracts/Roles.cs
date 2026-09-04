@@ -19,6 +19,19 @@ public static class RoleAssignmentStatus
 
 public static class RoleHierarchy
 {
+    public static bool IsStrictlySuperior(string actorRoleCode, string targetRoleCode)
+    {
+        if (!CanonicalRole.IsDefined(actorRoleCode) || !CanonicalRole.IsDefined(targetRoleCode))
+        {
+            return false;
+        }
+
+        return Rank(actorRoleCode) > Rank(targetRoleCode);
+    }
+
+    public static bool GrantsAssignmentCorrection(string roleCode) => roleCode is
+        CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
+
     public static bool CanAccessLevel(string actorRoleCode, string targetRoleCode)
     {
         if (!CanonicalRole.IsDefined(actorRoleCode) || !CanonicalRole.IsDefined(targetRoleCode))

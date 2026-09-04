@@ -84,13 +84,23 @@ public sealed class AssignmentVersion
     public Guid Id { get; private init; }
     public Guid ObligationId { get; private init; }
     public Guid PersonId { get; private init; }
-    public string Status { get; private init; } = null!;
+    public string Status { get; private set; } = null!;
     public string AssignmentType { get; private init; } = null!;
     public JsonDocument Explanation { get; private init; } = null!;
     public string? Reason { get; private init; }
     public Guid? AssignedBy { get; private init; }
     public DateTimeOffset AssignedAt { get; private init; }
     public Guid? SupersedesId { get; private init; }
+
+    public void Supersede()
+    {
+        if (Status != AssignmentVersionStatuses.Current)
+        {
+            throw new InvalidOperationException("Only the current assignment can be superseded.");
+        }
+
+        Status = AssignmentVersionStatuses.Superseded;
+    }
 }
 
 public sealed record ActiveLoadPerson(Guid Id, string StableCode, string DisplayName);
