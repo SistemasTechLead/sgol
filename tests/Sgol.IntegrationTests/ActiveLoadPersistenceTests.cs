@@ -51,8 +51,10 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
             Assert.Null(candidate.LastAutoAssignmentAt);
             Assert.Null(candidate.Rank);
         });
+        Assert.Contains(context.Model.GetEntityTypes(), entity => entity.ClrType.Name == "WorkPlan");
         Assert.DoesNotContain(context.Model.GetEntityTypes(), entity => entity.ClrType.Name is
-            "WorkPlan" or "PlanVersion" or "PlanVersionObligation");
+            "PlanVersion" or "PlanVersionObligation");
+        Assert.Empty(await context.WorkPlans.AsNoTracking().ToListAsync());
     }
 
     [Fact]
