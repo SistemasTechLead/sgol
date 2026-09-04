@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Sgol.Assignment.Contracts;
 using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
+using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Configuration;
 using Sgol.Web.Infrastructure.Persistence.Generation;
@@ -47,6 +49,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IWeekPeriodService, EfWeekPeriodService>();
         services.AddScoped<IGenerationRequestService, EfGenerationRequestService>();
         services.AddScoped<IWorkObligationMaterializer, EfWorkObligationMaterializer>();
+        services.AddScoped<IEligibilityEvaluationService, EfEligibilityEvaluationService>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();

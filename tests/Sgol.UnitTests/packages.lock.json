@@ -436,6 +436,9 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "sgol.assignment": {
+        "type": "Project"
+      },
       "sgol.buildingblocks": {
         "type": "Project"
       },
@@ -464,6 +467,7 @@
         "type": "Project",
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "Sgol.Assignment": "[1.0.0, )",
           "Sgol.BuildingBlocks": "[1.0.0, )",
           "Sgol.Configuration": "[1.0.0, )",
           "Sgol.Generation": "[1.0.0, )",

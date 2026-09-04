@@ -17,6 +17,9 @@
         "resolved": "10.0.3",
         "contentHash": "7nb5YzXuvWWJxB0J8DiyL3we+X4FOctZrt0fIBnucOIaIevFEEwGQVZKtiu9olXdlNAK1eNgqSral6r/jlhI4w=="
       },
+      "sgol.assignment": {
+        "type": "Project"
+      },
       "sgol.buildingblocks": {
         "type": "Project"
       },
@@ -45,6 +48,7 @@
         "type": "Project",
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "Sgol.Assignment": "[1.0.0, )",
           "Sgol.BuildingBlocks": "[1.0.0, )",
           "Sgol.Configuration": "[1.0.0, )",
           "Sgol.Generation": "[1.0.0, )",

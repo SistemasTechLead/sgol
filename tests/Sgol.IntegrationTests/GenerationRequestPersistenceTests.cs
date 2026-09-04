@@ -87,8 +87,8 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
             item.Outcome == "SUCCESS");
         Assert.DoesNotContain(
             context.Model.GetEntityTypes(),
-            item => item.ClrType.Name is "EligibilityCandidate" or "AssignmentVersion" or
-                "WorkPlan" or "PlanVersionObligation");
+            item => item.ClrType.Name is "AssignmentVersion" or "WorkPlan" or
+                "PlanVersionObligation");
     }
 
     [Fact]
