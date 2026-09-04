@@ -8,21 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-020` — SGOL crea/recupera plan semanal único |
+| Tarea | `HU-021` — Superior publica su alcance incrementalmente |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-019`, `HU-010`, `HU-015`, `HU-007`, `HU-034 mínimo` y `TECH-AUD-001`; reutiliza período ISO, obligación, rol canónico, idempotencia, auditoría, ETag y reloj |
+| Dependencias aceptadas | `HU-020`, `HU-019`, `HU-010`, `HU-015`, `HU-007`, `HU-034 mínimo` y `TECH-AUD-001`; reutiliza plan único, obligación, asignación, rol canónico, idempotencia, auditoría, ETag y reloj |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Contrato de `F07_ADENDA_10_CONTRATO_DE_PLAN_SEMANAL_HU_020.md` aprobado íntegramente; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
+| Aceptación humana | Contrato de `F07_ADENDA_11_CONTRATO_DE_PUBLICACION_DE_PLAN_HU_021.md` aprobado íntegramente; commit, publicación, PR y merge permanecen pendientes de autorizaciones independientes |
 | Commit incorporado en `master` | Pendiente de merge |
-| `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas | Unitarias `211/211`; arquitectura `9/9`; PostgreSQL/Testcontainers `134/134` efectivas, 0 omitidas: ejecución completa `129/134` y reejecución enfocada corregida `5/5` |
-| Gates de propuesta | Restore bloqueado, build Release, formato, paquetes vulnerables, modelo EF sin cambios pendientes, protección/espejo de `Fuentes/` y `git diff --check` satisfactorios |
-| Decisión específica | `F07_ADENDA_10_CONTRATO_DE_PLAN_SEMANAL_HU_020.md`: permiso, cuerpo vacío, período materializado, contenido BORRADOR derivado, idempotencia, ETag, concurrencia, auditoría y migración única |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-021`, `HU-013` ni otra historia dependiente hasta que HU-020 cumpla suite PostgreSQL, pipeline, revisión humana y merge |
+| `Fuentes/` | Sin cambios; protección y espejo de 29 documentos Markdown verificados al cerrar la propuesta |
+| Pruebas | Unitarias `221/221`; arquitectura `9/9`; PostgreSQL/Testcontainers `145/145` efectivas, 0 omitidas: corrida completa inicial `130/145` y reejecución enfocada corregida `15/15` |
+| Gates de propuesta | Restore bloqueado, build Release, pruebas, formato, vulnerabilidades NuGet, modelo EF sin cambios pendientes, protección/espejo de `Fuentes/` y `git diff --check` satisfactorios |
+| Decisión específica | `F07_ADENDA_11_CONTRATO_DE_PUBLICACION_DE_PLAN_HU_021.md`: alcance acumulado derivado, snapshot histórico, asignación congelada, idempotencia, ETag, concurrencia, auditoría y migración única |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-013`, `HU-022` ni otra historia mientras HU-021 no cumpla pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-020` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-021` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-020`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-020` — SGOL crea/recupera plan semanal único |
+| Pull request | `#33` |
+| Commit implementado | `89270827d9e684037c07fb287128fbda9ad3f378` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33911626162` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `3a344c8dd8bd5ff2003646ed0df8c448c2c2cdf2` |
+| `Fuentes/` | Sin cambios; protección confirmada al iniciar HU-021 |
+| Siguiente tarea propuesta | `HU-021` — Superior publica su alcance incrementalmente |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-020`; `89270827` y `3a344c8d` son ancestros verificados de `origin/master`.
 
 ## Base aceptada — `HU-019`
 

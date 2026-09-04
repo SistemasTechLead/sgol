@@ -83,9 +83,11 @@ public sealed class EligibilityEvaluationPersistenceTests : IAsyncLifetime
         Assert.Equal(beforeAvailability.Count, await context.AvailabilityDayVersions.CountAsync());
         Assert.Empty(await context.AssignmentVersions.AsNoTracking().ToListAsync());
         Assert.Contains(context.Model.GetEntityTypes(), item => item.ClrType.Name == "WorkPlan");
-        Assert.DoesNotContain(context.Model.GetEntityTypes(), item => item.ClrType.Name is
-            "PlanVersion" or "PlanVersionObligation");
+        Assert.Contains(context.Model.GetEntityTypes(), item => item.ClrType.Name == "PlanVersion");
+        Assert.Contains(context.Model.GetEntityTypes(), item => item.ClrType.Name == "PlanVersionObligation");
         Assert.Empty(await context.WorkPlans.AsNoTracking().ToListAsync());
+        Assert.Empty(await context.PlanVersions.AsNoTracking().ToListAsync());
+        Assert.Empty(await context.PlanVersionObligations.AsNoTracking().ToListAsync());
     }
 
     [Fact]

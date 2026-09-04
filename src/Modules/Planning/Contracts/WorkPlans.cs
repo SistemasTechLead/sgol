@@ -41,6 +41,17 @@ public sealed class WorkPlan
     public string Status { get; private set; } = null!;
 
     public long RowVersion { get; private set; }
+
+    public void ApplyPublication()
+    {
+        if (Status is not WorkPlanStatuses.Draft and not WorkPlanStatuses.Published)
+        {
+            throw new InvalidOperationException("Only a draft or published work plan can be published.");
+        }
+
+        Status = WorkPlanStatuses.Published;
+        RowVersion = checked(RowVersion + 1);
+    }
 }
 
 public sealed record EnsureWorkPlanCommand(

@@ -51,6 +51,10 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<WorkPlan> WorkPlans => Set<WorkPlan>();
 
+    public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
+
+    public DbSet<PlanVersionObligation> PlanVersionObligations => Set<PlanVersionObligation>();
+
     public DbSet<GenerationRequest> GenerationRequests => Set<GenerationRequest>();
 
     public DbSet<WorkObligation> WorkObligations => Set<WorkObligation>();
@@ -82,6 +86,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new ActivationRuleVersionConfiguration());
         modelBuilder.ApplyConfiguration(new WeekPeriodConfiguration());
         modelBuilder.ApplyConfiguration(new WorkPlanConfiguration());
+        modelBuilder.ApplyConfiguration(new PlanVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new PlanVersionObligationConfiguration());
         modelBuilder.ApplyConfiguration(new GenerationRequestConfiguration());
         modelBuilder.ApplyConfiguration(new WorkObligationConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityEvaluationConfiguration());

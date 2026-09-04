@@ -37,6 +37,8 @@ public sealed class AssignmentVersionConfiguration : IEntityTypeConfiguration<As
             });
 
         builder.HasKey(assignment => assignment.Id);
+        builder.HasAlternateKey(assignment => new { assignment.Id, assignment.ObligationId })
+            .HasName("AK_assignment_version_id_obligation_id");
         builder.Property(assignment => assignment.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(assignment => assignment.ObligationId).HasColumnName("obligation_id");
         builder.Property(assignment => assignment.PersonId).HasColumnName("person_id");
