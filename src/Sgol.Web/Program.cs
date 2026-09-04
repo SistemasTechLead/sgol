@@ -37,6 +37,7 @@ app.MapTaskDefinitionApi();
 app.MapEligibilityPolicyApi();
 app.MapActivationPolicyApi();
 app.MapWeekApi();
+app.MapWorkPlanApi();
 app.MapGenerationRequestApi();
 app.MapEligibilityEvaluationApi();
 app.MapAssignmentCorrectionApi();

@@ -8,21 +8,36 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-019` — Superior corrige asignación inferior con motivo |
+| Tarea | `HU-020` — SGOL crea/recupera plan semanal único |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-018` y `TECH-AUD-001` `Terminada`; reutiliza `work_obligation.row_version`, historia de `assignment_version`, snapshot HU-016, idempotencia y auditoría |
+| Dependencias aceptadas | `HU-019`, `HU-010`, `HU-015`, `HU-007`, `HU-034 mínimo` y `TECH-AUD-001`; reutiliza período ISO, obligación, rol canónico, idempotencia, auditoría, ETag y reloj |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Contrato de `F07_ADENDA_09_CONTRATO_DE_CORRECCION_DE_ASIGNACION_HU_019.md` aprobado íntegramente; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
+| Aceptación humana | Contrato de `F07_ADENDA_10_CONTRATO_DE_PLAN_SEMANAL_HU_020.md` aprobado íntegramente; commit, publicación y merge permanecen pendientes de autorizaciones independientes |
 | Commit incorporado en `master` | Pendiente de merge |
 | `Fuentes/` | Protección requerida en los checks del PR |
-| Pruebas | Unitarias `202/202`; arquitectura `9/9`; PostgreSQL/Testcontainers `122/122` efectivas, 0 omitidas: ejecución completa `120/122` y reejecución enfocada corregida `2/2` |
-| Gates de propuesta | Restore bloqueado, build Release, formato, paquetes vulnerables, modelo EF sin cambios pendientes y protección/espejo de `Fuentes/` satisfactorios |
-| Decisión específica | `F07_ADENDA_09_CONTRATO_DE_CORRECCION_DE_ASIGNACION_HU_019.md`: endpoint/comando, ETag de obligación, idempotencia, jerarquía estricta, revalidación, cadena, explicación, concurrencia, errores y auditoría |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-020` ni otra historia dependiente hasta que HU-019 cumpla suite PostgreSQL, pipeline, revisión humana y merge |
+| Pruebas | Unitarias `211/211`; arquitectura `9/9`; PostgreSQL/Testcontainers `134/134` efectivas, 0 omitidas: ejecución completa `129/134` y reejecución enfocada corregida `5/5` |
+| Gates de propuesta | Restore bloqueado, build Release, formato, paquetes vulnerables, modelo EF sin cambios pendientes, protección/espejo de `Fuentes/` y `git diff --check` satisfactorios |
+| Decisión específica | `F07_ADENDA_10_CONTRATO_DE_PLAN_SEMANAL_HU_020.md`: permiso, cuerpo vacío, período materializado, contenido BORRADOR derivado, idempotencia, ETag, concurrencia, auditoría y migración única |
+| Siguiente tarea propuesta | Ninguna; no iniciar `HU-021`, `HU-013` ni otra historia dependiente hasta que HU-020 cumpla suite PostgreSQL, pipeline, revisión humana y merge |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-019` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-020` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `HU-019`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-019` — Superior corrige asignación inferior con motivo |
+| Pull request | `#32` |
+| Commit implementado | `ca62f925d8505715775a0f245ef818d1d292812f` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33906693457` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `0e58cc10ef66d54681eadfd63858941eb584e44b` |
+| `Fuentes/` | Sin cambios; protección confirmada al iniciar HU-020 |
+| Siguiente tarea propuesta | `HU-020` — SGOL crea/recupera plan semanal único |
+
+La evidencia anterior se acepta sin crear un commit administrativo para alterar retrospectivamente el registro que viajó en el PR de `HU-019`; `ca62f925` y `0e58cc10` son ancestros verificados de `origin/master`.
 
 ## Base aceptada — `HU-018`
 

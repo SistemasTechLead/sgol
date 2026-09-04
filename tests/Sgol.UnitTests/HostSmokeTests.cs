@@ -97,6 +97,17 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task WorkPlanEnsureRequiresAuthenticationAndGetRemainsOutsideHu020()
+    {
+        using var ensure = await _client.PostAsync("/api/v1/plans/2026/36/ensure", content: null);
+        using var get = await _client.GetAsync("/api/v1/plans/2026/36");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, ensure.StatusCode);
+        Assert.Equal("application/problem+json", ensure.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
+    }
+
     [Theory]
     [InlineData("/api/v1/task-definitions")]
     [InlineData("/api/v1/task-definitions/TAR-0005")]

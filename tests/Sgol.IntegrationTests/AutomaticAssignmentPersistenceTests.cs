@@ -134,8 +134,10 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             Idempotency = before.Idempotency + 1,
             Audits = before.Audits + 1,
         }, after);
+        Assert.Contains(context.Model.GetEntityTypes(), entity => entity.ClrType.Name == "WorkPlan");
         Assert.DoesNotContain(context.Model.GetEntityTypes(), entity => entity.ClrType.Name is
-            "WorkPlan" or "PlanVersion" or "PlanVersionObligation");
+            "PlanVersion" or "PlanVersionObligation");
+        Assert.Empty(await context.WorkPlans.AsNoTracking().ToListAsync());
     }
 
     [Fact]
