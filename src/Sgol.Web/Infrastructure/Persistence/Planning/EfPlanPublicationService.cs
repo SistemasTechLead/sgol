@@ -289,7 +289,7 @@ public sealed class EfPlanPublicationService(
             }
 
             var assignment = assignments[0];
-            if (!ReferencesPolicy(assignment, policy.Id))
+            if (!await ReferencesPolicyAsync(assignment, obligation.Id, policy.Id, token))
             {
                 throw new PlanPublicationContentConflictException();
             }
@@ -373,10 +373,55 @@ public sealed class EfPlanPublicationService(
         state.Roles[0].ValidTo is null &&
         CanonicalRole.IsDefined(state.Roles[0].RoleCode);
 
-    private static bool ReferencesPolicy(AssignmentVersion assignment, Guid policyId) =>
-        assignment.Explanation.RootElement.TryGetProperty("eligibilityPolicyVersionId", out var value) &&
-        value.ValueKind == JsonValueKind.String &&
-        Guid.TryParse(value.GetString(), out var stored) && stored == policyId;
+    private async Task<bool> ReferencesPolicyAsync(
+        AssignmentVersion assignment,
+        Guid obligationId,
+        Guid policyId,
+        CancellationToken token)
+    {
+        var explanation = assignment.Explanation.RootElement;
+        var hasEvaluation = TryReadGuid(explanation, "eligibilityEvaluationId", out var evaluationId);
+
+        if (assignment.AssignmentType == AssignmentTypes.Automatic)
+        {
+            return hasEvaluation &&
+                await EvaluationReferencesPolicyAsync(evaluationId, obligationId, policyId, token);
+        }
+
+        if (assignment.AssignmentType != AssignmentTypes.Correction ||
+            !TryReadGuid(explanation, "eligibilityPolicyVersionId", out var directPolicyId) ||
+            directPolicyId != policyId)
+        {
+            return false;
+        }
+
+        return !hasEvaluation ||
+            await EvaluationReferencesPolicyAsync(evaluationId, obligationId, policyId, token);
+    }
+
+    private async Task<bool> EvaluationReferencesPolicyAsync(
+        Guid evaluationId,
+        Guid obligationId,
+        Guid policyId,
+        CancellationToken token)
+    {
+        var evaluations = await dbContext.EligibilityEvaluations
+            .FromSqlInterpolated($"SELECT * FROM eligibility_evaluation WHERE id = {evaluationId} FOR UPDATE")
+            .AsNoTracking()
+            .ToListAsync(token);
+        return evaluations.Count == 1 &&
+            evaluations[0].ObligationId == obligationId &&
+            evaluations[0].PolicyVersionId == policyId;
+    }
+
+    private static bool TryReadGuid(JsonElement explanation, string propertyName, out Guid value)
+    {
+        value = Guid.Empty;
+        return explanation.TryGetProperty(propertyName, out var property) &&
+            property.ValueKind == JsonValueKind.String &&
+            property.TryGetGuid(out value) &&
+            value != Guid.Empty;
+    }
 
     private async Task<PlanPublicationResult> LoadReplayAsync(
         PublishWorkPlanCommand command,

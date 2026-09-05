@@ -4,6 +4,7 @@
 .vscode/
 .idea/
 TestResults/
+.artifacts/cv02/
 *.user
 *.suo
 *.nupkg

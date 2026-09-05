@@ -4,25 +4,45 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 En una rama de pull request, la sección siguiente es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama
+## Propuesta actual en rama — `TECH-E2E-CV-02`
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-013` — Job genera recurrencias vencidas sin duplicar |
-| Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `TECH-JOBS-001`, `HU-012`, `HU-015`, `HU-018`, `HU-020` y dependencias anteriores registradas |
-| Pull request | PR que incorpora esta actualización |
+| Tarea | `TECH-E2E-CV-02` — Demo automatizada y cierre del corte `CV-02` |
+| Estado | Propuesta implementada en `codex/tech-e2e-cv-02`; no `Terminada` |
+| Contrato | `F07_ADENDA_14_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_02_TECH_E2E_CV_02.md`, incluida su revisión de interoperabilidad `HU-018`/`HU-021`, aprobada íntegramente el 2026-09-05 |
 | Commit implementado | Commit que contiene esta actualización |
-| Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Contrato de `F07_ADENDA_13_CONTRATO_DE_GENERACION_RECURRENTE_HU_013.md` aprobado íntegramente; implementación, commit, publicación, PR y merge conservan autorizaciones independientes |
-| Commit incorporado en `master` | Pendiente de merge |
+| Base aceptada | `HU-013`: PR `#36`, commit `c7501abd7534edd2a84115a8dec803872819cb97`, pipeline `SUCCESS` run `33975676912`, aprobación humana, merge `0b21a1173c8e31c82cc65cf5cc51b4d27464a36e` y ascendencia verificada en `origin/master` |
+| Entregable | Host desechable `tests/Sgol.Cv02Demo`, PostgreSQL real, servicios aceptados, `Sgol.Worker`, Razor Pages y Playwright headless |
+| Alcance demostrado | 13 escenarios para configuración, calendario, manual, recurrencia, obligación, elegibilidad, asignación, corrección, plan, publicación, recuperación, autorización negativa, historia y límites del corte |
+| Persistencia | Base efímera creada desde cero; semilla `CV02-SEED-V1`; sólo `LOR-001`; capa lectora `REPEATABLE READ`, `READ ONLY` y `AsNoTracking` |
+| Producción | Corrección aprobada limitada a que `HU-021` resuelva la política de una asignación automática mediante su evaluación persistida; cero migraciones, tablas, entidades, endpoints, permisos o UI productivos nuevos |
+| Gates | Restore locked `15/15`; build Release `15/15`; unitarias `234/234`; arquitectura `11/11`; harness sin Docker `15/15`; PostgreSQL/Testcontainers externo `172/172`; demo externa `S01`-`S13`, Chromium 151 escritorio/teléfono, WebKit 26.5 teléfono y limpieza `PASSED`; formato sin diferencias; cero vulnerabilidades conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico. El resultado de `git diff --check` se informa al entregar para no modificar el diff después del último gate |
+| Cierre | Requiere commit exacto, pipeline verde, aprobación humana, merge, ascendencia, demo satisfactoria y cero defectos bloqueantes |
+| Siguiente tarea | `HU-023` permanece bloqueada; `CV-02` no se declara cerrado |
+
+Esta propuesta viaja con el mismo cambio que la implementación. No autoriza commit, publicación de rama, PR ni merge y no convierte la aprobación del contrato en aceptación de la implementación.
+
+## Base aceptada — `HU-013`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-013` — Job genera recurrencias vencidas sin duplicar |
+| Estado | `Terminada` |
+| Dependencias aceptadas | `TECH-JOBS-001`, `HU-012`, `HU-015`, `HU-018`, `HU-020` y dependencias anteriores registradas |
+| Pull request | `#36` |
+| Commit implementado | `c7501abd7534edd2a84115a8dec803872819cb97` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33975676912` |
+| Aceptación humana | Contrato e implementación aprobados; autorización de merge recibida explícitamente |
+| Commit incorporado en `master` | `0b21a1173c8e31c82cc65cf5cc51b4d27464a36e` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` |
 | `Fuentes/` | Sin cambios; protección satisfactoria y 29 documentos Markdown del espejo idénticos byte por byte |
 | Pruebas | Unitarias completas `234/234`; arquitectura completa `11/11`; suite PostgreSQL/Testcontainers completa del corte corregido ejecutada externamente por el desarrollador: `169/169`, 0 errores, 0 omitidas, 515.2 s |
-| Gates de propuesta | Restore locked, build Release, unitarias, arquitectura, PostgreSQL/Testcontainers externo, formato, vulnerabilidades, modelo EF sin cambios pendientes, protección y espejo de `Fuentes/` y `git diff --check`: satisfactorios |
+| Gates | Restore locked, build Release, unitarias, arquitectura, PostgreSQL/Testcontainers externo, formato, vulnerabilidades, modelo EF sin cambios pendientes, protección y espejo de `Fuentes/` y `git diff --check`: satisfactorios |
 | Decisión específica | `F07_ADENDA_13_CONTRATO_DE_GENERACION_RECURRENTE_HU_013.md`: `TAR-0005`, ventanas históricas, actor sistema, cadena reanudable, resultados, telemetría y migración única |
-| Siguiente tarea propuesta | Ninguna; no iniciar otra historia mientras `HU-013` no cumpla pipeline, revisión humana, merge y ascendencia |
+| Siguiente tarea propuesta | `TECH-E2E-CV-02` — demo automatizada y cierre del corte `CV-02`, sujeta a contrato mediante adenda aprobada |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-013` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+La evidencia primaria de cierre pertenece al mismo PR que contiene la implementación y este registro histórico. No se crea un commit administrativo separado para añadir retrospectivamente el run o el hash de merge; esta base aceptada viaja con el siguiente cambio funcional.
 
 ## Base aceptada — `TECH-JOBS-001`
 
@@ -392,6 +412,7 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | `TECH-UI-001` | `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` | `HU-005` | `Terminada`; PR `#13`, commit `d723d2fb91a86bf34e886ebc84dda77c72bd1dec`, merge `0209cec724c13ce27de9a27afb183f458385b9b2` |
 | `TECH-VER-001` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | `HU-008` | `Terminada`; PR `#20`, commit `9d7c001275e119c13bed81b544347d3bd2f55e16`, merge `70222cd1997bf64ad29638f9a27c5268058e118a` |
 | `TECH-JOBS-001` | `F07_ADENDA_12_CONTRATO_DE_WORKER_OUTBOX_Y_JOBS_TECH_JOBS_001.md` | `HU-013` | `Terminada`; PR `#35`, commit `1517be53434f4d4af2aefd136f462d6c08eeb9df`, merge `f8217da95d59718c7f3bd7b21c09f4bb56122b6c` |
+| `TECH-E2E-CV-02` | `F07_ADENDA_14_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_02_TECH_E2E_CV_02.md` | Cierre de `CV-02` y `HU-023` | Propuesta implementada en rama; no `Terminada`; gates, aprobación de implementación, merge y ascendencia pendientes |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`
 
