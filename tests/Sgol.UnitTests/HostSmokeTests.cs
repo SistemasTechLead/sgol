@@ -28,6 +28,8 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
                     services.AddSingleton<ITaskDefinitionService, UnusedTaskDefinitionService>();
                     services.RemoveAll<IActivationPolicyService>();
                     services.AddSingleton<IActivationPolicyService, UnusedActivationPolicyService>();
+                    services.RemoveAll<IEvidencePolicyService>();
+                    services.AddSingleton<IEvidencePolicyService, UnusedEvidencePolicyService>();
                 });
             })
             .CreateClient();
@@ -119,14 +121,25 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
-    [Theory]
-    [InlineData("/api/v1/task-definitions/TAR-0005/evidence-policy")]
-    [InlineData("/api/v1/task-definitions/TAR-0005/validation-policy")]
-    public async Task LaterPolicyEndpoints_DoNotExist(string path)
+    [Fact]
+    public async Task ValidationPolicyEndpoint_DoesNotExist()
     {
-        using var response = await _client.PutAsync(path, content: null);
+        using var response = await _client.PutAsync(
+            "/api/v1/task-definitions/TAR-0005/validation-policy",
+            content: null);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task EvidencePolicyEndpoint_RequiresAuthentication()
+    {
+        using var response = await _client.PutAsync(
+            "/api/v1/task-definitions/TAR-0005/evidence-policy",
+            JsonContent.Create(new { }));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
@@ -170,5 +183,17 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         public Task<ActivationRuleVersionDetails> PutAsync(
             PutActivationPolicyCommand command,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class UnusedEvidencePolicyService : IEvidencePolicyService
+    {
+        public Task<EvidencePolicyVersionDetails> PutAsync(
+            PutEvidencePolicyCommand command,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task RecordRejectionAsync(
+            Guid actorUserId,
+            Guid correlationId,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

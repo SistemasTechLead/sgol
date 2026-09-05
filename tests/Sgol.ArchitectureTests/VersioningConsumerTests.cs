@@ -5,7 +5,7 @@ namespace Sgol.ArchitectureTests;
 public sealed class VersioningConsumerTests
 {
     [Fact]
-    public void ProductionVersioningConsumers_AreExactlyTheAuthorizedFive()
+    public void ProductionVersioningConsumers_AreExactlyTheAuthorizedSix()
     {
         var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
         var consumers = Directory.EnumerateFiles(Path.Combine(root, "src", "Modules"), "*.cs", SearchOption.AllDirectories)
@@ -21,6 +21,7 @@ public sealed class VersioningConsumerTests
             "src/Modules/Configuration/Contracts/ConfigurationReleases.cs",
             "src/Modules/Configuration/Contracts/ActivationPolicies.cs",
             "src/Modules/Configuration/Contracts/EligibilityPolicies.cs",
+            "src/Modules/Configuration/Contracts/EvidencePolicies.cs",
             "src/Modules/Configuration/Contracts/TaskDefinitions.cs",
         ]));
     }

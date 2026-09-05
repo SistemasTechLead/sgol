@@ -36,6 +36,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<ITaskDefinitionService, EfTaskDefinitionService>();
         services.AddScoped<IEligibilityPolicyService, EfEligibilityPolicyService>();
         services.AddScoped<IActivationPolicyService, EfActivationPolicyService>();
+        services.AddScoped<IEvidencePolicyService, EfEvidencePolicyService>();
         services.AddScoped<ICalendarService, EfCalendarService>();
         services.AddScoped<IWeekPeriodService, EfWeekPeriodService>();
         services.AddScoped<IWorkPlanService, EfWorkPlanService>();

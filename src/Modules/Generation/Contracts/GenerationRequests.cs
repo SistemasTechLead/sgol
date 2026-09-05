@@ -90,7 +90,8 @@ public sealed class WorkObligation
         Guid branchId,
         Guid periodId,
         Guid generationRequestId,
-        string originReference)
+        string originReference,
+        Guid? evidencePolicyVersionId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(originReference);
 
@@ -100,6 +101,7 @@ public sealed class WorkObligation
         PeriodId = periodId;
         GenerationRequestId = generationRequestId;
         OriginReference = originReference;
+        EvidencePolicyVersionId = evidencePolicyVersionId;
         ExecutionStatus = WorkObligationStatuses.Pending;
         RowVersion = 1;
     }
@@ -110,6 +112,7 @@ public sealed class WorkObligation
     public Guid PeriodId { get; private init; }
     public Guid GenerationRequestId { get; private init; }
     public string OriginReference { get; private init; } = null!;
+    public Guid? EvidencePolicyVersionId { get; private init; }
     public System.Text.Json.JsonDocument? InputPayload { get; private init; }
     public DateTimeOffset? DueAt { get; private init; }
     public string ExecutionStatus { get; private init; } = null!;
@@ -139,6 +142,7 @@ public sealed record WorkObligationDetails(
     Guid BranchId,
     Guid PeriodId,
     string OriginReference,
+    Guid? EvidencePolicyVersionId,
     string ExecutionStatus,
     long RowVersion);
 

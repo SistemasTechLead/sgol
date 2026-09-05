@@ -4,25 +4,46 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-023`
+## Propuesta actual en rama — `HU-024`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-024` — Dirección versiona evidencia requerida por TAR |
+| Estado | Propuesta implementada en `codex/hu-024`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit implementado tenga pipeline requerido verde, aprobación humana, merge y ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes conocidos |
+| Contrato | `F07_ADENDA_16_CONTRATO_DE_POLITICA_DE_EVIDENCIA_VERSIONADA_HU_024.md`, aprobada íntegramente el 2026-09-05 |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `HU-023`: PR `#38`, commit `de8e9d746687e892e5d4baf1d23ed0745aa4865b`, pipeline `SUCCESS` run `33986965205`, aprobación humana y merge `8a411596086fe1c0a95ec3c04f6c3ae8542b76c6`; ambos SHA ancestros de `origin/master`; PostgreSQL enfocado `3/3`; cero defectos bloqueantes conocidos |
+| Entregable | Catálogo cerrado de 27 requisitos para las ocho TAR, política versionada, único `PUT /api/v1/task-definitions/{taskCode}/evidence-policy` y proyección `currentEvidencePolicy` en la lectura TAR existente |
+| Alcance | Todos los requisitos configurados y aplicables obligatorios; única condición `DIFERENCIA_O_DANO` para la fotografía de `TAR-0092`; publicación por release y snapshot inmutable por obligación |
+| Persistencia | Una migración forward-only: `evidence_requirement_catalog`, `evidence_policy_version`, `evidence_requirement_version` y FK nullable e inmutable `work_obligation.evidence_policy_version_id`; sin backfill |
+| Autorización y auditoría | Dirección vigente en `LOR-001` con `PER-EVIDENCIA-CONFIG`; denegación por defecto; creación, recuperación, publicación, rechazo y acceso denegado auditados; escritura crítica atómica |
+| Interfaz | No incluida por decisión expresa de la adenda; cero páginas, CSS, JavaScript o Playwright |
+| Pruebas | Unitarias completas `269/269`; arquitectura completa `15/15`; enfocadas sin Docker `16/16` unitarias y `3/3` arquitectura; suite PostgreSQL afectada ejecutada externamente por el desarrollador `17/17`, 0 errores, 0 omitidas, 98.1 s |
+| Gates | Restore locked `16/16`; build Release `16/16`; unitarias `269/269`; arquitectura `15/15`; enfocadas sin Docker `16/16` unitarias y `3/3` arquitectura; PostgreSQL externo `17/17`; Playwright no aplica; formato sin diferencias tras corregir una sangría no semántica; cero vulnerabilidades conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico. El resultado de `git diff --check` se informa al entregar para no modificar el diff después del último gate |
+| Cierre | Requiere PostgreSQL satisfactorio, commit exacto, pipeline verde, aprobación humana de implementación, merge, ascendencia y cero defectos bloqueantes |
+| Siguiente tarea | No se inicia otra historia. `TECH-EVID-001` y `HU-025` permanecen fuera de este cambio y bloqueadas hasta el cierre efectivo que corresponda |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y no habilita otra historia posterior.
+
+## Base aceptada — `HU-023`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-023` — Usuario consulta tarea, procedencia e historia permitida |
-| Estado | Propuesta implementada en `codex/hu-023`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit implementado tenga pipeline requerido verde, aprobación humana, merge y ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes conocidos |
+| Estado | `Terminada` |
 | Contrato | `F07_ADENDA_15_CONTRATO_DE_CONSULTA_DE_TRABAJO_E_HISTORIA_PERMITIDA_HU_023.md`, aprobada íntegramente el 2026-09-05 |
-| Commit implementado | Commit que contiene esta actualización |
-| Base aceptada | `TECH-E2E-CV-02`: PR `#37`, commit `f74261988866819a1fc09c2a598d137538530fc5`, pipeline `SUCCESS` run `33983298961`, aprobación humana y merge `e2d059c11b9647e92e10c49eff00e148b87c6f7c`; ambos SHA ancestros de `origin/master` |
+| Pull request | `#38` |
+| Commit implementado | `de8e9d746687e892e5d4baf1d23ed0745aa4865b` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; `SUCCESS`, run `33986965205`, correspondiente al commit exacto |
+| Aceptación humana | Recibida y autenticada |
+| Commit incorporado en `master` | `8a411596086fe1c0a95ec3c04f6c3ae8542b76c6` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` |
+| Pruebas PostgreSQL | Enfocadas `3/3`; cero defectos bloqueantes conocidos |
 | Entregable | Contratos `Sgol.Execution`, lector PostgreSQL read-only y únicamente `GET /api/v1/obligations` y `GET /api/v1/obligations/{id}` |
-| Alcance | Universo por responsable vigente y jerarquía actual, Dirección completa, ocultación `404`, filtros/cursor, procedencia, vencimiento derivado, asignaciones y publicaciones históricas permitidas |
-| Persistencia | Cero migraciones, cambios de esquema, entidades o mutaciones; `AsNoTracking`, `REPEATABLE READ, READ ONLY` y ausencia de `SaveChanges`/auditoría de consulta |
-| Interfaz | No incluida por decisión expresa de la adenda; cero páginas, CSS, JavaScript o Playwright |
-| Pruebas | Unitarias/API enfocadas `20/20`; arquitectura enfocada `2/2`; suite PostgreSQL afectada ejecutada externamente por el desarrollador: `3/3`, 0 errores, 0 omitidas, 27.2 s |
-| Gates | Restore locked `16/16`; build Release `16/16`; unitarias `254/254`; arquitectura `13/13`; enfocadas sin Docker `20/20` unitarias y `2/2` arquitectura; PostgreSQL externo `3/3`; Playwright no aplica; formato sin diferencias; cero vulnerabilidades conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico. El resultado de `git diff --check` se informa al entregar para no modificar el diff después del último gate |
-| Cierre | Requiere PostgreSQL satisfactorio, commit exacto, pipeline verde, aprobación humana de implementación, merge, ascendencia y cero defectos bloqueantes |
-| Siguiente tarea | `HU-024` permanece bloqueada mientras esta propuesta no adquiera estado efectivo `Terminada`; cumplidas y verificadas las condiciones de cierre anteriores en `master`, `HU-024` será la siguiente tarea efectiva sin necesidad de modificar retrospectivamente este registro |
+| Gates | Restore locked `16/16`; build Release `16/16`; unitarias `254/254`; arquitectura `13/13`; enfocadas sin Docker `20/20` unitarias y `2/2` arquitectura; PostgreSQL externo `3/3`; Playwright no aplica; formato sin diferencias; cero vulnerabilidades conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico; `git diff --check` satisfactorio |
+| Siguiente tarea ejecutada | `HU-024` — propuesta actual en rama |
 
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y no habilita `HU-024` ni otra historia posterior.
+La evidencia primaria de cierre pertenece al PR que contiene la implementación. Este registro posterior sólo materializa el estado efectivo ya adquirido tras el merge y no altera el entregable aceptado.
 
 ## Base aceptada — `TECH-E2E-CV-02`
 

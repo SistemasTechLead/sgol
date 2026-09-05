@@ -40,10 +40,20 @@ public sealed class EfTaskDefinitionService(
         var policies = await dbContext.EligibilityPolicyVersions.AsNoTracking()
             .Where(item => item.Status == VersionStatuses.Current)
             .ToListAsync(cancellationToken);
+        var evidencePolicies = await dbContext.EvidencePolicyVersions.AsNoTracking()
+            .Where(item => item.Status == VersionStatuses.Current)
+            .ToListAsync(cancellationToken);
+        var evidencePolicyIds = evidencePolicies.Select(item => item.Id).ToArray();
+        var evidenceRequirements = await dbContext.EvidenceRequirementVersions.AsNoTracking()
+            .Where(item => evidencePolicyIds.Contains(item.PolicyVersionId))
+            .OrderBy(item => item.Ordinal)
+            .ToListAsync(cancellationToken);
         var result = definitions.Select(definition => ToDetails(
             definition,
             versions.Where(item => item.TaskDefinitionId == definition.Id),
-            policies.SingleOrDefault(item => item.TaskDefinitionId == definition.Id))).ToArray();
+            policies.SingleOrDefault(item => item.TaskDefinitionId == definition.Id),
+            evidencePolicies.SingleOrDefault(item => item.TaskDefinitionId == definition.Id),
+            evidenceRequirements)).ToArray();
         dbContext.ChangeTracker.Clear();
         return result;
     }
@@ -65,7 +75,15 @@ public sealed class EfTaskDefinitionService(
             .ToListAsync(cancellationToken);
         var policy = await dbContext.EligibilityPolicyVersions.AsNoTracking()
             .SingleOrDefaultAsync(item => item.TaskDefinitionId == seed.Id && item.Status == VersionStatuses.Current, cancellationToken);
-        var result = ToDetails(definition, versions, policy);
+        var evidencePolicy = await dbContext.EvidencePolicyVersions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.TaskDefinitionId == seed.Id && item.Status == VersionStatuses.Current, cancellationToken);
+        var evidenceRequirements = evidencePolicy is null
+            ? []
+            : await dbContext.EvidenceRequirementVersions.AsNoTracking()
+                .Where(item => item.PolicyVersionId == evidencePolicy.Id)
+                .OrderBy(item => item.Ordinal)
+                .ToListAsync(cancellationToken);
+        var result = ToDetails(definition, versions, policy, evidencePolicy, evidenceRequirements);
         dbContext.ChangeTracker.Clear();
         return result;
     }
@@ -391,7 +409,9 @@ public sealed class EfTaskDefinitionService(
     private static TaskDefinitionDetails ToDetails(
         TaskDefinition definition,
         IEnumerable<TaskDefinitionVersion> versions,
-        EligibilityPolicyVersion? policy)
+        EligibilityPolicyVersion? policy,
+        EvidencePolicyVersion? evidencePolicy,
+        IEnumerable<EvidenceRequirementVersion> evidenceRequirements)
     {
         var ordered = versions.OrderByDescending(item => item.VersionNo).ToArray();
         var current = ordered.FirstOrDefault(item =>
@@ -402,6 +422,23 @@ public sealed class EfTaskDefinitionService(
             definition.Name,
             current is null ? null : ToVersionDetails(current),
             policy is null ? null : EfEligibilityPolicyService.ToDetails(definition.TaskCode, policy),
+            evidencePolicy is null
+                ? null
+                : EfEvidencePolicyService.ToDetails(
+                    definition.TaskCode,
+                    evidencePolicy,
+                    evidenceRequirements
+                        .Where(item => item.PolicyVersionId == evidencePolicy.Id)
+                        .OrderBy(item => item.Ordinal)
+                        .Select(item => new EvidenceRequirementVersionDetails(
+                            item.RequirementCode,
+                            item.Kind,
+                            item.ConditionCode == EvidenceConditionCodes.Always
+                                ? null
+                                : new EvidenceConditionDetails(item.ConditionCode),
+                            item.IsRequired,
+                            item.Ordinal))
+                        .ToArray()),
             ordered.Select(ToVersionDetails).ToArray());
     }
 

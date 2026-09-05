@@ -117,6 +117,27 @@ public sealed class ConfigurationReleaseTests
     }
 
     [Fact]
+    public async Task Publish_MapsIncompleteEvidenceCoverageTo422()
+    {
+        var service = new RecordingService(CreateDetails(VersionStatuses.Draft, rowVersion: 1))
+        {
+            PublishException = new EvidencePolicyCoverageException(),
+        };
+        var context = CreateContext();
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
+        context.Request.Headers.IfMatch = "\"1\"";
+
+        var result = await ConfigurationApiEndpoints.HandlePublishAsync(
+            ReleaseId,
+            new PublishConfigurationReleaseRequest(September, "Publicación"),
+            context,
+            service,
+            CancellationToken.None);
+
+        Assert.Equal(422, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+    }
+
+    [Fact]
     public void ResponseContract_ContainsNoCredentialOrSecretMaterial()
     {
         var properties = typeof(ConfigurationReleaseDetails)
@@ -160,6 +181,8 @@ public sealed class ConfigurationReleaseTests
 
         public bool ThrowVersionConflict { get; set; }
 
+        public Exception? PublishException { get; init; }
+
         public Task<IReadOnlyList<ConfigurationReleaseDetails>> ListAsync(
             Guid actorUserId,
             Guid correlationId,
@@ -182,6 +205,11 @@ public sealed class ConfigurationReleaseTests
             if (ThrowVersionConflict)
             {
                 throw new VersionConflictException();
+            }
+
+            if (PublishException is not null)
+            {
+                throw PublishException;
             }
 
             return Task.FromResult(details);
