@@ -21,7 +21,7 @@ else {
     $json = [string]::Join([Environment]::NewLine, [string[]] $output)
 }
 
-$report = $json | ConvertFrom-Json -Depth 32
+$report = $json | ConvertFrom-Json
 $findings = [System.Collections.Generic.List[object]]::new()
 
 foreach ($project in @($report.projects)) {

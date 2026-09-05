@@ -1,12 +1,16 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
+    [string]$RepositoryRoot,
     [string]$BaseSha,
     [string]$HeadSha
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+    $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+}
 
 function Invoke-Git {
     param([Parameter(Mandatory)][string[]]$Arguments)

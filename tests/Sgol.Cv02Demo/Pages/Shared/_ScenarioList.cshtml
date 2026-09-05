@@ -1,0 +1,55 @@
+@model Sgol.Cv02Demo.DemoPageModel
+<section aria-labelledby="page-title">
+    <h1 id="page-title">@Model.PageTitle</h1>
+    <p class="lede">Cada acción reconstruye PostgreSQL desde cero y ejecuta servicios reales con una semilla sintética determinista.</p>
+</section>
+
+@if (!Model.Scenarios.Any(item => Model.State.Get(item.Id) is not null))
+{
+    <div class="empty-state" role="status">
+        <p>Aún no hay resultados en esta sección.</p>
+        <p>Ejecuta un escenario para mostrar su reconciliación.</p>
+    </div>
+}
+
+<div class="scenario-grid">
+@foreach (var scenario in Model.Scenarios)
+{
+    var result = Model.State.Get(scenario.Id);
+    var status = result?.Status ?? "PENDING";
+    <article class="scenario-card" data-scenario="@scenario.Id" data-status="@status" aria-labelledby="title-@scenario.Id">
+        <div class="scenario-heading">
+            <span class="scenario-id">@scenario.Id</span>
+            <span class="status-badge @(status == "PASSED" ? "status-success" : status == "FAILED" ? "status-error" : "status-neutral")">
+                @(status == "PASSED" ? "✓ Aprobado" : status == "FAILED" ? "! Error" : "○ Pendiente")
+            </span>
+        </div>
+        <h2 id="title-@scenario.Id">@scenario.Title</h2>
+        <p>@scenario.Expected</p>
+        <p class="coverage"><strong>Cobertura:</strong> @scenario.Coverage</p>
+        @if (result is not null)
+        {
+            <div class="result @(result.Status == "PASSED" ? "result-success" : "result-error")" role="status">
+                <p>@result.Message</p>
+                <dl>
+                @foreach (var fact in result.Facts)
+                {
+                    <div><dt>@fact.Key</dt><dd>@fact.Value</dd></div>
+                }
+                </dl>
+                @if (result.Status == "FAILED")
+                {
+                    <p>Código técnico sanitizado: <code>@result.TechnicalCode</code></p>
+                }
+            </div>
+        }
+        <form method="post" asp-page-handler="Run" class="scenario-form">
+            <input type="hidden" name="scenarioId" value="@scenario.Id" />
+            <button class="button button-primary" type="submit" data-run-button>
+                <span data-normal-label>Ejecutar @scenario.Id</span>
+                <span data-loading-label hidden>Ejecutando…</span>
+            </button>
+        </form>
+    </article>
+}
+</div>

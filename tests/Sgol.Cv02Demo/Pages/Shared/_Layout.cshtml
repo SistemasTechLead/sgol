@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · TECH-E2E-CV-02</title>
+    <link rel="stylesheet" href="~/css/tokens.css" />
+    <link rel="stylesheet" href="~/css/components.css" />
+    <link rel="stylesheet" href="~/css/demo.css" />
+</head>
+<body>
+    <a class="skip-link" href="#contenido">Saltar al contenido principal</a>
+    <header class="demo-header">
+        <div>
+            <p class="eyebrow">TECH-E2E-CV-02 · datos sintéticos · America/Mexico_City</p>
+            <p class="demo-brand">SGOL / corte CV-02</p>
+        </div>
+        <span class="status-badge status-info">Host desechable</span>
+    </header>
+    <nav class="demo-nav" aria-label="Escenarios de la demostración">
+        <a href="/cv02/calendario">Calendario</a>
+        <a href="/cv02/recurrencias">Recurrencias</a>
+        <a href="/cv02/plan-semanal">Plan semanal</a>
+    </nav>
+    <main id="contenido" class="demo-main" tabindex="-1">
+        @RenderBody()
+    </main>
+    <script src="~/js/demo.js"></script>
+</body>
+</html>

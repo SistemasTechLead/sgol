@@ -13,6 +13,7 @@ using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
+using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Planning;
@@ -209,6 +210,107 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
             CreateService(context).PublishAsync(Command(seed, Guid.CreateVersion7(), 1)));
         Assert.Empty(await context.PlanVersions.AsNoTracking().ToListAsync());
         Assert.Equal(1, (await context.WorkPlans.AsNoTracking().SingleAsync()).RowVersion);
+    }
+
+    [Fact]
+    public async Task RealEligibilityAndAutomaticAssignmentCanBePublishedThroughPersistedEvaluation()
+    {
+        var seed = await ResetAndSeedAsync(CanonicalRole.Direction);
+        var late = await AddObligationAsync(seed, CanonicalRole.SalesFloor, assigned: false);
+        await using var context = CreateContext();
+        var responsible = seed.People[CanonicalRole.SalesFloor];
+        context.AvailabilityDayVersions.Add(new AvailabilityDayVersion(
+            Guid.CreateVersion7(),
+            responsible.PersonId,
+            BranchScope.LorettaId,
+            DateOnly.FromDateTime(Now.UtcDateTime),
+            isAvailable: true,
+            seed.ActorUserId));
+        await context.SaveChangesAsync();
+
+        var evaluation = await CreateEligibilityService(context).EvaluateAsync(new EvaluateEligibilityCommand(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            late,
+            DateOnly.FromDateTime(Now.UtcDateTime),
+            EligibilityDateSources.ManualRequest));
+        var assignment = await CreateAssignmentService(context).AssignAsync(new AssignObligationCommand(
+            Guid.CreateVersion7(),
+            late,
+            evaluation.EvaluationId,
+            Guid.CreateVersion7()));
+
+        var publication = await CreateService(context).PublishAsync(Command(seed, Guid.CreateVersion7(), 1));
+
+        Assert.Equal(AutomaticAssignmentResults.Created, assignment.Result);
+        Assert.Contains(publication.AddedObligations, item =>
+            item.ObligationId == late && item.AssignmentVersionId == assignment.AssignmentId);
+        var persisted = await context.AssignmentVersions.AsNoTracking()
+            .SingleAsync(item => item.Id == assignment.AssignmentId);
+        Assert.False(persisted.Explanation.RootElement.TryGetProperty(
+            "eligibilityPolicyVersionId", out _));
+    }
+
+    [Fact]
+    public async Task CorrectionWithCoherentDirectPolicyAndEvaluationRemainsPublishable()
+    {
+        var seed = await ResetAndSeedAsync(CanonicalRole.Direction);
+        var target = seed.Obligations.Values.Single(item => item.Role == CanonicalRole.SalesFloor);
+        await using var context = CreateContext();
+        var automatic = await context.AssignmentVersions
+            .SingleAsync(item => item.Id == target.AssignmentId);
+        var evaluationId = automatic.Explanation.RootElement
+            .GetProperty("eligibilityEvaluationId").GetGuid();
+        automatic.Supersede();
+        var correctionId = Guid.CreateVersion7();
+        context.AssignmentVersions.Add(new AssignmentVersion(
+            correctionId,
+            target.ObligationId,
+            automatic.PersonId,
+            AssignmentVersionStatuses.Current,
+            AssignmentTypes.Correction,
+            JsonSerializer.SerializeToDocument(new
+            {
+                schemaVersion = 1,
+                eligibilityEvaluationId = evaluationId,
+                eligibilityPolicyVersionId = target.PolicyId,
+            }, JsonSerializerOptions.Web),
+            Now,
+            "Corrección sintética",
+            seed.ActorUserId,
+            automatic.Id));
+        await context.SaveChangesAsync();
+
+        var publication = await CreateService(context).PublishAsync(Command(seed, Guid.CreateVersion7(), 1));
+
+        Assert.Contains(publication.Obligations, item =>
+            item.ObligationId == target.ObligationId && item.AssignmentVersionId == correctionId);
+    }
+
+    [Fact]
+    public async Task AutomaticAssignmentWithMismatchedEvaluationPolicyRejectsAtomically()
+    {
+        var seed = await ResetAndSeedAsync(CanonicalRole.Direction);
+        var target = seed.Obligations.Values.Single(item => item.Role == CanonicalRole.SalesFloor);
+        var otherPolicy = seed.Obligations.Values
+            .Single(item => item.Role == CanonicalRole.Subcoordination).PolicyId;
+        await using var context = CreateContext();
+        var assignment = await context.AssignmentVersions.AsNoTracking()
+            .SingleAsync(item => item.Id == target.AssignmentId);
+        var evaluationId = assignment.Explanation.RootElement
+            .GetProperty("eligibilityEvaluationId").GetGuid();
+        await context.EligibilityEvaluations
+            .Where(item => item.Id == evaluationId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.PolicyVersionId, otherPolicy));
+
+        await Assert.ThrowsAsync<PlanPublicationContentConflictException>(() =>
+            CreateService(context).PublishAsync(Command(seed, Guid.CreateVersion7(), 1)));
+
+        Assert.Empty(await context.PlanVersions.AsNoTracking().ToListAsync());
+        Assert.Empty(await context.PlanVersionObligations.AsNoTracking().ToListAsync());
+        var plan = await context.WorkPlans.AsNoTracking().SingleAsync();
+        Assert.Equal(WorkPlanStatuses.Draft, plan.Status);
+        Assert.Equal(1, plan.RowVersion);
     }
 
     [Fact]
@@ -466,6 +568,17 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
         var assignmentId = Guid.Empty;
         if (assigned)
         {
+            var evaluationId = Guid.CreateVersion7();
+            context.EligibilityEvaluations.Add(new EligibilityEvaluation(
+                evaluationId,
+                Guid.CreateVersion7(),
+                obligation.Id,
+                Now.AddMinutes(-4),
+                DateOnly.FromDateTime(Now.UtcDateTime),
+                EligibilityDateSources.ManualRequest,
+                configuration.PolicyId,
+                JsonDocument.Parse("{}"),
+                EligibilityResults.EligibleCandidates));
             assignmentId = Guid.CreateVersion7();
             context.AssignmentVersions.Add(new AssignmentVersion(
                 assignmentId,
@@ -476,7 +589,7 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
                 JsonSerializer.SerializeToDocument(new
                 {
                     schemaVersion = 1,
-                    eligibilityPolicyVersionId = configuration.PolicyId,
+                    eligibilityEvaluationId = evaluationId,
                 }, JsonSerializerOptions.Web),
                 Now.AddMinutes(-4)));
         }
@@ -495,6 +608,18 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
         seed.ActorUserId, key, Guid.CreateVersion7(), seed.PlanId, rowVersion);
 
     private static EfPlanPublicationService CreateService(SgolDbContext context) => new(
+        context,
+        new AuditTransaction(context),
+        new FixedClock(Now),
+        new Uuid7Generator(new FixedClock(Now)));
+
+    private static EfEligibilityEvaluationService CreateEligibilityService(SgolDbContext context) => new(
+        context,
+        new AuditTransaction(context),
+        new FixedClock(Now),
+        new Uuid7Generator(new FixedClock(Now)));
+
+    private static EfAutomaticAssignmentService CreateAssignmentService(SgolDbContext context) => new(
         context,
         new AuditTransaction(context),
         new FixedClock(Now),

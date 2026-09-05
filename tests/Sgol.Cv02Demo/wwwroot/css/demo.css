@@ -1,0 +1,42 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--color-superficie-elevada); color: var(--color-texto-primario); font: var(--tipografia-base); }
+a { color: var(--color-acento); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--color-info); outline-offset: 2px; }
+.skip-link { position: absolute; inset-inline-start: var(--espacio-16); top: calc(-1 * var(--espacio-48)); background: var(--color-superficie); padding: var(--espacio-8); z-index: 2; }
+.skip-link:focus { top: var(--espacio-8); }
+.demo-header { display: flex; gap: var(--espacio-16); align-items: center; justify-content: space-between; padding: var(--espacio-16) var(--espacio-24); background: var(--color-superficie); border-bottom: 1px solid var(--color-borde); }
+.eyebrow { margin: 0; color: var(--color-texto-secundario); font: var(--tipografia-pequena); }
+.demo-brand { margin: var(--espacio-4) 0 0; font: var(--tipografia-grande); }
+.demo-nav { display: flex; flex-wrap: wrap; gap: var(--espacio-8); padding: var(--espacio-12) var(--espacio-24); background: var(--color-superficie); border-bottom: 1px solid var(--color-borde); }
+.demo-nav a { padding: var(--espacio-8) var(--espacio-12); border-radius: var(--radio-control); }
+.demo-main { max-width: var(--ancho-contenido); margin: 0 auto; padding: var(--espacio-24); }
+h1 { font: var(--tipografia-titulo); margin: 0 0 var(--espacio-8); }
+h2 { font: var(--tipografia-media); margin: var(--espacio-12) 0 var(--espacio-8); }
+.lede { color: var(--color-texto-secundario); max-width: var(--ancho-formulario); }
+.empty-state { margin-top: var(--espacio-16); padding: var(--espacio-16); color: var(--color-texto-secundario); background: var(--color-info-fondo); border: 1px dashed var(--color-info); border-radius: var(--radio-tarjeta); }
+.empty-state p { margin: 0; }
+.empty-state p + p { margin-top: var(--espacio-4); }
+.scenario-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ancho-modal)), 1fr)); gap: var(--espacio-16); margin-top: var(--espacio-24); }
+.scenario-card { min-width: 0; background: var(--color-superficie); border: 1px solid var(--color-borde); border-radius: var(--radio-tarjeta); box-shadow: var(--sombra-baja); padding: var(--espacio-16); }
+.scenario-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--espacio-8); }
+.scenario-id { font: var(--tipografia-pequena); color: var(--color-texto-secundario); }
+.status-badge { display: inline-flex; padding: var(--espacio-4) var(--espacio-8); border-radius: var(--radio-pastilla); font: var(--tipografia-pequena); }
+.status-info { color: var(--color-info); background: var(--color-info-fondo); }
+.status-success { color: var(--color-exito); background: var(--color-exito-fondo); }
+.status-error { color: var(--color-peligro); background: var(--color-peligro-fondo); }
+.status-neutral { color: var(--color-texto-secundario); background: var(--color-superficie-elevada); }
+.coverage { color: var(--color-texto-secundario); }
+.scenario-form { margin-top: var(--espacio-16); }
+.button { border: 1px solid var(--color-acento); border-radius: var(--radio-control); padding: var(--espacio-8) var(--espacio-16); font: var(--tipografia-base); cursor: pointer; }
+.button-primary { color: var(--color-acento-texto); background: var(--color-acento); }
+.button-primary:hover { background: var(--color-acento-hover); }
+.button:disabled { color: var(--color-texto-deshabilitado); background: var(--color-superficie-elevada); border-color: var(--color-borde); cursor: not-allowed; }
+.result { margin-top: var(--espacio-16); padding: var(--espacio-12); border-inline-start: var(--espacio-4) solid var(--color-info); background: var(--color-info-fondo); }
+.result-success { border-color: var(--color-exito); background: var(--color-exito-fondo); }
+.result-error { border-color: var(--color-peligro); background: var(--color-peligro-fondo); }
+.result p { margin: 0; }
+.result dl { display: grid; gap: var(--espacio-4); margin: var(--espacio-8) 0 0; }
+.result dl div { display: flex; gap: var(--espacio-8); }
+.result dd { margin: 0; }
+@media (max-width: 640px) { .demo-header { align-items: flex-start; flex-direction: column; } .demo-main { padding: var(--espacio-16); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto; } }
