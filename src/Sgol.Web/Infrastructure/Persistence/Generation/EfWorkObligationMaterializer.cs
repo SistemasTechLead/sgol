@@ -27,6 +27,7 @@ public sealed class EfWorkObligationMaterializer(
             await auditTransaction.ExecuteAsync(
                 async token =>
                 {
+                    var capturedAt = clock.UtcNow;
                     var request = await dbContext.GenerationRequests
                         .FromSqlInterpolated($"SELECT * FROM generation_request WHERE id = {command.GenerationRequestId} FOR UPDATE")
                         .SingleOrDefaultAsync(token)
@@ -50,18 +51,26 @@ public sealed class EfWorkObligationMaterializer(
                     {
                         var rule = await dbContext.ActivationRuleVersions.AsNoTracking()
                             .SingleAsync(item => item.Id == request.RuleVersionId, token);
+                        var evidencePolicyVersionId = await dbContext.EvidencePolicyVersions.AsNoTracking()
+                            .Where(item =>
+                                item.TaskDefinitionVersionId == rule.TaskDefinitionVersionId &&
+                                item.EffectiveFrom <= capturedAt &&
+                                (item.EffectiveTo == null || capturedAt < item.EffectiveTo))
+                            .Select(item => (Guid?)item.Id)
+                            .SingleOrDefaultAsync(token);
                         selected = new WorkObligation(
                             uuidGenerator.NewUuid(),
                             rule.TaskDefinitionVersionId,
                             request.BranchId,
                             request.PeriodId,
                             request.Id,
-                            request.OriginReference);
+                            request.OriginReference,
+                            evidencePolicyVersionId);
                         dbContext.WorkObligations.Add(selected);
                         request.LinkObligation(selected.Id);
                     }
 
-                    return NewAuditEvent(command, selected, recovered);
+                    return NewAuditEvent(command, selected, recovered, capturedAt);
                 },
                 cancellationToken);
         }
@@ -79,10 +88,11 @@ public sealed class EfWorkObligationMaterializer(
     private AuditEvent NewAuditEvent(
         MaterializeWorkObligationCommand command,
         WorkObligation obligation,
-        bool recovered) => new()
+        bool recovered,
+        DateTimeOffset occurredAt) => new()
         {
             Id = uuidGenerator.NewUuid(),
-            OccurredAt = clock.UtcNow,
+            OccurredAt = occurredAt,
             ActorType = "SYSTEM",
             Action = recovered ? "WORK_OBLIGATION_RECOVERED" : "WORK_OBLIGATION_CREATED",
             ResourceType = "WORK_OBLIGATION",
@@ -103,6 +113,7 @@ public sealed class EfWorkObligationMaterializer(
             obligation.BranchId,
             obligation.PeriodId,
             obligation.OriginReference,
+            obligation.EvidencePolicyVersionId,
             obligation.ExecutionStatus,
             obligation.RowVersion,
         });
@@ -114,6 +125,7 @@ public sealed class EfWorkObligationMaterializer(
         obligation.BranchId,
         obligation.PeriodId,
         obligation.OriginReference,
+        obligation.EvidencePolicyVersionId,
         obligation.ExecutionStatus,
         obligation.RowVersion);
 }

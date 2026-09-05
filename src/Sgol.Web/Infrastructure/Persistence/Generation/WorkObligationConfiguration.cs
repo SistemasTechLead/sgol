@@ -41,6 +41,7 @@ public sealed class WorkObligationConfiguration : IEntityTypeConfiguration<WorkO
         builder.Property(obligation => obligation.PeriodId).HasColumnName("period_id");
         builder.Property(obligation => obligation.GenerationRequestId).HasColumnName("generation_request_id");
         builder.Property(obligation => obligation.OriginReference).HasColumnName("origin_reference");
+        builder.Property(obligation => obligation.EvidencePolicyVersionId).HasColumnName("evidence_policy_version_id");
         builder.Property(obligation => obligation.InputPayload).HasColumnName("input_payload").HasColumnType("jsonb");
         builder.Property(obligation => obligation.DueAt).HasColumnName("due_at").HasColumnType("timestamp with time zone");
         builder.Property(obligation => obligation.ExecutionStatus).HasColumnName("execution_status").HasMaxLength(16);
@@ -57,6 +58,8 @@ public sealed class WorkObligationConfiguration : IEntityTypeConfiguration<WorkO
             obligation.ExecutionStatus,
             obligation.DueAt,
         });
+        builder.HasIndex(obligation => obligation.EvidencePolicyVersionId)
+            .HasDatabaseName("IX_work_obligation_evidence_policy_version_id");
 
         builder.HasOne<TaskDefinitionVersion>()
             .WithMany()
@@ -73,6 +76,10 @@ public sealed class WorkObligationConfiguration : IEntityTypeConfiguration<WorkO
         builder.HasOne<GenerationRequest>()
             .WithOne()
             .HasForeignKey<WorkObligation>(obligation => obligation.GenerationRequestId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidencePolicyVersion>()
+            .WithMany()
+            .HasForeignKey(obligation => obligation.EvidencePolicyVersionId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -194,6 +194,11 @@ public static class ConfigurationApiEndpoints
             422,
             "POLITICA_ELEGIBILIDAD_INCOMPLETA",
             exception.Message),
+        EvidencePolicyCoverageException or EvidencePolicyDefinitionPreconditionException => Problem(
+            context,
+            422,
+            "POLITICA_EVIDENCIA_INCOMPLETA",
+            exception.Message),
         VersioningValidationException or VersioningStateException => Problem(
             context,
             422,
