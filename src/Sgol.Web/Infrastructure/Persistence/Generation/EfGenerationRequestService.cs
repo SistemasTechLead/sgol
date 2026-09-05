@@ -275,7 +275,8 @@ public sealed class EfGenerationRequestService(
             throw new GenerationRequestNotFoundException();
         }
 
-        if (!await hierarchyResolver.CanAccessUserAsync(actorUserId, request.RequestedBy, cancellationToken))
+        if (request.RequestedBy is not Guid requestedBy ||
+            !await hierarchyResolver.CanAccessUserAsync(actorUserId, requestedBy, cancellationToken))
         {
             await auditTransaction.ExecuteAsync(
                 NewAuditEvent(

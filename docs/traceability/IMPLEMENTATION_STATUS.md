@@ -8,21 +8,37 @@ En una rama de pull request, la sección siguiente es una propuesta de base acep
 
 | Campo | Valor |
 |---|---|
-| Tarea | `TECH-JOBS-001` — Host Worker, bloqueo PostgreSQL, outbox y telemetría |
+| Tarea | `HU-013` — Job genera recurrencias vencidas sin duplicar |
 | Estado | Propuesta implementada en rama; no `Terminada` |
-| Dependencias aceptadas | `HU-021` y dependencias anteriores registradas; reutiliza PostgreSQL, `SgolDbContext`, `IClock`, UUID v7 y telemetría estructurada |
+| Dependencias aceptadas | `TECH-JOBS-001`, `HU-012`, `HU-015`, `HU-018`, `HU-020` y dependencias anteriores registradas |
 | Pull request | PR que incorpora esta actualización |
 | Commit implementado | Commit que contiene esta actualización |
 | Pipeline requerido | `TECH-BASE-003 / PR gates`; checks asociados al commit implementado |
-| Aceptación humana | Contrato de `F07_ADENDA_12_CONTRATO_DE_WORKER_OUTBOX_Y_JOBS_TECH_JOBS_001.md` aprobado íntegramente; commit, publicación, PR y merge permanecen pendientes de autorizaciones independientes |
+| Aceptación humana | Contrato de `F07_ADENDA_13_CONTRATO_DE_GENERACION_RECURRENTE_HU_013.md` aprobado íntegramente; implementación, commit, publicación, PR y merge conservan autorizaciones independientes |
 | Commit incorporado en `master` | Pendiente de merge |
-| `Fuentes/` | Sin cambios; protección y espejo final satisfactorios (`29` documentos idénticos byte por byte) |
-| Pruebas | Unitarias completas `228/228`; arquitectura completa `10/10`; suite PostgreSQL/Testcontainers externa `153/153`, 0 errores, 0 omitidas, 387.4 s tras corregir el check de payload incompatible detectado por la primera ejecución |
-| Gates de propuesta | Restore locked, build Release, unitarias, arquitectura, PostgreSQL/Testcontainers externo, format, vulnerabilidades, modelo EF, protección y espejo de `Fuentes/` y `git diff --check`: satisfactorios; pipeline, aprobación humana del cambio y merge pendientes |
-| Decisión específica | `F07_ADENDA_12_CONTRATO_DE_WORKER_OUTBOX_Y_JOBS_TECH_JOBS_001.md`: comandos, advisory lock, `FOR UPDATE SKIP LOCKED`, tablas, reintentos, recuperación, telemetría y migración única |
-| Siguiente tarea propuesta | Ninguna; no iniciar `HU-013` ni otra historia mientras TECH-JOBS-001 no cumpla pipeline, revisión humana y merge |
+| `Fuentes/` | Sin cambios; protección satisfactoria y 29 documentos Markdown del espejo idénticos byte por byte |
+| Pruebas | Unitarias completas `234/234`; arquitectura completa `11/11`; suite PostgreSQL/Testcontainers completa del corte corregido ejecutada externamente por el desarrollador: `169/169`, 0 errores, 0 omitidas, 515.2 s |
+| Gates de propuesta | Restore locked, build Release, unitarias, arquitectura, PostgreSQL/Testcontainers externo, formato, vulnerabilidades, modelo EF sin cambios pendientes, protección y espejo de `Fuentes/` y `git diff --check`: satisfactorios |
+| Decisión específica | `F07_ADENDA_13_CONTRATO_DE_GENERACION_RECURRENTE_HU_013.md`: `TAR-0005`, ventanas históricas, actor sistema, cadena reanudable, resultados, telemetría y migración única |
+| Siguiente tarea propuesta | Ninguna; no iniciar otra historia mientras `HU-013` no cumpla pipeline, revisión humana, merge y ascendencia |
 
-Esta propuesta no habilita dependencias ni modifica el cierre histórico. `TECH-JOBS-001` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+Esta propuesta no habilita dependencias ni modifica el cierre histórico. `HU-013` sólo será `Terminada` cuando el mismo cambio esté incorporado en `master` con pipeline satisfactorio y aprobación humana.
+
+## Base aceptada — `TECH-JOBS-001`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `TECH-JOBS-001` — Host Worker, bloqueo PostgreSQL, outbox y telemetría |
+| Pull request | `#35` |
+| Commit implementado | `1517be53434f4d4af2aefd136f462d6c08eeb9df` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; SUCCESS, run `33923994226` |
+| Aceptación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `f8217da95d59718c7f3bd7b21c09f4bb56122b6c` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` al iniciar `HU-013` |
+| `Fuentes/` | Sin cambios; protección confirmada por preflight |
+| Siguiente tarea propuesta | `HU-013` — Job genera recurrencias vencidas sin duplicar |
+
+La propuesta histórica de `TECH-JOBS-001` que viajó dentro de su PR no se reescribe mediante un commit administrativo. La evidencia primaria anterior acredita su cierre y habilita `HU-013`.
 
 ## Base aceptada — `HU-021`
 
@@ -375,6 +391,7 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 |---|---|---|---|
 | `TECH-UI-001` | `F07_ADENDA_02_TAREAS_DE_BASE_DE_INTERFAZ.md` | `HU-005` | `Terminada`; PR `#13`, commit `d723d2fb91a86bf34e886ebc84dda77c72bd1dec`, merge `0209cec724c13ce27de9a27afb183f458385b9b2` |
 | `TECH-VER-001` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | `HU-008` | `Terminada`; PR `#20`, commit `9d7c001275e119c13bed81b544347d3bd2f55e16`, merge `70222cd1997bf64ad29638f9a27c5268058e118a` |
+| `TECH-JOBS-001` | `F07_ADENDA_12_CONTRATO_DE_WORKER_OUTBOX_Y_JOBS_TECH_JOBS_001.md` | `HU-013` | `Terminada`; PR `#35`, commit `1517be53434f4d4af2aefd136f462d6c08eeb9df`, merge `f8217da95d59718c7f3bd7b21c09f4bb56122b6c` |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`
 

@@ -34,6 +34,8 @@ public interface IScheduledJob
 {
     string Name { get; }
 
+    string ConcurrencyExhaustedErrorCode => "POSTGRES_CONCURRENCY_EXHAUSTED";
+
     Task ExecuteAsync(ScheduledJobContext context, CancellationToken cancellationToken);
 }
 
@@ -41,7 +43,9 @@ public sealed record ScheduledJobContext(
     Guid RunId,
     DateTimeOffset ScheduledFor,
     string? Checkpoint,
-    SgolDbContext DbContext);
+    SgolDbContext DbContext,
+    Guid CorrelationId = default,
+    int Attempt = 1);
 
 public sealed class JobExecutionException(string errorCode) : Exception
 {

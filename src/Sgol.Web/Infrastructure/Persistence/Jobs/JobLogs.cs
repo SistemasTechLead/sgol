@@ -42,4 +42,10 @@ public static partial class JobLogs
 
     [LoggerMessage(2131, LogLevel.Error, "Worker shutdown duration {durationMs} result {result}", EventName = "WorkerShutdownGraceExceeded")]
     public static partial void WorkerShutdownGraceExceeded(ILogger logger, double durationMs, string result);
+
+    [LoggerMessage(2140, LogLevel.Information, "Recurring job {jobName} task {taskCode} window {window} attempt {attempt} duration {durationMs} result {result} error {errorCode} correlation {correlationId}", EventName = "RecurringOccurrenceCompleted")]
+    public static partial void RecurringOccurrenceCompleted(ILogger logger, string jobName, string taskCode, string window, int attempt, double durationMs, string result, string? errorCode, Guid correlationId);
+
+    [LoggerMessage(2141, LogLevel.Warning, "Recurring job {jobName} task {taskCode} window {window} result {result} correlation {correlationId}", EventName = "RecurringOccurrenceDelayed")]
+    public static partial void RecurringOccurrenceDelayed(ILogger logger, string jobName, string taskCode, string window, string result, Guid correlationId);
 }

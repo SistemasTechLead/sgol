@@ -5,7 +5,12 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Sgol.BuildingBlocks.Identifiers;
 using Sgol.BuildingBlocks.Time;
+using Sgol.Assignment.Contracts;
+using Sgol.Generation.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
+using Sgol.Web.Infrastructure.Persistence.Assignment;
+using Sgol.Web.Infrastructure.Persistence.Auditing;
+using Sgol.Web.Infrastructure.Persistence.Generation;
 
 namespace Sgol.JobInfrastructure;
 
@@ -56,6 +61,20 @@ public static class JobServiceCollectionExtensions
         {
             return false;
         }
+    }
+
+    public static IServiceCollection AddSgolRecurringGeneration(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton(_ =>
+            TimeZoneInfo.FindSystemTimeZoneById(RecurringGenerationContract.TimeZone));
+        services.AddScoped<AuditTransaction>();
+        services.AddScoped<IWorkObligationMaterializer, EfWorkObligationMaterializer>();
+        services.AddScoped<IEligibilityEvaluationService, EfEligibilityEvaluationService>();
+        services.AddScoped<IAutomaticAssignmentService, EfAutomaticAssignmentService>();
+        services.AddScoped<IRecurringOccurrenceProcessor, EfRecurringOccurrenceProcessor>();
+        services.AddScoped<IScheduledJob, RecurringGenerationJob>();
+        return services;
     }
 
     private static string GetRequiredConnectionString(IConfiguration configuration)

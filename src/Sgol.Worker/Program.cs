@@ -1,6 +1,10 @@
+using Sgol.JobInfrastructure;
+
 namespace Sgol.Worker;
 
 public static class WorkerProgram
 {
-    public static Task<int> Main(string[] args) => WorkerApplication.RunAsync(args);
+    public static Task<int> Main(string[] args) => WorkerApplication.RunAsync(
+        args,
+        services => services.AddSgolRecurringGeneration());
 }
