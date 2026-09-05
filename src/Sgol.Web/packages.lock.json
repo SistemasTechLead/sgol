@@ -203,6 +203,9 @@
           "Sgol.BuildingBlocks": "[1.0.0, )"
         }
       },
+      "sgol.execution": {
+        "type": "Project"
+      },
       "sgol.generation": {
         "type": "Project"
       },

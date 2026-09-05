@@ -549,6 +549,9 @@
           "Sgol.BuildingBlocks": "[1.0.0, )"
         }
       },
+      "sgol.execution": {
+        "type": "Project"
+      },
       "sgol.generation": {
         "type": "Project"
       },
@@ -571,6 +574,7 @@
           "Sgol.Assignment": "[1.0.0, )",
           "Sgol.BuildingBlocks": "[1.0.0, )",
           "Sgol.Configuration": "[1.0.0, )",
+          "Sgol.Execution": "[1.0.0, )",
           "Sgol.Generation": "[1.0.0, )",
           "Sgol.Identity": "[1.0.0, )",
           "Sgol.Organization": "[1.0.0, )",
