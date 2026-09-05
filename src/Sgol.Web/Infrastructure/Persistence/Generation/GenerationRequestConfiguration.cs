@@ -25,6 +25,10 @@ public sealed class GenerationRequestConfiguration : IEntityTypeConfiguration<Ge
                 table.HasCheckConstraint(
                     "CK_generation_request_origin",
                     "btrim(origin_type) <> '' AND btrim(origin_reference) <> ''");
+                table.HasCheckConstraint(
+                    "CK_generation_request_actor",
+                    "(requested_by IS NOT NULL AND origin_type = 'MANUAL_REFERENCE_V1') OR " +
+                    "(requested_by IS NULL AND origin_type = 'WORKING_DAY_WINDOW_V1')");
             });
 
         builder.HasKey(request => request.Id);
@@ -37,7 +41,7 @@ public sealed class GenerationRequestConfiguration : IEntityTypeConfiguration<Ge
         builder.Property(request => request.OriginType).HasColumnName("origin_type").HasMaxLength(64);
         builder.Property(request => request.OriginReference).HasColumnName("origin_reference");
         builder.Property(request => request.Result).HasColumnName("result").HasMaxLength(16);
-        builder.Property(request => request.RequestedBy).HasColumnName("requested_by");
+        builder.Property(request => request.RequestedBy).HasColumnName("requested_by").IsRequired(false);
         builder.Property(request => request.RequestedAt).HasColumnName("requested_at").HasColumnType("timestamp with time zone");
         builder.Property(request => request.ObligationId).HasColumnName("obligation_id");
         builder.Property(request => request.ErrorCode).HasColumnName("error_code").HasMaxLength(64);

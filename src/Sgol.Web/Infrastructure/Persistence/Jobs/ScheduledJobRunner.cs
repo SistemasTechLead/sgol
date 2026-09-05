@@ -57,7 +57,7 @@ public sealed class ScheduledJobRunner(
             {
                 try
                 {
-                    return await RunAttemptAsync(job, scheduledFor, correlationId, cancellationToken);
+                    return await RunAttemptAsync(job, scheduledFor, correlationId, attempt + 1, cancellationToken);
                 }
                 catch (Exception exception) when (IsUniqueViolation(exception) && attempt == 0)
                 {
@@ -92,13 +92,18 @@ public sealed class ScheduledJobRunner(
                 catch (Exception exception) when (OutboxProcessor.IsRetryableInfrastructureFailure(exception))
                 {
                     dbContext.ChangeTracker.Clear();
+                    await PersistFailedRunAsync(
+                        job.Name,
+                        scheduledFor,
+                        job.ConcurrencyExhaustedErrorCode,
+                        cancellationToken);
                     JobLogs.ScheduledJobFailed(
                         logger,
                         jobName,
                         Guid.Empty,
                         0,
                         "FAILED",
-                        "POSTGRES_CONCURRENCY_EXHAUSTED",
+                        job.ConcurrencyExhaustedErrorCode,
                         correlationId);
                     return ScheduledJobResult.Failed;
                 }
@@ -137,10 +142,44 @@ public sealed class ScheduledJobRunner(
         }
     }
 
+    private async Task PersistFailedRunAsync(
+        string jobName,
+        DateTimeOffset scheduledFor,
+        string errorCode,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        var run = await dbContext.ScheduledJobRuns.SingleOrDefaultAsync(
+            candidate => candidate.JobName == jobName && candidate.ScheduledFor == scheduledFor,
+            cancellationToken);
+        var failedAt = clock.UtcNow;
+        if (run is null)
+        {
+            run = new ScheduledJobRun
+            {
+                Id = uuidGenerator.NewUuid(),
+                JobName = jobName,
+                ScheduledFor = scheduledFor,
+                StartedAt = failedAt,
+            };
+            dbContext.ScheduledJobRuns.Add(run);
+        }
+
+        run.EndedAt = failedAt;
+        run.Status = ScheduledJobStatuses.Failed;
+        run.Error = errorCode;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+    }
+
     private async Task<ScheduledJobResult> RunAttemptAsync(
         IScheduledJob job,
         DateTimeOffset scheduledFor,
         Guid correlationId,
+        int attempt,
         CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
@@ -200,7 +239,7 @@ public sealed class ScheduledJobRunner(
         try
         {
             await job.ExecuteAsync(
-                new ScheduledJobContext(run.Id, scheduledFor, run.Checkpoint, dbContext),
+                new ScheduledJobContext(run.Id, scheduledFor, run.Checkpoint, dbContext, correlationId, attempt),
                 cancellationToken);
             run.Status = ScheduledJobStatuses.Succeeded;
             run.EndedAt = clock.UtcNow;

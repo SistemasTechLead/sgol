@@ -37,6 +37,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string WorkPlansMigrationId = "20260904190309_AddWorkPlans";
     private const string PlanPublicationsMigrationId = "20260904200228_AddPlanPublications";
     private const string JobInfrastructureMigrationId = "20260904211401_AddJobInfrastructure";
+    private const string RecurringGenerationMigrationId = "20260904223610_AllowSystemRecurringGenerationRequests";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -78,6 +79,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 WorkPlansMigrationId,
                 PlanPublicationsMigrationId,
                 JobInfrastructureMigrationId,
+                RecurringGenerationMigrationId,
             ],
             appliedMigrations);
 

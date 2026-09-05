@@ -27,7 +27,7 @@ public sealed class GenerationRequest
         Guid periodId,
         string originType,
         string originReference,
-        Guid requestedBy,
+        Guid? requestedBy,
         DateTimeOffset requestedAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(requestHash);
@@ -56,7 +56,7 @@ public sealed class GenerationRequest
     public string OriginType { get; private init; } = null!;
     public string OriginReference { get; private init; } = null!;
     public string Result { get; private init; } = null!;
-    public Guid RequestedBy { get; private init; }
+    public Guid? RequestedBy { get; private init; }
     public DateTimeOffset RequestedAt { get; private init; }
     public Guid? ObligationId { get; private set; }
     public string? ErrorCode { get; private set; }
@@ -167,7 +167,7 @@ public sealed record GenerationRequestDetails(
     string OriginType,
     string OriginReference,
     string Result,
-    Guid RequestedBy,
+    Guid? RequestedBy,
     DateTimeOffset RequestedAt,
     Guid? ObligationId,
     string? ErrorCode);
