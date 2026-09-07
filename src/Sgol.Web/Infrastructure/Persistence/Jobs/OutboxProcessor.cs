@@ -106,7 +106,8 @@ public sealed class OutboxProcessor(
                     outboxEvent.AggregateId,
                     correlationId,
                     data,
-                    dbContext),
+                    dbContext,
+                    outboxEvent.AttemptCount),
                 cancellationToken);
             outboxEvent.ProcessedAt = now;
             outboxEvent.LastError = null;

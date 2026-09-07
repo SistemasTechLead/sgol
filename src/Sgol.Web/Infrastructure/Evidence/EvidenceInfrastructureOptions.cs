@@ -24,6 +24,9 @@ public sealed class EvidenceStorageOptions
     [Required]
     public string SecretKey { get; init; } = string.Empty;
 
+    [MinLength(1)]
+    public string[] AllowedUploadOrigins { get; init; } = [];
+
     public bool AllowInsecureTransport { get; init; }
 }
 
@@ -53,6 +56,9 @@ internal static class EvidenceOptionsValidation
             string.IsNullOrWhiteSpace(options.Region) ||
             string.IsNullOrWhiteSpace(options.AccessKey) ||
             string.IsNullOrWhiteSpace(options.SecretKey) ||
+            options.AllowedUploadOrigins.Length == 0 ||
+            options.AllowedUploadOrigins.Distinct(StringComparer.Ordinal).Count() != options.AllowedUploadOrigins.Length ||
+            options.AllowedUploadOrigins.Any(origin => !IsAllowedOrigin(origin, environmentName)) ||
             !IsBucketName(options.QuarantineBucket) ||
             !IsBucketName(options.CleanBucket) ||
             string.Equals(options.QuarantineBucket, options.CleanBucket, StringComparison.Ordinal))
@@ -68,6 +74,24 @@ internal static class EvidenceOptionsValidation
         return options.AllowInsecureTransport &&
                environmentName is ("Development" or "CI") &&
                IsPrivateEndpoint(endpoint.Host);
+    }
+
+    private static bool IsAllowedOrigin(string value, string environmentName)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var origin) ||
+            !string.IsNullOrEmpty(origin.AbsolutePath.Trim('/')) ||
+            !string.IsNullOrEmpty(origin.Query) || !string.IsNullOrEmpty(origin.Fragment) ||
+            value.Contains('*', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (environmentName is not ("Development" or "CI"))
+        {
+            return origin.Scheme == Uri.UriSchemeHttps;
+        }
+
+        return origin.Scheme is "http" or "https" && IsPrivateEndpoint(origin.Host);
     }
 
     internal static bool IsScannerValid(EvidenceScannerOptions options) =>

@@ -39,6 +39,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string JobInfrastructureMigrationId = "20260904211401_AddJobInfrastructure";
     private const string RecurringGenerationMigrationId = "20260904223610_AllowSystemRecurringGenerationRequests";
     private const string EvidencePoliciesMigrationId = "20260905203518_AddEvidencePolicies";
+    private const string EvidenceContributionMigrationId = "20260907203912_AddVersionedEvidenceContribution";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -82,6 +83,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 JobInfrastructureMigrationId,
                 RecurringGenerationMigrationId,
                 EvidencePoliciesMigrationId,
+                EvidenceContributionMigrationId,
             ],
             appliedMigrations);
 
@@ -113,9 +115,12 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "eligibility_evaluation",
                 "eligibility_policy_version",
                 "employment_version",
+                "evidence_item",
                 "evidence_policy_version",
                 "evidence_requirement_catalog",
                 "evidence_requirement_version",
+                "evidence_version",
+                "file_object",
                 "generation_request",
                 "idempotency_record",
                 "identity_credential",
@@ -132,6 +137,58 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "work_plan",
             ],
             tables);
+    }
+
+    [Fact]
+    public async Task EvidenceMigrationInstallsImmutableHistoryAndCleanLinkGuards()
+    {
+        await using var factory = CreateFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = scope.ServiceProvider.GetRequiredService<SgolDbContext>();
+        await context.Database.MigrateAsync();
+
+        var triggerNames = new List<string>();
+        await using (var command = context.Database.GetDbConnection().CreateCommand())
+        {
+            await context.Database.OpenConnectionAsync();
+            command.CommandText = "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname IN ('trg_evidence_item_snapshot', 'trg_evidence_item_guard', 'trg_evidence_version_guard', 'trg_file_object_snapshot', 'trg_file_object_guard') ORDER BY tgname";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) triggerNames.Add(reader.GetString(0));
+        }
+
+        Assert.Contains("trg_evidence_item_snapshot", triggerNames);
+        Assert.Contains("trg_evidence_item_guard", triggerNames);
+        Assert.Contains("trg_evidence_version_guard", triggerNames);
+        Assert.Contains("trg_file_object_snapshot", triggerNames);
+        Assert.Contains("trg_file_object_guard", triggerNames);
+
+        var indexes = new List<string>();
+        await using (var command = context.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('UX_evidence_item_obligation_requirement','UX_evidence_version_current_item','UX_outbox_event_evidence_inspection_pending') ORDER BY indexname";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) indexes.Add(reader.GetString(0));
+        }
+
+        Assert.Equal(3, indexes.Count);
+
+        await using (var command = context.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = "SELECT i.indisunique FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid WHERE c.relname = 'IX_file_object_linked_evidence_item_id'";
+            var isUnique = (bool?)await command.ExecuteScalarAsync();
+            Assert.False(isUnique);
+        }
+
+        await using (var command = context.Database.GetDbConnection().CreateCommand())
+        {
+            command.CommandText = "SELECT count(*), bool_and(confdeltype = 'r') FROM pg_constraint WHERE contype = 'f' AND conrelid::regclass::text IN ('file_object','evidence_item','evidence_version')";
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(13, reader.GetInt64(0));
+            Assert.True(reader.GetBoolean(1));
+        }
+
+        Assert.False(context.Database.HasPendingModelChanges());
     }
 
     [Fact]

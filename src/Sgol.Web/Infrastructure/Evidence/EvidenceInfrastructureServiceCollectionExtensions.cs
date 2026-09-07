@@ -18,14 +18,32 @@ public static class EvidenceInfrastructureServiceCollectionExtensions
             .Bind(configuration.GetSection(EvidenceStorageOptions.SectionName))
             .ValidateDataAnnotations()
             .Validate(options => EvidenceOptionsValidation.IsStorageValid(options, environment.EnvironmentName),
-                "Evidence storage configuration is invalid.")
-            .ValidateOnStart();
+                "Evidence storage configuration is invalid.");
         services.AddOptions<EvidenceScannerOptions>()
             .Bind(configuration.GetSection(EvidenceScannerOptions.SectionName))
             .ValidateDataAnnotations()
-            .Validate(EvidenceOptionsValidation.IsScannerValid, "Evidence scanner configuration is invalid.")
-            .ValidateOnStart();
+            .Validate(EvidenceOptionsValidation.IsScannerValid, "Evidence scanner configuration is invalid.");
 
+        var storage = configuration.GetSection(EvidenceStorageOptions.SectionName).Get<EvidenceStorageOptions>();
+        var scanner = configuration.GetSection(EvidenceScannerOptions.SectionName).Get<EvidenceScannerOptions>();
+        if (storage is not null && scanner is not null &&
+            EvidenceOptionsValidation.IsStorageValid(storage, environment.EnvironmentName) &&
+            EvidenceOptionsValidation.IsScannerValid(scanner))
+        {
+            AddAdapters(services);
+        }
+        else
+        {
+            AddFailClosedAdapters(services);
+        }
+        services.AddHealthChecks()
+            .AddCheck<EvidenceStorageHealthCheck>("evidence-storage", tags: ["evidence-ready"])
+            .AddCheck<ClamAvHealthCheck>("evidence-scanner", tags: ["evidence-ready"]);
+        return services;
+    }
+
+    internal static void AddAdapters(IServiceCollection services)
+    {
         services.TryAddSingleton<IEvidenceObjectKeyFactory, CryptographicEvidenceObjectKeyFactory>();
         services.TryAddSingleton<IFileTechnicalValidator, FileTechnicalValidator>();
         services.TryAddSingleton<IAmazonS3>(provider =>
@@ -37,6 +55,7 @@ public static class EvidenceInfrastructureServiceCollectionExtensions
                 ServiceURL = options.Endpoint,
                 AuthenticationRegion = options.Region,
                 ForcePathStyle = true,
+                UseHttp = new Uri(options.Endpoint).Scheme == Uri.UriSchemeHttp,
                 MaxErrorRetry = 0,
                 Timeout = TimeSpan.FromSeconds(30)
             };
@@ -45,9 +64,14 @@ public static class EvidenceInfrastructureServiceCollectionExtensions
         services.TryAddSingleton<IPrivateObjectStorage, S3PrivateObjectStorage>();
         services.TryAddSingleton<IFileMalwareScanner, ClamAvScanner>();
         services.TryAddSingleton<EvidenceInspectionPipeline>();
-        services.AddHealthChecks()
-            .AddCheck<EvidenceStorageHealthCheck>("evidence-storage", tags: ["evidence-ready"])
-            .AddCheck<ClamAvHealthCheck>("evidence-scanner", tags: ["evidence-ready"]);
-        return services;
+    }
+
+    internal static void AddFailClosedAdapters(IServiceCollection services)
+    {
+        services.TryAddSingleton<IEvidenceObjectKeyFactory, CryptographicEvidenceObjectKeyFactory>();
+        services.TryAddSingleton<IFileTechnicalValidator, FileTechnicalValidator>();
+        services.TryAddSingleton<IPrivateObjectStorage, UnavailablePrivateObjectStorage>();
+        services.TryAddSingleton<IFileMalwareScanner, UnavailableMalwareScanner>();
+        services.TryAddSingleton<EvidenceInspectionPipeline>();
     }
 }

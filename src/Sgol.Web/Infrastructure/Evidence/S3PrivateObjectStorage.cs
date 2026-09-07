@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
+using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
@@ -15,7 +16,112 @@ public sealed class S3PrivateObjectStorage(
     private const string HashMetadata = "x-amz-meta-sgol-sha256";
     private const string MediaTypeMetadata = "x-amz-meta-sgol-media-type";
     private const string SizeMetadata = "x-amz-meta-sgol-size-bytes";
+    private static readonly string[] UploadCorsHeaders =
+    [
+        "Content-Type", "Content-Length", "If-None-Match",
+        HashMetadata, MediaTypeMetadata, SizeMetadata
+    ];
     private readonly EvidenceStorageOptions configuration = options.Value;
+    private readonly object corsVerificationLock = new();
+    private Task? corsVerification;
+
+    public async Task<EvidenceUploadAuthorization> CreateQuarantineUploadAuthorizationAsync(
+        EvidenceObjectMetadata metadata,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await EnsureQuarantineCorsAsync(cancellationToken);
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = configuration.QuarantineBucket,
+            Key = metadata.Key.Value,
+            Verb = HttpVerb.PUT,
+            Expires = expiresAt.UtcDateTime,
+            ContentType = metadata.MediaType.ToMediaType(),
+            Protocol = new Uri(configuration.Endpoint).Scheme == Uri.UriSchemeHttp
+                ? Protocol.HTTP
+                : Protocol.HTTPS,
+        };
+        request.Headers["Content-Length"] = metadata.SizeBytes.ToString(
+            System.Globalization.CultureInfo.InvariantCulture);
+        request.Headers["If-None-Match"] = "*";
+        request.Metadata[HashMetadata] = metadata.Sha256;
+        request.Metadata[MediaTypeMetadata] = metadata.MediaType.ToString();
+        request.Metadata[SizeMetadata] = metadata.SizeBytes.ToString(
+            System.Globalization.CultureInfo.InvariantCulture);
+
+        var url = client.GetPreSignedURL(request);
+        return new EvidenceUploadAuthorization(
+            new Uri(url, UriKind.Absolute),
+            expiresAt,
+            new EvidenceUploadHeaders(
+                metadata.MediaType.ToMediaType(),
+                metadata.SizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "*",
+                metadata.Sha256,
+                metadata.MediaType.ToString(),
+                metadata.SizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    private async Task EnsureQuarantineCorsAsync(CancellationToken cancellationToken)
+    {
+        Task verification;
+        lock (corsVerificationLock)
+        {
+            verification = corsVerification ??= VerifyQuarantineCorsAsync();
+        }
+
+        try
+        {
+            await verification.WaitAsync(cancellationToken);
+        }
+        catch when (verification.IsFaulted)
+        {
+            lock (corsVerificationLock)
+            {
+                if (ReferenceEquals(corsVerification, verification)) corsVerification = null;
+            }
+            throw;
+        }
+    }
+
+    private async Task VerifyQuarantineCorsAsync()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try
+        {
+            var response = await client.GetCORSConfigurationAsync(new GetCORSConfigurationRequest
+            {
+                BucketName = configuration.QuarantineBucket
+            }, timeout.Token);
+            var rules = response.Configuration?.Rules;
+            if (rules is null || rules.Count != 1)
+            {
+                throw new EvidenceStorageUnavailableException();
+            }
+
+            var rule = rules[0];
+            if (rule.Id != "sgol-evidence-upload" || rule.MaxAgeSeconds != 600 ||
+                !ExactSet(rule.AllowedOrigins, configuration.AllowedUploadOrigins, StringComparer.Ordinal) ||
+                !ExactSet(rule.AllowedMethods, ["PUT"], StringComparer.Ordinal) ||
+                !ExactSet(rule.AllowedHeaders, UploadCorsHeaders, StringComparer.OrdinalIgnoreCase) ||
+                rule.ExposeHeaders is { Count: > 0 })
+            {
+                throw new EvidenceStorageUnavailableException();
+            }
+        }
+        catch (Exception exception) when (exception is AmazonS3Exception or OperationCanceledException)
+        {
+            throw new EvidenceStorageUnavailableException();
+        }
+    }
+
+    private static bool ExactSet(
+        List<string> actual,
+        string[] expected,
+        StringComparer comparer) =>
+        actual.Count == expected.Length && new HashSet<string>(actual, comparer).SetEquals(expected);
 
     public async Task PutQuarantineAsync(
         EvidenceObjectMetadata metadata,
@@ -161,6 +267,7 @@ public sealed class S3PrivateObjectStorage(
 
             await DeleteAsync(EvidenceStorageArea.Quarantine, expected.Key, cancellationToken);
             EvidenceTelemetry.QuarantineExited.Add(1, tag: new("operation", "promote"));
+            EvidenceTelemetry.Promotions.Add(1, tag: new("result", "LIMPIO"));
         }
         catch
         {

@@ -127,6 +127,11 @@ public interface IEvidenceObjectKeyFactory
 
 public interface IPrivateObjectStorage
 {
+    Task<EvidenceUploadAuthorization> CreateQuarantineUploadAuthorizationAsync(
+        EvidenceObjectMetadata metadata,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken);
+
     Task PutQuarantineAsync(
         EvidenceObjectMetadata metadata,
         Stream content,

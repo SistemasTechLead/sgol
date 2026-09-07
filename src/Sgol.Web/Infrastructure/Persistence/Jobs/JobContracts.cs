@@ -28,7 +28,8 @@ public sealed record OutboxDeliveryContext(
     Guid? AggregateId,
     Guid CorrelationId,
     JsonElement Data,
-    SgolDbContext DbContext);
+    SgolDbContext DbContext,
+    int Attempt = 1);
 
 public interface IScheduledJob
 {

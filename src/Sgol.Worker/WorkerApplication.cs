@@ -20,6 +20,7 @@ public static class WorkerApplication
         Action<IServiceCollection>? configureServices = null,
         Action<string>? writeOutput = null,
         IConfiguration? configuration = null,
+        Action<IServiceCollection, IConfiguration, IHostEnvironment>? configureHostServices = null,
         CancellationToken cancellationToken = default)
     {
         writeOutput ??= Console.WriteLine;
@@ -58,6 +59,7 @@ public static class WorkerApplication
         builder.Services.AddSgolJobInfrastructure(builder.Configuration);
 
         configureServices?.Invoke(builder.Services);
+        configureHostServices?.Invoke(builder.Services, builder.Configuration, builder.Environment);
         using var host = builder.Build();
         await host.StartAsync(CancellationToken.None);
         var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Sgol.Worker");

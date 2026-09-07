@@ -14,6 +14,12 @@ internal static class EvidenceTelemetry
     internal static readonly Counter<long> Scans = Meter.CreateCounter<long>("sgol.evidence.scans");
     internal static readonly Counter<long> ScanFailures =
         Meter.CreateCounter<long>("sgol.evidence.scan_failures");
+    internal static readonly Counter<long> UploadIntents = Meter.CreateCounter<long>("sgol.evidence.upload_intents");
+    internal static readonly Counter<long> UploadCompletions = Meter.CreateCounter<long>("sgol.evidence.upload_completions");
+    internal static readonly Counter<long> Promotions = Meter.CreateCounter<long>("sgol.evidence.promotions");
+    internal static readonly Counter<long> Links = Meter.CreateCounter<long>("sgol.evidence.links");
+    internal static readonly Counter<long> Replacements = Meter.CreateCounter<long>("sgol.evidence.replacements");
+    internal static readonly Counter<long> Rejections = Meter.CreateCounter<long>("sgol.evidence.rejections");
     internal static readonly Histogram<double> StorageDuration =
         Meter.CreateHistogram<double>("sgol.evidence.storage.duration", "ms");
     internal static readonly Histogram<double> ScanDuration =

@@ -6,5 +6,10 @@ public static class WorkerProgram
 {
     public static Task<int> Main(string[] args) => WorkerApplication.RunAsync(
         args,
-        services => services.AddSgolRecurringGeneration());
+        services =>
+        {
+            services.AddSgolRecurringGeneration();
+        },
+        configureHostServices: (services, configuration, environment) =>
+            services.AddSgolEvidenceWorkerInfrastructure(configuration, environment));
 }
