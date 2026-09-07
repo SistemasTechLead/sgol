@@ -40,6 +40,11 @@
         "resolved": "3.1.5",
         "contentHash": "tKi7dSTwP4m5m9eXPM2Ime4Kn7xNf4x4zT9sdLO/G4hZVnQCRiMTWoSZqI/pYTVeI27oPPqHBKYI/DjJ9GsYgA=="
       },
+      "AWSSDK.Core": {
+        "type": "Transitive",
+        "resolved": "4.0.102.3",
+        "contentHash": "hGysXQOtru5CQmROaDLQURs5HK3W385ClLodTKZcLnd6o64YDOwvBaQrjYlfU9BEVLv7sdDR/ZRaATjpdBJ5Xw=="
+      },
       "Microsoft.AspNetCore.TestHost": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -448,6 +453,9 @@
           "Sgol.BuildingBlocks": "[1.0.0, )"
         }
       },
+      "sgol.evidence": {
+        "type": "Project"
+      },
       "sgol.execution": {
         "type": "Project"
       },
@@ -469,10 +477,12 @@
       "sgol.web": {
         "type": "Project",
         "dependencies": {
+          "AWSSDK.S3": "[4.0.102.5, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "Sgol.Assignment": "[1.0.0, )",
           "Sgol.BuildingBlocks": "[1.0.0, )",
           "Sgol.Configuration": "[1.0.0, )",
+          "Sgol.Evidence": "[1.0.0, )",
           "Sgol.Execution": "[1.0.0, )",
           "Sgol.Generation": "[1.0.0, )",
           "Sgol.Identity": "[1.0.0, )",
@@ -484,6 +494,15 @@
         "type": "Project",
         "dependencies": {
           "Sgol.Web": "[1.0.0, )"
+        }
+      },
+      "AWSSDK.S3": {
+        "type": "CentralTransitive",
+        "requested": "[4.0.102.5, )",
+        "resolved": "4.0.102.5",
+        "contentHash": "eMGywCE5J932OFTjjynQRjinkz4p8WQqrX0+VHtwhAE0BBIZWy07W64lloPwKvgVtumqszOiFo5Mbj6VKRZ/mw==",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.102.3, 5.0.0)"
         }
       },
       "Microsoft.EntityFrameworkCore": {
