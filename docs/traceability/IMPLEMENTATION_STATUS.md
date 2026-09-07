@@ -4,26 +4,46 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-024`
+## Propuesta actual en rama — `TECH-EVID-001`
 
 | Campo | Valor |
 |---|---|
-| Tarea | `HU-024` — Dirección versiona evidencia requerida por TAR |
-| Estado | Propuesta implementada en `codex/hu-024`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit implementado tenga pipeline requerido verde, aprobación humana, merge y ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes conocidos |
-| Contrato | `F07_ADENDA_16_CONTRATO_DE_POLITICA_DE_EVIDENCIA_VERSIONADA_HU_024.md`, aprobada íntegramente el 2026-09-05 |
+| Tarea | `TECH-EVID-001` — S3 privado local/CI, escáner adaptado y corpus seguro |
+| Estado | Propuesta implementada en `codex/tech-evid-001`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge y ascendencia verificada en `origin/master`, suite externa S3/escáner satisfactoria y cero defectos bloqueantes conocidos |
+| Contrato | `F07_ADENDA_17_CONTRATO_DE_INFRAESTRUCTURA_SEGURA_DE_EVIDENCIA_TECH_EVID_001.md`, aprobada íntegramente el 2026-09-05 |
 | Commit implementado | Commit que contiene esta actualización |
-| Base aceptada | `HU-023`: PR `#38`, commit `de8e9d746687e892e5d4baf1d23ed0745aa4865b`, pipeline `SUCCESS` run `33986965205`, aprobación humana y merge `8a411596086fe1c0a95ec3c04f6c3ae8542b76c6`; ambos SHA ancestros de `origin/master`; PostgreSQL enfocado `3/3`; cero defectos bloqueantes conocidos |
-| Entregable | Catálogo cerrado de 27 requisitos para las ocho TAR, política versionada, único `PUT /api/v1/task-definitions/{taskCode}/evidence-policy` y proyección `currentEvidencePolicy` en la lectura TAR existente |
-| Alcance | Todos los requisitos configurados y aplicables obligatorios; única condición `DIFERENCIA_O_DANO` para la fotografía de `TAR-0092`; publicación por release y snapshot inmutable por obligación |
-| Persistencia | Una migración forward-only: `evidence_requirement_catalog`, `evidence_policy_version`, `evidence_requirement_version` y FK nullable e inmutable `work_obligation.evidence_policy_version_id`; sin backfill |
-| Autorización y auditoría | Dirección vigente en `LOR-001` con `PER-EVIDENCIA-CONFIG`; denegación por defecto; creación, recuperación, publicación, rechazo y acceso denegado auditados; escritura crítica atómica |
-| Interfaz | No incluida por decisión expresa de la adenda; cero páginas, CSS, JavaScript o Playwright |
-| Pruebas | Unitarias completas `269/269`; arquitectura completa `15/15`; enfocadas sin Docker `16/16` unitarias y `3/3` arquitectura; suite PostgreSQL afectada ejecutada externamente por el desarrollador `17/17`, 0 errores, 0 omitidas, 98.1 s |
-| Gates | Restore locked `16/16`; build Release `16/16`; unitarias `269/269`; arquitectura `15/15`; enfocadas sin Docker `16/16` unitarias y `3/3` arquitectura; PostgreSQL externo `17/17`; Playwright no aplica; formato sin diferencias tras corregir una sangría no semántica; cero vulnerabilidades conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico. El resultado de `git diff --check` se informa al entregar para no modificar el diff después del último gate |
-| Cierre | Requiere PostgreSQL satisfactorio, commit exacto, pipeline verde, aprobación humana de implementación, merge, ascendencia y cero defectos bloqueantes |
-| Siguiente tarea | No se inicia otra historia. `TECH-EVID-001` y `HU-025` permanecen fuera de este cambio y bloqueadas hasta el cierre efectivo que corresponda |
+| Base aceptada | `HU-024`: PR `#39`, commit `9543d417e0515b5de6bad5f10898cd262b44d1fb`, pipeline `TECH-BASE-003 / PR gates` `SUCCESS` run `33994007606`, aprobación humana y merge `8e534ddd4d6ca2ab6ce1a678beead9c2cbc7aec3`; ambos SHA ancestros de `origin/master`; PostgreSQL enfocado `17/17`; cero defectos bloqueantes conocidos |
+| Entregable | Contratos propios `Sgol.Evidence`, almacenamiento S3-compatible privado SeaweedFS, adaptador `clamd`, validación acotada JPEG/PNG/PDF, SHA-256, cuarentena y corpus sintético seguro |
+| Alcance | Infraestructura técnica sin consumidor funcional: objetos de 1 a 15 MiB, claves opacas, doble bucket, catálogo cerrado `LIMPIO`/`INFECTADO`/`INVALIDO`/`ERROR_ESCANEO` y denegación ante toda falla |
+| Persistencia | Ninguna tabla, entidad, migración ni cambio en `SgolDbContext`; no existen `file_object`, `evidence_item` ni `evidence_version` |
+| Configuración y secretos | Opciones validadas al inicio del consumidor; credenciales sólo externas; imágenes y paquetes fijados; HTTP sólo local/CI privado y HTTPS en los demás ambientes |
+| Interfaz funcional | No incluida: cero endpoints, URLs firmadas, intenciones de carga, UI, asociación con obligaciones o servicios funcionales de `HU-025` |
+| Pruebas | Unitarias completas `300/300`; arquitectura completa `17/17`; enfocadas sin Docker `31/31` unitarias y `2/2` arquitectura; suite externa SeaweedFS/ClamAV `1/1`, 0 errores, 0 omitidas, 41.4 s, ejecutada por el desarrollador después de corregir el manifiesto ARM64 aprobado |
+| Gates | Restore locked `18/18`; build Release `18/18`; unitarias `300/300`; arquitectura `17/17`; enfocadas sin Docker `31/31` unitarias y `2/2` arquitectura; suite S3/ClamAV externa `1/1`; PostgreSQL no aplica; formato sin diferencias, con repetición técnica porque el primer proceso no devolvió código de salida; cero vulnerabilidades NuGet conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico. El resultado de `git diff --check` se informa al entregar para no modificar el diff después del último gate |
+| Cierre | Requiere suite externa S3/escáner satisfactoria, commit exacto, pipeline verde, aprobación humana de implementación, merge, ascendencia y cero defectos bloqueantes |
+| Siguiente tarea | No se inicia otra historia. `HU-025` permanece fuera de este cambio y bloqueada hasta el cierre efectivo de `TECH-EVID-001` |
 
 Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y no habilita otra historia posterior.
+
+## Base aceptada — `HU-024`
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada | `HU-024` — Dirección versiona evidencia requerida por TAR |
+| Estado | `Terminada` |
+| Contrato | `F07_ADENDA_16_CONTRATO_DE_POLITICA_DE_EVIDENCIA_VERSIONADA_HU_024.md`, aprobada íntegramente el 2026-09-05 |
+| Pull request | `#39` |
+| Commit implementado | `9543d417e0515b5de6bad5f10898cd262b44d1fb` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; `SUCCESS`, run `33994007606`, correspondiente al commit exacto |
+| Aceptación humana | Recibida y autenticada |
+| Commit incorporado en `master` | `8e534ddd4d6ca2ab6ce1a678beead9c2cbc7aec3` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` |
+| Pruebas PostgreSQL | Enfocadas `17/17`, 0 errores y 0 omitidas; cero defectos bloqueantes conocidos |
+| Entregable | Catálogo cerrado de 27 requisitos para las ocho TAR, política versionada, único `PUT /api/v1/task-definitions/{taskCode}/evidence-policy` y proyección `currentEvidencePolicy` en la lectura TAR existente |
+| Gates | Restore locked `16/16`; build Release `16/16`; unitarias `269/269`; arquitectura `15/15`; enfocadas sin Docker `16/16` unitarias y `3/3` arquitectura; PostgreSQL externo `17/17`; formato sin diferencias; cero vulnerabilidades conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico; `git diff --check` satisfactorio |
+| Siguiente tarea ejecutada | `TECH-EVID-001` — propuesta actual en rama |
+
+La evidencia primaria de cierre pertenece al PR que contiene la implementación. Este registro posterior sólo materializa el estado efectivo ya adquirido tras el merge y no altera el entregable aceptado.
 
 ## Base aceptada — `HU-023`
 

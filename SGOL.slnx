@@ -3,6 +3,7 @@
     <Project Path="src/Modules/Assignment/Sgol.Assignment.csproj" />
     <Project Path="src/Modules/Configuration/Sgol.Configuration.csproj" />
     <Project Path="src/Modules/Execution/Sgol.Execution.csproj" />
+    <Project Path="src/Modules/Evidence/Sgol.Evidence.csproj" />
     <Project Path="src/Modules/Generation/Sgol.Generation.csproj" />
     <Project Path="src/Modules/Identity/Sgol.Identity.csproj" />
     <Project Path="src/Modules/Organization/Sgol.Organization.csproj" />
@@ -16,6 +17,7 @@
     <Project Path="tests/Sgol.ArchitectureTests/Sgol.ArchitectureTests.csproj" />
     <Project Path="tests/Sgol.Cv02Demo/Sgol.Cv02Demo.csproj" />
     <Project Path="tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj" />
+    <Project Path="tests/Sgol.EvidenceIntegrationTests/Sgol.EvidenceIntegrationTests.csproj" />
     <Project Path="tests/Sgol.UnitTests/Sgol.UnitTests.csproj" />
   </Folder>
 </Solution>

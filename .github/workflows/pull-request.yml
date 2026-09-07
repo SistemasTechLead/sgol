@@ -71,6 +71,8 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Run unit, architecture and PostgreSQL integration tests
+        env:
+          SGOL_EVIDENCE_EICAR_TESTS: "true"
         run: dotnet test --no-build --configuration Release
 
       - name: Verify formatting
