@@ -90,6 +90,7 @@ public sealed class EvidenceExternalInfrastructureTests : IAsyncLifetime
         {
             await admin.PutBucketAsync(QuarantineBucket);
             await admin.PutBucketAsync(CleanBucket);
+            await admin.PutCORSConfigurationAsync(CorsConfiguration("http://127.0.0.1:5000"));
         }
 
         applicationClient = CreateClient(endpoint, applicationAccessKey, applicationSecretKey);
@@ -101,6 +102,7 @@ public sealed class EvidenceExternalInfrastructureTests : IAsyncLifetime
             CleanBucket = CleanBucket,
             AccessKey = applicationAccessKey,
             SecretKey = applicationSecretKey,
+            AllowedUploadOrigins = ["http://127.0.0.1:5000"],
             AllowInsecureTransport = true
         };
     }
@@ -123,6 +125,54 @@ public sealed class EvidenceExternalInfrastructureTests : IAsyncLifetime
             scanner);
         await storage.CheckAvailabilityAsync(CancellationToken.None);
         await scanner.CheckAvailabilityAsync(CancellationToken.None);
+
+        var directBytes = EvidenceCorpus.Png();
+        var directKey = new CryptographicEvidenceObjectKeyFactory().Create();
+        var directMetadata = new EvidenceObjectMetadata(
+            directKey,
+            directBytes.Length,
+            Convert.ToHexStringLower(SHA256.HashData(directBytes)),
+            EvidenceMediaType.Png);
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(10);
+        var authorization = await storage.CreateQuarantineUploadAuthorizationAsync(
+            directMetadata, expiresAt, CancellationToken.None);
+        Assert.Equal(expiresAt, authorization.ExpiresAt);
+        Assert.Equal(Uri.UriSchemeHttp, authorization.Url.Scheme);
+        Assert.Contains(QuarantineBucket, authorization.Url.AbsoluteUri, StringComparison.Ordinal);
+        using (var signedClient = new HttpClient())
+        using (var request = new HttpRequestMessage(HttpMethod.Put, authorization.Url))
+        {
+            request.Content = new ByteArrayContent(directBytes);
+            request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(authorization.Headers.ContentType);
+            request.Headers.TryAddWithoutValidation("If-None-Match", authorization.Headers.IfNoneMatch);
+            request.Headers.TryAddWithoutValidation("x-amz-meta-sgol-sha256", authorization.Headers.Sha256);
+            request.Headers.TryAddWithoutValidation("x-amz-meta-sgol-media-type", authorization.Headers.MediaType);
+            request.Headers.TryAddWithoutValidation("x-amz-meta-sgol-size-bytes", authorization.Headers.SizeBytes);
+            using var response = await signedClient.SendAsync(request);
+            Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        }
+        Assert.Equal(directMetadata, await storage.GetMetadataAsync(
+            EvidenceStorageArea.Quarantine, directKey, CancellationToken.None));
+        await storage.DeleteAsync(EvidenceStorageArea.Quarantine, directKey, CancellationToken.None);
+
+        using (var admin = CreateClient(storageOptions!.Endpoint, adminAccessKey, adminSecretKey))
+        {
+            var cors = await admin.GetCORSConfigurationAsync(QuarantineBucket);
+            var rule = Assert.Single(cors.Configuration.Rules);
+            Assert.Equal("sgol-evidence-upload", rule.Id);
+            Assert.Equal(["http://127.0.0.1:5000"], rule.AllowedOrigins);
+            Assert.Equal(["PUT"], rule.AllowedMethods);
+            Assert.DoesNotContain("*", rule.AllowedOrigins);
+            Assert.Equal(600, rule.MaxAgeSeconds);
+
+            await admin.PutCORSConfigurationAsync(CorsConfiguration("http://127.0.0.1:5001"));
+        }
+        var mismatchedCorsStorage = new S3PrivateObjectStorage(applicationClient!, Options.Create(storageOptions));
+        await Assert.ThrowsAsync<EvidenceStorageUnavailableException>(() =>
+            mismatchedCorsStorage.CreateQuarantineUploadAuthorizationAsync(
+                directMetadata with { Key = new CryptographicEvidenceObjectKeyFactory().Create() },
+                DateTimeOffset.UtcNow.AddMinutes(10),
+                CancellationToken.None));
 
         var receipt = await pipeline.InspectAsync(
             new MemoryStream(EvidenceCorpus.Png()),
@@ -193,12 +243,37 @@ public sealed class EvidenceExternalInfrastructureTests : IAsyncLifetime
         }
     }
 
+    private static PutCORSConfigurationRequest CorsConfiguration(string origin) => new()
+    {
+        BucketName = QuarantineBucket,
+        Configuration = new CORSConfiguration
+        {
+            Rules =
+            [
+                new CORSRule
+                {
+                    Id = "sgol-evidence-upload",
+                    AllowedOrigins = [origin],
+                    AllowedMethods = ["PUT"],
+                    AllowedHeaders =
+                    [
+                        "Content-Type", "Content-Length", "If-None-Match",
+                        "x-amz-meta-sgol-sha256", "x-amz-meta-sgol-media-type",
+                        "x-amz-meta-sgol-size-bytes"
+                    ],
+                    MaxAgeSeconds = 600
+                }
+            ]
+        }
+    };
+
     private static AmazonS3Client CreateClient(string endpoint, string accessKey, string secretKey) =>
         new(new BasicAWSCredentials(accessKey, secretKey), new AmazonS3Config
         {
             ServiceURL = endpoint,
             AuthenticationRegion = "us-east-1",
             ForcePathStyle = true,
+            UseHttp = new Uri(endpoint).Scheme == Uri.UriSchemeHttp,
             MaxErrorRetry = 0
         });
 

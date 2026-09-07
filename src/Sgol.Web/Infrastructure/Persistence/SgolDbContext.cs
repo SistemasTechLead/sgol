@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Sgol.Assignment.Contracts;
 using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
+using Sgol.Evidence.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
@@ -9,6 +10,7 @@ using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Configuration;
 using Sgol.Web.Infrastructure.Persistence.Generation;
+using Sgol.Web.Infrastructure.Persistence.Evidence;
 using Sgol.JobInfrastructure;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 
@@ -64,6 +66,12 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<WorkObligation> WorkObligations => Set<WorkObligation>();
 
+    public DbSet<FileObject> FileObjects => Set<FileObject>();
+
+    public DbSet<EvidenceItem> EvidenceItems => Set<EvidenceItem>();
+
+    public DbSet<EvidenceVersion> EvidenceVersions => Set<EvidenceVersion>();
+
     public DbSet<EligibilityEvaluation> EligibilityEvaluations => Set<EligibilityEvaluation>();
 
     public DbSet<EligibilityCandidate> EligibilityCandidates => Set<EligibilityCandidate>();
@@ -102,6 +110,9 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new PlanVersionObligationConfiguration());
         modelBuilder.ApplyConfiguration(new GenerationRequestConfiguration());
         modelBuilder.ApplyConfiguration(new WorkObligationConfiguration());
+        modelBuilder.ApplyConfiguration(new FileObjectConfiguration());
+        modelBuilder.ApplyConfiguration(new EvidenceItemConfiguration());
+        modelBuilder.ApplyConfiguration(new EvidenceVersionConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityEvaluationConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityCandidateConfiguration());
         modelBuilder.ApplyConfiguration(new AssignmentVersionConfiguration());

@@ -4,14 +4,41 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `TECH-EVID-001`
+## Propuesta actual en rama — `HU-025`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-025` — Responsable/superior aporta o sustituye evidencia conservando versiones |
+| Estado | Propuesta implementada en `codex/hu-025`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio, integración S3/ClamAV satisfactoria y cero defectos bloqueantes conocidos |
+| Contrato | `F07_ADENDA_18_CONTRATO_DE_APORTE_Y_SUSTITUCION_VERSIONADA_DE_EVIDENCIA_HU_025.md`, incluidas las revisiones materiales de las secciones 22, 23, 24 y 25, aprobada íntegramente el 2026-09-07 |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `TECH-EVID-001`: PR `#40`, commit `eb29656f7d2ced765924115520119f36529fc0fc`, pipeline requerido `TECH-BASE-003 / PR gates` `SUCCESS` run `34153966707`, aprobación humana, suite externa SeaweedFS/ClamAV `1/1`, merge `c0c07fff5dd0a05be41d6993eb1abf10b0e74706`; ambos SHA ancestros de `origin/master`; cero defectos bloqueantes conocidos; PostgreSQL no aplicó |
+| Entregable | Seis endpoints cerrados; intención PUT firmada de diez minutos; confirmación y outbox; Worker inspecciona y promueve sólo `LIMPIO`; aporte y sustitución conservan cadena completa y una sola versión `VIGENTE` |
+| Autorización | Responsable vigente aporta y sustituye únicamente en `PENDIENTE`; después de `CONCLUIDA`, sólo superior jerárquico estricto con `PER-EVIDENCIA-SUSTITUIR` y motivo; consultas aplican `PER-TAREA-VER` y `DEC-069` |
+| Persistencia | Migración `AddVersionedEvidenceContribution`; tablas `file_object`, `evidence_item`, `evidence_version`; FK `RESTRICT`, checks, índices parciales y guardas PostgreSQL de snapshot, vínculo limpio, inmutabilidad y cadena lineal |
+| Idempotencia y atomicidad | Intención, confirmación, aporte y sustitución usan scopes separados; evidencia, idempotencia, auditoría y outbox aplicable comparten transacción; rate limit persistente 30/60 minutos por actor con advisory lock |
+| Pruebas | Unitarias completas `321/321`; arquitectura completa `17/17`; enfocadas HU-025 sin Docker `69/69` unitarias y `5/5` arquitectura; PostgreSQL externo `6/6`; SeaweedFS/ClamAV externo `1/1`; cero pruebas omitidas |
+| Gates | Restore locked `18/18`; build Release `18/18`; unitarias `321/321`; arquitectura `17/17`; enfocadas HU-025 `69/69` y `5/5`; PostgreSQL externo `6/6`; SeaweedFS/ClamAV externo `1/1`; formato sin diferencias después de corregir tres incidencias de whitespace detectadas por el primer intento; cero vulnerabilidades NuGet conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico. `git diff --check` se informa en la entrega para no modificar el diff después del último gate |
+| Riesgo operativo | SeaweedFS 4.45 agrupa `PutObject`, `PutBucketCors` y `DeleteBucketCors` bajo `Write`; SGOL no invoca mutaciones CORS y falla cerrado ante deriva, pero antes de producción se requiere control externo equivalente o aceptación explícita del riesgo residual conforme a la sección 25 |
+| Límites | Sin UI, descarga, evidencia estructurada, conclusión HU-022, evaluación HU-026, validación HU-028, borrado funcional, broker, Redis, otro Worker o scheduler |
+| Cierre | Requiere commit exacto, pipeline verde, aprobación humana, merge, ascendencia, PostgreSQL y S3/ClamAV externos satisfactorios y cero defectos bloqueantes |
+| Siguiente tarea | No se inicia otra historia |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y no habilita otra historia posterior.
+
+## Base aceptada — `TECH-EVID-001`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `TECH-EVID-001` — S3 privado local/CI, escáner adaptado y corpus seguro |
-| Estado | Propuesta implementada en `codex/tech-evid-001`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge y ascendencia verificada en `origin/master`, suite externa S3/escáner satisfactoria y cero defectos bloqueantes conocidos |
+| Estado | `Terminada` efectiva conforme a la regla condicional de cierre en un PR |
 | Contrato | `F07_ADENDA_17_CONTRATO_DE_INFRAESTRUCTURA_SEGURA_DE_EVIDENCIA_TECH_EVID_001.md`, aprobada íntegramente el 2026-09-05 |
-| Commit implementado | Commit que contiene esta actualización |
+| Pull request | `#40` |
+| Commit implementado | `eb29656f7d2ced765924115520119f36529fc0fc` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; `SUCCESS`, run `34153966707`, correspondiente al commit exacto |
+| Aceptación humana | Recibida y autenticada |
+| Commit incorporado en `master` | `c0c07fff5dd0a05be41d6993eb1abf10b0e74706` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` |
 | Base aceptada | `HU-024`: PR `#39`, commit `9543d417e0515b5de6bad5f10898cd262b44d1fb`, pipeline `TECH-BASE-003 / PR gates` `SUCCESS` run `33994007606`, aprobación humana y merge `8e534ddd4d6ca2ab6ce1a678beead9c2cbc7aec3`; ambos SHA ancestros de `origin/master`; PostgreSQL enfocado `17/17`; cero defectos bloqueantes conocidos |
 | Entregable | Contratos propios `Sgol.Evidence`, almacenamiento S3-compatible privado SeaweedFS, adaptador `clamd`, validación acotada JPEG/PNG/PDF, SHA-256, cuarentena y corpus sintético seguro |
 | Alcance | Infraestructura técnica sin consumidor funcional: objetos de 1 a 15 MiB, claves opacas, doble bucket, catálogo cerrado `LIMPIO`/`INFECTADO`/`INVALIDO`/`ERROR_ESCANEO` y denegación ante toda falla |
@@ -20,10 +47,10 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 | Interfaz funcional | No incluida: cero endpoints, URLs firmadas, intenciones de carga, UI, asociación con obligaciones o servicios funcionales de `HU-025` |
 | Pruebas | Unitarias completas `300/300`; arquitectura completa `17/17`; enfocadas sin Docker `31/31` unitarias y `2/2` arquitectura; suite externa SeaweedFS/ClamAV `1/1`, 0 errores, 0 omitidas, 41.4 s, ejecutada por el desarrollador después de corregir el manifiesto ARM64 aprobado |
 | Gates | Restore locked `18/18`; build Release `18/18`; unitarias `300/300`; arquitectura `17/17`; enfocadas sin Docker `31/31` unitarias y `2/2` arquitectura; suite S3/ClamAV externa `1/1`; PostgreSQL no aplica; formato sin diferencias, con repetición técnica porque el primer proceso no devolvió código de salida; cero vulnerabilidades NuGet conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico. El resultado de `git diff --check` se informa al entregar para no modificar el diff después del último gate |
-| Cierre | Requiere suite externa S3/escáner satisfactoria, commit exacto, pipeline verde, aprobación humana de implementación, merge, ascendencia y cero defectos bloqueantes |
-| Siguiente tarea | No se inicia otra historia. `HU-025` permanece fuera de este cambio y bloqueada hasta el cierre efectivo de `TECH-EVID-001` |
+| Cierre | Suite externa S3/escáner, commit exacto, pipeline, aprobación, merge, ascendencia y cero defectos bloqueantes verificados; PostgreSQL no aplicó porque la tarea no creó persistencia |
+| Siguiente tarea ejecutada | `HU-025` — propuesta actual en rama |
 
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y no habilita otra historia posterior.
+La evidencia primaria de cierre pertenece al PR que contiene la implementación. Este registro posterior sólo materializa el estado efectivo ya adquirido tras el merge y no altera el entregable aceptado.
 
 ## Base aceptada — `HU-024`
 

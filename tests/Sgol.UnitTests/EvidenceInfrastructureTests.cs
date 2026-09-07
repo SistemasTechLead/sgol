@@ -266,6 +266,7 @@ public sealed class EvidenceInfrastructureTests
             CleanBucket = "sgol-evidence-clean",
             AccessKey = "external-access",
             SecretKey = "external-secret",
+            AllowedUploadOrigins = environment == "Production" ? ["https://sgol.example.com"] : ["http://127.0.0.1:5000"],
             AllowInsecureTransport = allowInsecure
         };
 
@@ -282,7 +283,8 @@ public sealed class EvidenceInfrastructureTests
             QuarantineBucket = "sgol-evidence-quarantine",
             CleanBucket = "sgol-evidence-clean",
             AccessKey = "external-access",
-            SecretKey = string.Empty
+            SecretKey = string.Empty,
+            AllowedUploadOrigins = ["https://sgol.example.com"]
         };
         var scanner = new EvidenceScannerOptions
         {
@@ -294,6 +296,27 @@ public sealed class EvidenceInfrastructureTests
 
         Assert.False(EvidenceOptionsValidation.IsStorageValid(storage, "Production"));
         Assert.False(EvidenceOptionsValidation.IsScannerValid(scanner));
+    }
+
+    [Theory]
+    [InlineData("Production", "http://sgol.example.com")]
+    [InlineData("Production", "https://sgol.example.com/path")]
+    [InlineData("Production", "https://*.example.com")]
+    [InlineData("Development", "http://public.example.com")]
+    public void UploadOriginAllowlistRejectsUnsafeValues(string environment, string origin)
+    {
+        var options = new EvidenceStorageOptions
+        {
+            Endpoint = "https://s3.example.com",
+            Region = "us-east-1",
+            QuarantineBucket = "sgol-evidence-quarantine",
+            CleanBucket = "sgol-evidence-clean",
+            AccessKey = "external-access",
+            SecretKey = "external-secret",
+            AllowedUploadOrigins = [origin]
+        };
+
+        Assert.False(EvidenceOptionsValidation.IsStorageValid(options, environment));
     }
 
     private static ClamAvScanner CreateScanner(int port, int scanTimeoutSeconds = 30) => new(Options.Create(new EvidenceScannerOptions
@@ -339,6 +362,12 @@ public sealed class EvidenceInfrastructureTests
         private EvidenceObjectMetadata metadata = default!;
         public bool Quarantined { get; private set; }
         public bool Promoted { get; private set; }
+
+        public Task<EvidenceUploadAuthorization> CreateQuarantineUploadAuthorizationAsync(
+            EvidenceObjectMetadata value, DateTimeOffset expiresAt, CancellationToken cancellationToken) =>
+            Task.FromResult(new EvidenceUploadAuthorization(new Uri("https://upload.example.test/object"), expiresAt,
+                new EvidenceUploadHeaders(value.MediaType.ToMediaType(), value.SizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture), "*", value.Sha256,
+                    value.MediaType.ToString(), value.SizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture))));
 
         public async Task PutQuarantineAsync(EvidenceObjectMetadata value, Stream content,
             CancellationToken cancellationToken)

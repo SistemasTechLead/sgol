@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Console;
 using Sgol.Web.Infrastructure.Http;
+using Sgol.Web.Infrastructure.Evidence;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Presentation.Endpoints;
 
@@ -15,6 +16,16 @@ builder.Logging.AddJsonConsole(options =>
 
 builder.Services.AddRazorPages();
 builder.Services.AddSgolHttpPrimitives();
+builder.Services.AddSgolEvidenceInfrastructure(builder.Configuration, builder.Environment);
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "__Host-SGOL-CSRF";
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.Path = "/";
+});
 builder.Services.AddSgolPersistence(builder.Configuration);
 
 var app = builder.Build();
@@ -45,6 +56,7 @@ app.MapEligibilityEvaluationApi();
 app.MapAssignmentCorrectionApi();
 app.MapActiveLoadApi();
 app.MapObligationQueryApi();
+app.MapEvidenceApi();
 
 app.Run();
 

@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Sgol.Configuration.Contracts;
+using Sgol.Evidence.Contracts;
 using Xunit;
 
 namespace Sgol.UnitTests;
@@ -30,6 +31,8 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
                     services.AddSingleton<IActivationPolicyService, UnusedActivationPolicyService>();
                     services.RemoveAll<IEvidencePolicyService>();
                     services.AddSingleton<IEvidencePolicyService, UnusedEvidencePolicyService>();
+                    services.RemoveAll<IEvidenceContributionService>();
+                    services.AddSingleton<IEvidenceContributionService, UnusedEvidenceContributionService>();
                 });
             })
             .CreateClient();
@@ -142,6 +145,30 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
+    [Theory]
+    [InlineData("POST", "/api/v1/files/upload-intents")]
+    [InlineData("POST", "/api/v1/files/019d2d67-2c00-7000-8000-000000000100/complete")]
+    [InlineData("GET", "/api/v1/files/019d2d67-2c00-7000-8000-000000000100/status")]
+    [InlineData("POST", "/api/v1/obligations/019d2d67-2c00-7000-8000-000000000101/evidence")]
+    [InlineData("POST", "/api/v1/obligations/019d2d67-2c00-7000-8000-000000000101/evidence/019d2d67-2c00-7000-8000-000000000102/replacements")]
+    [InlineData("GET", "/api/v1/obligations/019d2d67-2c00-7000-8000-000000000101/evidence")]
+    public async Task Hu025EndpointsRequireAuthentication(string method, string path)
+    {
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (method == "POST") request.Content = JsonContent.Create(new { });
+        using var response = await _client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task EvidenceDownloadRemainsOutsideHu025()
+    {
+        using var response = await _client.GetAsync("/api/v1/files/019d2d67-2c00-7000-8000-000000000100/download");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     [Fact]
     public async Task ActivationPolicyEndpoint_RequiresAuthentication()
     {
@@ -195,5 +222,15 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
             Guid actorUserId,
             Guid correlationId,
             CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class UnusedEvidenceContributionService : IEvidenceContributionService
+    {
+        public Task<EvidenceUploadIntentResult> CreateUploadIntentAsync(CreateEvidenceUploadCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EvidenceFileStatusDetails> CompleteUploadAsync(CompleteEvidenceUploadCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EvidenceFileStatusDetails> GetFileStatusAsync(Guid actorUserId, Guid fileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EvidenceDetails> ContributeAsync(ContributeEvidenceCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EvidenceDetails> ReplaceAsync(ReplaceEvidenceCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EvidencePage> ListAsync(EvidenceQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }
