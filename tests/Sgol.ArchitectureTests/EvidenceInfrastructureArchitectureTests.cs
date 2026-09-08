@@ -31,12 +31,12 @@ public sealed class EvidenceInfrastructureArchitectureTests
         var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
         var web = Path.Combine(root, "src", "Sgol.Web");
         var endpoint = File.ReadAllText(Path.Combine(web, "Interface", "Endpoints", "EvidenceApiEndpoints.cs"));
-        var migrationSource = string.Join(Environment.NewLine,
-            Directory.EnumerateFiles(Path.Combine(web, "Infrastructure", "Persistence", "Migrations"), "*.cs")
-                .Select(File.ReadAllText));
+        var migrationSource = File.ReadAllText(
+            Directory.EnumerateFiles(Path.Combine(web, "Infrastructure", "Persistence", "Migrations"),
+                "*_AddVersionedEvidenceContribution.cs").Single());
 
         Assert.Equal(4, Count(endpoint, "MapPost("));
-        Assert.Equal(2, Count(endpoint, "MapGet("));
+        Assert.Equal(3, Count(endpoint, "MapGet("));
         Assert.Contains("/api/v1/files/upload-intents", endpoint, StringComparison.Ordinal);
         Assert.Contains("/api/v1/files/{id:guid}/complete", endpoint, StringComparison.Ordinal);
         Assert.Contains("/api/v1/files/{id:guid}/status", endpoint, StringComparison.Ordinal);
@@ -75,13 +75,45 @@ public sealed class EvidenceInfrastructureArchitectureTests
             Directory.EnumerateFiles(Path.Combine(web, "Infrastructure", "Persistence", "Migrations"), "*_EnableStructuredEvidence.cs").Single());
 
         Assert.Equal(4, Count(endpoint, "MapPost("));
-        Assert.Equal(2, Count(endpoint, "MapGet("));
+        Assert.Equal(3, Count(endpoint, "MapGet("));
         Assert.Contains("structuredPayload", endpoint, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateTable", migration, StringComparison.Ordinal);
         Assert.Contains("evidence_version", migration, StringComparison.Ordinal);
         Assert.Contains("sgol_evidence_structured_payload_valid", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("evidence_review_snapshot", migration, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("IPrivateObjectStorage", File.ReadAllText(Path.Combine(root, "src", "Modules", "Evidence", "Contracts", "StructuredEvidencePayloadValidator.cs")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Hu026AddsOnlyEvidenceReviewQueryAndImmutableSnapshot()
+    {
+        var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
+        var web = Path.Combine(root, "src", "Sgol.Web");
+        var endpoint = File.ReadAllText(Path.Combine(web, "Interface", "Endpoints", "EvidenceApiEndpoints.cs"));
+        var service = File.ReadAllText(Path.Combine(web, "Infrastructure", "Persistence", "Evidence", "EfEvidenceReviewService.cs"));
+        var evaluator = File.ReadAllText(Path.Combine(root, "src", "Modules", "Evidence", "Contracts", "EvidenceReviews.cs"));
+        var migration = File.ReadAllText(
+            Directory.EnumerateFiles(Path.Combine(web, "Infrastructure", "Persistence", "Migrations"),
+                "*_AddEvidenceReviewSnapshots.cs").Single());
+
+        Assert.Equal(4, Count(endpoint, "MapPost("));
+        Assert.Equal(3, Count(endpoint, "MapGet("));
+        Assert.Contains("/api/v1/obligations/{id}/evidence-review", endpoint, StringComparison.Ordinal);
+        Assert.Contains("evidence_review_snapshot", migration, StringComparison.Ordinal);
+        Assert.Contains("SERIALIZABLE", service, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("EVIDENCE_REVIEW_SNAPSHOT_CREATED", service, StringComparison.Ordinal);
+        Assert.Contains("evidence_review_snapshot_guard", migration, StringComparison.Ordinal);
+        Assert.Contains("Rollback is blocked", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("IPrivateObjectStorage", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("IPrivateObjectStorage", evaluator, StringComparison.Ordinal);
+        Assert.DoesNotContain("Clam", service, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ExecutionResult", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("ValidationDecision", service, StringComparison.Ordinal);
+
+        var ui = Directory.EnumerateFiles(web, "*EvidenceReview*", SearchOption.AllDirectories)
+            .Where(path => Path.GetExtension(path) is ".cshtml" or ".razor" or ".css" or ".js")
+            .ToArray();
+        Assert.Empty(ui);
     }
 
     private static int Count(string value, string search)

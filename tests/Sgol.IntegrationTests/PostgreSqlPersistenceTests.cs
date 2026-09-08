@@ -41,6 +41,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string EvidencePoliciesMigrationId = "20260905203518_AddEvidencePolicies";
     private const string EvidenceContributionMigrationId = "20260907203912_AddVersionedEvidenceContribution";
     private const string StructuredEvidenceMigrationId = "20260908005832_EnableStructuredEvidence";
+    private const string EvidenceReviewMigrationId = "20260908193819_AddEvidenceReviewSnapshots";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -86,6 +87,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 EvidencePoliciesMigrationId,
                 EvidenceContributionMigrationId,
                 StructuredEvidenceMigrationId,
+                EvidenceReviewMigrationId,
             ],
             appliedMigrations);
 
@@ -121,6 +123,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "evidence_policy_version",
                 "evidence_requirement_catalog",
                 "evidence_requirement_version",
+                "evidence_review_snapshot",
                 "evidence_version",
                 "file_object",
                 "generation_request",
@@ -190,6 +193,38 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
             Assert.True(reader.GetBoolean(1));
         }
 
+        Assert.False(context.Database.HasPendingModelChanges());
+    }
+
+    [Fact]
+    public async Task EvidenceReviewMigrationInstallsImmutableSnapshotAuthority()
+    {
+        await using var factory = CreateFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = scope.ServiceProvider.GetRequiredService<SgolDbContext>();
+        await context.Database.MigrateAsync();
+        await context.Database.OpenConnectionAsync();
+
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            SELECT
+              EXISTS (SELECT 1 FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'evidence_review_snapshot_guard'),
+              EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'sgol_evidence_review_snapshot_guard'),
+              (SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname IN
+                ('UX_evidence_review_snapshot_obligation_fingerprint','UX_evidence_review_snapshot_obligation_input')),
+              (SELECT count(*) FROM pg_constraint WHERE contype = 'f'
+                AND conrelid = 'evidence_review_snapshot'::regclass AND confdeltype = 'r'),
+              (SELECT count(*) FROM pg_constraint WHERE contype = 'c'
+                AND conrelid = 'evidence_review_snapshot'::regclass);
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+        Assert.Equal(2, reader.GetInt64(2));
+        Assert.Equal(3, reader.GetInt64(3));
+        Assert.Equal(7, reader.GetInt64(4));
         Assert.False(context.Database.HasPendingModelChanges());
     }
 

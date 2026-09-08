@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +13,7 @@ namespace Sgol.UnitTests;
 
 public sealed class EvidenceApiEndpointTests
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private const string ValidBody =
         """{"obligationId":"019d2d67-2c00-7000-8000-000000000101","requirementCode":"FOTOGRAFIA_FINAL","originalFileName":"evidence.png","declaredMediaType":"image/png","sizeBytes":128,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","documentSubtype":null}""";
 
@@ -125,6 +127,65 @@ public sealed class EvidenceApiEndpointTests
         Assert.Null(service.LastContribution);
     }
 
+    [Fact]
+    public async Task EvidenceReviewGetReturnsCompleteDeterministicProjectionWithoutMutationHeaders()
+    {
+        using var services = Services();
+        var actor = Guid.CreateVersion7();
+        var obligation = Guid.CreateVersion7();
+        var requirement = new EvidenceReviewRequirementDetails(Guid.CreateVersion7(), "FOTOGRAFIA_FINAL", "FOTOGRAFIA",
+            "SIEMPRE", 1, EvidenceReviewApplicability.Applicable, true, Guid.CreateVersion7(), null);
+        var service = new RecordingReviewService(new(Guid.CreateVersion7(), obligation, Guid.CreateVersion7(),
+            EvidenceReviewResults.Complete, new DateTimeOffset(2026, 9, 8, 20, 0, 0, TimeSpan.Zero), [requirement], []));
+        var context = ReviewContext(services, actor);
+
+        var result = await EvidenceApiEndpoints.ReviewAsync(
+            context, obligation.ToString("D"), service, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal(actor, service.LastQuery!.ActorUserId);
+        Assert.Equal(obligation, service.LastQuery.ObligationId);
+        var json = JsonSerializer.Serialize(Assert.IsAssignableFrom<IValueHttpResult>(result).Value, JsonOptions);
+        Assert.Contains("\"result\":\"COMPLETA\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"missingRequirements\":[]", json, StringComparison.Ordinal);
+        Assert.False(context.Response.Headers.ContainsKey("ETag"));
+    }
+
+    [Theory]
+    [InlineData("not-a-guid", false, false)]
+    [InlineData("00000000-0000-0000-0000-000000000000", false, false)]
+    [InlineData("019d2d67-2c00-7000-8000-000000000101", true, false)]
+    [InlineData("019d2d67-2c00-7000-8000-000000000101", false, true)]
+    public async Task EvidenceReviewRejectsInvalidShapeBeforeBusiness(string id, bool query, bool idempotency)
+    {
+        using var services = Services();
+        var context = ReviewContext(services, Guid.CreateVersion7());
+        if (query) context.Request.QueryString = new QueryString("?unexpected=true");
+        if (idempotency) context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
+        var service = new RecordingReviewService(null);
+
+        var result = await EvidenceApiEndpoints.ReviewAsync(context, id, service, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Null(service.LastQuery);
+    }
+
+    [Theory]
+    [InlineData(true, StatusCodes.Status403Forbidden)]
+    [InlineData(false, StatusCodes.Status404NotFound)]
+    public async Task EvidenceReviewMapsScopeAndExistenceWithoutReturningData(bool denied, int expectedStatus)
+    {
+        using var services = Services();
+        var context = ReviewContext(services, Guid.CreateVersion7());
+        var service = new RecordingReviewService(null,
+            denied ? new EvidenceReviewAccessDeniedException() : new EvidenceReviewObligationNotFoundException());
+
+        var result = await EvidenceApiEndpoints.ReviewAsync(
+            context, Guid.CreateVersion7().ToString("D"), service, CancellationToken.None);
+
+        Assert.Equal(expectedStatus, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+    }
+
     private static ServiceProvider Services()
     {
         var services = new ServiceCollection();
@@ -153,6 +214,30 @@ public sealed class EvidenceApiEndpointTests
         context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
         context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
         return context;
+    }
+
+    private static DefaultHttpContext ReviewContext(IServiceProvider services, Guid actor)
+    {
+        var context = new DefaultHttpContext { RequestServices = services };
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, actor.ToString("D"))], "test"));
+        context.Request.Scheme = "https";
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Body = new MemoryStream();
+        return context;
+    }
+
+    private sealed class RecordingReviewService(EvidenceReviewDetails? result, Exception? exception = null) : IEvidenceReviewService
+    {
+        public EvidenceReviewQuery? LastQuery { get; private set; }
+
+        public Task<EvidenceReviewDetails> ReviewAsync(EvidenceReviewQuery query, CancellationToken cancellationToken = default)
+        {
+            LastQuery = query;
+            return exception is null
+                ? Task.FromResult(result!)
+                : Task.FromException<EvidenceReviewDetails>(exception);
+        }
     }
 
     private sealed class RecordingEvidenceService : IEvidenceContributionService

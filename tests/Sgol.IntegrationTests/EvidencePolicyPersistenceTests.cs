@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Sgol.Assignment.Contracts;
 using Sgol.BuildingBlocks.Identifiers;
 using Sgol.BuildingBlocks.Time;
 using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
+using Sgol.Evidence.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
@@ -13,6 +15,7 @@ using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Configuration;
+using Sgol.Web.Infrastructure.Persistence.Evidence;
 using Sgol.Web.Infrastructure.Persistence.Generation;
 using Sgol.Web.Infrastructure.Persistence.Versioning;
 using Testcontainers.PostgreSql;
@@ -354,6 +357,127 @@ public sealed class EvidencePolicyPersistenceTests : IAsyncLifetime
                 .Where(item => item.TaskDefinitionId == task.Id && item.Status == VersionStatuses.Current)
                 .Select(item => item.Id)
                 .SingleAsync());
+
+        var duplicateAuditId = Guid.CreateVersion7();
+        context.AuditEvents.Add(new AuditEvent
+        {
+            Id = duplicateAuditId,
+            OccurredAt = Now,
+            ActorUserId = actor,
+            ActorType = "APP_USER",
+            Action = "SYNTHETIC_EXISTING_EVENT",
+            ResourceType = "EVIDENCE_REVIEW_SNAPSHOT",
+            ResourceId = obligation.ObligationId,
+            BranchId = BranchScope.LorettaId,
+            CorrelationId = Guid.CreateVersion7(),
+            Outcome = "SUCCESS",
+        });
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var failedSnapshotIds = new[] { Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7() };
+        var failingReview = new EfEvidenceReviewService(
+            context,
+            new FixedClock(Now.AddHours(3)),
+            new SequenceUuidGenerator(
+                failedSnapshotIds[0], duplicateAuditId,
+                failedSnapshotIds[1], duplicateAuditId,
+                failedSnapshotIds[2], duplicateAuditId));
+        await Assert.ThrowsAsync<EvidenceReviewFailedException>(() => failingReview.ReviewAsync(
+            new(actor, Guid.CreateVersion7(), obligation.ObligationId)));
+        Assert.False(await context.EvidenceReviewSnapshots.AsNoTracking()
+            .AnyAsync(snapshot => failedSnapshotIds.Contains(snapshot.Id)));
+
+        var responsible = await SeedActorAsync("EVIDENCE-REVIEW-RESPONSIBLE", CanonicalRole.Subcoordination);
+        var superior = await SeedActorAsync("EVIDENCE-REVIEW-SUPERIOR", CanonicalRole.Administration);
+        var peer = await SeedActorAsync("EVIDENCE-REVIEW-PEER", CanonicalRole.Subcoordination);
+        var lower = await SeedActorAsync("EVIDENCE-REVIEW-LOWER", CanonicalRole.SalesFloor);
+        var responsiblePerson = await context.AppUsers.AsNoTracking()
+            .Where(user => user.Id == responsible).Select(user => user.PersonId).SingleAsync();
+        using var assignmentExplanation = JsonDocument.Parse("{}");
+        context.AssignmentVersions.Add(new AssignmentVersion(
+            Guid.CreateVersion7(), obligation.ObligationId, responsiblePerson, AssignmentVersionStatuses.Current,
+            AssignmentTypes.Automatic, assignmentExplanation, Now.AddHours(2)));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var reviewService = new EfEvidenceReviewService(
+            context,
+            new FixedClock(Now.AddHours(3)),
+            NewUuidGenerator(Now.AddHours(3)));
+        var firstReview = await reviewService.ReviewAsync(new(responsible, Guid.CreateVersion7(), obligation.ObligationId));
+        var repeatedReview = await reviewService.ReviewAsync(new(superior, Guid.CreateVersion7(), obligation.ObligationId));
+        var directionReview = await reviewService.ReviewAsync(new(actor, Guid.CreateVersion7(), obligation.ObligationId));
+        Assert.Equal(EvidenceReviewResults.Incomplete, firstReview.Result);
+        Assert.Equal(4, firstReview.MissingRequirements.Count);
+        Assert.Equal(policy.Id, firstReview.EvidencePolicyVersionId);
+        Assert.Equal(firstReview.SnapshotId, repeatedReview.SnapshotId);
+        Assert.Equal(firstReview.SnapshotId, directionReview.SnapshotId);
+        await Assert.ThrowsAsync<EvidenceReviewObligationNotFoundException>(() => reviewService.ReviewAsync(
+            new(peer, Guid.CreateVersion7(), obligation.ObligationId)));
+        await Assert.ThrowsAsync<EvidenceReviewObligationNotFoundException>(() => reviewService.ReviewAsync(
+            new(lower, Guid.CreateVersion7(), obligation.ObligationId)));
+        Assert.Single(await context.EvidenceReviewSnapshots.AsNoTracking()
+            .Where(snapshot => snapshot.ObligationId == obligation.ObligationId).ToListAsync());
+        Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), audit =>
+            audit.Action == "EVIDENCE_REVIEW_SNAPSHOT_CREATED" && audit.ResourceId == firstReview.SnapshotId);
+        Assert.Equal(WorkObligationStatuses.Pending,
+            await context.WorkObligations.AsNoTracking().Where(item => item.Id == obligation.ObligationId)
+                .Select(item => item.ExecutionStatus).SingleAsync());
+
+        var releaseRequirement = await context.EvidenceRequirementVersions.AsNoTracking()
+            .SingleAsync(item => item.PolicyVersionId == policy.Id && item.RequirementCode == "LIBERACION");
+        var evidenceItem = new EvidenceItem(
+            Guid.CreateVersion7(), obligation.ObligationId, policy.Id, releaseRequirement.Id,
+            releaseRequirement.RequirementCode, releaseRequirement.Kind, Now.AddHours(3));
+        using var firstRelease = JsonDocument.Parse(
+            """{"schemaVersion":1,"releasedAt":"2026-09-08T16:00:00Z","releaseReference":"LIB-01"}""");
+        var firstVersion = new EvidenceVersion(
+            Guid.CreateVersion7(), evidenceItem.Id, 1, firstRelease, responsible, Now.AddHours(3));
+        context.EvidenceItems.Add(evidenceItem);
+        context.EvidenceVersions.Add(firstVersion);
+        await context.SaveChangesAsync();
+
+        var afterContribution = await reviewService.ReviewAsync(new(responsible, Guid.CreateVersion7(), obligation.ObligationId));
+        Assert.NotEqual(firstReview.SnapshotId, afterContribution.SnapshotId);
+        Assert.Equal(3, afterContribution.MissingRequirements.Count);
+        Assert.Equal(4, firstReview.MissingRequirements.Count);
+
+        firstVersion.Supersede();
+        evidenceItem.Advance(evidenceItem.RowVersion);
+        using var replacementRelease = JsonDocument.Parse(
+            """{"schemaVersion":1,"releasedAt":"2026-09-08T17:00:00Z","releaseReference":"LIB-02"}""");
+        var replacementVersion = new EvidenceVersion(
+            Guid.CreateVersion7(), evidenceItem.Id, 2, replacementRelease, responsible, Now.AddHours(4),
+            "Corrección sintética", firstVersion.Id);
+        context.EvidenceVersions.Add(replacementVersion);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        await using var concurrentContextOne = CreateContext();
+        await using var concurrentContextTwo = CreateContext();
+        var concurrentOne = new EfEvidenceReviewService(
+            concurrentContextOne, new FixedClock(Now.AddHours(4)), NewUuidGenerator(Now.AddHours(4)));
+        var concurrentTwo = new EfEvidenceReviewService(
+            concurrentContextTwo, new FixedClock(Now.AddHours(4)), NewUuidGenerator(Now.AddHours(4)));
+        var concurrentResults = await Task.WhenAll(
+            concurrentOne.ReviewAsync(new(actor, Guid.CreateVersion7(), obligation.ObligationId)),
+            concurrentTwo.ReviewAsync(new(actor, Guid.CreateVersion7(), obligation.ObligationId)));
+        Assert.Equal(concurrentResults[0].SnapshotId, concurrentResults[1].SnapshotId);
+        Assert.NotEqual(afterContribution.SnapshotId, concurrentResults[0].SnapshotId);
+        var concurrentSnapshot = await context.EvidenceReviewSnapshots.AsNoTracking()
+            .SingleAsync(snapshot => snapshot.Id == concurrentResults[0].SnapshotId);
+        Assert.Equal(replacementVersion.Id, Assert.Single(concurrentSnapshot.EvidenceVersionIds));
+        Assert.Equal(3, await context.EvidenceReviewSnapshots.AsNoTracking()
+            .CountAsync(snapshot => snapshot.ObligationId == obligation.ObligationId));
+
+        var updateException = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE evidence_review_snapshot SET result = {"COMPLETA"} WHERE id = {firstReview.SnapshotId}
+            """));
+        Assert.Equal(PostgresErrorCodes.CheckViolation, updateException.SqlState);
+        var deleteException = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync($"""
+            DELETE FROM evidence_review_snapshot WHERE id = {firstReview.SnapshotId}
+            """));
+        Assert.Equal(PostgresErrorCodes.CheckViolation, deleteException.SqlState);
 
         var historical = new WorkObligation(
             Guid.CreateVersion7(),

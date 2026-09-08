@@ -33,6 +33,8 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
                     services.AddSingleton<IEvidencePolicyService, UnusedEvidencePolicyService>();
                     services.RemoveAll<IEvidenceContributionService>();
                     services.AddSingleton<IEvidenceContributionService, UnusedEvidenceContributionService>();
+                    services.RemoveAll<IEvidenceReviewService>();
+                    services.AddSingleton<IEvidenceReviewService, UnusedEvidenceReviewService>();
                 });
             })
             .CreateClient();
@@ -163,6 +165,16 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact]
+    public async Task Hu026EndpointRequiresAuthentication()
+    {
+        using var response = await _client.GetAsync(
+            "/api/v1/obligations/019d2d67-2c00-7000-8000-000000000101/evidence-review");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public async Task EvidenceDownloadRemainsOutsideHu025()
     {
         using var response = await _client.GetAsync("/api/v1/files/019d2d67-2c00-7000-8000-000000000100/download");
@@ -232,5 +244,12 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         public Task<EvidenceDetails> ContributeAsync(ContributeEvidenceCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<EvidenceDetails> ReplaceAsync(ReplaceEvidenceCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<EvidencePage> ListAsync(EvidenceQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class UnusedEvidenceReviewService : IEvidenceReviewService
+    {
+        public Task<EvidenceReviewDetails> ReviewAsync(
+            EvidenceReviewQuery query,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

@@ -135,3 +135,45 @@ public sealed class EvidenceVersionConfiguration : IEntityTypeConfiguration<Evid
         builder.HasOne<EvidenceVersion>().WithMany().HasForeignKey(x => x.SupersedesId).OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+public sealed class EvidenceReviewSnapshotConfiguration : IEntityTypeConfiguration<EvidenceReviewSnapshot>
+{
+    public const string FingerprintIndex = "UX_evidence_review_snapshot_obligation_fingerprint";
+    public const string CanonicalInputIndex = "UX_evidence_review_snapshot_obligation_input";
+
+    public void Configure(EntityTypeBuilder<EvidenceReviewSnapshot> builder)
+    {
+        builder.ToTable("evidence_review_snapshot", table =>
+        {
+            table.HasCheckConstraint("CK_evidence_review_snapshot_result", "result IN ('COMPLETA','INCOMPLETA')");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_schema", "schema_version = 1");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_fingerprint", "input_fingerprint ~ '^[0-9a-f]{64}$'");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_json", "jsonb_typeof(canonical_input) = 'object' AND jsonb_typeof(requirements_snapshot) = 'array' AND jsonb_typeof(missing_requirements) = 'array'");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_actor", "evaluated_by = 'SYSTEM'");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_versions", "array_position(evidence_version_ids, NULL) IS NULL");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_result_projection", "(result = 'COMPLETA') = (jsonb_array_length(missing_requirements) = 0 AND NOT jsonb_path_exists(requirements_snapshot, '$[*] ? (@.applicability == \"NO_RESUELTA\")'))");
+        });
+        builder.HasKey(snapshot => snapshot.Id);
+        builder.Property(snapshot => snapshot.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(snapshot => snapshot.ObligationId).HasColumnName("obligation_id");
+        builder.Property(snapshot => snapshot.EvidencePolicyVersionId).HasColumnName("evidence_policy_version_id");
+        builder.Property(snapshot => snapshot.Result).HasColumnName("result").HasMaxLength(16);
+        builder.Property(snapshot => snapshot.SchemaVersion).HasColumnName("schema_version");
+        builder.Property(snapshot => snapshot.InputFingerprint).HasColumnName("input_fingerprint").HasColumnType("character(64)");
+        builder.Property(snapshot => snapshot.CanonicalInput).HasColumnName("canonical_input").HasColumnType("jsonb");
+        builder.Property(snapshot => snapshot.RequirementsSnapshot).HasColumnName("requirements_snapshot").HasColumnType("jsonb");
+        builder.Property(snapshot => snapshot.MissingRequirements).HasColumnName("missing_requirements").HasColumnType("jsonb");
+        builder.Property(snapshot => snapshot.EvidenceVersionIds).HasColumnName("evidence_version_ids").HasColumnType("uuid[]");
+        builder.Property(snapshot => snapshot.EvaluatedBy).HasColumnName("evaluated_by").HasMaxLength(16);
+        builder.Property(snapshot => snapshot.RequestedByUserId).HasColumnName("requested_by_user_id");
+        builder.Property(snapshot => snapshot.EvaluatedAt).HasColumnName("evaluated_at").HasColumnType("timestamp with time zone");
+        builder.Property(snapshot => snapshot.CorrelationId).HasColumnName("correlation_id");
+        builder.HasIndex(snapshot => new { snapshot.ObligationId, snapshot.InputFingerprint })
+            .IsUnique().HasDatabaseName(FingerprintIndex);
+        builder.HasIndex(snapshot => new { snapshot.ObligationId, snapshot.EvaluatedAt, snapshot.Id }).IsDescending(false, true, true);
+        builder.HasIndex(snapshot => new { snapshot.EvidencePolicyVersionId, snapshot.EvaluatedAt }).IsDescending(false, true);
+        builder.HasOne<WorkObligation>().WithMany().HasForeignKey(snapshot => snapshot.ObligationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidencePolicyVersion>().WithMany().HasForeignKey(snapshot => snapshot.EvidencePolicyVersionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AppUser>().WithMany().HasForeignKey(snapshot => snapshot.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
