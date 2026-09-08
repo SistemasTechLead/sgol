@@ -3,6 +3,7 @@ using Sgol.Assignment.Contracts;
 using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Evidence.Contracts;
+using Sgol.Execution.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
@@ -11,6 +12,7 @@ using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Configuration;
 using Sgol.Web.Infrastructure.Persistence.Generation;
 using Sgol.Web.Infrastructure.Persistence.Evidence;
+using Sgol.Web.Infrastructure.Persistence.Execution;
 using Sgol.JobInfrastructure;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 
@@ -74,6 +76,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<EvidenceReviewSnapshot> EvidenceReviewSnapshots => Set<EvidenceReviewSnapshot>();
 
+    public DbSet<ExecutionResult> ExecutionResults => Set<ExecutionResult>();
+
     public DbSet<EligibilityEvaluation> EligibilityEvaluations => Set<EligibilityEvaluation>();
 
     public DbSet<EligibilityCandidate> EligibilityCandidates => Set<EligibilityCandidate>();
@@ -116,6 +120,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new EvidenceItemConfiguration());
         modelBuilder.ApplyConfiguration(new EvidenceVersionConfiguration());
         modelBuilder.ApplyConfiguration(new EvidenceReviewSnapshotConfiguration());
+        modelBuilder.ApplyConfiguration(new ExecutionResultConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityEvaluationConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityCandidateConfiguration());
         modelBuilder.ApplyConfiguration(new AssignmentVersionConfiguration());

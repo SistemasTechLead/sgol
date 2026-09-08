@@ -32,6 +32,8 @@ public static class RoleHierarchy
     public static bool GrantsAssignmentCorrection(string roleCode) => roleCode is
         CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
 
+    public static bool GrantsTaskExecution(string roleCode) => CanonicalRole.IsDefined(roleCode);
+
     public static bool CanAccessLevel(string actorRoleCode, string targetRoleCode)
     {
         if (!CanonicalRole.IsDefined(actorRoleCode) || !CanonicalRole.IsDefined(targetRoleCode))

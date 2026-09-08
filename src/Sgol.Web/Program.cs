@@ -56,6 +56,7 @@ app.MapEligibilityEvaluationApi();
 app.MapAssignmentCorrectionApi();
 app.MapActiveLoadApi();
 app.MapObligationQueryApi();
+app.MapObligationConclusionApi();
 app.MapEvidenceApi();
 
 app.Run();

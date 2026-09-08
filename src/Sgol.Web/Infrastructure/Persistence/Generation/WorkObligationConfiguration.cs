@@ -4,6 +4,7 @@ using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
+using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
 namespace Sgol.Web.Infrastructure.Persistence.Generation;
 
@@ -80,6 +81,10 @@ public sealed class WorkObligationConfiguration : IEntityTypeConfiguration<WorkO
         builder.HasOne<EvidencePolicyVersion>()
             .WithMany()
             .HasForeignKey(obligation => obligation.EvidencePolicyVersionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AppUser>()
+            .WithMany()
+            .HasForeignKey(obligation => obligation.ConcludedBy)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -59,4 +59,43 @@ public sealed class WorkObligationTests
         Assert.Throws<GenerationRequestAlreadyMaterializedException>(() =>
             request.LinkObligation(Guid.CreateVersion7()));
     }
+
+    [Fact]
+    public void ResponsibleConclusionTransitionsPendingOnceAndAdvancesVersion()
+    {
+        var actor = Guid.CreateVersion7();
+        var concludedAt = new DateTimeOffset(2026, 9, 8, 22, 30, 0, TimeSpan.Zero);
+        var obligation = NewObligation();
+
+        obligation.Conclude(actor, concludedAt, 1);
+
+        Assert.Equal(WorkObligationStatuses.Concluded, obligation.ExecutionStatus);
+        Assert.Equal(actor, obligation.ConcludedBy);
+        Assert.Equal(concludedAt, obligation.ConcludedAt);
+        Assert.Equal(2, obligation.RowVersion);
+        Assert.Throws<InvalidOperationException>(() => obligation.Conclude(actor, concludedAt, 2));
+    }
+
+    [Fact]
+    public void ConclusionRejectsStaleVersionWithoutChangingPendingObligation()
+    {
+        var obligation = NewObligation();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            obligation.Conclude(Guid.CreateVersion7(), DateTimeOffset.UtcNow, 2));
+
+        Assert.Equal(WorkObligationStatuses.Pending, obligation.ExecutionStatus);
+        Assert.Null(obligation.ConcludedBy);
+        Assert.Null(obligation.ConcludedAt);
+        Assert.Equal(1, obligation.RowVersion);
+    }
+
+    private static WorkObligation NewObligation() => new(
+        Guid.CreateVersion7(),
+        Guid.CreateVersion7(),
+        Guid.CreateVersion7(),
+        Guid.CreateVersion7(),
+        Guid.CreateVersion7(),
+        "approved-origin",
+        Guid.CreateVersion7());
 }

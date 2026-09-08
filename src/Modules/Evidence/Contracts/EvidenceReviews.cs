@@ -108,6 +108,24 @@ public interface IEvidenceReviewService
         CancellationToken cancellationToken = default);
 }
 
+public sealed record EvidenceConclusionReviewQuery(
+    Guid ActorUserId,
+    Guid CorrelationId,
+    Guid ObligationId,
+    DateTimeOffset EvaluatedAt);
+
+public sealed record EvidenceConclusionReview(
+    string Result,
+    Guid? SnapshotId,
+    IReadOnlyList<EvidenceReviewMissingRequirement> MissingRequirements);
+
+public interface IEvidenceConclusionReviewService
+{
+    Task<EvidenceConclusionReview> ReviewAsync(
+        EvidenceConclusionReviewQuery query,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed class EvidenceReviewSnapshot
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
