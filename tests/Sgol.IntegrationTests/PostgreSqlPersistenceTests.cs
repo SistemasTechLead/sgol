@@ -40,6 +40,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string RecurringGenerationMigrationId = "20260904223610_AllowSystemRecurringGenerationRequests";
     private const string EvidencePoliciesMigrationId = "20260905203518_AddEvidencePolicies";
     private const string EvidenceContributionMigrationId = "20260907203912_AddVersionedEvidenceContribution";
+    private const string StructuredEvidenceMigrationId = "20260908005832_EnableStructuredEvidence";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -84,6 +85,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 RecurringGenerationMigrationId,
                 EvidencePoliciesMigrationId,
                 EvidenceContributionMigrationId,
+                StructuredEvidenceMigrationId,
             ],
             appliedMigrations);
 
@@ -321,6 +323,68 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
 
         var preserved = await context.AuditEvents.AsNoTracking().SingleAsync(item => item.Id == auditId);
         Assert.Equal("SUCCESS", preserved.Outcome);
+    }
+
+    [Fact]
+    public async Task StructuredEvidenceMigrationEnforcesClosedPayloadAndExclusiveSource()
+    {
+        await using var factory = CreateFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = scope.ServiceProvider.GetRequiredService<SgolDbContext>();
+
+        await context.Database.MigrateAsync();
+        await context.Database.OpenConnectionAsync();
+
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            SELECT
+              sgol_evidence_text_valid('"REC-01"'::jsonb, 120, true),
+              sgol_evidence_timestamp_valid('"2026-09-07T20:00:00Z"'::jsonb),
+              sgol_evidence_exact_keys(
+                '{"schemaVersion":1,"formCode":"F-ENT-001","formReference":"REC-01","completedAt":"2026-09-07T20:00:00Z","hasDifference":true,"hasDamage":false}'::jsonb,
+                ARRAY['schemaVersion','formCode','formReference','completedAt','hasDifference','hasDamage']),
+              sgol_evidence_structured_payload_valid(
+                'F_ENT_001', 'FORMULARIO_REFERENCIADO',
+                '{"schemaVersion":1,"formCode":"F-ENT-001","formReference":"REC-01","completedAt":"2026-09-07T20:00:00Z","hasDifference":true,"hasDamage":false}'::jsonb),
+              sgol_evidence_structured_payload_valid(
+                'F_ENT_001', 'FORMULARIO_REFERENCIADO',
+                '{"schemaVersion":1,"formCode":"F-ENT-001","formReference":"REC-01","completedAt":"2026-09-07T20:00:00Z","hasDifference":true,"hasDamage":false,"extra":true}'::jsonb),
+              (SELECT is_nullable = 'YES' FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'evidence_version' AND column_name = 'file_object_id'),
+              EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CK_evidence_version_source'),
+              (SELECT count(*) = 18 AND bool_and(sgol_evidence_structured_payload_valid(code, kind, payload))
+                FROM (VALUES
+                  ('CALCULO_AVANCE','REGISTRO_DIGITAL','{"schemaVersion":1,"expectedTarget":100,"actualSales":90,"sourceReference":"VEN-01"}'::jsonb),
+                  ('ACCION_O_CONFORMIDAD','REGISTRO_DIGITAL','{"schemaVersion":1,"outcome":"CONFORMIDAD","actionDescription":null,"responsiblePersonId":null,"startsAt":null}'::jsonb),
+                  ('LIBERACION','REGISTRO_DIGITAL','{"schemaVersion":1,"releasedAt":"2026-09-07T20:00:00Z","releaseReference":"LIB-01"}'::jsonb),
+                  ('MERCANCIA','DATO_ESTRUCTURADO','{"schemaVersion":1,"merchandiseReference":"MER-01"}'::jsonb),
+                  ('FECHA_HORA','DATO_ESTRUCTURADO','{"schemaVersion":1,"occurredAt":"2026-09-07T20:00:00Z"}'::jsonb),
+                  ('RETORNO_EXHIBICION','REGISTRO_DIGITAL','{"schemaVersion":1,"returnedAt":"2026-09-07T20:00:00Z","returnReference":"RET-01"}'::jsonb),
+                  ('SECUENCIA','REGISTRO_DIGITAL','{"schemaVersion":1,"sequenceSummary":"Secuencia sintetica"}'::jsonb),
+                  ('DECISION','REGISTRO_DIGITAL','{"schemaVersion":1,"decisionSummary":"Decision sintetica","decidedAt":"2026-09-07T20:00:00Z"}'::jsonb),
+                  ('FUNDAMENTO','DATO_ESTRUCTURADO','{"schemaVersion":1,"foundationSummary":"Fundamento sintetico"}'::jsonb),
+                  ('AVISO_INTERNO','REGISTRO_DIGITAL','{"schemaVersion":1,"noticeReference":"AVI-01","notifiedAt":"2026-09-07T20:00:00Z"}'::jsonb),
+                  ('EVALUACION','REGISTRO_DIGITAL','{"schemaVersion":1,"assessmentSummary":"Evaluacion sintetica","assessedAt":"2026-09-07T20:00:00Z"}'::jsonb),
+                  ('REPARACION_O_CAMBIO','REGISTRO_DIGITAL','{"schemaVersion":1,"solutionType":"REPARACION","solutionReference":"SOL-01","completedAt":"2026-09-07T20:00:00Z"}'::jsonb),
+                  ('ENTREGA','REGISTRO_DIGITAL','{"schemaVersion":1,"deliveryReference":"ENT-01","deliveredAt":"2026-09-07T20:00:00Z"}'::jsonb),
+                  ('CHECKLIST_COMPLETO','CHECKLIST_ESTRUCTURADO','{"schemaVersion":1,"productCorrect":true,"zoneAndFamilyCorrect":true,"stableFormation":true,"labelsVisible":true,"alignmentConsistent":true,"occupancyJustified":true,"clean":true,"intact":true,"signageCorrect":true,"matchesPlanogramOrList":true}'::jsonb),
+                  ('FORM_ADM_02','FORMULARIO_REFERENCIADO','{"schemaVersion":1,"formCode":"FORM-ADM-02","formReference":"ADM-01","completedAt":"2026-09-07T20:00:00Z"}'::jsonb),
+                  ('F_ENT_001','FORMULARIO_REFERENCIADO','{"schemaVersion":1,"formCode":"F-ENT-001","formReference":"REC-01","completedAt":"2026-09-07T20:00:00Z","hasDifference":true,"hasDamage":false}'::jsonb),
+                  ('ANOTACION_F_ENT_001','FORMULARIO_REFERENCIADO','{"schemaVersion":1,"formCode":"F-ENT-001","formReference":"REC-01","annotationReference":"ANO-01","recordedAt":"2026-09-07T20:00:00Z"}'::jsonb),
+                  ('CONSTANCIA_AVISO_INTERNO','REGISTRO_DIGITAL','{"schemaVersion":1,"noticeReference":"AVI-01","notifiedAt":"2026-09-07T20:00:00Z"}'::jsonb)
+                ) AS approved(code, kind, payload));
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetBoolean(0));
+        Assert.True(reader.GetBoolean(1));
+        Assert.True(reader.GetBoolean(2));
+        Assert.True(reader.GetBoolean(3));
+        Assert.False(reader.GetBoolean(4));
+        Assert.True(reader.GetBoolean(5));
+        Assert.True(reader.GetBoolean(6));
+        Assert.True(reader.GetBoolean(7));
     }
 
     private WebApplicationFactory<Program> CreateFactory() =>

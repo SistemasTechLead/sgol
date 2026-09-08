@@ -220,12 +220,31 @@ public sealed class EvidenceVersion
 
     public EvidenceVersion(Guid id, Guid itemId, int versionNo, Guid fileObjectId, Guid submittedBy,
         DateTimeOffset submittedAt, string? reason = null, Guid? supersedesId = null)
+        : this(id, itemId, versionNo, fileObjectId, null, submittedBy, submittedAt, reason, supersedesId)
     {
-        if (versionNo < 1 || (versionNo == 1) != (supersedesId is null)) throw new ArgumentException("Invalid evidence chain.");
+    }
+
+    public EvidenceVersion(Guid id, Guid itemId, int versionNo, System.Text.Json.JsonDocument structuredPayload,
+        Guid submittedBy, DateTimeOffset submittedAt, string? reason = null, Guid? supersedesId = null)
+        : this(id, itemId, versionNo, null, structuredPayload, submittedBy, submittedAt, reason, supersedesId)
+    {
+    }
+
+    private EvidenceVersion(Guid id, Guid itemId, int versionNo, Guid? fileObjectId,
+        System.Text.Json.JsonDocument? structuredPayload, Guid submittedBy, DateTimeOffset submittedAt,
+        string? reason, Guid? supersedesId)
+    {
+        if (versionNo < 1 || (versionNo == 1) != (supersedesId is null) ||
+            (fileObjectId.HasValue == (structuredPayload is not null)))
+        {
+            throw new ArgumentException("Invalid evidence version.");
+        }
+
         Id = id;
         EvidenceItemId = itemId;
         VersionNo = versionNo;
         FileObjectId = fileObjectId;
+        StructuredPayload = structuredPayload;
         Status = EvidenceVersionStatuses.Current;
         SubmittedBy = submittedBy;
         SubmittedAt = submittedAt;
@@ -237,7 +256,7 @@ public sealed class EvidenceVersion
     public Guid Id { get; private init; }
     public Guid EvidenceItemId { get; private init; }
     public int VersionNo { get; private init; }
-    public Guid FileObjectId { get; private init; }
+    public Guid? FileObjectId { get; private init; }
     public System.Text.Json.JsonDocument? StructuredPayload { get; private init; }
     public string Status { get; private set; } = null!;
     public Guid SubmittedBy { get; private init; }
@@ -267,16 +286,17 @@ public sealed record EvidenceFileStatusDetails(Guid FileId, string Status, strin
     DateTimeOffset CreatedAt, DateTimeOffset UploadExpiresAt, DateTimeOffset? UploadedAt,
     DateTimeOffset? ScannedAt, string? FailureCode, Guid? LinkedEvidenceItemId);
 public sealed record ContributeEvidenceCommand(Guid ActorUserId, Guid IdempotencyKey, Guid CorrelationId,
-    Guid ObligationId, string RequirementCode, Guid FileId);
+    Guid ObligationId, string RequirementCode, Guid? FileId, System.Text.Json.JsonDocument? StructuredPayload);
 public sealed record ReplaceEvidenceCommand(Guid ActorUserId, Guid IdempotencyKey, Guid CorrelationId,
-    Guid ObligationId, Guid EvidenceItemId, Guid FileId, string? Reason, long ExpectedRowVersion);
+    Guid ObligationId, Guid EvidenceItemId, Guid? FileId, System.Text.Json.JsonDocument? StructuredPayload,
+    string? Reason, long ExpectedRowVersion);
 public sealed record EvidenceRequirementDetails(Guid RequirementVersionId, string RequirementCode, string Kind);
 public sealed record EvidenceVersionDetails(Guid EvidenceVersionId, int VersionNo, string Status,
     Guid SubmittedByUserId, DateTimeOffset SubmittedAt, string? Reason, Guid? SupersedesEvidenceVersionId);
 public sealed record EvidenceFileDetails(Guid FileId, string OriginalFileName, string MediaType,
     long SizeBytes, string Sha256, string? DocumentSubtype);
 public sealed record EvidenceDetails(Guid EvidenceItemId, long ItemRowVersion, EvidenceRequirementDetails Requirement,
-    EvidenceVersionDetails Version, EvidenceFileDetails File);
+    EvidenceVersionDetails Version, EvidenceFileDetails? File, System.Text.Json.JsonDocument? StructuredPayload);
 public sealed record EvidencePage(IReadOnlyList<EvidenceDetails> Items, string? NextCursor);
 public sealed record EvidenceQuery(Guid ActorUserId, Guid ObligationId, string? RequirementCode,
     string? Status, string? Cursor, int Limit);
@@ -298,6 +318,7 @@ public sealed class EvidenceItemNotFoundException() : Exception;
 public sealed class EvidenceRequestInvalidException() : Exception;
 public sealed class EvidenceRequirementInvalidException() : Exception;
 public sealed class EvidenceConditionalRequirementException() : Exception;
+public sealed class EvidenceConditionUnresolvedException() : Exception;
 public sealed class EvidenceTypeNotImplementedException() : Exception;
 public sealed class EvidenceUnsupportedMediaTypeException() : Exception;
 public sealed class EvidenceFileTooLargeException() : Exception;

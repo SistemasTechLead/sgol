@@ -81,6 +81,50 @@ public sealed class EvidenceApiEndpointTests
         Assert.False(service.WasCalled);
     }
 
+    [Fact]
+    public async Task StructuredContributionUsesExistingRouteWithoutFile()
+    {
+        using var services = Services();
+        var antiforgery = services.GetRequiredService<IAntiforgery>();
+        var actor = Guid.CreateVersion7();
+        var obligation = Guid.CreateVersion7();
+        const string body = """{"requirementCode":"F_ENT_001","structuredPayload":{"schemaVersion":1,"formCode":"F-ENT-001","formReference":"REC-01","completedAt":"2026-09-07T20:00:00Z","hasDifference":true,"hasDamage":false}}""";
+        var issuance = Context(services, actor, body);
+        var tokens = antiforgery.GetAndStoreTokens(issuance);
+        var context = Context(services, actor, body);
+        context.Request.Headers.Cookie = Assert.Single(issuance.Response.Headers.SetCookie)!.Split(';', 2)[0];
+        context.Request.Headers["X-CSRF-TOKEN"] = tokens.RequestToken!;
+        var service = new RecordingEvidenceService();
+
+        var result = await EvidenceApiEndpoints.ContributeAsync(context, obligation, antiforgery, service, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status201Created, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Null(service.LastContribution!.FileId);
+        Assert.NotNull(service.LastContribution.StructuredPayload);
+    }
+
+    [Fact]
+    public async Task ContributionRejectsFileAndStructuredPayloadTogetherBeforeBusiness()
+    {
+        using var services = Services();
+        var antiforgery = services.GetRequiredService<IAntiforgery>();
+        var actor = Guid.CreateVersion7();
+        var obligation = Guid.CreateVersion7();
+        var body = """{"requirementCode":"F_ENT_001","fileId":"FILE_ID","structuredPayload":{"schemaVersion":1}}"""
+            .Replace("FILE_ID", Guid.CreateVersion7().ToString("D"), StringComparison.Ordinal);
+        var issuance = Context(services, actor, body);
+        var tokens = antiforgery.GetAndStoreTokens(issuance);
+        var context = Context(services, actor, body);
+        context.Request.Headers.Cookie = Assert.Single(issuance.Response.Headers.SetCookie)!.Split(';', 2)[0];
+        context.Request.Headers["X-CSRF-TOKEN"] = tokens.RequestToken!;
+        var service = new RecordingEvidenceService();
+
+        var result = await EvidenceApiEndpoints.ContributeAsync(context, obligation, antiforgery, service, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Null(service.LastContribution);
+    }
+
     private static ServiceProvider Services()
     {
         var services = new ServiceCollection();
@@ -114,6 +158,7 @@ public sealed class EvidenceApiEndpointTests
     private sealed class RecordingEvidenceService : IEvidenceContributionService
     {
         public bool WasCalled { get; private set; }
+        public ContributeEvidenceCommand? LastContribution { get; private set; }
 
         public Task<EvidenceUploadIntentResult> CreateUploadIntentAsync(CreateEvidenceUploadCommand command, CancellationToken cancellationToken = default)
         {
@@ -127,7 +172,15 @@ public sealed class EvidenceApiEndpointTests
 
         public Task<EvidenceFileStatusDetails> CompleteUploadAsync(CompleteEvidenceUploadCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<EvidenceFileStatusDetails> GetFileStatusAsync(Guid actorUserId, Guid fileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<EvidenceDetails> ContributeAsync(ContributeEvidenceCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EvidenceDetails> ContributeAsync(ContributeEvidenceCommand command, CancellationToken cancellationToken = default)
+        {
+            LastContribution = command;
+            return Task.FromResult(new EvidenceDetails(Guid.CreateVersion7(), 1,
+                new(Guid.CreateVersion7(), command.RequirementCode, "FORMULARIO_REFERENCIADO"),
+                new(Guid.CreateVersion7(), 1, EvidenceVersionStatuses.Current, command.ActorUserId,
+                    new DateTimeOffset(2026, 9, 7, 20, 0, 0, TimeSpan.Zero), null, null),
+                null, command.StructuredPayload));
+        }
         public Task<EvidenceDetails> ReplaceAsync(ReplaceEvidenceCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<EvidencePage> ListAsync(EvidenceQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }

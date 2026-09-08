@@ -70,10 +70,13 @@ public static class EvidenceApiEndpoints
         if (!TryMutation(context, out var actor, out var key, out var failure)) return failure!;
         if (await ValidateCsrfAsync(context, antiforgery) is { } csrfFailure) return csrfFailure;
         var body = await ReadAsync<ContributeBody>(context, token);
-        if (body is null) return Problem(context, 400, "SOLICITUD_EVIDENCIA_INVALIDA", "La solicitud de evidencia no es válida");
+        if (body is null || string.IsNullOrWhiteSpace(body.RequirementCode) ||
+            (body.FileId.HasValue == (body.StructuredPayload is not null)) || body.FileId == Guid.Empty)
+            return Problem(context, 400, "SOLICITUD_EVIDENCIA_INVALIDA", "La solicitud de evidencia no es válida");
         try
         {
-            var result = await service.ContributeAsync(new(actor, key, Correlation(context), id, body.RequirementCode!, body.FileId), token);
+            var result = await service.ContributeAsync(new(actor, key, Correlation(context), id, body.RequirementCode!,
+                body.FileId, body.StructuredPayload), token);
             context.Response.Headers.ETag = $"\"{result.ItemRowVersion}\"";
             return Results.Json(new { data = Evidence(result), meta = Meta(context) }, statusCode: 201);
         }
@@ -86,10 +89,12 @@ public static class EvidenceApiEndpoints
         if (await ValidateCsrfAsync(context, antiforgery) is { } csrfFailure) return csrfFailure;
         if (!TryEtag(context, out var etag)) return Problem(context, 400, "IF_MATCH_INVALIDO", "If-Match debe contener el ETag vigente");
         var body = await ReadAsync<ReplaceBody>(context, token);
-        if (body is null) return Problem(context, 400, "SOLICITUD_EVIDENCIA_INVALIDA", "La solicitud de evidencia no es válida");
+        if (body is null || (body.FileId.HasValue == (body.StructuredPayload is not null)) || body.FileId == Guid.Empty)
+            return Problem(context, 400, "SOLICITUD_EVIDENCIA_INVALIDA", "La solicitud de evidencia no es válida");
         try
         {
-            var result = await service.ReplaceAsync(new(actor, key, Correlation(context), id, itemId, body.FileId, body.Reason, etag), token);
+            var result = await service.ReplaceAsync(new(actor, key, Correlation(context), id, itemId, body.FileId,
+                body.StructuredPayload, body.Reason, etag), token);
             context.Response.Headers.ETag = $"\"{result.ItemRowVersion}\"";
             return Results.Json(new { data = Evidence(result), meta = Meta(context) }, statusCode: 201);
         }
@@ -206,7 +211,7 @@ public static class EvidenceApiEndpoints
             value.Version.Reason,
             value.Version.SupersedesEvidenceVersionId
         },
-        file = new
+        file = value.File is null ? null : new
         {
             value.File.FileId,
             value.File.OriginalFileName,
@@ -214,7 +219,8 @@ public static class EvidenceApiEndpoints
             value.File.SizeBytes,
             value.File.Sha256,
             value.File.DocumentSubtype
-        }
+        },
+        structuredPayload = value.StructuredPayload?.RootElement
     };
     private static Guid Correlation(HttpContext context) => Guid.TryParse(context.GetCorrelationId(), out var value) ? value : Guid.CreateVersion7();
 
@@ -229,7 +235,8 @@ public static class EvidenceApiEndpoints
             EvidenceFileTooLargeException => Problem(context, 413, "ARCHIVO_DEMASIADO_GRANDE", "El archivo supera el tamaño admitido"),
             EvidenceUnsupportedMediaTypeException => Problem(context, 415, "TIPO_ARCHIVO_NO_ADMITIDO", "El tipo de archivo no está admitido"),
             EvidenceRequirementInvalidException => Problem(context, 422, "REQUISITO_EVIDENCIA_INVALIDO", "El requisito de evidencia no es válido"),
-            EvidenceConditionalRequirementException => Problem(context, 422, "REQUISITO_CONDICIONAL_NO_EVALUABLE", "El requisito condicional no puede evaluarse en HU-025"),
+            EvidenceConditionUnresolvedException => Problem(context, 422, "CONDICION_EVIDENCIA_NO_RESUELTA", "La condición de evidencia no se puede resolver"),
+            EvidenceConditionalRequirementException => Problem(context, 422, "REQUISITO_EVIDENCIA_NO_APLICABLE", "El requisito de evidencia no es aplicable"),
             EvidenceTypeNotImplementedException => Problem(context, 422, "TIPO_EVIDENCIA_NO_IMPLEMENTADO", "La clase de evidencia no está implementada"),
             EvidenceUploadExpiredException => Problem(context, 410, "INTENCION_CARGA_EXPIRADA", "La intención de carga expiró"),
             EvidenceUploadMissingException => Problem(context, 409, "CARGA_NO_ENCONTRADA", "No se encontró la carga confirmable"),
@@ -256,6 +263,6 @@ public static class EvidenceApiEndpoints
 
     private sealed record CreateUploadBody(Guid ObligationId, string? RequirementCode, string? OriginalFileName,
         string? DeclaredMediaType, long SizeBytes, string? Sha256, string? DocumentSubtype);
-    private sealed record ContributeBody(string? RequirementCode, Guid FileId);
-    private sealed record ReplaceBody(Guid FileId, string? Reason);
+    private sealed record ContributeBody(string? RequirementCode, Guid? FileId, JsonDocument? StructuredPayload);
+    private sealed record ReplaceBody(Guid? FileId, JsonDocument? StructuredPayload, string? Reason);
 }

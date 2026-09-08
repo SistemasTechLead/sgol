@@ -38,6 +38,7 @@ public sealed class EfEvidenceContributionService(
         var now = clock.UtcNow;
         var access = await RequireMutationAccessAsync(input.ActorUserId, input.ObligationId, now, cancellationToken);
         var requirement = await RequireRequirementAsync(access.Obligation, input.RequirementCode, cancellationToken);
+        EnsureBinaryKind(requirement);
         ValidateBinaryContract(requirement, input.DeclaredMediaType, input.OriginalFileName, input.DocumentSubtype);
         if (access.Obligation.ExecutionStatus == WorkObligationStatuses.Concluded &&
             !await dbContext.EvidenceItems.AsNoTracking().AnyAsync(x => x.ObligationId == input.ObligationId && x.RequirementVersionId == requirement.Id, cancellationToken))
@@ -56,6 +57,7 @@ public sealed class EfEvidenceContributionService(
             var authorization = await storage.CreateQuarantineUploadAuthorizationAsync(metadata, existing.UploadExpiresAt, cancellationToken);
             return new EvidenceUploadIntentResult(existing.Id, "PENDIENTE_CARGA", authorization, true);
         }
+        await RequireBinaryRequirementAsync(access, requirement, cancellationToken);
 
         var id = uuidGenerator.NewUuid();
         var key = keyFactory.Create();
@@ -70,6 +72,7 @@ public sealed class EfEvidenceContributionService(
         {
             await auditTransaction.ExecuteAsync(IsolationLevel.Serializable, async token =>
             {
+                await RequireBinaryRequirementAsync(access, requirement, token);
                 if (dbContext.Database.IsNpgsql())
                 {
                     await dbContext.Database.ExecuteSqlInterpolatedAsync(
@@ -109,8 +112,10 @@ public sealed class EfEvidenceContributionService(
         var now = clock.UtcNow;
         var file = await dbContext.FileObjects.SingleOrDefaultAsync(x => x.Id == command.FileId, cancellationToken)
             ?? throw new EvidenceFileNotFoundException();
-        _ = await RequireMutationAccessAsync(command.ActorUserId, file.ObligationId, now, cancellationToken);
+        var access = await RequireMutationAccessAsync(command.ActorUserId, file.ObligationId, now, cancellationToken);
         if (file.UploadedBy != command.ActorUserId) throw new EvidenceFileNotFoundException();
+        var requirement = await RequireRequirementAsync(access.Obligation, file.RequirementCode, cancellationToken);
+        EnsureBinaryKind(requirement);
         var scope = Scope("COMPLETE", command.ActorUserId, command.FileId);
         var hash = Hash(new { command.FileId });
         var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, cancellationToken);
@@ -119,6 +124,7 @@ public sealed class EfEvidenceContributionService(
             if (replay.ResponseCode != 202) throw new EvidenceFileStateException();
             return ToStatus(file);
         }
+        await RequireBinaryRequirementAsync(access, requirement, cancellationToken);
         if (now > file.UploadExpiresAt) throw new EvidenceUploadExpiredException();
 
         EvidenceObjectMetadata actual;
@@ -137,6 +143,7 @@ public sealed class EfEvidenceContributionService(
         {
             await auditTransaction.ExecuteAsync(async token =>
             {
+                await RequireBinaryRequirementAsync(access, requirement, token);
                 if (!matches)
                 {
                     file.MarkTerminal(EvidenceFileStatuses.Invalid, null, null, "UPLOAD_METADATA_MISMATCH", now);
@@ -188,16 +195,24 @@ public sealed class EfEvidenceContributionService(
 
     public async Task<EvidenceDetails> ContributeAsync(ContributeEvidenceCommand command, CancellationToken cancellationToken = default)
     {
-        if (command.FileId == Guid.Empty || string.IsNullOrWhiteSpace(command.RequirementCode)) throw new EvidenceRequestInvalidException();
+        if (string.IsNullOrWhiteSpace(command.RequirementCode) ||
+            (command.FileId.HasValue == (command.StructuredPayload is not null)) || command.FileId == Guid.Empty)
+            throw new EvidenceRequestInvalidException();
         var now = clock.UtcNow;
         var access = await RequireMutationAccessAsync(command.ActorUserId, command.ObligationId, now, cancellationToken);
         if (access.Obligation.ExecutionStatus != WorkObligationStatuses.Pending || access.ResponsiblePersonId != access.Actor.PersonId)
             throw new EvidenceReplacementNotAllowedException();
         var requirement = await RequireRequirementAsync(access.Obligation, command.RequirementCode, cancellationToken);
+        JsonDocument? structured = null;
+        if (command.FileId.HasValue)
+            EnsureBinaryKind(requirement);
+        else
+            structured = RequireStructuredPayload(access, requirement, command.StructuredPayload!);
         var scope = Scope("CONTRIBUTE", command.ActorUserId, command.ObligationId);
-        var hash = Hash(new { command.ObligationId, command.RequirementCode, command.FileId });
+        var hash = Hash(new { command.ObligationId, command.RequirementCode, command.FileId, structuredPayload = structured?.RootElement });
         var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, cancellationToken);
         if (replay is not null) return await LoadDetailsAsync(replay.ResourceId, cancellationToken);
+        if (command.FileId.HasValue) await RequireBinaryRequirementAsync(access, requirement, cancellationToken);
 
         EvidenceDetails? result = null;
         try
@@ -206,17 +221,38 @@ public sealed class EfEvidenceContributionService(
             {
                 if (await dbContext.EvidenceItems.AnyAsync(x => x.ObligationId == command.ObligationId && x.RequirementVersionId == requirement.Id, token))
                     throw new EvidenceAlreadyExistsException();
-                var file = await RequireLinkableFileAsync(command.FileId, command.ActorUserId, access.Obligation, requirement, now, token);
                 var item = new EvidenceItem(uuidGenerator.NewUuid(), command.ObligationId,
                     access.Obligation.EvidencePolicyVersionId!.Value, requirement.Id, requirement.RequirementCode, requirement.Kind, now);
-                file.Link(item.Id, now);
-                var version = new EvidenceVersion(uuidGenerator.NewUuid(), item.Id, 1, file.Id, command.ActorUserId, now);
+                FileObject? file = null;
+                EvidenceVersion version;
+                if (command.FileId.HasValue)
+                {
+                    await RequireBinaryRequirementAsync(access, requirement, token);
+                    file = await RequireLinkableFileAsync(command.FileId.Value, command.ActorUserId, access.Obligation, requirement, now, token);
+                    file.Link(item.Id, now);
+                    version = new EvidenceVersion(uuidGenerator.NewUuid(), item.Id, 1, file.Id, command.ActorUserId, now);
+                }
+                else
+                {
+                    version = new EvidenceVersion(uuidGenerator.NewUuid(), item.Id, 1, structured!, command.ActorUserId, now);
+                }
                 dbContext.EvidenceItems.Add(item);
                 dbContext.EvidenceVersions.Add(version);
                 AddIdempotency(scope, command.IdempotencyKey, hash, "EVIDENCE_VERSION", version.Id, 201, now);
                 result = Map(item, version, file);
+                var structuredHash = structured is null ? null : Hash(structured.RootElement);
                 return Audit("EVIDENCE_CONTRIBUTED", "EVIDENCE_ITEM", item.Id, command.ActorUserId,
-                    command.CorrelationId, now, null, new { itemId = item.Id, versionId = version.Id, versionNo = 1 });
+                    command.CorrelationId, now, null, new
+                    {
+                        itemId = item.Id,
+                        versionId = version.Id,
+                        versionNo = 1,
+                        requirementCode = item.RequirementCode,
+                        requirementKind = item.RequirementKind,
+                        evidenceKind = file is null ? "STRUCTURED" : "FILE",
+                        schemaVersion = file is null ? 1 : (int?)null,
+                        structuredPayloadSha256 = structuredHash
+                    });
             }, cancellationToken);
         }
         catch (DbUpdateException exception) when (Constraint(exception) == "PK_idempotency_record")
@@ -249,7 +285,9 @@ public sealed class EfEvidenceContributionService(
 
     public async Task<EvidenceDetails> ReplaceAsync(ReplaceEvidenceCommand command, CancellationToken cancellationToken = default)
     {
-        if (command.FileId == Guid.Empty || command.EvidenceItemId == Guid.Empty || command.ExpectedRowVersion < 1) throw new EvidenceRequestInvalidException();
+        if (command.EvidenceItemId == Guid.Empty || command.ExpectedRowVersion < 1 ||
+            (command.FileId.HasValue == (command.StructuredPayload is not null)) || command.FileId == Guid.Empty)
+            throw new EvidenceRequestInvalidException();
         var now = clock.UtcNow;
         var access = await RequireMutationAccessAsync(command.ActorUserId, command.ObligationId, now, cancellationToken);
         var reason = NormalizeReason(command.Reason, access.Obligation.ExecutionStatus == WorkObligationStatuses.Concluded);
@@ -261,11 +299,29 @@ public sealed class EfEvidenceContributionService(
         {
             throw new EvidenceReplacementNotAllowedException();
         }
+        var requestedItem = await dbContext.EvidenceItems.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == command.EvidenceItemId && x.ObligationId == command.ObligationId, cancellationToken)
+            ?? throw new EvidenceItemNotFoundException();
+        var requestedRequirement = await dbContext.EvidenceRequirementVersions.AsNoTracking()
+            .SingleAsync(x => x.Id == requestedItem.RequirementVersionId, cancellationToken);
+        JsonDocument? requestedStructured = null;
+        if (command.FileId.HasValue)
+            EnsureBinaryKind(requestedRequirement);
+        else
+            requestedStructured = RequireStructuredPayload(access, requestedRequirement, command.StructuredPayload!);
         var scope = Scope("REPLACE", command.ActorUserId, command.EvidenceItemId);
-        var hash = Hash(new { command.ObligationId, command.EvidenceItemId, command.FileId, reason, command.ExpectedRowVersion });
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, cancellationToken);
-        if (replay is not null) return await LoadDetailsAsync(replay.ResourceId, cancellationToken);
-
+        var requestHash = Hash(new
+        {
+            command.ObligationId,
+            command.EvidenceItemId,
+            command.FileId,
+            structuredPayload = requestedStructured?.RootElement,
+            reason,
+            command.ExpectedRowVersion
+        });
+        var existingReplay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken);
+        if (existingReplay is not null) return await LoadDetailsAsync(existingReplay.ResourceId, cancellationToken);
+        if (command.FileId.HasValue) await RequireBinaryRequirementAsync(access, requestedRequirement, cancellationToken);
         EvidenceDetails? result = null;
         try
         {
@@ -276,25 +332,58 @@ public sealed class EfEvidenceContributionService(
                 item.Advance(command.ExpectedRowVersion);
                 var current = await dbContext.EvidenceVersions.SingleAsync(x => x.EvidenceItemId == item.Id && x.Status == EvidenceVersionStatuses.Current, token);
                 var requirement = await dbContext.EvidenceRequirementVersions.SingleAsync(x => x.Id == item.RequirementVersionId, token);
-                var file = await RequireLinkableFileAsync(command.FileId, command.ActorUserId, access.Obligation, requirement, now, token);
-                var previousFile = await dbContext.FileObjects.AsNoTracking().SingleAsync(x => x.Id == current.FileObjectId, token);
-                EnsureReasonDoesNotReferenceFiles(reason, file, previousFile);
+                JsonDocument? structured = null;
+                FileObject? file = null;
+                if (command.FileId.HasValue)
+                {
+                    await RequireBinaryRequirementAsync(access, requirement, token);
+                    file = await RequireLinkableFileAsync(command.FileId.Value, command.ActorUserId, access.Obligation, requirement, now, token);
+                }
+                else
+                {
+                    structured = RequireStructuredPayload(access, requirement, command.StructuredPayload!);
+                }
+                var files = new List<FileObject>();
+                if (file is not null) files.Add(file);
+                if (current.FileObjectId.HasValue)
+                    files.Add(await dbContext.FileObjects.AsNoTracking().SingleAsync(x => x.Id == current.FileObjectId.Value, token));
+                EnsureReasonDoesNotReferenceFiles(reason, [.. files]);
                 current.Supersede();
-                file.Link(item.Id, now);
-                var successor = new EvidenceVersion(uuidGenerator.NewUuid(), item.Id, current.VersionNo + 1,
-                    file.Id, command.ActorUserId, now, reason, current.Id);
+                EvidenceVersion successor;
+                if (file is not null)
+                {
+                    file.Link(item.Id, now);
+                    successor = new EvidenceVersion(uuidGenerator.NewUuid(), item.Id, current.VersionNo + 1,
+                        file.Id, command.ActorUserId, now, reason, current.Id);
+                }
+                else
+                {
+                    successor = new EvidenceVersion(uuidGenerator.NewUuid(), item.Id, current.VersionNo + 1,
+                        structured!, command.ActorUserId, now, reason, current.Id);
+                }
                 dbContext.EvidenceVersions.Add(successor);
-                AddIdempotency(scope, command.IdempotencyKey, hash, "EVIDENCE_VERSION", successor.Id, 201, now);
+                AddIdempotency(scope, command.IdempotencyKey, requestHash, "EVIDENCE_VERSION", successor.Id, 201, now);
                 result = Map(item, successor, file);
+                var structuredHash = structured is null ? null : Hash(structured.RootElement);
                 return Audit("EVIDENCE_REPLACED", "EVIDENCE_ITEM", item.Id, command.ActorUserId,
                     command.CorrelationId, now, new { versionId = current.Id, status = EvidenceVersionStatuses.Current },
-                    new { versionId = successor.Id, supersedesId = current.Id, status = EvidenceVersionStatuses.Current }, reason);
+                    new
+                    {
+                        versionId = successor.Id,
+                        supersedesId = current.Id,
+                        status = EvidenceVersionStatuses.Current,
+                        requirementCode = item.RequirementCode,
+                        requirementKind = item.RequirementKind,
+                        evidenceKind = file is null ? "STRUCTURED" : "FILE",
+                        schemaVersion = file is null ? 1 : (int?)null,
+                        structuredPayloadSha256 = structuredHash
+                    }, reason);
             }, cancellationToken);
         }
         catch (DbUpdateException exception) when (Constraint(exception) == "PK_idempotency_record")
         {
             dbContext.ChangeTracker.Clear();
-            var concurrent = await FindReplayAsync(scope, command.IdempotencyKey, hash, cancellationToken)
+            var concurrent = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken)
                 ?? throw new EvidenceIdempotencyConflictException();
             return await LoadDetailsAsync(concurrent.ResourceId, cancellationToken);
         }
@@ -331,7 +420,8 @@ public sealed class EfEvidenceContributionService(
         }
         var rows = from version in dbContext.EvidenceVersions.AsNoTracking()
                    join item in dbContext.EvidenceItems.AsNoTracking() on version.EvidenceItemId equals item.Id
-                   join file in dbContext.FileObjects.AsNoTracking() on version.FileObjectId equals file.Id
+                   join fileRow in dbContext.FileObjects.AsNoTracking() on version.FileObjectId equals (Guid?)fileRow.Id into fileRows
+                   from file in fileRows.DefaultIfEmpty()
                    join requirement in dbContext.EvidenceRequirementVersions.AsNoTracking() on item.RequirementVersionId equals requirement.Id
                    where item.ObligationId == query.ObligationId &&
                          (query.RequirementCode == null || item.RequirementCode == query.RequirementCode) &&
@@ -372,6 +462,11 @@ public sealed class EfEvidenceContributionService(
     {
         var obligation = await dbContext.WorkObligations.SingleOrDefaultAsync(x => x.Id == obligationId && x.BranchId == BranchScope.LorettaId, token)
             ?? throw new EvidenceObligationNotFoundException();
+        var taskCode = await (from version in dbContext.TaskDefinitionVersions.AsNoTracking()
+                              join task in dbContext.TaskDefinitions.AsNoTracking() on version.TaskDefinitionId equals task.Id
+                              where version.Id == obligation.TaskDefinitionVersionId
+                              select task.TaskCode).SingleOrDefaultAsync(token)
+            ?? throw new EvidenceObligationNotFoundException();
         var actor = await ActorAsync(actorId, now, token) ?? throw new EvidenceAccessDeniedException();
         var assignment = await dbContext.AssignmentVersions.AsNoTracking().SingleOrDefaultAsync(x => x.ObligationId == obligationId && x.Status == AssignmentVersionStatuses.Current, token)
             ?? throw new EvidenceObligationNotFoundException();
@@ -383,7 +478,7 @@ public sealed class EfEvidenceContributionService(
             ? actor.PersonId == assignment.PersonId
             : RoleHierarchy.IsStrictlySuperior(actor.RoleCode, responsibleRole.RoleCode) && actor.RoleCode != CanonicalRole.SalesFloor;
         if (!permitted) throw new EvidenceObligationNotFoundException();
-        return new Access(obligation, actor, assignment.PersonId, responsibleRole.RoleCode);
+        return new Access(obligation, actor, assignment.PersonId, responsibleRole.RoleCode, taskCode);
     }
 
     private async Task<bool> CanViewAsync(Guid actorId, Guid obligationId, DateTimeOffset now, CancellationToken token)
@@ -413,11 +508,47 @@ public sealed class EfEvidenceContributionService(
     private async Task<EvidenceRequirementVersion> RequireRequirementAsync(WorkObligation obligation, string code, CancellationToken token)
     {
         if (obligation.EvidencePolicyVersionId is null) throw new EvidenceRequirementInvalidException();
-        var requirement = await dbContext.EvidenceRequirementVersions.AsNoTracking().SingleOrDefaultAsync(x => x.PolicyVersionId == obligation.EvidencePolicyVersionId && x.RequirementCode == code, token)
+        return await dbContext.EvidenceRequirementVersions.AsNoTracking().SingleOrDefaultAsync(
+            x => x.PolicyVersionId == obligation.EvidencePolicyVersionId && x.RequirementCode == code, token)
             ?? throw new EvidenceRequirementInvalidException();
-        if (requirement.ConditionCode != EvidenceConditionCodes.Always) throw new EvidenceConditionalRequirementException();
-        if (requirement.Kind is not (EvidenceRequirementKinds.Photograph or EvidenceRequirementKinds.ReferencedDocument)) throw new EvidenceTypeNotImplementedException();
-        return requirement;
+    }
+
+    private async Task RequireBinaryRequirementAsync(Access access, EvidenceRequirementVersion requirement, CancellationToken token)
+    {
+        EnsureBinaryKind(requirement);
+        if (requirement.ConditionCode == EvidenceConditionCodes.Always) return;
+        if (requirement.ConditionCode != EvidenceConditionCodes.DifferenceOrDamage) throw new EvidenceConditionUnresolvedException();
+
+        var payloads = await (from version in dbContext.EvidenceVersions.AsNoTracking()
+                              join item in dbContext.EvidenceItems.AsNoTracking() on version.EvidenceItemId equals item.Id
+                              where item.ObligationId == access.Obligation.Id &&
+                                    item.EvidencePolicyVersionId == access.Obligation.EvidencePolicyVersionId &&
+                                    item.RequirementCode == "F_ENT_001" &&
+                                    version.Status == EvidenceVersionStatuses.Current
+                              select version.StructuredPayload).Take(2).ToListAsync(token);
+        if (payloads.Count != 1 || payloads[0] is null ||
+            !StructuredEvidencePayloadValidator.TryResolveDifferenceOrDamage(payloads[0]!.RootElement, out var applies))
+            throw new EvidenceConditionUnresolvedException();
+        if (!applies) throw new EvidenceConditionalRequirementException();
+    }
+
+    private static void EnsureBinaryKind(EvidenceRequirementVersion requirement)
+    {
+        if (requirement.Kind is not (EvidenceRequirementKinds.Photograph or EvidenceRequirementKinds.ReferencedDocument))
+            throw new EvidenceTypeNotImplementedException();
+    }
+
+    private static JsonDocument RequireStructuredPayload(Access access, EvidenceRequirementVersion requirement, JsonDocument payload)
+    {
+        if (requirement.ConditionCode != EvidenceConditionCodes.Always ||
+            requirement.Kind is not (EvidenceRequirementKinds.DigitalRecord or EvidenceRequirementKinds.StructuredData or
+                EvidenceRequirementKinds.StructuredChecklist or EvidenceRequirementKinds.ReferencedForm))
+        {
+            throw new EvidenceTypeNotImplementedException();
+        }
+
+        return StructuredEvidencePayloadValidator.ValidateAndCanonicalize(
+            access.TaskCode, requirement.RequirementCode, requirement.Kind, payload.RootElement);
     }
 
     private async Task<IdempotencyRecord?> FindReplayAsync(string scope, Guid key, string hash, CancellationToken token)
@@ -434,16 +565,18 @@ public sealed class EfEvidenceContributionService(
     {
         var row = await (from version in dbContext.EvidenceVersions.AsNoTracking()
                          join item in dbContext.EvidenceItems.AsNoTracking() on version.EvidenceItemId equals item.Id
-                         join file in dbContext.FileObjects.AsNoTracking() on version.FileObjectId equals file.Id
+                         join fileRow in dbContext.FileObjects.AsNoTracking() on version.FileObjectId equals (Guid?)fileRow.Id into fileRows
+                         from file in fileRows.DefaultIfEmpty()
                          where version.Id == versionId
                          select new { item, version, file }).SingleAsync(token);
         return Map(row.item, row.version, row.file);
     }
 
-    private static EvidenceDetails Map(EvidenceItem item, EvidenceVersion version, FileObject file) => new(
+    private static EvidenceDetails Map(EvidenceItem item, EvidenceVersion version, FileObject? file) => new(
         item.Id, item.RowVersion, new(item.RequirementVersionId, item.RequirementCode, item.RequirementKind),
         new(version.Id, version.VersionNo, version.Status, version.SubmittedBy, version.SubmittedAt, version.Reason, version.SupersedesId),
-        new(file.Id, file.OriginalName, file.DetectedMediaType ?? file.DeclaredMediaType, file.SizeBytes, file.Sha256, file.DocumentSubtype));
+        file is null ? null : new(file.Id, file.OriginalName, file.DetectedMediaType ?? file.DeclaredMediaType, file.SizeBytes, file.Sha256, file.DocumentSubtype),
+        version.StructuredPayload);
 
     private static EvidenceFileStatusDetails ToStatus(FileObject file) => new(file.Id,
         file.UploadCompletedAt is null && file.ScanStatus == EvidenceFileStatuses.Pending ? "PENDIENTE_CARGA" :
@@ -551,7 +684,7 @@ public sealed class EfEvidenceContributionService(
         };
 
     private sealed record Actor(Guid UserId, Guid PersonId, string RoleCode);
-    private sealed record Access(WorkObligation Obligation, Actor Actor, Guid ResponsiblePersonId, string ResponsibleRoleCode);
+    private sealed record Access(WorkObligation Obligation, Actor Actor, Guid ResponsiblePersonId, string ResponsibleRoleCode, string TaskCode);
     private sealed record EvidenceCursor(int Version, Guid ObligationId, string? RequirementCode, string? Status,
         short Ordinal, int VersionNo, Guid EvidenceVersionId);
 }

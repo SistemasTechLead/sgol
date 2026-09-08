@@ -65,6 +65,25 @@ public sealed class EvidenceInfrastructureArchitectureTests
         Assert.Empty(ui);
     }
 
+    [Fact]
+    public void TechEvid002AddsStructuredEvidenceWithoutNewRouteTableOrStorageAdapter()
+    {
+        var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
+        var web = Path.Combine(root, "src", "Sgol.Web");
+        var endpoint = File.ReadAllText(Path.Combine(web, "Interface", "Endpoints", "EvidenceApiEndpoints.cs"));
+        var migration = File.ReadAllText(
+            Directory.EnumerateFiles(Path.Combine(web, "Infrastructure", "Persistence", "Migrations"), "*_EnableStructuredEvidence.cs").Single());
+
+        Assert.Equal(4, Count(endpoint, "MapPost("));
+        Assert.Equal(2, Count(endpoint, "MapGet("));
+        Assert.Contains("structuredPayload", endpoint, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateTable", migration, StringComparison.Ordinal);
+        Assert.Contains("evidence_version", migration, StringComparison.Ordinal);
+        Assert.Contains("sgol_evidence_structured_payload_valid", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("evidence_review_snapshot", migration, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("IPrivateObjectStorage", File.ReadAllText(Path.Combine(root, "src", "Modules", "Evidence", "Contracts", "StructuredEvidencePayloadValidator.cs")), StringComparison.Ordinal);
+    }
+
     private static int Count(string value, string search)
     {
         var count = 0;

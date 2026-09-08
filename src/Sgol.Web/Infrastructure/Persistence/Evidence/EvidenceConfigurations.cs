@@ -108,7 +108,7 @@ public sealed class EvidenceVersionConfiguration : IEntityTypeConfiguration<Evid
         {
             table.HasCheckConstraint("CK_evidence_version_number", "version_no > 0");
             table.HasCheckConstraint("CK_evidence_version_status", "status IN ('VIGENTE','SUSTITUIDA')");
-            table.HasCheckConstraint("CK_evidence_version_binary_only", "structured_payload IS NULL");
+            table.HasCheckConstraint("CK_evidence_version_source", "(file_object_id IS NULL) <> (structured_payload IS NULL)");
             table.HasCheckConstraint("CK_evidence_version_chain", "(version_no = 1 AND supersedes_id IS NULL) OR (version_no > 1 AND supersedes_id IS NOT NULL)");
             table.HasCheckConstraint("CK_evidence_version_row_version", "row_version > 0");
             table.HasCheckConstraint("CK_evidence_version_reason", "reason IS NULL OR (char_length(reason) BETWEEN 1 AND 500 AND reason = btrim(reason) AND reason !~ '[<>[:cntrl:]]')");
@@ -127,7 +127,7 @@ public sealed class EvidenceVersionConfiguration : IEntityTypeConfiguration<Evid
         builder.Property(x => x.RowVersion).HasColumnName("row_version").IsConcurrencyToken();
         builder.HasIndex(x => new { x.EvidenceItemId, x.VersionNo }).IsUnique();
         builder.HasIndex(x => x.EvidenceItemId).IsUnique().HasFilter("status = 'VIGENTE'").HasDatabaseName(CurrentVersionIndex);
-        builder.HasIndex(x => x.FileObjectId).IsUnique();
+        builder.HasIndex(x => x.FileObjectId).IsUnique().HasFilter("file_object_id IS NOT NULL");
         builder.HasIndex(x => x.SupersedesId).IsUnique().HasFilter("supersedes_id IS NOT NULL");
         builder.HasOne<EvidenceItem>().WithMany().HasForeignKey(x => x.EvidenceItemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<FileObject>().WithMany().HasForeignKey(x => x.FileObjectId).OnDelete(DeleteBehavior.Restrict);
