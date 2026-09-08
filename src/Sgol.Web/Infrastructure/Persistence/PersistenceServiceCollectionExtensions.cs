@@ -53,6 +53,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IObligationQueryReader, EfObligationQueryReader>();
         EvidenceInfrastructureServiceCollectionExtensions.AddFailClosedAdapters(services);
         services.AddScoped<IEvidenceContributionService, EfEvidenceContributionService>();
+        services.AddScoped<IEvidenceReviewService, EfEvidenceReviewService>();
         services.AddDirectionBootstrap();
         services.AddScoped<IBranchCatalogReader, EfBranchCatalogReader>();
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();

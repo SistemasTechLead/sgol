@@ -1,6 +1,6 @@
 # Infraestructura privada de evidencia para local y CI
 
-`TECH-EVID-001` aporta la infraestructura técnica y `HU-025` la consume para intenciones privadas, inspección y evidencia versionada. No existe UI, descarga, acceso público, conclusión, evaluación de completitud ni validación.
+`TECH-EVID-001` aporta la infraestructura técnica, `HU-025` la consume para intenciones privadas, inspección y evidencia versionada, y `HU-026` evalúa completitud sin volver a leer binarios. No existe UI, descarga, acceso público, conclusión ni validación.
 
 ## Servicios fijados
 
@@ -53,6 +53,12 @@ La migración `20260908005832_EnableStructuredEvidence` no crea tablas: permite 
 
 Una aportación o sustitución estructurada no llama almacenamiento, ClamAV ni outbox. Para `TAR-0092`, la fotografía condicional reutiliza el flujo binario, pero intención, confirmación y vínculo exigen que la versión `VIGENTE` de `F_ENT_001` de la misma obligación indique diferencia o daño. La condición ausente o incoherente falla cerrada y una sustitución del formulario nunca borra una fotografía histórica.
 
+## Evaluación y snapshot `HU-026`
+
+`GET /api/v1/obligations/{id}/evidence-review` reutiliza `PER-TAREA-VER` y resuelve el alcance en servidor. Lee la política congelada de la obligación, evalúa todos sus requisitos en orden estable y usa exclusivamente versiones `VIGENTE`. En `TAR-0092`, sólo el payload vigente de `F_ENT_001` resuelve `DIFERENCIA_O_DANO`; su ausencia deja la condición `NO_RESUELTA` y el resultado es `INCOMPLETA`.
+
+La migración `20260908193819_AddEvidenceReviewSnapshots` crea únicamente `evidence_review_snapshot`. La tabla conserva entrada canónica JSONB, proyecciones de requisitos y faltantes, versiones usadas, actor solicitante, instante UTC, política congelada y huella única. FK `RESTRICT`, checks, dos unicidades y una guarda PostgreSQL rechazan actualizaciones, borrados o snapshots incoherentes. La aplicación usa `SERIALIZABLE`, reutiliza una huella idéntica y confirma snapshot y auditoría en la misma transacción. No crea outbox y no invoca almacenamiento ni escáner.
+
 ## Ejecución externa
 
 Desde la raíz y fuera del aislamiento de Codex:
@@ -74,8 +80,16 @@ dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --configura
 El 2026-09-07 el desarrollador ejecutó este corte PostgreSQL: `6/6`, cero errores, cero omitidas y cero advertencias, en 55.2 s.
 Ese resultado pertenece al SHA de HU-025. Para `TECH-EVID-002`, el desarrollador ejecutó el 2026-09-08 el corte PostgreSQL actualizado, incluida la validación directa de los 18 esquemas aprobados: `7/7`, cero errores, cero omitidas y cero advertencias reportadas, en 74.0 s. La prueba enfocada correspondiente pasó `1/1`, sin advertencias, en 18.0 s.
 
+Para `HU-026`, el corte externo requerido es:
+
+```powershell
+dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~EvidencePolicyPersistenceTests.PostgreSqlEnforcesClosedCatalogAndObligationCapturesImmutableApplicablePolicy|FullyQualifiedName~PostgreSqlPersistenceTests.EvidenceReviewMigrationInstallsImmutableSnapshotAuthority|FullyQualifiedName~PostgreSqlPersistenceTests.Migrations_CreateOnlyTheApprovedTables"
+```
+
+Este corte comprueba migración y modelo, autoridad de la política congelada, resultado incompleto y faltantes, reutilización, auditoría atómica, rollback ante falla de auditoría, inmutabilidad, FK `RESTRICT`, checks e índices. Se escribe pero no se ejecuta dentro de Codex; el resultado del desarrollador debe indicar total, errores, omitidas y duración.
+
 ## Operación y observabilidad
 
 Los health checks `evidence-storage` y `evidence-scanner` se registran sólo cuando un consumidor compone la infraestructura; no se agrega endpoint de salud en esta tarea. Las métricas `sgol.evidence` sólo contienen operación, duración y resultado cerrado. No se registran contenido, nombres originales, claves de objeto, credenciales, endpoints, respuestas crudas, cadenas de conexión ni payloads.
 
-Las métricas añaden intenciones, confirmaciones, inspecciones, promociones, vínculos, sustituciones y rechazos con etiquetas cerradas. Ni la limpieza técnica ni otro flujo de `HU-025` realizan borrado funcional de evidencia.
+Las métricas añaden intenciones, confirmaciones, inspecciones, promociones, vínculos, sustituciones, revisiones y snapshots con etiquetas cerradas de baja cardinalidad. Ni la evaluación ni la limpieza técnica realizan borrado funcional de evidencia; logs y errores no contienen payloads, contenido, URLs, claves ni hashes de archivo.

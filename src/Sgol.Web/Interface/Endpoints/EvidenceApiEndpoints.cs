@@ -24,6 +24,7 @@ public static class EvidenceApiEndpoints
         endpoints.MapPost("/api/v1/obligations/{id:guid}/evidence", ContributeAsync);
         endpoints.MapPost("/api/v1/obligations/{id:guid}/evidence/{itemId:guid}/replacements", ReplaceAsync);
         endpoints.MapGet("/api/v1/obligations/{id:guid}/evidence", ListAsync);
+        endpoints.MapGet("/api/v1/obligations/{id}/evidence-review", ReviewAsync);
         return endpoints;
     }
 
@@ -127,6 +128,63 @@ public static class EvidenceApiEndpoints
             };
             if (page.NextCursor is not null) meta["nextCursor"] = page.NextCursor;
             return Results.Ok(new { data = page.Items.Select(Evidence), meta });
+        }
+        catch (Exception ex) { return Map(context, ex); }
+    }
+
+    public static async Task<IResult> ReviewAsync(
+        HttpContext context,
+        string id,
+        IEvidenceReviewService service,
+        CancellationToken token)
+    {
+        if (!TryActor(context, out var actor, out var failure)) return failure!;
+        if (!Guid.TryParseExact(id, "D", out var obligationId) || obligationId == Guid.Empty)
+            return Problem(context, 400, "OBLIGACION_ID_INVALIDO", "El identificador de obligación no es válido");
+        if (context.Request.Query.Count != 0 || context.Request.Headers.ContainsKey("Idempotency-Key") ||
+            context.Request.Headers.ContainsKey("If-Match") || context.Request.ContentLength is > 0 ||
+            context.Request.Headers.TransferEncoding.Count != 0 ||
+            context.Request.Body.CanSeek && context.Request.Body.Length != 0)
+        {
+            return Problem(context, 400, "SOLICITUD_REVISION_INVALIDA", "La solicitud de revisión no es válida");
+        }
+
+        try
+        {
+            var review = await service.ReviewAsync(new(actor, Correlation(context), obligationId), token);
+            return Results.Ok(new
+            {
+                data = new
+                {
+                    review.SnapshotId,
+                    review.ObligationId,
+                    review.EvidencePolicyVersionId,
+                    review.Result,
+                    evaluatedAt = review.EvaluatedAt.UtcDateTime,
+                    requirements = review.Requirements.Select(requirement => new
+                    {
+                        requirement.RequirementVersionId,
+                        requirement.RequirementCode,
+                        requirement.Kind,
+                        requirement.ConditionCode,
+                        requirement.Ordinal,
+                        requirement.Applicability,
+                        requirement.Satisfied,
+                        requirement.EvidenceVersionId,
+                        requirement.MissingReason,
+                    }),
+                    missingRequirements = review.MissingRequirements.Select(requirement => new
+                    {
+                        requirement.RequirementVersionId,
+                        requirement.RequirementCode,
+                        requirement.Kind,
+                        requirement.ConditionCode,
+                        requirement.Ordinal,
+                        requirement.MissingReason,
+                    }),
+                },
+                meta = Meta(context),
+            });
         }
         catch (Exception ex) { return Map(context, ex); }
     }
@@ -249,6 +307,10 @@ public static class EvidenceApiEndpoints
             EvidenceIdempotencyConflictException => Problem(context, 409, "IDEMPOTENCY_CONFLICT", "La clave ya fue usada con otro contenido"),
             EvidenceRateLimitException => Problem(context, 429, "LIMITE_INTENCIONES_EXCEDIDO", "Se alcanzó el límite de intenciones"),
             EvidenceRequestInvalidException => Problem(context, 400, "SOLICITUD_EVIDENCIA_INVALIDA", "La solicitud de evidencia no es válida"),
+            EvidenceReviewAccessDeniedException => Problem(context, 403, "ACCESO_DENEGADO", "No cuenta con el permiso requerido"),
+            EvidenceReviewObligationNotFoundException => Problem(context, 404, "OBLIGACION_NO_ENCONTRADA", "La obligación no existe"),
+            EvidenceReviewUnavailableException => Problem(context, 409, "REVISION_EVIDENCIA_NO_DISPONIBLE", "La revisión de evidencia no está disponible"),
+            EvidenceReviewFailedException => Problem(context, 500, "ERROR_INTERNO", "La revisión de evidencia no pudo completarse"),
             _ => Problem(context, 503, "INFRAESTRUCTURA_EVIDENCIA_NO_DISPONIBLE", "La infraestructura de evidencia no está disponible")
         };
     }

@@ -72,6 +72,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<EvidenceVersion> EvidenceVersions => Set<EvidenceVersion>();
 
+    public DbSet<EvidenceReviewSnapshot> EvidenceReviewSnapshots => Set<EvidenceReviewSnapshot>();
+
     public DbSet<EligibilityEvaluation> EligibilityEvaluations => Set<EligibilityEvaluation>();
 
     public DbSet<EligibilityCandidate> EligibilityCandidates => Set<EligibilityCandidate>();
@@ -113,6 +115,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new FileObjectConfiguration());
         modelBuilder.ApplyConfiguration(new EvidenceItemConfiguration());
         modelBuilder.ApplyConfiguration(new EvidenceVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new EvidenceReviewSnapshotConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityEvaluationConfiguration());
         modelBuilder.ApplyConfiguration(new EligibilityCandidateConfiguration());
         modelBuilder.ApplyConfiguration(new AssignmentVersionConfiguration());

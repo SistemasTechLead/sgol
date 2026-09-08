@@ -4,25 +4,48 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `TECH-EVID-002`
+## Propuesta actual en rama — `HU-026`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-026` — SGOL evalúa evidencia completa e informa faltantes |
+| Estado | Propuesta implementada en `codex/hu-026`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes conocidos |
+| Contrato | `F07_ADENDA_19_CONTRATO_DE_EVALUACION_ESTRUCTURAL_DE_EVIDENCIA_HU_026.md`, revisada tras `TECH-EVID-002` y aprobada íntegramente el 2026-09-08 |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `TECH-EVID-002`: Adenda 20 aprobada; PR `#42`; commit `66248692f2577a95384db62882e8081dec6fdd9e`; pipeline requerido `TECH-BASE-003 / PR gates` `SUCCESS`, run `34264672922`; aprobación humana; PostgreSQL externo `7/7`; merge `bd12592660121762cdf315fb5cfc497540b6892c`; commit y merge ancestros de `origin/master`; cero defectos bloqueantes conocidos |
+| Entregable | Único `GET /api/v1/obligations/{id}/evidence-review`; evalúa todos los requisitos de la política congelada con versiones `VIGENTE`, devuelve `COMPLETA` o `INCOMPLETA` y la lista determinista de faltantes |
+| TAR-0092 | `F_ENT_001` vigente es la única autoridad de `DIFERENCIA_O_DANO`; si falta, la condición queda `NO_RESUELTA` y la revisión falla cerrada como `INCOMPLETA` |
+| Autorización | Reutiliza `PER-TAREA-VER`, alcance de responsable/superiores/Dirección y convergencia `404` contra IDOR; el servidor decide todo el alcance |
+| Persistencia | Migración `AddEvidenceReviewSnapshots`; tabla inmutable `evidence_review_snapshot`, JSONB canónico y de proyección, versiones usadas, huella única, FK `RESTRICT`, checks, índices y guarda PostgreSQL |
+| Atomicidad y concurrencia | Evaluación y eventual inserción usan `SERIALIZABLE`; huella canónica reutiliza el mismo snapshot, una nueva versión produce otra historia y auditoría se inserta en la misma transacción |
+| Pruebas | Pruebas unitarias, HTTP, arquitectura y PostgreSQL añadidas; los totales definitivos y el corte PostgreSQL externo se registran al completar los gates |
+| Gates | Pendientes de ejecución final sobre el corte definitivo; PostgreSQL se solicita al desarrollador después de los cinco primeros gates |
+| Límites | Sin conclusión, `execution_result`, validaciones, cambios de `execution_status`, UI, descarga, S3, SeaweedFS, ClamAV, outbox ni motor general de reglas |
+| Cierre | Requiere commit exacto, pipeline verde, aprobación humana, merge, ascendencia, PostgreSQL externo satisfactorio y cero defectos bloqueantes |
+| Siguiente tarea | Ninguna queda habilitada desde esta rama: `HU-022` sólo procede tras el cierre efectivo de `HU-026` |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y todavía no habilita `HU-022`.
+
+## Base aceptada — `TECH-EVID-002`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `TECH-EVID-002` — Aporte estructurado cerrado y hecho condicional de TAR-0092 |
-| Estado | Propuesta implementada en `codex/tech-evid-002`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes conocidos |
+| Estado | `Terminada` efectiva conforme a la regla condicional de cierre en un PR |
 | Contrato | `F07_ADENDA_20_CONTRATO_DE_EVIDENCIA_ESTRUCTURADA_TECH_EVID_002.md`, aprobada íntegramente el 2026-09-07 |
-| Commit implementado | Commit que contiene esta actualización |
-| Base aceptada | `HU-025`: PR `#41`, commit `9f754ea68569786054bee63261ebdb3ee2565d4f`, pipeline requerido `TECH-BASE-003 / PR gates` `SUCCESS` run `34171002437`, aprobación humana, PostgreSQL y SeaweedFS/ClamAV satisfactorios, merge `e74c2e8d077d39ebf1605cd6e6f5b44ad1ff1d1f`; commit y merge ancestros de `origin/master`; cero defectos bloqueantes conocidos |
-| Entregable | Las rutas existentes de aporte, sustitución y consulta aceptan contratos estructurados cerrados; la fotografía condicional de `TAR-0092` usa exclusivamente el hecho vigente de `F_ENT_001`; no se agrega endpoint ni tabla |
-| Persistencia | Migración `EnableStructuredEvidence`: `evidence_version.file_object_id` nullable, XOR con `structured_payload`, función cerrada por 18 requisitos, guardas de inmutabilidad y condición; sin cambios en tablas ajenas |
-| Idempotencia y atomicidad | El payload canónico integra la huella; evidencia, versión, auditoría e idempotencia comparten `SERIALIZABLE`; las operaciones estructuradas no invocan S3, ClamAV ni outbox |
-| Pruebas | Unitarias completas `350/350`; arquitectura completa `18/18`; enfocadas sin Docker `39/39` unitarias y `3/3` arquitectura; PostgreSQL externo `7/7`, cero errores y cero omitidas; SeaweedFS/ClamAV no aplica |
-| Gates | Restore locked `18/18`; build Release `18/18`; unitarias `350/350`; arquitectura `18/18`; enfocadas `39/39` y `3/3`; PostgreSQL externo `7/7`; formato sin diferencias después de corregir tres incidencias mecánicas detectadas por el verificador; cero vulnerabilidades NuGet conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico; `git diff --check` satisfactorio |
-| Límites | Sin `HU-026`, evaluación `COMPLETA/INCOMPLETA`, snapshot de revisión, conclusión `HU-022`, validación, UI, descarga, nuevos permisos, adaptadores o infraestructura |
-| Cierre | Requiere commit exacto, pipeline verde, aprobación humana, merge, ascendencia, PostgreSQL externo satisfactorio y cero defectos bloqueantes |
-| Siguiente tarea | `HU-026` permanece bloqueada hasta el cierre efectivo de `TECH-EVID-002` |
+| Pull request | `#42` |
+| Commit implementado | `66248692f2577a95384db62882e8081dec6fdd9e` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; `SUCCESS`, run `34264672922`, correspondiente al commit exacto |
+| Aceptación humana | Recibida y autenticada |
+| PostgreSQL | Suite externa `7/7`, cero errores y cero omitidas |
+| Commit incorporado en `master` | `bd12592660121762cdf315fb5cfc497540b6892c` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` |
+| Entregable | Los 18 contratos estructurados cerrados son aportables; `evidence_version` contiene exactamente archivo o `structured_payload`; `F_ENT_001` vigente es la autoridad condicional canónica |
+| Límites | Sin evaluación agregada, snapshot, conclusión, validación, UI ni operaciones S3/ClamAV para evidencia estructurada |
+| Cierre | Pipeline exacto, aprobación humana, merge, ascendencia, PostgreSQL satisfactorio y cero defectos bloqueantes conocidos verificados |
+| Siguiente tarea ejecutada | `HU-026` — propuesta actual en rama |
 
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y todavía no habilita `HU-026`.
+La evidencia primaria de cierre pertenece al PR que contiene la implementación. Este registro posterior sólo materializa el estado efectivo ya adquirido tras el merge y no reescribe retrospectivamente el encabezado de la propuesta.
 
 ## Base aceptada — `HU-025`
 
@@ -532,7 +555,7 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | `TECH-JOBS-001` | `F07_ADENDA_12_CONTRATO_DE_WORKER_OUTBOX_Y_JOBS_TECH_JOBS_001.md` | `HU-013` | `Terminada`; PR `#35`, commit `1517be53434f4d4af2aefd136f462d6c08eeb9df`, merge `f8217da95d59718c7f3bd7b21c09f4bb56122b6c` |
 | `TECH-E2E-CV-02` | `F07_ADENDA_14_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_02_TECH_E2E_CV_02.md` | Cierre de `CV-02` y `HU-023` | `Terminada`; PR `#37`, commit `f74261988866819a1fc09c2a598d137538530fc5`, pipeline `SUCCESS` run `33983298961`, aprobación humana, merge `e2d059c11b9647e92e10c49eff00e148b87c6f7c` y ascendencia verificada en `origin/master`; `HU-023` habilitada como siguiente tarea efectiva |
 | `TECH-EVID-001` | `F07_ADENDA_17_CONTRATO_DE_INFRAESTRUCTURA_SEGURA_DE_EVIDENCIA_TECH_EVID_001.md` | `HU-025` | `Terminada`; PR `#40`, commit `eb29656f7d2ced765924115520119f36529fc0fc`, pipeline `SUCCESS` run `34153966707`, aprobación humana, SeaweedFS/ClamAV `1/1`, merge `c0c07fff5dd0a05be41d6993eb1abf10b0e74706` y ascendencia verificada en `origin/master` |
-| `TECH-EVID-002` | `F07_ADENDA_20_CONTRATO_DE_EVIDENCIA_ESTRUCTURADA_TECH_EVID_002.md` | `HU-026` | Propuesta implementada en `codex/tech-evid-002`; bloquea `HU-026` hasta pipeline requerido verde sobre el commit exacto, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes |
+| `TECH-EVID-002` | `F07_ADENDA_20_CONTRATO_DE_EVIDENCIA_ESTRUCTURADA_TECH_EVID_002.md` | `HU-026` | `Terminada`; PR `#42`, commit `66248692f2577a95384db62882e8081dec6fdd9e`, pipeline `SUCCESS` run `34264672922`, aprobación humana, PostgreSQL `7/7`, merge `bd12592660121762cdf315fb5cfc497540b6892c` y ascendencia verificada en `origin/master` |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`
 

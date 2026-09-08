@@ -20,8 +20,13 @@ internal static class EvidenceTelemetry
     internal static readonly Counter<long> Links = Meter.CreateCounter<long>("sgol.evidence.links");
     internal static readonly Counter<long> Replacements = Meter.CreateCounter<long>("sgol.evidence.replacements");
     internal static readonly Counter<long> Rejections = Meter.CreateCounter<long>("sgol.evidence.rejections");
+    internal static readonly Counter<long> Reviews = Meter.CreateCounter<long>("sgol.evidence.reviews");
+    internal static readonly Counter<long> ReviewSnapshots =
+        Meter.CreateCounter<long>("sgol.evidence.review_snapshots");
     internal static readonly Histogram<double> StorageDuration =
         Meter.CreateHistogram<double>("sgol.evidence.storage.duration", "ms");
     internal static readonly Histogram<double> ScanDuration =
         Meter.CreateHistogram<double>("sgol.evidence.scan.duration", "ms");
+    internal static readonly Histogram<double> ReviewDuration =
+        Meter.CreateHistogram<double>("sgol.evidence.review_duration", "ms");
 }
