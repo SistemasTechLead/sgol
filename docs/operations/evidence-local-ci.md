@@ -47,6 +47,12 @@ Las cuatro mutaciones validan antiforgery mediante la cabecera `X-CSRF-TOKEN` y 
 
 La migración `20260907203912_AddVersionedEvidenceContribution` crea únicamente `file_object`, `evidence_item` y `evidence_version`, con FK `RESTRICT`, checks, índices parciales y triggers que bloquean borrado, mutaciones históricas, snapshots incoherentes y vínculos con archivos no limpios.
 
+## Aporte estructurado `TECH-EVID-002`
+
+La migración `20260908005832_EnableStructuredEvidence` no crea tablas: permite `file_object_id` nulo en `evidence_version` y exige exactamente uno de archivo o `structured_payload`. La aplicación y PostgreSQL validan una allowlist cerrada de 18 esquemas `schemaVersion=1`; el payload canónico participa en idempotencia y se conserva inmutable. Las rutas siguen siendo las seis de HU-025.
+
+Una aportación o sustitución estructurada no llama almacenamiento, ClamAV ni outbox. Para `TAR-0092`, la fotografía condicional reutiliza el flujo binario, pero intención, confirmación y vínculo exigen que la versión `VIGENTE` de `F_ENT_001` de la misma obligación indique diferencia o daño. La condición ausente o incoherente falla cerrada y una sustitución del formulario nunca borra una fotografía histórica.
+
 ## Ejecución externa
 
 Desde la raíz y fuera del aislamiento de Codex:
@@ -62,10 +68,11 @@ La prueba genera JPEG, PNG, PDF y EICAR únicamente en memoria. El archivo sobre
 La suite PostgreSQL afectada se ejecuta también fuera del aislamiento:
 
 ```powershell
-dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~EvidenceContribution|FullyQualifiedName~PostgreSqlPersistenceTests"
+dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~EvidenceContribution|FullyQualifiedName~StructuredEvidence|FullyQualifiedName~PostgreSqlPersistenceTests"
 ```
 
 El 2026-09-07 el desarrollador ejecutó este corte PostgreSQL: `6/6`, cero errores, cero omitidas y cero advertencias, en 55.2 s.
+Ese resultado pertenece al SHA de HU-025. Para `TECH-EVID-002`, el desarrollador ejecutó el 2026-09-08 el corte PostgreSQL actualizado, incluida la validación directa de los 18 esquemas aprobados: `7/7`, cero errores, cero omitidas y cero advertencias reportadas, en 74.0 s. La prueba enfocada correspondiente pasó `1/1`, sin advertencias, en 18.0 s.
 
 ## Operación y observabilidad
 

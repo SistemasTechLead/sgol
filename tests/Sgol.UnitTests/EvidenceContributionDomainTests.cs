@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Sgol.Evidence.Contracts;
 using Xunit;
 
@@ -60,6 +61,24 @@ public sealed class EvidenceContributionDomainTests
 
         Assert.Equal(2, item.RowVersion);
         Assert.Throws<EvidenceVersionConflictException>(() => item.Advance(1));
+    }
+
+    [Fact]
+    public void StructuredReplacementPreservesImmutablePayloadAndChain()
+    {
+        var itemId = Guid.CreateVersion7();
+        using var firstPayload = JsonDocument.Parse("""{"schemaVersion":1,"merchandiseReference":"MER-01"}""");
+        using var secondPayload = JsonDocument.Parse("""{"schemaVersion":1,"merchandiseReference":"MER-02"}""");
+        var first = new EvidenceVersion(Guid.CreateVersion7(), itemId, 1, firstPayload, Guid.CreateVersion7(), Now);
+        first.Supersede();
+        var second = new EvidenceVersion(Guid.CreateVersion7(), itemId, 2, secondPayload, Guid.CreateVersion7(),
+            Now.AddMinutes(1), null, first.Id);
+
+        Assert.Null(first.FileObjectId);
+        Assert.Equal("MER-01", first.StructuredPayload!.RootElement.GetProperty("merchandiseReference").GetString());
+        Assert.Equal(EvidenceVersionStatuses.Superseded, first.Status);
+        Assert.Equal(EvidenceVersionStatuses.Current, second.Status);
+        Assert.Equal(first.Id, second.SupersedesId);
     }
 
     private static FileObject NewFile() => new(Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(),

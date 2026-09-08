@@ -4,14 +4,39 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-025`
+## Propuesta actual en rama — `TECH-EVID-002`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `TECH-EVID-002` — Aporte estructurado cerrado y hecho condicional de TAR-0092 |
+| Estado | Propuesta implementada en `codex/tech-evid-002`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes conocidos |
+| Contrato | `F07_ADENDA_20_CONTRATO_DE_EVIDENCIA_ESTRUCTURADA_TECH_EVID_002.md`, aprobada íntegramente el 2026-09-07 |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `HU-025`: PR `#41`, commit `9f754ea68569786054bee63261ebdb3ee2565d4f`, pipeline requerido `TECH-BASE-003 / PR gates` `SUCCESS` run `34171002437`, aprobación humana, PostgreSQL y SeaweedFS/ClamAV satisfactorios, merge `e74c2e8d077d39ebf1605cd6e6f5b44ad1ff1d1f`; commit y merge ancestros de `origin/master`; cero defectos bloqueantes conocidos |
+| Entregable | Las rutas existentes de aporte, sustitución y consulta aceptan contratos estructurados cerrados; la fotografía condicional de `TAR-0092` usa exclusivamente el hecho vigente de `F_ENT_001`; no se agrega endpoint ni tabla |
+| Persistencia | Migración `EnableStructuredEvidence`: `evidence_version.file_object_id` nullable, XOR con `structured_payload`, función cerrada por 18 requisitos, guardas de inmutabilidad y condición; sin cambios en tablas ajenas |
+| Idempotencia y atomicidad | El payload canónico integra la huella; evidencia, versión, auditoría e idempotencia comparten `SERIALIZABLE`; las operaciones estructuradas no invocan S3, ClamAV ni outbox |
+| Pruebas | Unitarias completas `350/350`; arquitectura completa `18/18`; enfocadas sin Docker `39/39` unitarias y `3/3` arquitectura; PostgreSQL externo `7/7`, cero errores y cero omitidas; SeaweedFS/ClamAV no aplica |
+| Gates | Restore locked `18/18`; build Release `18/18`; unitarias `350/350`; arquitectura `18/18`; enfocadas `39/39` y `3/3`; PostgreSQL externo `7/7`; formato sin diferencias después de corregir tres incidencias mecánicas detectadas por el verificador; cero vulnerabilidades NuGet conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico; `git diff --check` satisfactorio |
+| Límites | Sin `HU-026`, evaluación `COMPLETA/INCOMPLETA`, snapshot de revisión, conclusión `HU-022`, validación, UI, descarga, nuevos permisos, adaptadores o infraestructura |
+| Cierre | Requiere commit exacto, pipeline verde, aprobación humana, merge, ascendencia, PostgreSQL externo satisfactorio y cero defectos bloqueantes |
+| Siguiente tarea | `HU-026` permanece bloqueada hasta el cierre efectivo de `TECH-EVID-002` |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y todavía no habilita `HU-026`.
+
+## Base aceptada — `HU-025`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-025` — Responsable/superior aporta o sustituye evidencia conservando versiones |
-| Estado | Propuesta implementada en `codex/hu-025`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio, integración S3/ClamAV satisfactoria y cero defectos bloqueantes conocidos |
+| Estado | `Terminada` efectiva conforme a la regla condicional de cierre en un PR |
 | Contrato | `F07_ADENDA_18_CONTRATO_DE_APORTE_Y_SUSTITUCION_VERSIONADA_DE_EVIDENCIA_HU_025.md`, incluidas las revisiones materiales de las secciones 22, 23, 24 y 25, aprobada íntegramente el 2026-09-07 |
-| Commit implementado | Commit que contiene esta actualización |
+| Pull request | `#41` |
+| Commit implementado | `9f754ea68569786054bee63261ebdb3ee2565d4f` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`; `SUCCESS`, run `34171002437`, correspondiente al commit exacto |
+| Aceptación humana | Recibida y autenticada |
+| Commit incorporado en `master` | `e74c2e8d077d39ebf1605cd6e6f5b44ad1ff1d1f` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` |
 | Base aceptada | `TECH-EVID-001`: PR `#40`, commit `eb29656f7d2ced765924115520119f36529fc0fc`, pipeline requerido `TECH-BASE-003 / PR gates` `SUCCESS` run `34153966707`, aprobación humana, suite externa SeaweedFS/ClamAV `1/1`, merge `c0c07fff5dd0a05be41d6993eb1abf10b0e74706`; ambos SHA ancestros de `origin/master`; cero defectos bloqueantes conocidos; PostgreSQL no aplicó |
 | Entregable | Seis endpoints cerrados; intención PUT firmada de diez minutos; confirmación y outbox; Worker inspecciona y promueve sólo `LIMPIO`; aporte y sustitución conservan cadena completa y una sola versión `VIGENTE` |
 | Autorización | Responsable vigente aporta y sustituye únicamente en `PENDIENTE`; después de `CONCLUIDA`, sólo superior jerárquico estricto con `PER-EVIDENCIA-SUSTITUIR` y motivo; consultas aplican `PER-TAREA-VER` y `DEC-069` |
@@ -21,10 +46,10 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 | Gates | Restore locked `18/18`; build Release `18/18`; unitarias `321/321`; arquitectura `17/17`; enfocadas HU-025 `69/69` y `5/5`; PostgreSQL externo `6/6`; SeaweedFS/ClamAV externo `1/1`; formato sin diferencias después de corregir tres incidencias de whitespace detectadas por el primer intento; cero vulnerabilidades NuGet conocidas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios y espejo `29/29` idéntico. `git diff --check` se informa en la entrega para no modificar el diff después del último gate |
 | Riesgo operativo | SeaweedFS 4.45 agrupa `PutObject`, `PutBucketCors` y `DeleteBucketCors` bajo `Write`; SGOL no invoca mutaciones CORS y falla cerrado ante deriva, pero antes de producción se requiere control externo equivalente o aceptación explícita del riesgo residual conforme a la sección 25 |
 | Límites | Sin UI, descarga, evidencia estructurada, conclusión HU-022, evaluación HU-026, validación HU-028, borrado funcional, broker, Redis, otro Worker o scheduler |
-| Cierre | Requiere commit exacto, pipeline verde, aprobación humana, merge, ascendencia, PostgreSQL y S3/ClamAV externos satisfactorios y cero defectos bloqueantes |
-| Siguiente tarea | No se inicia otra historia |
+| Cierre | Commit exacto, pipeline, aprobación, merge, ascendencia, PostgreSQL y S3/ClamAV externos satisfactorios y cero defectos bloqueantes verificados |
+| Siguiente tarea ejecutada | `TECH-EVID-002` — propuesta actual en rama |
 
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y no habilita otra historia posterior.
+La evidencia primaria de cierre pertenece al PR que contiene la implementación. Este registro posterior sólo materializa el estado efectivo ya adquirido tras el merge y no altera el entregable aceptado.
 
 ## Base aceptada — `TECH-EVID-001`
 
@@ -506,6 +531,8 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | `TECH-VER-001` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | `HU-008` | `Terminada`; PR `#20`, commit `9d7c001275e119c13bed81b544347d3bd2f55e16`, merge `70222cd1997bf64ad29638f9a27c5268058e118a` |
 | `TECH-JOBS-001` | `F07_ADENDA_12_CONTRATO_DE_WORKER_OUTBOX_Y_JOBS_TECH_JOBS_001.md` | `HU-013` | `Terminada`; PR `#35`, commit `1517be53434f4d4af2aefd136f462d6c08eeb9df`, merge `f8217da95d59718c7f3bd7b21c09f4bb56122b6c` |
 | `TECH-E2E-CV-02` | `F07_ADENDA_14_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_02_TECH_E2E_CV_02.md` | Cierre de `CV-02` y `HU-023` | `Terminada`; PR `#37`, commit `f74261988866819a1fc09c2a598d137538530fc5`, pipeline `SUCCESS` run `33983298961`, aprobación humana, merge `e2d059c11b9647e92e10c49eff00e148b87c6f7c` y ascendencia verificada en `origin/master`; `HU-023` habilitada como siguiente tarea efectiva |
+| `TECH-EVID-001` | `F07_ADENDA_17_CONTRATO_DE_INFRAESTRUCTURA_SEGURA_DE_EVIDENCIA_TECH_EVID_001.md` | `HU-025` | `Terminada`; PR `#40`, commit `eb29656f7d2ced765924115520119f36529fc0fc`, pipeline `SUCCESS` run `34153966707`, aprobación humana, SeaweedFS/ClamAV `1/1`, merge `c0c07fff5dd0a05be41d6993eb1abf10b0e74706` y ascendencia verificada en `origin/master` |
+| `TECH-EVID-002` | `F07_ADENDA_20_CONTRATO_DE_EVIDENCIA_ESTRUCTURADA_TECH_EVID_002.md` | `HU-026` | Propuesta implementada en `codex/tech-evid-002`; bloquea `HU-026` hasta pipeline requerido verde sobre el commit exacto, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`
 
