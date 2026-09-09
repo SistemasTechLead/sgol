@@ -198,8 +198,8 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         var salesPending = await AddObligationAsync(context, taskVersionId, ruleId, period.Id, direction.UserId, "load-sales");
         var inactivePending = await AddObligationAsync(context, taskVersionId, ruleId, period.Id, direction.UserId, "load-inactive");
 
-        await ConcludeAsync(context, concluded1, direction.PersonId);
-        await ConcludeAsync(context, concluded2, direction.PersonId);
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded1, Now.AddMinutes(-1));
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded2, Now.AddMinutes(-1));
 
         AddAutomatic(context, pending1, subcoordination.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-5));
         AddAutomatic(context, pending2, subcoordination.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-4));
@@ -300,13 +300,6 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         request.LinkObligation(obligation.Id);
         await context.SaveChangesAsync();
         return obligation.Id;
-    }
-
-    private static async Task ConcludeAsync(SgolDbContext context, Guid obligationId, Guid concludedBy)
-    {
-        var concluded = WorkObligationStatuses.Concluded;
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE work_obligation SET execution_status = {concluded}, concluded_at = {Now.AddMinutes(-1)}, concluded_by = {concludedBy} WHERE id = {obligationId}");
     }
 
     private static Guid AddAutomatic(

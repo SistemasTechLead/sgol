@@ -224,9 +224,7 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
         AddAutomatic(context, concluded, previous.Person.Id);
         var concludedEvaluation = AddEvaluation(context, concluded, seed.PolicyId, candidate.Person);
         await context.SaveChangesAsync();
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE work_obligation SET execution_status = {WorkObligationStatuses.Concluded}, concluded_at = {Now}, concluded_by = {administration.User.Id} WHERE id = {concluded}");
-        context.ChangeTracker.Clear();
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded, Now);
         await Assert.ThrowsAsync<AssignmentCorrectionObligationNotCorrectableException>(() => service.CorrectAsync(new(
             administration.User.Id, Guid.CreateVersion7(), Guid.CreateVersion7(), concluded, candidate.Person.Id,
             concludedEvaluation.Id, "Obligación concluida rechazada", 1)));

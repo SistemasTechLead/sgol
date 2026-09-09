@@ -329,9 +329,9 @@ public sealed class ObligationQueryPersistenceTests : IAsyncLifetime
             $"UPDATE work_obligation SET due_at = {Now.AddMinutes(-1)} WHERE id = {historicalSalesObligationId}");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE work_obligation SET due_at = {Now.AddMinutes(1)} WHERE id = {recurringObligationId}");
-        var concludedStatus = WorkObligationStatuses.Concluded;
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE work_obligation SET due_at = {Now.AddMinutes(-2)}, execution_status = {concludedStatus}, concluded_at = {Now.AddMinutes(-1)}, concluded_by = {direction.UserId} WHERE id = {directionObligationId}");
+            $"UPDATE work_obligation SET due_at = {Now.AddMinutes(-2)} WHERE id = {directionObligationId}");
+        await ObligationConclusionTestData.ConcludeAsync(context, directionObligationId, Now.AddMinutes(-1));
 
         var plan = new WorkPlan(Guid.CreateVersion7(), BranchScope.LorettaId, period.Id);
         plan.ApplyPublication();

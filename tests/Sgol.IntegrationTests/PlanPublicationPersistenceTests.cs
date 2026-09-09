@@ -163,10 +163,7 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
         var concluded = await AddObligationAsync(seed, CanonicalRole.SalesFloor, assigned: true);
         await using (var update = CreateContext())
         {
-            await update.WorkObligations.Where(item => item.Id == concluded).ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.ExecutionStatus, WorkObligationStatuses.Concluded)
-                .SetProperty(item => item.ConcludedAt, Now)
-                .SetProperty(item => item.ConcludedBy, seed.ActorUserId));
+            await ObligationConclusionTestData.ConcludeAsync(update, concluded, Now);
         }
 
         var unassigned = await AddObligationAsync(seed, CanonicalRole.SalesFloor, assigned: false);
