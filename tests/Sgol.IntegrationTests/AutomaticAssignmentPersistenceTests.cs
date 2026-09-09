@@ -383,11 +383,16 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             EligibilityResults.EligibleCandidates,
             (excluded, true));
         await context.SaveChangesAsync();
-        await ObligationConclusionTestData.ConcludeAsync(context, concludedTarget, Now.AddMinutes(-1));
+        await ObligationConclusionTestData.ConcludeAsync(
+            context, concludedTarget, Now.AddMinutes(-1), excluded.Id);
         await Assert.ThrowsAsync<AutomaticAssignmentObligationNotAssignableException>(() => service.AssignAsync(new(
             Guid.CreateVersion7(), concludedTarget, concludedEvaluation.Id, Guid.CreateVersion7())));
         Assert.Empty(await context.AssignmentVersions.AsNoTracking()
-            .Where(item => item.ObligationId == incompatibleTarget || item.ObligationId == concludedTarget)
+            .Where(item => item.ObligationId == incompatibleTarget)
+            .ToListAsync());
+        Assert.Single(await context.AssignmentVersions.AsNoTracking()
+            .Where(item => item.ObligationId == concludedTarget &&
+                item.Status == AssignmentVersionStatuses.Current)
             .ToListAsync());
     }
 

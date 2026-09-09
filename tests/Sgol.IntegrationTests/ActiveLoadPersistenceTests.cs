@@ -198,9 +198,6 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         var salesPending = await AddObligationAsync(context, taskVersionId, ruleId, period.Id, direction.UserId, "load-sales");
         var inactivePending = await AddObligationAsync(context, taskVersionId, ruleId, period.Id, direction.UserId, "load-inactive");
 
-        await ObligationConclusionTestData.ConcludeAsync(context, concluded1, Now.AddMinutes(-1));
-        await ObligationConclusionTestData.ConcludeAsync(context, concluded2, Now.AddMinutes(-1));
-
         AddAutomatic(context, pending1, subcoordination.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-5));
         AddAutomatic(context, pending2, subcoordination.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-4));
         var originalId = AddAutomatic(context, transferred, sales.PersonId, AssignmentVersionStatuses.Superseded, Now.AddHours(-3));
@@ -214,6 +211,8 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         AddAutomatic(context, concluded2, subcoordination.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-5));
         AddAutomatic(context, salesPending, sales.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-2));
         AddAutomatic(context, inactivePending, inactive.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-2));
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded1, Now.AddMinutes(-1));
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded2, Now.AddMinutes(-1));
 
         using var snapshot = JsonDocument.Parse("{}");
         var evaluation = new EligibilityEvaluation(

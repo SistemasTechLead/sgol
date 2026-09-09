@@ -139,7 +139,8 @@ public sealed class EligibilityEvaluationPersistenceTests : IAsyncLifetime
         await Assert.ThrowsAsync<EligibilityEvaluationNotFoundException>(() => service.EvaluateAsync(new(
             Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(),
             EligibilityDate, EligibilityDateSources.ManualRequest)));
-        await ObligationConclusionTestData.ConcludeAsync(context, scenario.ObligationId, Now);
+        await ObligationConclusionTestData.ConcludeAsync(
+            context, scenario.ObligationId, Now, scenario.ActorPersonId);
         await Assert.ThrowsAsync<EligibilityObligationNotPendingException>(() => service.EvaluateAsync(new(
             Guid.CreateVersion7(), Guid.CreateVersion7(), scenario.ObligationId,
             EligibilityDate, EligibilityDateSources.ManualRequest)));
