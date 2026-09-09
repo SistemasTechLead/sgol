@@ -153,30 +153,18 @@ internal static class ObligationConclusionTestData
                 concludedAt.AddMinutes(-1));
             EvidenceVersion version;
             FileObject? file = null;
-            if (requirement.RequirementCode == "CHECKLIST_COMPLETO")
-            {
-                var payload = JsonDocument.Parse(
-                    "{\"schemaVersion\":1,\"productCorrect\":true,\"zoneAndFamilyCorrect\":true," +
-                    "\"stableFormation\":true,\"labelsVisible\":true,\"alignmentConsistent\":true," +
-                    "\"occupancyJustified\":true,\"clean\":true,\"intact\":true,\"signageCorrect\":true," +
-                    "\"matchesPlanogramOrList\":true}");
-                version = new EvidenceVersion(
-                    Guid.CreateVersion7(), item.Id, 1, payload, responsibleUserId, concludedAt.AddMinutes(-1));
-            }
-            else if (requirement.RequirementCode == "F_ENT_001")
-            {
-                var payload = JsonDocument.Parse(
-                    "{\"schemaVersion\":1,\"formCode\":\"F-ENT-001\",\"formReference\":\"CONCLUSION-FIXTURE\"," +
-                    "\"completedAt\":\"2026-09-08T22:20:00Z\",\"hasDifference\":false,\"hasDamage\":false}");
-                version = new EvidenceVersion(
-                    Guid.CreateVersion7(), item.Id, 1, payload, responsibleUserId, concludedAt.AddMinutes(-1));
-            }
-            else
+            if (requirement.Kind is EvidenceRequirementKinds.Photograph or EvidenceRequirementKinds.ReferencedDocument)
             {
                 file = CreateCleanFile(responsibleUserId, obligationId, policy.Id, requirement, item.Id, concludedAt);
                 version = new EvidenceVersion(
                     Guid.CreateVersion7(), item.Id, 1, file.Id, responsibleUserId, concludedAt.AddMinutes(-1));
                 context.FileObjects.Add(file);
+            }
+            else
+            {
+                var payload = CreateStructuredPayload(requirement.RequirementCode);
+                version = new EvidenceVersion(
+                    Guid.CreateVersion7(), item.Id, 1, payload, responsibleUserId, concludedAt.AddMinutes(-1));
             }
 
             context.EvidenceItems.Add(item);
@@ -242,6 +230,7 @@ internal static class ObligationConclusionTestData
         var hash = Convert.ToHexStringLower(SHA256.HashData(Guid.CreateVersion7().ToByteArray()));
         var photograph = requirement.Kind == EvidenceRequirementKinds.Photograph;
         var mediaType = photograph ? "image/png" : "application/pdf";
+        var documentSubtype = requirement.RequirementCode == "DOCUMENTO_RECEPCION" ? "NOTA" : null;
         var file = new FileObject(
             Guid.CreateVersion7(),
             BranchScope.LorettaId,
@@ -250,7 +239,7 @@ internal static class ObligationConclusionTestData
             requirement.Id,
             requirement.RequirementCode,
             requirement.Kind,
-            null,
+            documentSubtype,
             $"v1/{hash[..2]}/{hash[2..4]}/{hash}",
             photograph ? "evidence.png" : "evidence.pdf",
             mediaType,
@@ -263,6 +252,55 @@ internal static class ObligationConclusionTestData
         file.Link(evidenceItemId, concludedAt.AddMinutes(-1));
         return file;
     }
+
+    private static JsonDocument CreateStructuredPayload(string requirementCode) => requirementCode switch
+    {
+        "CALCULO_AVANCE" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"expectedTarget\":100,\"actualSales\":90,\"sourceReference\":\"VEN-01\"}"),
+        "ACCION_O_CONFORMIDAD" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"outcome\":\"CONFORMIDAD\",\"actionDescription\":null," +
+            "\"responsiblePersonId\":null,\"startsAt\":null}"),
+        "LIBERACION" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"releasedAt\":\"2026-09-08T22:20:00Z\",\"releaseReference\":\"LIB-01\"}"),
+        "MERCANCIA" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"merchandiseReference\":\"MER-01\"}"),
+        "FECHA_HORA" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"occurredAt\":\"2026-09-08T22:20:00Z\"}"),
+        "RETORNO_EXHIBICION" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"returnedAt\":\"2026-09-08T22:20:00Z\",\"returnReference\":\"RET-01\"}"),
+        "SECUENCIA" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"sequenceSummary\":\"Secuencia sintetica\"}"),
+        "DECISION" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"decisionSummary\":\"Decision sintetica\"," +
+            "\"decidedAt\":\"2026-09-08T22:20:00Z\"}"),
+        "FUNDAMENTO" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"foundationSummary\":\"Fundamento sintetico\"}"),
+        "AVISO_INTERNO" or "CONSTANCIA_AVISO_INTERNO" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"noticeReference\":\"AVI-01\",\"notifiedAt\":\"2026-09-08T22:20:00Z\"}"),
+        "EVALUACION" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"assessmentSummary\":\"Evaluacion sintetica\"," +
+            "\"assessedAt\":\"2026-09-08T22:20:00Z\"}"),
+        "REPARACION_O_CAMBIO" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"solutionType\":\"REPARACION\",\"solutionReference\":\"SOL-01\"," +
+            "\"completedAt\":\"2026-09-08T22:20:00Z\"}"),
+        "ENTREGA" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"deliveryReference\":\"ENT-01\",\"deliveredAt\":\"2026-09-08T22:20:00Z\"}"),
+        "CHECKLIST_COMPLETO" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"productCorrect\":true,\"zoneAndFamilyCorrect\":true," +
+            "\"stableFormation\":true,\"labelsVisible\":true,\"alignmentConsistent\":true," +
+            "\"occupancyJustified\":true,\"clean\":true,\"intact\":true,\"signageCorrect\":true," +
+            "\"matchesPlanogramOrList\":true}"),
+        "FORM_ADM_02" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"formCode\":\"FORM-ADM-02\",\"formReference\":\"ADM-01\"," +
+            "\"completedAt\":\"2026-09-08T22:20:00Z\"}"),
+        "F_ENT_001" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"formCode\":\"F-ENT-001\",\"formReference\":\"REC-01\"," +
+            "\"completedAt\":\"2026-09-08T22:20:00Z\",\"hasDifference\":false,\"hasDamage\":false}"),
+        "ANOTACION_F_ENT_001" => JsonDocument.Parse(
+            "{\"schemaVersion\":1,\"formCode\":\"F-ENT-001\",\"formReference\":\"REC-01\"," +
+            "\"annotationReference\":\"ANO-01\",\"recordedAt\":\"2026-09-08T22:20:00Z\"}"),
+        _ => throw new InvalidOperationException($"No structured payload exists for {requirementCode}."),
+    };
 
     private sealed record ConclusionEvidence(
         EvidenceRequirementVersion Requirement,
