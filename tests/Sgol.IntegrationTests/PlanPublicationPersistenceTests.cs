@@ -163,10 +163,7 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
         var concluded = await AddObligationAsync(seed, CanonicalRole.SalesFloor, assigned: true);
         await using (var update = CreateContext())
         {
-            await update.WorkObligations.Where(item => item.Id == concluded).ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.ExecutionStatus, WorkObligationStatuses.Concluded)
-                .SetProperty(item => item.ConcludedAt, Now)
-                .SetProperty(item => item.ConcludedBy, seed.ActorUserId));
+            await ObligationConclusionTestData.ConcludeAsync(update, concluded, Now);
         }
 
         var unassigned = await AddObligationAsync(seed, CanonicalRole.SalesFloor, assigned: false);
@@ -558,9 +555,11 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
             origin, requestedBy, Now.AddMinutes(-5));
         context.GenerationRequests.Add(request);
         await context.SaveChangesAsync();
+        var evidencePolicyId = await ObligationConclusionTestData.EnsurePolicyAsync(
+            context, configuration.TaskVersionId, Now.AddDays(-1));
         var obligation = new WorkObligation(
             Guid.CreateVersion7(), configuration.TaskVersionId, BranchScope.LorettaId,
-            periodId, request.Id, origin);
+            periodId, request.Id, origin, evidencePolicyId);
         context.WorkObligations.Add(obligation);
         await context.SaveChangesAsync();
         request.LinkObligation(obligation.Id);

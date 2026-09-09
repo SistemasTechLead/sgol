@@ -42,6 +42,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string EvidenceContributionMigrationId = "20260907203912_AddVersionedEvidenceContribution";
     private const string StructuredEvidenceMigrationId = "20260908005832_EnableStructuredEvidence";
     private const string EvidenceReviewMigrationId = "20260908193819_AddEvidenceReviewSnapshots";
+    private const string ObligationConclusionMigrationId = "20260908222252_AddObligationConclusions";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -88,6 +89,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 EvidenceContributionMigrationId,
                 StructuredEvidenceMigrationId,
                 EvidenceReviewMigrationId,
+                ObligationConclusionMigrationId,
             ],
             appliedMigrations);
 
@@ -125,6 +127,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "evidence_requirement_version",
                 "evidence_review_snapshot",
                 "evidence_version",
+                "execution_result",
                 "file_object",
                 "generation_request",
                 "idempotency_record",

@@ -18,7 +18,7 @@ Desde la raíz del repositorio:
 dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --configuration Release
 ```
 
-La prueba pasa sólo si abre una conexión real, registra exactamente `20260827000000_InitializePersistence`, una segunda aplicación no cambia el resultado y el esquema `public` contiene únicamente `__EFMigrationsHistory`.
+La prueba pasa sólo si abre una conexión real, registra en orden exacto todas las migraciones aprobadas hasta `20260908222252_AddObligationConclusions`, una segunda aplicación no cambia el resultado y el esquema `public` contiene únicamente el inventario aprobado, incluida la tabla `execution_result` de `HU-022`.
 
 ## Ejecución del host contra PostgreSQL local
 

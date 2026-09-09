@@ -139,10 +139,8 @@ public sealed class EligibilityEvaluationPersistenceTests : IAsyncLifetime
         await Assert.ThrowsAsync<EligibilityEvaluationNotFoundException>(() => service.EvaluateAsync(new(
             Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(),
             EligibilityDate, EligibilityDateSources.ManualRequest)));
-        var concluded = WorkObligationStatuses.Concluded;
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE work_obligation SET execution_status = {concluded}, concluded_at = {Now}, concluded_by = {scenario.ActorPersonId} WHERE id = {scenario.ObligationId}");
-        context.ChangeTracker.Clear();
+        await ObligationConclusionTestData.ConcludeAsync(
+            context, scenario.ObligationId, Now, scenario.ActorPersonId);
         await Assert.ThrowsAsync<EligibilityObligationNotPendingException>(() => service.EvaluateAsync(new(
             Guid.CreateVersion7(), Guid.CreateVersion7(), scenario.ObligationId,
             EligibilityDate, EligibilityDateSources.ManualRequest)));
@@ -288,9 +286,6 @@ public sealed class EligibilityEvaluationPersistenceTests : IAsyncLifetime
             requestId, Guid.CreateVersion7(), new string('a', 64), ruleId,
             BranchScope.LorettaId, period.Id, ActivationOriginSchemas.ManualReference,
             "synthetic-eligibility-origin", actor.UserId, Now);
-        var obligation = new WorkObligation(
-            Guid.CreateVersion7(), taskVersionId, BranchScope.LorettaId,
-            period.Id, requestId, "synthetic-eligibility-origin");
         context.ConfigurationReleases.Add(release);
         context.TaskDefinitionVersions.Add(taskVersion);
         context.EligibilityPolicyVersions.Add(policy);
@@ -298,6 +293,11 @@ public sealed class EligibilityEvaluationPersistenceTests : IAsyncLifetime
         context.WeekPeriods.Add(period);
         context.GenerationRequests.Add(request);
         await context.SaveChangesAsync();
+        var evidencePolicyId = await ObligationConclusionTestData.EnsurePolicyAsync(
+            context, taskVersionId, Now.AddDays(-1));
+        var obligation = new WorkObligation(
+            Guid.CreateVersion7(), taskVersionId, BranchScope.LorettaId,
+            period.Id, requestId, "synthetic-eligibility-origin", evidencePolicyId);
         context.WorkObligations.Add(obligation);
         await context.SaveChangesAsync();
         request.LinkObligation(obligation.Id);

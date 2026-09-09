@@ -1,6 +1,6 @@
 # Infraestructura privada de evidencia para local y CI
 
-`TECH-EVID-001` aporta la infraestructura técnica, `HU-025` la consume para intenciones privadas, inspección y evidencia versionada, y `HU-026` evalúa completitud sin volver a leer binarios. No existe UI, descarga, acceso público, conclusión ni validación.
+`TECH-EVID-001` aporta la infraestructura técnica, `HU-025` la consume para intenciones privadas, inspección y evidencia versionada, `HU-026` evalúa completitud sin volver a leer binarios y `HU-022` consume ese resultado para la conclusión atómica. No existe UI, descarga, acceso público ni validación.
 
 ## Servicios fijados
 
@@ -59,6 +59,12 @@ Una aportación o sustitución estructurada no llama almacenamiento, ClamAV ni o
 
 La migración `20260908193819_AddEvidenceReviewSnapshots` crea únicamente `evidence_review_snapshot`. La tabla conserva entrada canónica JSONB, proyecciones de requisitos y faltantes, versiones usadas, actor solicitante, instante UTC, política congelada y huella única. FK `RESTRICT`, checks, dos unicidades y una guarda PostgreSQL rechazan actualizaciones, borrados o snapshots incoherentes. La aplicación usa `SERIALIZABLE`, reutiliza una huella idéntica y confirma snapshot y auditoría en la misma transacción. No crea outbox y no invoca almacenamiento ni escáner.
 
+## Conclusión atómica `HU-022`
+
+`POST /api/v1/obligations/{id}/conclusion` no acepta cuerpo y exige `Idempotency-Key`, `If-Match` fuerte y CSRF de sesión. Sólo el responsable de la asignación `VIGENTE` con `PER-TAREA-EJECUTAR` puede concluir una obligación propia `PENDIENTE`. La operación relee la política congelada y la evidencia persistida, reutiliza el algoritmo de `HU-026`, exige `COMPLETA` y enlaza el snapshot exacto; no descarga ni inspecciona archivos y no invoca almacenamiento o escáner.
+
+La migración `20260908222252_AddObligationConclusions` crea únicamente `execution_result`, agrega la FK opcional `work_obligation.concluded_by` a `app_user` y conserva la transición, el actor, el instante y la versión. Unicidades, FK `RESTRICT`, checks y triggers impiden mutar resultados o confirmar una obligación sin exactamente un resultado coherente y un snapshot completo vigente al cierre. Aplicación y base confirman resultado, transición, idempotencia y auditoría en una transacción `SERIALIZABLE`; no se crea validación, aviso, bandeja ni outbox.
+
 ## Ejecución externa
 
 Desde la raíz y fuera del aislamiento de Codex:
@@ -87,6 +93,16 @@ dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --configura
 ```
 
 Este corte comprueba migración y modelo, autoridad de la política congelada, resultado incompleto y faltantes, reutilización, auditoría atómica, rollback ante falla de auditoría, inmutabilidad, FK `RESTRICT`, checks e índices. Se escribe pero no se ejecuta dentro de Codex; el resultado del desarrollador debe indicar total, errores, omitidas y duración.
+
+Para `HU-022`, el corte externo requerido es:
+
+```powershell
+dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~ObligationConclusionPersistenceTests|FullyQualifiedName~PostgreSqlPersistenceTests.Migrations_CreateOnlyTheApprovedTables"
+```
+
+El corte comprueba conclusión con evidencia completa, rechazo sin efectos, autorización del responsable, ETag, replay idempotente, carreras con claves distintas, snapshot exacto, transición y auditoría atómicas, inmutabilidad y autoridad final de PostgreSQL. Se escribe pero no se ejecuta dentro de Codex; el desarrollador debe informar total, errores, omitidas y duración sobre el mismo corte.
+
+El 2026-09-08 el desarrollador ejecutó el corte externo definitivo de `HU-022`: `6/6`, cero errores, cero omitidas, cero advertencias y 52.0 s.
 
 ## Operación y observabilidad
 

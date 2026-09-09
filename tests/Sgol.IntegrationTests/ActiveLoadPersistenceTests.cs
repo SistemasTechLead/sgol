@@ -198,9 +198,6 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         var salesPending = await AddObligationAsync(context, taskVersionId, ruleId, period.Id, direction.UserId, "load-sales");
         var inactivePending = await AddObligationAsync(context, taskVersionId, ruleId, period.Id, direction.UserId, "load-inactive");
 
-        await ConcludeAsync(context, concluded1, direction.PersonId);
-        await ConcludeAsync(context, concluded2, direction.PersonId);
-
         AddAutomatic(context, pending1, subcoordination.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-5));
         AddAutomatic(context, pending2, subcoordination.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-4));
         var originalId = AddAutomatic(context, transferred, sales.PersonId, AssignmentVersionStatuses.Superseded, Now.AddHours(-3));
@@ -214,6 +211,8 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         AddAutomatic(context, concluded2, subcoordination.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-5));
         AddAutomatic(context, salesPending, sales.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-2));
         AddAutomatic(context, inactivePending, inactive.PersonId, AssignmentVersionStatuses.Current, Now.AddHours(-2));
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded1, Now.AddMinutes(-1));
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded2, Now.AddMinutes(-1));
 
         using var snapshot = JsonDocument.Parse("{}");
         var evaluation = new EligibilityEvaluation(
@@ -292,21 +291,16 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
             origin, requestedBy, Now.AddHours(-6));
         context.GenerationRequests.Add(request);
         await context.SaveChangesAsync();
+        var evidencePolicyId = await ObligationConclusionTestData.EnsurePolicyAsync(
+            context, taskVersionId, Now.AddDays(-1));
         var obligation = new WorkObligation(
             Guid.CreateVersion7(), taskVersionId, BranchScope.LorettaId,
-            periodId, requestId, origin);
+            periodId, requestId, origin, evidencePolicyId);
         context.WorkObligations.Add(obligation);
         await context.SaveChangesAsync();
         request.LinkObligation(obligation.Id);
         await context.SaveChangesAsync();
         return obligation.Id;
-    }
-
-    private static async Task ConcludeAsync(SgolDbContext context, Guid obligationId, Guid concludedBy)
-    {
-        var concluded = WorkObligationStatuses.Concluded;
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE work_obligation SET execution_status = {concluded}, concluded_at = {Now.AddMinutes(-1)}, concluded_by = {concludedBy} WHERE id = {obligationId}");
     }
 
     private static Guid AddAutomatic(

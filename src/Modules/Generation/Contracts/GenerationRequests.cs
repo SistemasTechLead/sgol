@@ -115,9 +115,9 @@ public sealed class WorkObligation
     public Guid? EvidencePolicyVersionId { get; private init; }
     public System.Text.Json.JsonDocument? InputPayload { get; private init; }
     public DateTimeOffset? DueAt { get; private init; }
-    public string ExecutionStatus { get; private init; } = null!;
-    public DateTimeOffset? ConcludedAt { get; private init; }
-    public Guid? ConcludedBy { get; private init; }
+    public string ExecutionStatus { get; private set; } = null!;
+    public DateTimeOffset? ConcludedAt { get; private set; }
+    public Guid? ConcludedBy { get; private set; }
     public long RowVersion { get; private set; }
 
     public void AdvanceRowVersion(long expectedRowVersion)
@@ -128,6 +128,20 @@ public sealed class WorkObligation
         }
 
         RowVersion = checked(RowVersion + 1);
+    }
+
+    public void Conclude(Guid actorUserId, DateTimeOffset concludedAt, long expectedRowVersion)
+    {
+        if (actorUserId == Guid.Empty || ExecutionStatus != WorkObligationStatuses.Pending ||
+            ConcludedAt is not null || ConcludedBy is not null)
+        {
+            throw new InvalidOperationException("CONCLUSION_NO_PERMITIDA");
+        }
+
+        AdvanceRowVersion(expectedRowVersion);
+        ExecutionStatus = WorkObligationStatuses.Concluded;
+        ConcludedAt = concludedAt;
+        ConcludedBy = actorUserId;
     }
 }
 

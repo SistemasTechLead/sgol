@@ -224,9 +224,7 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
         AddAutomatic(context, concluded, previous.Person.Id);
         var concludedEvaluation = AddEvaluation(context, concluded, seed.PolicyId, candidate.Person);
         await context.SaveChangesAsync();
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE work_obligation SET execution_status = {WorkObligationStatuses.Concluded}, concluded_at = {Now}, concluded_by = {administration.User.Id} WHERE id = {concluded}");
-        context.ChangeTracker.Clear();
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded, Now);
         await Assert.ThrowsAsync<AssignmentCorrectionObligationNotCorrectableException>(() => service.CorrectAsync(new(
             administration.User.Id, Guid.CreateVersion7(), Guid.CreateVersion7(), concluded, candidate.Person.Id,
             concludedEvaluation.Id, "Obligación concluida rechazada", 1)));
@@ -429,8 +427,11 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
             seed.PeriodId, ActivationOriginSchemas.ManualReference, origin, seed.SystemUserId, Now.AddDays(-1));
         context.GenerationRequests.Add(request);
         await context.SaveChangesAsync();
+        var evidencePolicyId = await ObligationConclusionTestData.EnsurePolicyAsync(
+            context, seed.TaskVersionId, Now.AddDays(-1));
         var obligation = new WorkObligation(
-            Guid.CreateVersion7(), seed.TaskVersionId, BranchScope.LorettaId, seed.PeriodId, request.Id, origin);
+            Guid.CreateVersion7(), seed.TaskVersionId, BranchScope.LorettaId, seed.PeriodId, request.Id, origin,
+            evidencePolicyId);
         context.WorkObligations.Add(obligation);
         await context.SaveChangesAsync();
         request.LinkObligation(obligation.Id);

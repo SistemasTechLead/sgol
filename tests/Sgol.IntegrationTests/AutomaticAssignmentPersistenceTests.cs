@@ -54,7 +54,7 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
         AddAutomatic(context, active, higherLoad.Id, AssignmentVersionStatuses.Current, Now.AddDays(-5));
         var concluded = await AddObligationAsync(context, seed, "concluded-load");
         AddAutomatic(context, concluded, lowerLoad.Id, AssignmentVersionStatuses.Current, Now.AddDays(-3));
-        await ConcludeAsync(context, concluded, seed.SystemUserId);
+        await ObligationConclusionTestData.ConcludeAsync(context, concluded, Now.AddMinutes(-1));
         var corrected = await AddObligationAsync(context, seed, "corrected-load");
         var original = AddAutomatic(
             context,
@@ -63,7 +63,7 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             AssignmentVersionStatuses.Superseded,
             Now.AddDays(-2));
         AddCorrection(context, corrected, lowerLoad.Id, Now.AddDays(-1), seed.SystemUserId, original);
-        await ConcludeAsync(context, corrected, seed.SystemUserId);
+        await ObligationConclusionTestData.ConcludeAsync(context, corrected, Now.AddMinutes(-1));
 
         var target = await AddObligationAsync(context, seed, "target-load");
         var evaluation = AddEvaluation(
@@ -159,10 +159,10 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             AssignmentVersionStatuses.Superseded,
             Now.AddDays(-10));
         AddCorrection(context, oldHistory, oldest.Id, Now.AddHours(-1), seed.SystemUserId, oldAutomatic);
-        await ConcludeAsync(context, oldHistory, seed.SystemUserId);
+        await ObligationConclusionTestData.ConcludeAsync(context, oldHistory, Now.AddMinutes(-1));
         var newHistory = await AddObligationAsync(context, seed, "new-history");
         AddAutomatic(context, newHistory, newer.Id, AssignmentVersionStatuses.Current, Now.AddDays(-5));
-        await ConcludeAsync(context, newHistory, seed.SystemUserId);
+        await ObligationConclusionTestData.ConcludeAsync(context, newHistory, Now.AddMinutes(-1));
         var target = await AddObligationAsync(context, seed, "target-wait");
         var evaluation = AddEvaluation(
             context,
@@ -196,7 +196,7 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
         await context.SaveChangesAsync();
         var history = await AddObligationAsync(context, seed, "history");
         AddAutomatic(context, history, assigned.Id, AssignmentVersionStatuses.Current, Now.AddDays(-30));
-        await ConcludeAsync(context, history, seed.SystemUserId);
+        await ObligationConclusionTestData.ConcludeAsync(context, history, Now.AddMinutes(-1));
         var target = await AddObligationAsync(context, seed, "target-never");
         var evaluation = AddEvaluation(
             context,
@@ -383,11 +383,16 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             EligibilityResults.EligibleCandidates,
             (excluded, true));
         await context.SaveChangesAsync();
-        await ConcludeAsync(context, concludedTarget, seed.SystemUserId);
+        await ObligationConclusionTestData.ConcludeAsync(
+            context, concludedTarget, Now.AddMinutes(-1), excluded.Id);
         await Assert.ThrowsAsync<AutomaticAssignmentObligationNotAssignableException>(() => service.AssignAsync(new(
             Guid.CreateVersion7(), concludedTarget, concludedEvaluation.Id, Guid.CreateVersion7())));
         Assert.Empty(await context.AssignmentVersions.AsNoTracking()
-            .Where(item => item.ObligationId == incompatibleTarget || item.ObligationId == concludedTarget)
+            .Where(item => item.ObligationId == incompatibleTarget)
+            .ToListAsync());
+        Assert.Single(await context.AssignmentVersions.AsNoTracking()
+            .Where(item => item.ObligationId == concludedTarget &&
+                item.Status == AssignmentVersionStatuses.Current)
             .ToListAsync());
     }
 
@@ -619,13 +624,16 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             Now.AddDays(-1));
         context.GenerationRequests.Add(request);
         await context.SaveChangesAsync();
+        var evidencePolicyId = await ObligationConclusionTestData.EnsurePolicyAsync(
+            context, seed.TaskVersionId, Now.AddDays(-1));
         var obligation = new WorkObligation(
             Guid.CreateVersion7(),
             seed.TaskVersionId,
             BranchScope.LorettaId,
             seed.PeriodId,
             request.Id,
-            origin);
+            origin,
+            evidencePolicyId);
         context.WorkObligations.Add(obligation);
         await context.SaveChangesAsync();
         request.LinkObligation(obligation.Id);
@@ -705,17 +713,6 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             "Corrección sintética",
             assignedBy,
             supersedesId));
-
-    private static async Task ConcludeAsync(
-        SgolDbContext context,
-        Guid obligationId,
-        Guid concludedBy)
-    {
-        await context.SaveChangesAsync();
-        var status = WorkObligationStatuses.Concluded;
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE work_obligation SET execution_status = {status}, concluded_at = {Now.AddMinutes(-1)}, concluded_by = {concludedBy} WHERE id = {obligationId}");
-    }
 
     private static async Task<Counts> CountsAsync(SgolDbContext context) => new(
         await context.WorkObligations.CountAsync(),
