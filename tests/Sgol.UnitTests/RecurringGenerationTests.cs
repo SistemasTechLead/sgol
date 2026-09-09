@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Sgol.Assignment.Contracts;
 using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.JobInfrastructure;
+using Sgol.Notifications.Contracts;
 using Xunit;
 
 namespace Sgol.UnitTests;
@@ -34,6 +36,8 @@ public sealed class RecurringGenerationTests
         Assert.Equal(RecurringGenerationContract.JobName, job.Name);
         Assert.Equal("RECURRENCE_POSTGRES_CONCURRENCY_EXHAUSTED", job.ConcurrencyExhaustedErrorCode);
         Assert.Same(TimeZoneInfo.Utc, scope.ServiceProvider.GetRequiredService<TimeZoneInfo>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IInternalNoticeWriter>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IAutomaticAssignmentService>());
         Assert.False(scope.ServiceProvider.GetRequiredService<ScheduledJobRegistry>()
             .TryGet("UNREGISTERED_JOB", out _));
     }

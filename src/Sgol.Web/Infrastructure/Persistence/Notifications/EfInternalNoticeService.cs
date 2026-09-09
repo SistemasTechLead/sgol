@@ -97,12 +97,14 @@ public sealed class EfInternalNoticeService(SgolDbContext dbContext, IClock cloc
 
     private static bool IsRetryable(Exception exception)
     {
-        var postgres = exception switch
+        for (Exception? current = exception; current is not null; current = current.InnerException)
         {
-            PostgresException direct => direct,
-            DbUpdateException { InnerException: PostgresException inner } => inner,
-            _ => null,
-        };
-        return postgres?.SqlState is "40001" or "40P01";
+            if (current is PostgresException { SqlState: "40001" or "40P01" })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
