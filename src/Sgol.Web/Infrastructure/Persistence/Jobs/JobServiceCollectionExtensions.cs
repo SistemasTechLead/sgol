@@ -7,10 +7,12 @@ using Sgol.BuildingBlocks.Identifiers;
 using Sgol.BuildingBlocks.Time;
 using Sgol.Assignment.Contracts;
 using Sgol.Generation.Contracts;
+using Sgol.Notifications.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Generation;
+using Sgol.Web.Infrastructure.Persistence.Notifications;
 
 namespace Sgol.JobInfrastructure;
 
@@ -71,6 +73,7 @@ public static class JobServiceCollectionExtensions
         services.AddScoped<AuditTransaction>();
         services.AddScoped<IWorkObligationMaterializer, EfWorkObligationMaterializer>();
         services.AddScoped<IEligibilityEvaluationService, EfEligibilityEvaluationService>();
+        services.AddScoped<IInternalNoticeWriter, EfInternalNoticeWriter>();
         services.AddScoped<IAutomaticAssignmentService, EfAutomaticAssignmentService>();
         services.AddScoped<IRecurringOccurrenceProcessor, EfRecurringOccurrenceProcessor>();
         services.AddScoped<IScheduledJob, RecurringGenerationJob>();

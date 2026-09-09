@@ -18,7 +18,11 @@ Desde la raíz del repositorio:
 dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --configuration Release
 ```
 
-La prueba pasa sólo si abre una conexión real, registra en orden exacto todas las migraciones aprobadas hasta `20260908222252_AddObligationConclusions`, una segunda aplicación no cambia el resultado y el esquema `public` contiene únicamente el inventario aprobado, incluida la tabla `execution_result` de `HU-022`.
+La prueba pasa sólo si abre una conexión real, registra en orden exacto todas las migraciones aprobadas hasta `20260909190648_AddInternalNotices`, una segunda aplicación no cambia el resultado y el esquema `public` contiene únicamente el inventario aprobado, incluidas `execution_result` de `HU-022` e `internal_notice` de `HU-030`.
+
+La verificación externa afectada de `HU-030` incluye `PostgreSqlPersistenceTests`, `AutomaticAssignmentPersistenceTests` y `AssignmentCorrectionPersistenceTests`. Comprueba el catálogo cerrado, FK `RESTRICT`, UUID no vacíos, deduplicación, guardas de inmutabilidad, obligación diferible de un aviso por asignación nueva, productores automático y corregido, lectura propia, convergencia anti-IDOR, idempotencia natural, auditoría única y lectura de bandeja sin snapshot ni cambios de ejecución. Estas suites usan exclusivamente PostgreSQL real; no existe alternativa SQLite.
+
+En el corte final de la propuesta `HU-030`, el desarrollador ejecutó externamente las tres suites afectadas: `25/25` pruebas satisfactorias en `87.6 s`, sin advertencias.
 
 ## Ejecución del host contra PostgreSQL local
 

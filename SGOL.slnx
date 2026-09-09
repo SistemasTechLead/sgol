@@ -6,6 +6,7 @@
     <Project Path="src/Modules/Evidence/Sgol.Evidence.csproj" />
     <Project Path="src/Modules/Generation/Sgol.Generation.csproj" />
     <Project Path="src/Modules/Identity/Sgol.Identity.csproj" />
+    <Project Path="src/Modules/Notifications/Sgol.Notifications.csproj" />
     <Project Path="src/Modules/Organization/Sgol.Organization.csproj" />
     <Project Path="src/Modules/Planning/Sgol.Planning.csproj" />
     <Project Path="src/Sgol.Admin/Sgol.Admin.csproj" />

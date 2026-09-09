@@ -9,12 +9,14 @@ using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
+using Sgol.Notifications.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Notifications;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -92,6 +94,13 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
         Assert.Null(assignment.Reason);
         Assert.Null(assignment.SupersedesId);
         Assert.Equal(Now, assignment.AssignedAt);
+        var notice = await context.InternalNotices.AsNoTracking().SingleAsync(item => item.ResourceId == assignment.Id);
+        Assert.Equal(InternalNoticeTypes.ObligationAssigned, notice.NoticeType);
+        Assert.Equal(InternalNoticeResourceTypes.AssignmentVersion, notice.ResourceType);
+        Assert.Equal(Now, notice.CreatedAt);
+        Assert.Null(notice.ReadAt);
+        Assert.Equal(lowerLoad.Id, await context.AppUsers.AsNoTracking()
+            .Where(user => user.Id == notice.RecipientUserId).Select(user => user.PersonId).SingleAsync());
         Assert.Equal(WorkObligationStatuses.Pending,
             (await context.WorkObligations.AsNoTracking().SingleAsync(item => item.Id == target)).ExecutionStatus);
 
@@ -271,6 +280,7 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
         Assert.Equal(created.AssignmentId, anotherRequest.AssignmentId);
         Assert.Equal(1, await context.AssignmentVersions.CountAsync(item =>
             item.ObligationId == target && item.Status == AssignmentVersionStatuses.Current));
+        Assert.Equal(1, await context.InternalNotices.CountAsync(item => item.ResourceId == created.AssignmentId));
 
         var otherTarget = await AddObligationAsync(context, seed, "target-conflict");
         var otherEvaluation = AddEvaluation(
@@ -510,16 +520,7 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
         await context.Database.MigrateAsync();
 
         var systemPerson = AddPerson(context, "ASSIGN-SYSTEM");
-        var systemUserId = Guid.CreateVersion7();
-        context.AppUsers.Add(new AppUser
-        {
-            Id = systemUserId,
-            PersonId = systemPerson.Id,
-            Status = AccountStatus.Active,
-            MustChangePassword = false,
-            MfaEnrolledAt = Now.AddDays(-30),
-            SecurityStamp = $"synthetic-{systemUserId:N}",
-        });
+        var systemUserId = context.AppUsers.Local.Single(user => user.PersonId == systemPerson.Id).Id;
         await context.SaveChangesAsync();
 
         var releaseId = Guid.CreateVersion7();
@@ -602,6 +603,15 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             EmploymentStatus.Active,
             Now.AddDays(-30),
             positionText: positionText));
+        context.AppUsers.Add(new AppUser
+        {
+            Id = Guid.CreateVersion7(),
+            PersonId = person.Id,
+            Status = AccountStatus.Active,
+            MustChangePassword = false,
+            MfaEnrolledAt = Now.AddDays(-30),
+            SecurityStamp = $"automatic-assignment-{person.Id:N}",
+        });
         return person;
     }
 
@@ -684,7 +694,7 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
         DateTimeOffset assignedAt)
     {
         var id = Guid.CreateVersion7();
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             id,
             obligationId,
             personId,
@@ -702,7 +712,7 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
         DateTimeOffset assignedAt,
         Guid assignedBy,
         Guid supersedesId) =>
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             Guid.CreateVersion7(),
             obligationId,
             personId,
@@ -734,7 +744,8 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             context,
             new AuditTransaction(context),
             new FixedClock(Now),
-            uuidGenerator ?? new TestUuidGenerator());
+            uuidGenerator ?? new TestUuidGenerator(),
+            new EfInternalNoticeWriter(context, new TestUuidGenerator()));
 
     private SgolDbContext CreateContext() => new(
         new DbContextOptionsBuilder<SgolDbContext>()

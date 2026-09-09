@@ -206,7 +206,10 @@
         }
       },
       "sgol.assignment": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Sgol.Notifications": "[1.0.0, )"
+        }
       },
       "sgol.buildingblocks": {
         "type": "Project"
@@ -227,6 +230,9 @@
         "type": "Project"
       },
       "sgol.identity": {
+        "type": "Project"
+      },
+      "sgol.notifications": {
         "type": "Project"
       },
       "sgol.organization": {

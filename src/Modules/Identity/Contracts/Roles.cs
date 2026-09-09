@@ -34,6 +34,8 @@ public static class RoleHierarchy
 
     public static bool GrantsTaskExecution(string roleCode) => CanonicalRole.IsDefined(roleCode);
 
+    public static bool GrantsOwnInbox(string roleCode) => CanonicalRole.IsDefined(roleCode);
+
     public static bool CanAccessLevel(string actorRoleCode, string targetRoleCode)
     {
         if (!CanonicalRole.IsDefined(actorRoleCode) || !CanonicalRole.IsDefined(targetRoleCode))

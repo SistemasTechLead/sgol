@@ -488,7 +488,7 @@ public sealed class ObligationQueryPersistenceTests : IAsyncLifetime
         string status = AssignmentVersionStatuses.Current)
     {
         var id = Guid.CreateVersion7();
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             id,
             obligationId,
             personId,
@@ -508,7 +508,7 @@ public sealed class ObligationQueryPersistenceTests : IAsyncLifetime
         Guid supersedesId)
     {
         var id = Guid.CreateVersion7();
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             id,
             obligationId,
             personId,

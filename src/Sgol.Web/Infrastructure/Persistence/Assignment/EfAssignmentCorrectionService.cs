@@ -12,6 +12,7 @@ using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
+using Sgol.Notifications.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
@@ -21,7 +22,8 @@ public sealed class EfAssignmentCorrectionService(
     SgolDbContext dbContext,
     AuditTransaction auditTransaction,
     IClock clock,
-    IUuidGenerator uuidGenerator) : IAssignmentCorrectionService
+    IUuidGenerator uuidGenerator,
+    IInternalNoticeWriter noticeWriter) : IAssignmentCorrectionService
 {
     private const string ScopePrefix = "assignment:correction";
     private const string AssignmentResource = "ASSIGNMENT_VERSION";
@@ -273,6 +275,7 @@ public sealed class EfAssignmentCorrectionService(
                             normalized.ActorUserId,
                             current.Id);
                         dbContext.AssignmentVersions.Add(successor);
+                        await noticeWriter.AddAssignmentNoticeAsync(successor.Id, successor.PersonId, correctedAt, token);
                         AddIdempotency(scope, normalized, requestHash, AssignmentResource, assignmentId, 201, correctedAt);
                         result = Result(normalized, successor, current.Id, obligation.RowVersion, AssignmentCorrectionResults.Created);
                         return CreatedAudit(normalized, obligation.BranchId, current, result, correctedAt);
@@ -285,7 +288,10 @@ public sealed class EfAssignmentCorrectionService(
                     throw rejection;
                 }
 
-                return result ?? throw new InvalidOperationException("Assignment correction produced no result.");
+                var completed = result ?? throw new InvalidOperationException("Assignment correction produced no result.");
+                if (completed.Result == AssignmentCorrectionResults.Created)
+                    noticeWriter.RecordAssignmentNoticeCommitted();
+                return completed;
             }
             catch (Exception exception) when (IsRetryable(exception) && attempt < MaximumAttempts)
             {
