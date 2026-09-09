@@ -394,7 +394,7 @@ public sealed class EvidencePolicyPersistenceTests : IAsyncLifetime
         var responsiblePerson = await context.AppUsers.AsNoTracking()
             .Where(user => user.Id == responsible).Select(user => user.PersonId).SingleAsync();
         using var assignmentExplanation = JsonDocument.Parse("{}");
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             Guid.CreateVersion7(), obligation.ObligationId, responsiblePerson, AssignmentVersionStatuses.Current,
             AssignmentTypes.Automatic, assignmentExplanation, Now.AddHours(2)));
         await context.SaveChangesAsync();

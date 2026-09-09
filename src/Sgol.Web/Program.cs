@@ -57,6 +57,7 @@ app.MapAssignmentCorrectionApi();
 app.MapActiveLoadApi();
 app.MapObligationQueryApi();
 app.MapObligationConclusionApi();
+app.MapInboxApi();
 app.MapEvidenceApi();
 
 app.Run();

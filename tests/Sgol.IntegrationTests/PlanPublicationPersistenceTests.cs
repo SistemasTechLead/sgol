@@ -16,6 +16,7 @@ using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Notifications;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -260,7 +261,7 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
             .GetProperty("eligibilityEvaluationId").GetGuid();
         automatic.Supersede();
         var correctionId = Guid.CreateVersion7();
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             correctionId,
             target.ObligationId,
             automatic.PersonId,
@@ -579,7 +580,7 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
                 JsonDocument.Parse("{}"),
                 EligibilityResults.EligibleCandidates));
             assignmentId = Guid.CreateVersion7();
-            context.AssignmentVersions.Add(new AssignmentVersion(
+            InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
                 assignmentId,
                 obligation.Id,
                 responsible.PersonId,
@@ -622,7 +623,8 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
         context,
         new AuditTransaction(context),
         new FixedClock(Now),
-        new Uuid7Generator(new FixedClock(Now)));
+        new Uuid7Generator(new FixedClock(Now)),
+        new EfInternalNoticeWriter(context, new Uuid7Generator(new FixedClock(Now))));
 
     private SgolDbContext CreateContext() => new(
         new DbContextOptionsBuilder<SgolDbContext>()

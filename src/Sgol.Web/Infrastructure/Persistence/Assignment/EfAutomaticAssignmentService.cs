@@ -10,6 +10,7 @@ using Sgol.BuildingBlocks.Identifiers;
 using Sgol.BuildingBlocks.Time;
 using Sgol.Generation.Contracts;
 using Sgol.Organization.Contracts;
+using Sgol.Notifications.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
@@ -19,7 +20,8 @@ public sealed class EfAutomaticAssignmentService(
     SgolDbContext dbContext,
     AuditTransaction auditTransaction,
     IClock clock,
-    IUuidGenerator uuidGenerator) : IAutomaticAssignmentService
+    IUuidGenerator uuidGenerator,
+    IInternalNoticeWriter noticeWriter) : IAutomaticAssignmentService
 {
     private const string IdempotencyScope = "assignment:automatic";
     private const string AssignmentResource = "ASSIGNMENT_VERSION";
@@ -251,6 +253,7 @@ public sealed class EfAutomaticAssignmentService(
                             explanation,
                             calculatedAt);
                         dbContext.AssignmentVersions.Add(assignment);
+                        await noticeWriter.AddAssignmentNoticeAsync(assignment.Id, assignment.PersonId, calculatedAt, token);
                         AddIdempotency(
                             command,
                             requestHash,
@@ -276,7 +279,10 @@ public sealed class EfAutomaticAssignmentService(
                     throw rejection;
                 }
 
-                return result ?? throw new InvalidOperationException("Automatic assignment produced no result.");
+                var completed = result ?? throw new InvalidOperationException("Automatic assignment produced no result.");
+                if (completed.Result == AutomaticAssignmentResults.Created)
+                    noticeWriter.RecordAssignmentNoticeCommitted();
+                return completed;
             }
             catch (Exception exception) when (IsRetryable(exception) && attempt < MaximumAttempts)
             {

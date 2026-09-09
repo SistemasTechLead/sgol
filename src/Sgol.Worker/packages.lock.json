@@ -23,7 +23,10 @@
         "contentHash": "7nb5YzXuvWWJxB0J8DiyL3we+X4FOctZrt0fIBnucOIaIevFEEwGQVZKtiu9olXdlNAK1eNgqSral6r/jlhI4w=="
       },
       "sgol.assignment": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Sgol.Notifications": "[1.0.0, )"
+        }
       },
       "sgol.buildingblocks": {
         "type": "Project"
@@ -44,6 +47,9 @@
         "type": "Project"
       },
       "sgol.identity": {
+        "type": "Project"
+      },
+      "sgol.notifications": {
         "type": "Project"
       },
       "sgol.organization": {
@@ -67,6 +73,7 @@
           "Sgol.Execution": "[1.0.0, )",
           "Sgol.Generation": "[1.0.0, )",
           "Sgol.Identity": "[1.0.0, )",
+          "Sgol.Notifications": "[1.0.0, )",
           "Sgol.Organization": "[1.0.0, )",
           "Sgol.Planning": "[1.0.0, )"
         }

@@ -43,6 +43,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string StructuredEvidenceMigrationId = "20260908005832_EnableStructuredEvidence";
     private const string EvidenceReviewMigrationId = "20260908193819_AddEvidenceReviewSnapshots";
     private const string ObligationConclusionMigrationId = "20260908222252_AddObligationConclusions";
+    private const string InternalNoticesMigrationId = "20260909190648_AddInternalNotices";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -90,6 +91,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 StructuredEvidenceMigrationId,
                 EvidenceReviewMigrationId,
                 ObligationConclusionMigrationId,
+                InternalNoticesMigrationId,
             ],
             appliedMigrations);
 
@@ -132,6 +134,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "generation_request",
                 "idempotency_record",
                 "identity_credential",
+                "internal_notice",
                 "outbox_event",
                 "person",
                 "plan_version",
@@ -145,6 +148,50 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "work_plan",
             ],
             tables);
+    }
+
+    [Fact]
+    public async Task InternalNoticeMigrationInstallsClosedCatalogDeduplicationAndGuards()
+    {
+        await using var factory = CreateFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = scope.ServiceProvider.GetRequiredService<SgolDbContext>();
+        await context.Database.MigrateAsync();
+
+        var constraints = await ScalarAsync<long>(context, """
+            SELECT count(*)
+            FROM pg_constraint
+            WHERE conrelid = 'internal_notice'::regclass
+              AND conname IN (
+                'CK_internal_notice_non_empty_ids',
+                'CK_internal_notice_read_at',
+                'CK_internal_notice_resource_type',
+                'CK_internal_notice_type',
+                'FK_internal_notice_app_user_recipient_user_id',
+                'FK_internal_notice_assignment_version_resource_id',
+                'PK_internal_notice')
+            """);
+        var triggers = await ScalarAsync<long>(context, """
+            SELECT count(*)
+            FROM pg_trigger
+            WHERE NOT tgisinternal
+              AND tgname IN (
+                'tr_assignment_version_notice',
+                'tr_internal_notice_no_delete',
+                'tr_internal_notice_validate')
+            """);
+        var uniqueIndex = await ScalarAsync<long>(context, """
+            SELECT count(*)
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND tablename = 'internal_notice'
+              AND indexname = 'UX_internal_notice_producer'
+              AND indexdef LIKE 'CREATE UNIQUE INDEX%'
+            """);
+
+        Assert.Equal(7, constraints);
+        Assert.Equal(3, triggers);
+        Assert.Equal(1, uniqueIndex);
     }
 
     [Fact]
@@ -476,6 +523,15 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
         }
 
         return (bool)(await command.ExecuteScalarAsync() ?? false);
+    }
+
+    private static async Task<T> ScalarAsync<T>(SgolDbContext context, string sql)
+    {
+        if (context.Database.GetDbConnection().State != System.Data.ConnectionState.Open)
+            await context.Database.OpenConnectionAsync();
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = sql;
+        return (T)(await command.ExecuteScalarAsync() ?? throw new InvalidOperationException("Scalar query returned null."));
     }
 
     internal static PostgreSqlContainer CreateContainerForTests()

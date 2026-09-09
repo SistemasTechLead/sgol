@@ -4,27 +4,44 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-022`
+## Propuesta actual en rama — `HU-030`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-030` — Responsable ve bandeja propia y avisos internos |
+| Estado | Propuesta implementada en `codex/hu-030`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio, pruebas UI aplicables satisfactorias y cero defectos bloqueantes conocidos |
+| Contrato | `F07_ADENDA_22_CONTRATO_DE_BANDEJA_PROPIA_Y_AVISOS_INTERNOS_HU_030.md`, revalidada contra `HU-023`, `HU-024`, `HU-025`, `TECH-EVID-002`, `HU-026` y `HU-022`, y aprobada íntegramente el 2026-09-09 |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `HU-022`: Adenda 21 aprobada; PR `#44`; commit `20849773725a63c976a9dcd636d1c3fc75bbf9a3`; pipeline requerido `TECH-BASE-003 / PR gates` `SUCCESS`, run `34300222101` sobre ese SHA; aprobación humana; PostgreSQL externo `6/6`; merge y `origin/master` exactos en `10ef4c70515549d78f967ca5f70aa27be591c91f`; commit y merge ancestros; cero defectos bloqueantes conocidos |
+| Entregable | `GET /api/v1/me/inbox` y `POST /api/v1/me/notices/{id}/read`; tareas propias, evaluación informativa de evidencia, avisos propios y lectura idempotente natural |
+| Autorización | `PER-BANDEJA-PROPIA`, cuenta, MFA, empleo y rol vigentes; `/me` nunca amplía por jerarquía; un aviso ajeno o inexistente converge en `404` |
+| Evidencia | Política congelada y sólo versiones `VIGENTE`; reutiliza `EvidenceReviewEvaluator` sin crear snapshot, resultado ni acceso al contenido de archivos |
+| Persistencia | Migración `20260909190648_AddInternalNotices`; tabla `internal_notice`, catálogos cerrados, FK `RESTRICT`, deduplicación, índices, guardas e invariancia diferible con `assignment_version` |
+| Atomicidad y concurrencia | GET `REPEATABLE READ, READ ONLY`; POST `SERIALIZABLE`, `FOR UPDATE`, tres intentos y auditoría atómica; repetición devuelve el `read_at` original sin segunda auditoría |
+| Pruebas | Unitarias completas `409/409`; arquitectura completa `22/22`; enfocadas HU-030 `24/24` unitarias y `2/2` de arquitectura; PostgreSQL externo afectado `25/25`, cero advertencias |
+| Gates | Restore locked `19/19`; build Release `19/19`; unitarias, arquitectura, pruebas enfocadas y PostgreSQL aprobados; UI/navegador no aplica porque la Adenda 22 excluye UI por brecha de diseño; verificaciones estáticas finales documentadas en la entrega del commit |
+| Límites | Sin conclusión, validación, supervisión, indicadores, UI, mensajería externa, outbox, scheduler, descarga o inspección de archivos, S3, SeaweedFS o ClamAV |
+| Cierre | Requiere commit exacto, pipeline verde, aprobación humana, merge, ascendencia, PostgreSQL externo satisfactorio y cero defectos bloqueantes |
+| Siguiente tarea | Ninguna queda habilitada desde esta rama: `HU-027` sólo procede tras el cierre efectivo de `HU-030` |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y todavía no habilita `HU-027`.
+
+## Base aceptada — `HU-022`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-022` — Responsable concluye sólo con evidencia completa |
-| Estado | Propuesta implementada en `codex/hu-022`. Este mismo registro adquiere automáticamente estado efectivo `Terminada` en `master`, sin commit administrativo posterior, sólo cuando el commit exacto tenga pipeline requerido verde, aprobación humana, merge, ascendencia verificada en `origin/master`, PostgreSQL satisfactorio y cero defectos bloqueantes conocidos |
-| Contrato | `F07_ADENDA_21_CONTRATO_DE_CONCLUSION_ATOMICA_DE_OBLIGACION_HU_022.md`, revalidada contra `HU-019`, `HU-025`, `TECH-EVID-002` y `HU-026`, y aprobada íntegramente el 2026-09-08 |
-| Commit implementado | Commit que contiene esta actualización |
-| Base aceptada | `HU-026`: Adenda 19 aprobada; PR `#43`; commit `bddf95fe2957fbea4b3b65bd0a29a17bb736a34d`; pipeline requerido `TECH-BASE-003 / PR gates` `SUCCESS`, run `34277376838` sobre ese SHA; aprobación humana; PostgreSQL externo `3/3`; merge `8d28d654388fd532b9b85a6d29242f4a71494985`; `origin/master` exacto en ese merge al iniciar; commit y merge ancestros; cero defectos bloqueantes conocidos |
-| Entregable | Único `POST /api/v1/obligations/{id}/conclusion`, sin cuerpo, con `Idempotency-Key`, ETag/`If-Match`, CSRF, respuesta `200` y resultado cerrado `CONCLUIDA` |
-| Autorización | Sólo `PER-TAREA-EJECUTAR` del responsable de la asignación `VIGENTE`; pares, superiores, inferiores y usuarios ajenos convergen en `404` contra IDOR |
-| Evidencia | Reutiliza el algoritmo de `HU-026`, la política congelada y sólo evidencia `VIGENTE`; exige `COMPLETA` y vincula el snapshot exacto, nuevo o reutilizado |
-| Persistencia | Migración `20260908222252_AddObligationConclusions`; transición `PENDIENTE → CONCLUIDA`, `concluded_at`, `concluded_by`, `row_version`; tabla inmutable `execution_result`, FK `RESTRICT`, checks, unicidades, índices y guardas PostgreSQL |
-| Atomicidad y concurrencia | Una transacción `SERIALIZABLE` bloquea obligación, asignación y evidencia en orden estable; resultado, transición, idempotencia y auditoría se confirman o revierten juntos, con tres intentos acotados |
-| Pruebas | Unitarias completas `385/385`; arquitectura completa `20/20`; enfocadas HU-022 sin Docker `18/18`; PostgreSQL externo `6/6`, cero advertencias, 52.0 s |
-| Gates | Restore locked y build Release `18/18`; unitarias `385/385`; arquitectura `20/20`; enfocadas HU-022 `18/18`; PostgreSQL externo `6/6`. Los gates restantes y sus resultados se informan en la entrega sin convertir esta propuesta en `Terminada` |
-| Límites | Sin validación, avisos, bandejas, reapertura, cierre forzado, UI, descarga, inspección de archivos, S3, SeaweedFS, ClamAV, outbox ni motor general de reglas |
-| Cierre | Requiere commit exacto, pipeline verde, aprobación humana, merge, ascendencia, PostgreSQL externo satisfactorio y cero defectos bloqueantes |
-| Siguiente tarea | Ninguna queda habilitada desde esta rama: `HU-030` sólo procede tras el cierre efectivo de `HU-022` |
-
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y todavía no habilita `HU-030`.
+| Estado | `Terminada` efectiva conforme a la regla condicional de cierre en un PR |
+| Contrato | Adenda 21 aprobada íntegramente e incorporada |
+| Pull request | `#44`, merged |
+| Commit implementado | `20849773725a63c976a9dcd636d1c3fc75bbf9a3` |
+| Pipeline requerido | `TECH-BASE-003 / PR gates` `SUCCESS`, run `34300222101`, correspondiente al commit exacto |
+| PostgreSQL | `6/6` satisfactorio |
+| Aprobación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `10ef4c70515549d78f967ca5f70aa27be591c91f`; era exactamente `origin/master` al iniciar `HU-030` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` |
+| Defectos bloqueantes | Cero conocidos |
+| `Fuentes/` | Sin cambios |
 
 ## Base aceptada — `HU-026`
 

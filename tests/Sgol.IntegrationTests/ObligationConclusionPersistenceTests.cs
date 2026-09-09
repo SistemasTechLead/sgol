@@ -319,7 +319,7 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         var personId = await context.AppUsers.AsNoTracking()
             .Where(user => user.Id == actor).Select(user => user.PersonId).SingleAsync();
         using var explanation = JsonDocument.Parse("{}");
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             Guid.CreateVersion7(), obligation.ObligationId, personId, AssignmentVersionStatuses.Current,
             AssignmentTypes.Automatic, explanation, Now.AddMinutes(4)));
         await context.SaveChangesAsync();

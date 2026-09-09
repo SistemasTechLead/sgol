@@ -92,7 +92,7 @@ internal static class ObligationConclusionTestData
         {
             responsiblePersonId = fallbackResponsiblePersonId ??
                 throw new InvalidOperationException("A responsible person is required by the conclusion fixture.");
-            context.AssignmentVersions.Add(new AssignmentVersion(
+            InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
                 Guid.CreateVersion7(),
                 obligationId,
                 responsiblePersonId.Value,

@@ -127,7 +127,7 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         Assert.Equal(PostgresErrorCodes.CheckViolation, invalidStatusException.SqlState);
 
         using var explanation = JsonDocument.Parse("{}");
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             Guid.CreateVersion7(), scenario.PendingObligationId, scenario.ZeroLoad.PersonId,
             AssignmentVersionStatuses.Current, AssignmentTypes.Automatic, explanation, Now));
         var duplicateCurrent = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
@@ -311,7 +311,7 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         DateTimeOffset assignedAt)
     {
         var id = Guid.CreateVersion7();
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             id, obligationId, personId, status, AssignmentTypes.Automatic,
             JsonDocument.Parse("{}"), assignedAt));
         return id;
@@ -327,7 +327,7 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
         Guid supersedesId)
     {
         var id = Guid.CreateVersion7();
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             id, obligationId, personId, status, AssignmentTypes.Correction,
             JsonDocument.Parse("{}"), assignedAt, "Corrección sintética",
             assignedBy, supersedesId));

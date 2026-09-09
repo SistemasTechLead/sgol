@@ -9,12 +9,14 @@ using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
+using Sgol.Notifications.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Notifications;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -70,6 +72,10 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
         Assert.Equal(AssignmentTypes.Correction, history[1].AssignmentType);
         Assert.Equal(originalId, history[1].SupersedesId);
         Assert.Equal(actor.User.Id, history[1].AssignedBy);
+        var notice = await context.InternalNotices.AsNoTracking().SingleAsync(item => item.ResourceId == history[1].Id);
+        Assert.Equal(candidate.User.Id, notice.RecipientUserId);
+        Assert.Equal(InternalNoticeTypes.ObligationAssigned, notice.NoticeType);
+        Assert.Equal(history[1].AssignedAt, notice.CreatedAt);
 
         var explanation = history[1].Explanation.RootElement;
         Assert.Equal(ExplanationProperties.Order(StringComparer.Ordinal),
@@ -129,6 +135,157 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
             chain.Single(item => item.Id == secondCorrection.AssignmentId).SupersedesId);
         Assert.Single(chain, item => item.Status == AssignmentVersionStatuses.Current);
         Assert.Equal(first.Person.Id, chain.Single(item => item.Status == AssignmentVersionStatuses.Current).PersonId);
+    }
+
+    [Fact]
+    public async Task RecipientReadsNoticeOnceAndAnotherAuthorizedUserConvergesToNotFound()
+    {
+        var seed = await ResetAsync();
+        await using var context = CreateContext();
+        var actor = AddUser(context, "NOTICE-ADM", CanonicalRole.Administration);
+        var previous = AddUser(context, "NOTICE-OLD", CanonicalRole.Subcoordination);
+        var candidate = AddUser(context, "NOTICE-NEW", CanonicalRole.Subcoordination);
+        await context.SaveChangesAsync();
+        var obligationId = await AddObligationAsync(context, seed, "notice-read");
+        AddAutomatic(context, obligationId, previous.Person.Id);
+        var evaluation = AddEvaluation(context, obligationId, seed.PolicyId, previous.Person, candidate.Person);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var correction = await Service(context).CorrectAsync(new(
+            actor.User.Id, Guid.CreateVersion7(), Guid.CreateVersion7(), obligationId, candidate.Person.Id,
+            evaluation.Id, "Cambio para aviso", 1));
+        var notice = await context.InternalNotices.AsNoTracking()
+            .SingleAsync(item => item.ResourceId == correction.AssignmentId);
+        var readAt = Now.AddMinutes(1);
+        var countingClock = new CountingClock(readAt);
+        var beforeReadAuditCount = await context.AuditEvents.CountAsync();
+        var beforeSnapshotCount = await context.EvidenceReviewSnapshots.CountAsync();
+        var inbox = await new EfInboxReader(context, countingClock).ReadAsync(new(
+            candidate.User.Id,
+            await context.WeekPeriods.Select(item => (Guid?)item.Id).SingleAsync(),
+            null, null, 25, "ALL", null, 25));
+
+        Assert.Equal(1, countingClock.CallCount);
+        Assert.Single(inbox.Tasks.Items);
+        Assert.Equal(obligationId, inbox.Tasks.Items[0].ObligationId);
+        Assert.Equal(InboxTaskStates.Available, inbox.Tasks.Items[0].TaskState);
+        Assert.Equal(WorkObligationStatuses.Pending, inbox.Tasks.Items[0].ExecutionStatus);
+        Assert.Single(inbox.Notices.Items);
+        Assert.Equal(notice.Id, inbox.Notices.Items[0].NoticeId);
+        Assert.Equal(InternalNoticeStatuses.Unread, inbox.Notices.Items[0].Status);
+        Assert.Equal(beforeReadAuditCount, await context.AuditEvents.CountAsync());
+        Assert.Equal(beforeSnapshotCount, await context.EvidenceReviewSnapshots.CountAsync());
+
+        var noticeService = new EfInternalNoticeService(context, new FixedClock(readAt), new TestUuidGenerator());
+
+        var first = await noticeService.MarkReadAsync(new(candidate.User.Id, notice.Id, Guid.CreateVersion7()));
+        var repeated = await noticeService.MarkReadAsync(new(candidate.User.Id, notice.Id, Guid.CreateVersion7()));
+
+        Assert.Equal(InternalNoticeReadResults.MarkedRead, first.Result);
+        Assert.Equal(InternalNoticeReadResults.AlreadyRead, repeated.Result);
+        Assert.Equal(readAt, first.ReadAt);
+        Assert.Equal(first.ReadAt, repeated.ReadAt);
+        Assert.Equal(1, await context.AuditEvents.CountAsync(item =>
+            item.Action == "INTERNAL_NOTICE_READ" && item.ResourceId == notice.Id));
+        await Assert.ThrowsAsync<InternalNoticeNotFoundException>(() =>
+            noticeService.MarkReadAsync(new(actor.User.Id, notice.Id, Guid.CreateVersion7())));
+        Assert.Equal(WorkObligationStatuses.Pending, await context.WorkObligations.AsNoTracking()
+            .Where(item => item.Id == obligationId).Select(item => item.ExecutionStatus).SingleAsync());
+    }
+
+    [Fact]
+    public async Task AuditFailureRollsBackNoticeRead()
+    {
+        var seed = await ResetAsync();
+        Guid noticeId;
+        Guid recipientId;
+        var duplicateAuditId = Guid.CreateVersion7();
+        await using (var context = CreateContext())
+        {
+            var actor = AddUser(context, "NOTICE-ROLLBACK-ADM", CanonicalRole.Administration);
+            var previous = AddUser(context, "NOTICE-ROLLBACK-OLD", CanonicalRole.Subcoordination);
+            var candidate = AddUser(context, "NOTICE-ROLLBACK-NEW", CanonicalRole.Subcoordination);
+            await context.SaveChangesAsync();
+            var obligationId = await AddObligationAsync(context, seed, "notice-rollback");
+            AddAutomatic(context, obligationId, previous.Person.Id);
+            var evaluation = AddEvaluation(context, obligationId, seed.PolicyId, previous.Person, candidate.Person);
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+            var correction = await Service(context).CorrectAsync(new(
+                actor.User.Id, Guid.CreateVersion7(), Guid.CreateVersion7(), obligationId, candidate.Person.Id,
+                evaluation.Id, "Cambio con rollback", 1));
+            var notice = await context.InternalNotices.AsNoTracking()
+                .SingleAsync(item => item.ResourceId == correction.AssignmentId);
+            noticeId = notice.Id;
+            recipientId = candidate.User.Id;
+            context.AuditEvents.Add(new AuditEvent
+            {
+                Id = duplicateAuditId,
+                OccurredAt = Now,
+                ActorUserId = actor.User.Id,
+                ActorType = "USER",
+                Action = "SYNTHETIC_EXISTING_EVENT",
+                ResourceType = "INTERNAL_NOTICE",
+                ResourceId = noticeId,
+                BranchId = BranchScope.LorettaId,
+                CorrelationId = Guid.CreateVersion7(),
+                Outcome = "SUCCESS",
+            });
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+
+            var service = new EfInternalNoticeService(
+                context, new FixedClock(Now.AddMinutes(1)), new SequenceUuidGenerator(duplicateAuditId));
+            await Assert.ThrowsAsync<DbUpdateException>(() =>
+                service.MarkReadAsync(new(recipientId, noticeId, Guid.CreateVersion7())));
+        }
+
+        await using var verification = CreateContext();
+        Assert.Null(await verification.InternalNotices.AsNoTracking()
+            .Where(item => item.Id == noticeId).Select(item => item.ReadAt).SingleAsync());
+        Assert.Equal(1, await verification.AuditEvents.CountAsync(item => item.Id == duplicateAuditId));
+    }
+
+    [Fact]
+    public async Task ConcurrentReadsConvergeToOneTransitionAndOneAudit()
+    {
+        var seed = await ResetAsync();
+        Guid noticeId;
+        Guid recipientId;
+        await using (var setup = CreateContext())
+        {
+            var actor = AddUser(setup, "NOTICE-RACE-ADM", CanonicalRole.Administration);
+            var previous = AddUser(setup, "NOTICE-RACE-OLD", CanonicalRole.Subcoordination);
+            var candidate = AddUser(setup, "NOTICE-RACE-NEW", CanonicalRole.Subcoordination);
+            await setup.SaveChangesAsync();
+            var obligationId = await AddObligationAsync(setup, seed, "notice-race");
+            AddAutomatic(setup, obligationId, previous.Person.Id);
+            var evaluation = AddEvaluation(setup, obligationId, seed.PolicyId, previous.Person, candidate.Person);
+            await setup.SaveChangesAsync();
+            setup.ChangeTracker.Clear();
+            var correction = await Service(setup).CorrectAsync(new(
+                actor.User.Id, Guid.CreateVersion7(), Guid.CreateVersion7(), obligationId, candidate.Person.Id,
+                evaluation.Id, "Cambio concurrente", 1));
+            noticeId = await setup.InternalNotices.AsNoTracking()
+                .Where(item => item.ResourceId == correction.AssignmentId).Select(item => item.Id).SingleAsync();
+            recipientId = candidate.User.Id;
+        }
+
+        await using var firstContext = CreateContext();
+        await using var secondContext = CreateContext();
+        var readAt = Now.AddMinutes(1);
+        var reads = await Task.WhenAll(
+            new EfInternalNoticeService(firstContext, new FixedClock(readAt), new TestUuidGenerator())
+                .MarkReadAsync(new(recipientId, noticeId, Guid.CreateVersion7())),
+            new EfInternalNoticeService(secondContext, new FixedClock(readAt), new TestUuidGenerator())
+                .MarkReadAsync(new(recipientId, noticeId, Guid.CreateVersion7())));
+
+        Assert.Single(reads, result => result.Result == InternalNoticeReadResults.MarkedRead);
+        Assert.Single(reads, result => result.Result == InternalNoticeReadResults.AlreadyRead);
+        Assert.Single(reads.Select(result => result.ReadAt).Distinct());
+        await using var verification = CreateContext();
+        Assert.Equal(1, await verification.AuditEvents.CountAsync(item =>
+            item.Action == "INTERNAL_NOTICE_READ" && item.ResourceId == noticeId));
     }
 
     [Fact]
@@ -442,7 +599,7 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
     private static Guid AddAutomatic(SgolDbContext context, Guid obligationId, Guid personId)
     {
         var id = Guid.CreateVersion7();
-        context.AssignmentVersions.Add(new AssignmentVersion(
+        InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
             id, obligationId, personId, AssignmentVersionStatuses.Current, AssignmentTypes.Automatic,
             JsonDocument.Parse("{}"), Now.AddMinutes(-10)));
         return id;
@@ -482,7 +639,8 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
         await context.AuditEvents.CountAsync());
 
     private static EfAssignmentCorrectionService Service(SgolDbContext context, IUuidGenerator? generator = null) =>
-        new(context, new AuditTransaction(context), new FixedClock(Now), generator ?? new TestUuidGenerator());
+        new(context, new AuditTransaction(context), new FixedClock(Now), generator ?? new TestUuidGenerator(),
+            new EfInternalNoticeWriter(context, new TestUuidGenerator()));
 
     private SgolDbContext CreateContext() => new(new DbContextOptionsBuilder<SgolDbContext>()
         .UseNpgsql(_postgres.GetConnectionString()).Options);
@@ -503,6 +661,11 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
         int Obligations, int Assignments, int Evaluations, int Candidates, int People, int Employments,
         int AppUsers, int Roles, int Availability, int Idempotency, int Audits);
     private sealed class FixedClock(DateTimeOffset now) : IClock { public DateTimeOffset UtcNow { get; } = now; }
+    private sealed class CountingClock(DateTimeOffset now) : IClock
+    {
+        public int CallCount { get; private set; }
+        public DateTimeOffset UtcNow { get { CallCount++; return now; } }
+    }
     private sealed class TestUuidGenerator : IUuidGenerator { public Guid NewUuid() => Guid.CreateVersion7(); }
     private sealed class SequenceUuidGenerator(params Guid[] values) : IUuidGenerator
     {

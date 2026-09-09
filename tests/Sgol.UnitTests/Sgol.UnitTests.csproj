@@ -9,6 +9,7 @@
     <ProjectReference Include="..\..\src\Modules\Execution\Sgol.Execution.csproj" />
     <ProjectReference Include="..\..\src\Modules\Evidence\Sgol.Evidence.csproj" />
     <ProjectReference Include="..\..\src\Modules\Generation\Sgol.Generation.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Notifications\Sgol.Notifications.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

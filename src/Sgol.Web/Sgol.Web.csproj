@@ -16,6 +16,7 @@
     <ProjectReference Include="..\Modules\Evidence\Sgol.Evidence.csproj" />
     <ProjectReference Include="..\Modules\Generation\Sgol.Generation.csproj" />
     <ProjectReference Include="..\Modules\Identity\Sgol.Identity.csproj" />
+    <ProjectReference Include="..\Modules\Notifications\Sgol.Notifications.csproj" />
     <ProjectReference Include="..\Modules\Organization\Sgol.Organization.csproj" />
     <ProjectReference Include="..\Modules\Planning\Sgol.Planning.csproj" />
     <ProjectReference Include="..\Sgol.BuildingBlocks\Sgol.BuildingBlocks.csproj" />
