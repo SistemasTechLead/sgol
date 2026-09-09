@@ -16,6 +16,63 @@ namespace Sgol.IntegrationTests;
 
 internal static class ObligationConclusionTestData
 {
+    public static async Task<Guid> EnsurePolicyAsync(
+        SgolDbContext context,
+        Guid taskDefinitionVersionId,
+        DateTimeOffset effectiveAt)
+    {
+        await context.SaveChangesAsync();
+
+        var taskVersion = await context.TaskDefinitionVersions.AsNoTracking()
+            .SingleAsync(version => version.Id == taskDefinitionVersionId);
+        var taskCode = await context.TaskDefinitions.AsNoTracking()
+            .Where(task => task.Id == taskVersion.TaskDefinitionId)
+            .Select(task => task.TaskCode)
+            .SingleAsync();
+        var policy = await context.EvidencePolicyVersions
+            .SingleOrDefaultAsync(version => version.TaskDefinitionVersionId == taskVersion.Id);
+        if (policy is null)
+        {
+            var policyId = Guid.CreateVersion7();
+            var nextVersion = await context.EvidencePolicyVersions.AsNoTracking()
+                .Where(version => version.TaskDefinitionId == taskVersion.TaskDefinitionId)
+                .Select(version => (int?)version.VersionNo)
+                .MaxAsync() ?? 0;
+            policy = new EvidencePolicyVersion(
+                policyId,
+                taskVersion.TaskDefinitionId,
+                taskVersion.Id,
+                taskVersion.ReleaseId,
+                null,
+                nextVersion + 1);
+            policy.ApplyPublished(new VersionRecord(
+                policyId,
+                VersionStatuses.Current,
+                effectiveAt,
+                null,
+                "Synthetic conclusion fixture",
+                null,
+                2));
+            context.EvidencePolicyVersions.Add(policy);
+        }
+
+        var hasRequirements = await context.EvidenceRequirementVersions.AsNoTracking()
+            .AnyAsync(item => item.PolicyVersionId == policy.Id);
+        if (hasRequirements)
+        {
+            return policy.Id;
+        }
+
+        context.EvidenceRequirementVersions.AddRange(EvidencePolicyCatalog.Require(taskCode)
+            .Select(definition => new EvidenceRequirementVersion(
+                Guid.CreateVersion7(),
+                policy.Id,
+                taskVersion.TaskDefinitionId,
+                definition)));
+        await context.SaveChangesAsync();
+        return policy.Id;
+    }
+
     public static async Task ConcludeAsync(
         SgolDbContext context,
         Guid obligationId,
@@ -70,35 +127,9 @@ internal static class ObligationConclusionTestData
             .Where(task => task.Id == taskVersion.TaskDefinitionId)
             .Select(task => task.TaskCode)
             .SingleAsync();
-        var policy = obligation.EvidencePolicyVersionId is Guid frozenPolicyId
-            ? await context.EvidencePolicyVersions.SingleAsync(version => version.Id == frozenPolicyId)
-            : await context.EvidencePolicyVersions
-                .SingleOrDefaultAsync(version => version.TaskDefinitionVersionId == taskVersion.Id);
-        if (policy is null)
-        {
-            var policyId = Guid.CreateVersion7();
-            policy = new EvidencePolicyVersion(
-                policyId,
-                taskVersion.TaskDefinitionId,
-                taskVersion.Id,
-                taskVersion.ReleaseId,
-                null,
-                1);
-            policy.ApplyPublished(new VersionRecord(
-                policyId,
-                VersionStatuses.Current,
-                concludedAt.AddDays(-1),
-                null,
-                "Synthetic conclusion fixture",
-                null,
-                2));
-            context.EvidencePolicyVersions.Add(policy);
-        }
-
-        if (obligation.EvidencePolicyVersionId is null)
-        {
-            context.Entry(obligation).Property(item => item.EvidencePolicyVersionId).CurrentValue = policy.Id;
-        }
+        var frozenPolicyId = obligation.EvidencePolicyVersionId ??
+            throw new InvalidOperationException("The conclusion fixture requires a policy frozen at obligation creation.");
+        var policy = await context.EvidencePolicyVersions.SingleAsync(version => version.Id == frozenPolicyId);
 
         var requirements = await context.EvidenceRequirementVersions
             .Where(item => item.PolicyVersionId == policy.Id)
@@ -106,14 +137,7 @@ internal static class ObligationConclusionTestData
             .ToListAsync();
         if (requirements.Count == 0)
         {
-            requirements = EvidencePolicyCatalog.Require(taskCode)
-                .Select(definition => new EvidenceRequirementVersion(
-                    Guid.CreateVersion7(),
-                    policy.Id,
-                    taskVersion.TaskDefinitionId,
-                    definition))
-                .ToList();
-            context.EvidenceRequirementVersions.AddRange(requirements);
+            throw new InvalidOperationException("The frozen evidence policy has no requirements.");
         }
 
         var evidence = new List<ConclusionEvidence>(requirements.Count);

@@ -291,9 +291,11 @@ public sealed class ActiveLoadPersistenceTests : IAsyncLifetime
             origin, requestedBy, Now.AddHours(-6));
         context.GenerationRequests.Add(request);
         await context.SaveChangesAsync();
+        var evidencePolicyId = await ObligationConclusionTestData.EnsurePolicyAsync(
+            context, taskVersionId, Now.AddDays(-1));
         var obligation = new WorkObligation(
             Guid.CreateVersion7(), taskVersionId, BranchScope.LorettaId,
-            periodId, requestId, origin);
+            periodId, requestId, origin, evidencePolicyId);
         context.WorkObligations.Add(obligation);
         await context.SaveChangesAsync();
         request.LinkObligation(obligation.Id);

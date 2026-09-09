@@ -463,13 +463,16 @@ public sealed class ObligationQueryPersistenceTests : IAsyncLifetime
             requestedAt);
         context.GenerationRequests.Add(request);
         await context.SaveChangesAsync();
+        var evidencePolicyId = await ObligationConclusionTestData.EnsurePolicyAsync(
+            context, taskVersionId, requestedAt.AddDays(-1));
         var obligation = new WorkObligation(
             Guid.CreateVersion7(),
             taskVersionId,
             BranchScope.LorettaId,
             periodId,
             request.Id,
-            originReference);
+            originReference,
+            evidencePolicyId);
         context.WorkObligations.Add(obligation);
         await context.SaveChangesAsync();
         request.LinkObligation(obligation.Id);

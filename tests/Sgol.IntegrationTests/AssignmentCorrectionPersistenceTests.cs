@@ -427,8 +427,11 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
             seed.PeriodId, ActivationOriginSchemas.ManualReference, origin, seed.SystemUserId, Now.AddDays(-1));
         context.GenerationRequests.Add(request);
         await context.SaveChangesAsync();
+        var evidencePolicyId = await ObligationConclusionTestData.EnsurePolicyAsync(
+            context, seed.TaskVersionId, Now.AddDays(-1));
         var obligation = new WorkObligation(
-            Guid.CreateVersion7(), seed.TaskVersionId, BranchScope.LorettaId, seed.PeriodId, request.Id, origin);
+            Guid.CreateVersion7(), seed.TaskVersionId, BranchScope.LorettaId, seed.PeriodId, request.Id, origin,
+            evidencePolicyId);
         context.WorkObligations.Add(obligation);
         await context.SaveChangesAsync();
         request.LinkObligation(obligation.Id);
