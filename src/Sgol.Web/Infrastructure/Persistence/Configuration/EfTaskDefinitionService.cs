@@ -48,12 +48,17 @@ public sealed class EfTaskDefinitionService(
             .Where(item => evidencePolicyIds.Contains(item.PolicyVersionId))
             .OrderBy(item => item.Ordinal)
             .ToListAsync(cancellationToken);
+        var validationPolicies = await dbContext.ValidationPolicyVersions.AsNoTracking()
+            .Where(item => item.Status != VersionStatuses.Draft)
+            .OrderByDescending(item => item.VersionNo)
+            .ToListAsync(cancellationToken);
         var result = definitions.Select(definition => ToDetails(
             definition,
             versions.Where(item => item.TaskDefinitionId == definition.Id),
             policies.SingleOrDefault(item => item.TaskDefinitionId == definition.Id),
             evidencePolicies.SingleOrDefault(item => item.TaskDefinitionId == definition.Id),
-            evidenceRequirements)).ToArray();
+            evidenceRequirements,
+            validationPolicies.Where(item => item.TaskDefinitionId == definition.Id))).ToArray();
         dbContext.ChangeTracker.Clear();
         return result;
     }
@@ -83,7 +88,11 @@ public sealed class EfTaskDefinitionService(
                 .Where(item => item.PolicyVersionId == evidencePolicy.Id)
                 .OrderBy(item => item.Ordinal)
                 .ToListAsync(cancellationToken);
-        var result = ToDetails(definition, versions, policy, evidencePolicy, evidenceRequirements);
+        var validationPolicies = await dbContext.ValidationPolicyVersions.AsNoTracking()
+            .Where(item => item.TaskDefinitionId == seed.Id && item.Status != VersionStatuses.Draft)
+            .OrderByDescending(item => item.VersionNo)
+            .ToListAsync(cancellationToken);
+        var result = ToDetails(definition, versions, policy, evidencePolicy, evidenceRequirements, validationPolicies);
         dbContext.ChangeTracker.Clear();
         return result;
     }
@@ -411,11 +420,14 @@ public sealed class EfTaskDefinitionService(
         IEnumerable<TaskDefinitionVersion> versions,
         EligibilityPolicyVersion? policy,
         EvidencePolicyVersion? evidencePolicy,
-        IEnumerable<EvidenceRequirementVersion> evidenceRequirements)
+        IEnumerable<EvidenceRequirementVersion> evidenceRequirements,
+        IEnumerable<ValidationPolicyVersion> validationPolicies)
     {
         var ordered = versions.OrderByDescending(item => item.VersionNo).ToArray();
         var current = ordered.FirstOrDefault(item =>
             item.Status is VersionStatuses.Current or TaskDefinitionStatuses.InactiveForNew);
+        var validationHistory = validationPolicies.OrderByDescending(item => item.VersionNo).ToArray();
+        var currentValidationPolicy = validationHistory.FirstOrDefault(item => item.Status == VersionStatuses.Current);
         return new TaskDefinitionDetails(
             definition.Id,
             definition.TaskCode,
@@ -439,6 +451,12 @@ public sealed class EfTaskDefinitionService(
                             item.IsRequired,
                             item.Ordinal))
                         .ToArray()),
+            currentValidationPolicy is null
+                ? null
+                : EfValidationPolicyService.ToDetails(definition.TaskCode, currentValidationPolicy),
+            validationHistory
+                .Select(item => EfValidationPolicyService.ToDetails(definition.TaskCode, item))
+                .ToArray(),
             ordered.Select(ToVersionDetails).ToArray());
     }
 

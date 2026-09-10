@@ -197,6 +197,8 @@ public sealed record TaskDefinitionDetails(
     TaskDefinitionVersionDetails? Current,
     EligibilityPolicyVersionDetails? CurrentEligibilityPolicy,
     EvidencePolicyVersionDetails? CurrentEvidencePolicy,
+    ValidationPolicyVersionDetails? CurrentValidationPolicy,
+    IReadOnlyList<ValidationPolicyVersionDetails> ValidationPolicyHistory,
     IReadOnlyList<TaskDefinitionVersionDetails> History);
 
 public sealed record CreateTaskDefinitionVersionCommand(

@@ -57,6 +57,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<EvidenceRequirementVersion> EvidenceRequirementVersions => Set<EvidenceRequirementVersion>();
 
+    public DbSet<ValidationPolicyVersion> ValidationPolicyVersions => Set<ValidationPolicyVersion>();
+
     public DbSet<WeekPeriod> WeekPeriods => Set<WeekPeriod>();
 
     public DbSet<WorkPlan> WorkPlans => Set<WorkPlan>();
@@ -113,6 +115,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new EvidenceRequirementCatalogConfiguration());
         modelBuilder.ApplyConfiguration(new EvidencePolicyVersionConfiguration());
         modelBuilder.ApplyConfiguration(new EvidenceRequirementVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new ValidationPolicyVersionConfiguration());
         modelBuilder.ApplyConfiguration(new WeekPeriodConfiguration());
         modelBuilder.ApplyConfiguration(new WorkPlanConfiguration());
         modelBuilder.ApplyConfiguration(new PlanVersionConfiguration());
