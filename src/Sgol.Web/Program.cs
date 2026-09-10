@@ -48,6 +48,7 @@ app.MapTaskDefinitionApi();
 app.MapEligibilityPolicyApi();
 app.MapActivationPolicyApi();
 app.MapEvidencePolicyApi();
+app.MapValidationPolicyApi();
 app.MapWeekApi();
 app.MapWorkPlanApi();
 app.MapPlanPublicationApi();

@@ -31,6 +31,8 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
                     services.AddSingleton<IActivationPolicyService, UnusedActivationPolicyService>();
                     services.RemoveAll<IEvidencePolicyService>();
                     services.AddSingleton<IEvidencePolicyService, UnusedEvidencePolicyService>();
+                    services.RemoveAll<IValidationPolicyService>();
+                    services.AddSingleton<IValidationPolicyService, UnusedValidationPolicyService>();
                     services.RemoveAll<IEvidenceContributionService>();
                     services.AddSingleton<IEvidenceContributionService, UnusedEvidenceContributionService>();
                     services.RemoveAll<IEvidenceReviewService>();
@@ -127,20 +129,21 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact]
-    public async Task ValidationPolicyEndpoint_DoesNotExist()
-    {
-        using var response = await _client.PutAsync(
-            "/api/v1/task-definitions/TAR-0005/validation-policy",
-            content: null);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
     public async Task EvidencePolicyEndpoint_RequiresAuthentication()
     {
         using var response = await _client.PutAsync(
             "/api/v1/task-definitions/TAR-0005/evidence-policy",
+            JsonContent.Create(new { }));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task ValidationPolicyEndpoint_RequiresAuthentication()
+    {
+        using var response = await _client.PutAsync(
+            "/api/v1/task-definitions/TAR-0005/validation-policy",
             JsonContent.Create(new { }));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -228,6 +231,18 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
     {
         public Task<EvidencePolicyVersionDetails> PutAsync(
             PutEvidencePolicyCommand command,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task RecordRejectionAsync(
+            Guid actorUserId,
+            Guid correlationId,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class UnusedValidationPolicyService : IValidationPolicyService
+    {
+        public Task<ValidationPolicyVersionDetails> PutAsync(
+            PutValidationPolicyCommand command,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task RecordRejectionAsync(

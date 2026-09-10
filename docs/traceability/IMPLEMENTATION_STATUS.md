@@ -4,25 +4,26 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `TECH-E2E-CV-03`
+## Propuesta actual en rama — `HU-027`
 
 | Campo | Valor |
 |---|---|
-| Tarea | `TECH-E2E-CV-03` — Demo automatizada y cierre del corte `CV-03` |
-| Estado | Propuesta implementada en `codex/tech-e2e-cv-03`. No declara terminada la tarea ni cierra `CV-03`; sólo adquiere eficacia en `master` cuando el commit exacto tenga pipeline requerido verde, ejecución externa completa satisfactoria, aprobación humana, merge, ascendencia verificada y cero defectos bloqueantes conocidos |
-| Contrato | `F07_ADENDA_23_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_03_TECH_E2E_CV_03.md`, aprobada íntegramente por el responsable el 2026-09-09 |
+| Tarea | `HU-027` — Dirección versiona validación por TAR |
+| Estado | Propuesta implementada en `codex/hu-027`; no declara la historia `Terminada` ni habilita `HU-028` |
+| Contrato | `F07_ADENDA_24_CONTRATO_DE_POLITICA_DE_VALIDACION_VERSIONADA_HU_027.md`, aprobada íntegramente por el responsable el 2026-09-10 antes de producir código |
 | Commit implementado | Commit que contiene esta actualización |
-| Base aceptada | Cadena cerrada `HU-023`, `HU-024`, `TECH-EVID-001`, `HU-025`, `TECH-EVID-002`, `HU-026`, `HU-022` y `HU-030`; esta última con PR `#45`, commit `4d502f4df78cd19b84261cd86089d0bc264d3c45`, pipeline `SUCCESS` run `34403972427`, PostgreSQL externo `25/25`, aprobación humana y merge `0df916f3650890b15497e3143b7afb33e643de8d` verificado en `origin/master` |
-| Entregable | Harness aislado `tests/Sgol.Cv03Demo`, modo exclusivamente `Automated`, 24 escenarios cerrados y reporte reproducible bajo `.artifacts/cv03/latest/` |
-| Infraestructura externa | PostgreSQL `postgres:18.6-alpine3.23`, SeaweedFS `4.45` por digest aprobado y ClamAV `1.5.4-debian` por digest aprobado; recursos desechables, privados, con health checks y limpieza aun ante fallo |
-| Seguridad | Actores sintéticos deterministas, servicios y autorización reales, consultas convergentes, CSRF en la superficie productiva, idempotencia y concurrencia; reportes por allowlist sin secretos, datos personales ni payloads de evidencia |
-| UI y navegador | No aplican: la Adenda 23 no autoriza interfaz técnica ni Playwright; no se añadieron rutas productivas, vistas, componentes ni estilos |
-| Límites | Sin endpoints productivos, reglas funcionales, migraciones, validación, supervisión, indicadores, mensajería externa, scheduler, outbox, canal, infraestructura o CI nuevos; no adelanta `HU-027` ni `HU-028` |
-| Gates | Restore locked satisfactorio; build Release de 19 proyectos con `0` advertencias y `0` errores; unitarias `410/410`; arquitectura `24/24`; enfocadas TECH-E2E-CV-03 sin Docker ni navegador `19/19`. Ejecución externa del 2026-09-09 sobre el working tree basado en `0df916f3650890b15497e3143b7afb33e643de8d`: PostgreSQL, SeaweedFS y ClamAV reales, `S01`–`S24` `PASSED`, segunda corrida reprodujo `23` escenarios, `0` recursos residuales y cleanup `PASSED`. Formato sin diferencias; cero vulnerabilidades NuGet conocidas directas o transitivas; modelo EF sin cambios pendientes; `Fuentes/` sin cambios locales y espejo `29/29` idéntico byte a byte. `git diff --check` se informa en la entrega para no modificar el diff después del último gate |
-| Cierre | Requiere ejecución externa completa satisfactoria, commit exacto, pipeline requerido verde, aprobación humana, merge, ascendencia en `origin/master` y cero defectos bloqueantes |
-| Siguiente tarea | Ninguna queda habilitada desde esta rama. `HU-027` sólo procede después del cierre efectivo de `TECH-E2E-CV-03` y `CV-03` |
+| Base aceptada | `TECH-E2E-CV-03` cerrada: PR `#46`, commit `157bc43886b58a2e1a0c036dbda437114cf9f283`, pipeline requerido `SUCCESS` run `34514719087`, aprobación humana, merge `437f1d875491097d208ca7fc3ad11d4094b26b81` y ascendencia verificada en `origin/master` |
+| Entregable | Catálogo cerrado de ocho políticas; único `PUT /api/v1/task-definitions/{taskCode}/validation-policy`; publicación/sustitución versionada; proyecciones vigente e histórica; snapshot nullable e inmutable en obligaciones nuevas |
+| Autorización | Sesión, MFA, cuenta, empleo, rol `DIRECCION`, `PER-VALIDACION-CONFIG` y `LOR-001`; denegación por defecto y TAR fuera del MVP convergente |
+| Persistencia | Migración `20260910191232_AddValidationPolicies`; `validation_policy_version`, FK exacta a `task_definition_version`, historia `RESTRICT`, checks/índices/exclusión/guardas y `work_obligation.validation_policy_version_id` sin backfill |
+| Atomicidad y concurrencia | Política, idempotencia y auditoría comparten transacción; publicación sustituye atómicamente; ETag obligatorio en sucesoras; replay normalizado y restricciones PostgreSQL como autoridad final |
+| UI y navegador | No aplican: la Adenda 24 no autoriza interfaz y no se añadieron vistas, componentes ni estilos |
+| Límites | Sin `validation_requirement`, decisión, emisión, sustitución, escalamiento, autovalidación, bandeja, supervisión, indicadores, mensajería ni capacidad de `HU-028` |
+| Gates | Restore locked `20/20`; build Release `20/20`; unitarias locales `422/422`; arquitectura `27/27`; enfocadas HU-027 `13/13` unitarias y `3/3` de arquitectura; format sin cambios; modelo EF sin cambios pendientes; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` aprobado. Primera corrida PostgreSQL externa: `194/196`; los dos defectos de prueba se corrigieron y recompilaron (`12/12` proyectos, cero advertencias), y la repetición externa enfocada resultó `2/2`, cero advertencias |
+| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Siguiente tarea | Ninguna habilitada desde esta rama; `HU-028` sólo procede tras el cierre efectivo de `HU-027` |
 
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y todavía no habilita `HU-027`.
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y todavía no habilita `HU-028`.
 
 ## Base aceptada — `HU-030`
 
@@ -617,7 +618,7 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | `TECH-E2E-CV-02` | `F07_ADENDA_14_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_02_TECH_E2E_CV_02.md` | Cierre de `CV-02` y `HU-023` | `Terminada`; PR `#37`, commit `f74261988866819a1fc09c2a598d137538530fc5`, pipeline `SUCCESS` run `33983298961`, aprobación humana, merge `e2d059c11b9647e92e10c49eff00e148b87c6f7c` y ascendencia verificada en `origin/master`; `HU-023` habilitada como siguiente tarea efectiva |
 | `TECH-EVID-001` | `F07_ADENDA_17_CONTRATO_DE_INFRAESTRUCTURA_SEGURA_DE_EVIDENCIA_TECH_EVID_001.md` | `HU-025` | `Terminada`; PR `#40`, commit `eb29656f7d2ced765924115520119f36529fc0fc`, pipeline `SUCCESS` run `34153966707`, aprobación humana, SeaweedFS/ClamAV `1/1`, merge `c0c07fff5dd0a05be41d6993eb1abf10b0e74706` y ascendencia verificada en `origin/master` |
 | `TECH-EVID-002` | `F07_ADENDA_20_CONTRATO_DE_EVIDENCIA_ESTRUCTURADA_TECH_EVID_002.md` | `HU-026` | `Terminada`; PR `#42`, commit `66248692f2577a95384db62882e8081dec6fdd9e`, pipeline `SUCCESS` run `34264672922`, aprobación humana, PostgreSQL `7/7`, merge `bd12592660121762cdf315fb5cfc497540b6892c` y ascendencia verificada en `origin/master` |
-| `TECH-E2E-CV-03` | `F07_ADENDA_23_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_03_TECH_E2E_CV_03.md` | Cierre de `CV-03` y `HU-027` | `Propuesta implementada`; Adenda 23 aprobada íntegramente el 2026-09-09; requiere corrida externa, commit exacto, pipeline requerido, aprobación humana, merge y ascendencia antes de ser `Terminada` y habilitar `HU-027` |
+| `TECH-E2E-CV-03` | `F07_ADENDA_23_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_03_TECH_E2E_CV_03.md` | Cierre de `CV-03` y `HU-027` | `Terminada`; PR `#46`, commit `157bc43886b58a2e1a0c036dbda437114cf9f283`, pipeline `SUCCESS` run `34514719087`, aprobación humana, merge `437f1d875491097d208ca7fc3ad11d4094b26b81` y ascendencia verificada en `origin/master`; `HU-027` habilitada |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`
 

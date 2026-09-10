@@ -23,7 +23,7 @@ using Xunit;
 
 namespace Sgol.IntegrationTests;
 
-public sealed class EvidencePolicyPersistenceTests : IAsyncLifetime
+public sealed partial class EvidencePolicyPersistenceTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 5, 12, 0, 0, TimeSpan.Zero);
     private readonly PostgreSqlContainer _postgres = PostgreSqlPersistenceTests.CreateContainerForTests();
@@ -643,7 +643,8 @@ public sealed class EvidencePolicyPersistenceTests : IAsyncLifetime
         return new Services(
             release,
             new EfTaskDefinitionService(context, audit, release, new FixedClock(Now), generator),
-            new EfEvidencePolicyService(context, audit, new FixedClock(Now), generator));
+            new EfEvidencePolicyService(context, audit, new FixedClock(Now), generator),
+            new EfValidationPolicyService(context, audit, new FixedClock(Now), generator));
     }
 
     private static CreateConfigurationReleaseCommand NewRelease(Guid actor) =>
@@ -675,7 +676,8 @@ public sealed class EvidencePolicyPersistenceTests : IAsyncLifetime
     private sealed record Services(
         EfConfigurationReleaseService Release,
         EfTaskDefinitionService Task,
-        EfEvidencePolicyService Policy);
+        EfEvidencePolicyService Policy,
+        EfValidationPolicyService Validation);
 
     private sealed class FixedClock(DateTimeOffset now) : IClock
     {

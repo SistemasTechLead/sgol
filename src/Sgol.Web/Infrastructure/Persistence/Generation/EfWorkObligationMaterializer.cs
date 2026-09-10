@@ -58,6 +58,13 @@ public sealed class EfWorkObligationMaterializer(
                                 (item.EffectiveTo == null || capturedAt < item.EffectiveTo))
                             .Select(item => (Guid?)item.Id)
                             .SingleOrDefaultAsync(token);
+                        var validationPolicyVersionId = await dbContext.ValidationPolicyVersions.AsNoTracking()
+                            .Where(item =>
+                                item.TaskDefinitionVersionId == rule.TaskDefinitionVersionId &&
+                                item.EffectiveFrom <= capturedAt &&
+                                (item.EffectiveTo == null || capturedAt < item.EffectiveTo))
+                            .Select(item => (Guid?)item.Id)
+                            .SingleOrDefaultAsync(token);
                         selected = new WorkObligation(
                             uuidGenerator.NewUuid(),
                             rule.TaskDefinitionVersionId,
@@ -65,7 +72,8 @@ public sealed class EfWorkObligationMaterializer(
                             request.PeriodId,
                             request.Id,
                             request.OriginReference,
-                            evidencePolicyVersionId);
+                            evidencePolicyVersionId,
+                            validationPolicyVersionId);
                         dbContext.WorkObligations.Add(selected);
                         request.LinkObligation(selected.Id);
                     }
@@ -114,6 +122,7 @@ public sealed class EfWorkObligationMaterializer(
             obligation.PeriodId,
             obligation.OriginReference,
             obligation.EvidencePolicyVersionId,
+            obligation.ValidationPolicyVersionId,
             obligation.ExecutionStatus,
             obligation.RowVersion,
         });
@@ -126,6 +135,7 @@ public sealed class EfWorkObligationMaterializer(
         obligation.PeriodId,
         obligation.OriginReference,
         obligation.EvidencePolicyVersionId,
+        obligation.ValidationPolicyVersionId,
         obligation.ExecutionStatus,
         obligation.RowVersion);
 }

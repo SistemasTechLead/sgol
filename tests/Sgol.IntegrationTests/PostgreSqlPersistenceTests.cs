@@ -44,6 +44,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string EvidenceReviewMigrationId = "20260908193819_AddEvidenceReviewSnapshots";
     private const string ObligationConclusionMigrationId = "20260908222252_AddObligationConclusions";
     private const string InternalNoticesMigrationId = "20260909190648_AddInternalNotices";
+    private const string ValidationPoliciesMigrationId = "20260910191232_AddValidationPolicies";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -92,6 +93,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 EvidenceReviewMigrationId,
                 ObligationConclusionMigrationId,
                 InternalNoticesMigrationId,
+                ValidationPoliciesMigrationId,
             ],
             appliedMigrations);
 
@@ -143,6 +145,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "scheduled_job_run",
                 "task_definition",
                 "task_definition_version",
+                "validation_policy_version",
                 "week_period",
                 "work_obligation",
                 "work_plan",

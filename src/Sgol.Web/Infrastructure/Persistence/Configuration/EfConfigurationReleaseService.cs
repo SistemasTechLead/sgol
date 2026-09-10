@@ -44,6 +44,10 @@ public sealed class EfConfigurationReleaseService(
     private const string EvidenceSuccessorIndex = "IX_evidence_policy_version_supersedes_id";
     private const string EvidenceVersionIndex = "IX_evidence_policy_version_number";
     private const string EvidenceValidityConstraint = "EX_evidence_policy_version_validity";
+    private const string ValidationCurrentIndex = "IX_validation_policy_version_one_current";
+    private const string ValidationSuccessorIndex = "IX_validation_policy_version_supersedes_id";
+    private const string ValidationVersionIndex = "IX_validation_policy_version_number";
+    private const string ValidationValidityConstraint = "EX_validation_policy_version_validity";
 
     public async Task<IReadOnlyList<ConfigurationReleaseDetails>> ListAsync(
         Guid actorUserId,
@@ -241,6 +245,12 @@ public sealed class EfConfigurationReleaseService(
                         normalizedReason,
                         taskPlans,
                         token);
+                    var validationPlans = await PlanValidationPublicationAsync(
+                        draft.Id,
+                        command.EffectiveFrom,
+                        normalizedReason,
+                        taskPlans,
+                        token);
 
                     var beforeData = JsonSerializer.SerializeToDocument(new
                     {
@@ -278,12 +288,18 @@ public sealed class EfConfigurationReleaseService(
                         evidencePlan.Current!.ApplySuperseded(evidencePlan.Plan.Superseded!);
                     }
 
+                    foreach (var validationPlan in validationPlans.Where(item => item.Current is not null))
+                    {
+                        validationPlan.Current!.ApplySuperseded(validationPlan.Plan.Superseded!);
+                    }
+
                     if (current is not null ||
                         calendarPlans.Any(item => item.Current is not null) ||
                         taskPlans.Any(item => item.Current is not null) ||
                         eligibilityPlans.Any(item => item.Current is not null) ||
                         activationPlans.Any(item => item.Current is not null) ||
-                        evidencePlans.Any(item => item.Current is not null))
+                        evidencePlans.Any(item => item.Current is not null) ||
+                        validationPlans.Any(item => item.Current is not null))
                     {
                         await dbContext.SaveChangesAsync(token);
                     }
@@ -328,6 +344,14 @@ public sealed class EfConfigurationReleaseService(
                             command.ActorUserId,
                             command.CorrelationId,
                             evidencePlan));
+                    }
+                    foreach (var validationPlan in validationPlans)
+                    {
+                        validationPlan.Draft.ApplyPublished(validationPlan.Plan.Published);
+                        dbContext.AuditEvents.Add(NewValidationPublicationAuditEvent(
+                            command.ActorUserId,
+                            command.CorrelationId,
+                            validationPlan));
                     }
                     dbContext.IdempotencyRecords.Add(new IdempotencyRecord
                     {
@@ -377,13 +401,14 @@ public sealed class EfConfigurationReleaseService(
                 TaskCurrentIndex or TaskSuccessorIndex or TaskVersionIndex or
                 EligibilityCurrentIndex or EligibilitySuccessorIndex or EligibilityVersionIndex or
                 ActivationCurrentIndex or ActivationSuccessorIndex or ActivationVersionIndex or
-                EvidenceCurrentIndex or EvidenceSuccessorIndex or EvidenceVersionIndex)
+                EvidenceCurrentIndex or EvidenceSuccessorIndex or EvidenceVersionIndex or
+                ValidationCurrentIndex or ValidationSuccessorIndex or ValidationVersionIndex)
         {
             dbContext.ChangeTracker.Clear();
             throw new VersionConflictException();
         }
         catch (DbUpdateException exception) when (
-            GetConstraintName(exception) is ValidityConstraint or CalendarValidityConstraint or TaskValidityConstraint or EligibilityValidityConstraint or ActivationValidityConstraint or EvidenceValidityConstraint)
+            GetConstraintName(exception) is ValidityConstraint or CalendarValidityConstraint or TaskValidityConstraint or EligibilityValidityConstraint or ActivationValidityConstraint or EvidenceValidityConstraint or ValidationValidityConstraint)
         {
             dbContext.ChangeTracker.Clear();
             throw new VersioningOverlapException();
@@ -797,6 +822,129 @@ public sealed class EfConfigurationReleaseService(
         policy.SupersedesId,
         policy.RowVersion,
     };
+
+    private async Task<IReadOnlyList<ValidationPublicationPlan>> PlanValidationPublicationAsync(
+        Guid releaseId,
+        DateTimeOffset effectiveFrom,
+        string reason,
+        IReadOnlyList<TaskPublicationPlan> taskPlans,
+        CancellationToken cancellationToken)
+    {
+        var drafts = await dbContext.ValidationPolicyVersions
+            .FromSqlInterpolated(
+                $"SELECT * FROM validation_policy_version WHERE release_id = {releaseId} AND status = {VersionStatuses.Draft} ORDER BY task_definition_id, version_no FOR UPDATE")
+            .AsTracking()
+            .ToListAsync(cancellationToken);
+        var currents = await dbContext.ValidationPolicyVersions
+            .FromSqlInterpolated(
+                $"SELECT * FROM validation_policy_version WHERE status = {VersionStatuses.Current} ORDER BY task_definition_id FOR UPDATE")
+            .AsTracking()
+            .ToListAsync(cancellationToken);
+        var currentByTask = currents.ToDictionary(item => item.TaskDefinitionId);
+
+        if (drafts.Count == 0 && currents.Count == 0)
+        {
+            return [];
+        }
+
+        var resultingPolicies = new Dictionary<Guid, ValidationPolicyVersion>(currentByTask);
+        foreach (var policy in drafts)
+        {
+            resultingPolicies[policy.TaskDefinitionId] = policy;
+        }
+
+        if (resultingPolicies.Count != ValidationPolicyCatalog.All.Count ||
+            ValidationPolicyCatalog.All.Keys.Any(code =>
+                !resultingPolicies.ContainsKey(TaskDefinitionCatalog.Require(code).Id)))
+        {
+            throw new ValidationPolicyCoverageException();
+        }
+
+        var applicableVersionIds = await dbContext.TaskDefinitionVersions.AsNoTracking()
+            .Where(version => version.Status == VersionStatuses.Current || version.Status == TaskDefinitionStatuses.InactiveForNew)
+            .Select(version => version.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var policy in drafts)
+        {
+            var taskPlan = taskPlans.SingleOrDefault(item => item.Draft.TaskDefinitionId == policy.TaskDefinitionId);
+            if (taskPlan is not null)
+            {
+                if (policy.TaskDefinitionVersionId != taskPlan.Draft.Id)
+                {
+                    throw new ValidationPolicyDefinitionPreconditionException();
+                }
+            }
+            else if (!applicableVersionIds.Contains(policy.TaskDefinitionVersionId))
+            {
+                throw new ValidationPolicyDefinitionPreconditionException();
+            }
+        }
+
+        foreach (var taskPlan in taskPlans)
+        {
+            if (!drafts.Any(policy =>
+                    policy.TaskDefinitionId == taskPlan.Draft.TaskDefinitionId &&
+                    policy.TaskDefinitionVersionId == taskPlan.Draft.Id))
+            {
+                throw new ValidationPolicyDefinitionPreconditionException();
+            }
+        }
+
+        var codes = TaskDefinitionCatalog.All.ToDictionary(item => item.Id, item => item.TaskCode);
+        var plans = new List<ValidationPublicationPlan>(drafts.Count);
+        foreach (var policy in drafts)
+        {
+            var taskCode = codes[policy.TaskDefinitionId];
+            ValidationPolicyCatalog.Validate(
+                taskCode,
+                policy.IsRequired,
+                policy.ExecutorRole,
+                policy.ValidatorRelation,
+                policy.ValidatorRole,
+                EfValidationPolicyService.ReadAllowedResults(policy));
+            currentByTask.TryGetValue(policy.TaskDefinitionId, out var current);
+            if (policy.BasedOnId != current?.Id)
+            {
+                throw new VersionConflictException();
+            }
+
+            var history = await dbContext.ValidationPolicyVersions.AsNoTracking()
+                .Where(item => item.TaskDefinitionId == policy.TaskDefinitionId && item.Status == VersionStatuses.Superseded)
+                .ToListAsync(cancellationToken);
+            var plan = VersioningRules.PlanPublication(
+                policy.ToVersionRecord(),
+                current?.ToVersionRecord(),
+                history.Select(item => item.ToVersionRecord()),
+                policy.RowVersion,
+                effectiveFrom,
+                reason);
+            plans.Add(new ValidationPublicationPlan(taskCode, policy, current, plan));
+        }
+
+        return plans;
+    }
+
+    private AuditEvent NewValidationPublicationAuditEvent(
+        Guid actorUserId,
+        Guid correlationId,
+        ValidationPublicationPlan policyPlan) => new()
+        {
+            Id = uuidGenerator.NewUuid(),
+            OccurredAt = clock.UtcNow,
+            ActorUserId = actorUserId,
+            ActorType = "APP_USER",
+            Action = "VALIDATION_POLICY_PUBLISHED",
+            ResourceType = "VALIDATION_POLICY_VERSION",
+            ResourceId = policyPlan.Draft.Id,
+            BranchId = BranchScope.LorettaId,
+            CorrelationId = correlationId,
+            BeforeData = policyPlan.Current is null
+                ? null
+                : EfValidationPolicyService.Serialize(policyPlan.Current, policyPlan.TaskCode),
+            AfterData = EfValidationPolicyService.Serialize(policyPlan.Draft, policyPlan.TaskCode),
+            Reason = policyPlan.Draft.Reason,
+            Outcome = "SUCCESS",
+        };
 
     private async Task<IReadOnlyList<EvidencePublicationPlan>> PlanEvidencePublicationAsync(
         Guid releaseId,
@@ -1279,4 +1427,10 @@ public sealed class EfConfigurationReleaseService(
         VersionPublicationPlan Plan,
         IReadOnlyList<EvidenceRequirementDefinition> Requirements,
         IReadOnlyList<EvidenceRequirementDefinition> CurrentRequirements);
+
+    private sealed record ValidationPublicationPlan(
+        string TaskCode,
+        ValidationPolicyVersion Draft,
+        ValidationPolicyVersion? Current,
+        VersionPublicationPlan Plan);
 }
