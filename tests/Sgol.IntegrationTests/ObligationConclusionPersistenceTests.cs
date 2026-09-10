@@ -19,6 +19,8 @@ using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 using Sgol.Web.Infrastructure.Persistence.Configuration;
 using Sgol.Web.Infrastructure.Persistence.Evidence;
 using Sgol.Web.Infrastructure.Persistence.Execution;
+using Sgol.Web.Infrastructure.Persistence.Validation;
+using Sgol.Validation.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Generation;
 using Sgol.Web.Infrastructure.Persistence.Versioning;
 using Testcontainers.PostgreSql;
@@ -74,7 +76,160 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         Assert.Empty(snapshot.MissingRequirements.RootElement.EnumerateArray());
         Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), audit =>
             audit.Action == "OBLIGATION_CONCLUDED" && audit.ResourceId == fixture.ObligationId);
+        var requirement = await context.ValidationRequirements.AsNoTracking()
+            .SingleAsync(item => item.ObligationId == fixture.ObligationId);
+        Assert.Equal(ValidationStatuses.Pending, requirement.Status);
+        Assert.Equal(first.ConcludedAt, requirement.CreatedAt);
         Assert.Empty(await context.OutboxEvents.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task ValidValidatorIssuesReplaysAndReplacesWithoutChangingExecution()
+    {
+        var fixture = await ResetAndCreateObligationAsync(withCompleteEvidence: true, taskCode: "TAR-0008");
+        await using (var conclusionContext = CreateContext())
+        {
+            await ConclusionService(conclusionContext, new FixedClock(Now)).ConcludeAsync(new(
+                fixture.ActorId, Guid.CreateVersion7(), Guid.CreateVersion7(), fixture.ObligationId, 1));
+        }
+        var validator = await SeedActorAsync("HU028-VALIDATOR", CanonicalRole.Administration);
+        await using var context = CreateContext();
+        var service = new EfValidationDecisionService(context,
+            new EfEvidenceConclusionReviewService(context, NewUuidGenerator()), new FixedClock(Now.AddMinutes(20)), NewUuidGenerator());
+        var issue = new IssueValidationDecisionCommand(validator, Guid.CreateVersion7(), Guid.CreateVersion7(),
+            fixture.ObligationId, 1, ValidationResults.NotFulfilled, "La evidencia vigente no acredita el criterio.", null);
+
+        var selfValidation = await Assert.ThrowsAsync<ValidationDecisionException>(() => service.IssueAsync(issue with
+        {
+            ActorUserId = fixture.ActorId,
+            IdempotencyKey = Guid.CreateVersion7(),
+        }));
+        Assert.Equal("AUTOVALIDACION_NO_PERMITIDA", selfValidation.Code);
+        Assert.Empty(await context.ValidationDecisionVersions.AsNoTracking().ToListAsync());
+
+        var first = await service.IssueAsync(issue);
+        var replay = await service.IssueAsync(issue);
+
+        Assert.True(replay.Replayed);
+        Assert.Equal(first.Decision.DecisionVersionId, replay.Decision.DecisionVersionId);
+        Assert.Equal(WorkObligationStatuses.Concluded, first.History.ExecutionStatus);
+        Assert.Equal(ValidationStatuses.Current, first.Decision.Status);
+
+        var duplicate = await Assert.ThrowsAsync<ValidationDecisionException>(() => service.IssueAsync(issue with
+        {
+            IdempotencyKey = Guid.CreateVersion7(),
+        }));
+        Assert.Equal("DECISION_VALIDACION_YA_EXISTE", duplicate.Code);
+        var stale = await Assert.ThrowsAsync<ValidationDecisionException>(() => service.ReplaceAsync(new(
+            validator, Guid.CreateVersion7(), Guid.CreateVersion7(), first.Decision.DecisionVersionId, 2,
+            ValidationResults.Fulfilled, "La evidencia vigente acredita el criterio.", "Corrección motivada.")));
+        Assert.Equal("VERSION_CONFLICT", stale.Code);
+        Assert.Single(await context.ValidationDecisionVersions.AsNoTracking().ToListAsync());
+
+        var replacement = await service.ReplaceAsync(new(validator, Guid.CreateVersion7(), Guid.CreateVersion7(),
+            first.Decision.DecisionVersionId, 1, ValidationResults.Fulfilled,
+            "La evidencia vigente acredita el criterio.", "Se corrige la decisión después de una segunda revisión."));
+        Assert.Equal(2, replacement.History.RowVersion);
+        Assert.Equal(2, replacement.History.Decisions.Count);
+        Assert.Single(replacement.History.Decisions, item => item.Status == ValidationStatuses.Current);
+        Assert.Single(replacement.History.Decisions, item => item.Status == ValidationStatuses.Superseded);
+        Assert.Equal(WorkObligationStatuses.Concluded,
+            await context.WorkObligations.AsNoTracking().Where(item => item.Id == fixture.ObligationId)
+                .Select(item => item.ExecutionStatus).SingleAsync());
+        Assert.Single(await context.ExecutionResults.AsNoTracking().Where(item => item.ObligationId == fixture.ObligationId).ToListAsync());
+        Assert.Equal([2, 1], replacement.History.Decisions.Select(item => item.VersionNo));
+        Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item => item.Action == "VALIDATION_DECISION_REPLACED");
+    }
+
+    [Fact]
+    public async Task EscalationAndDirectionSelfValidationRequireTheirReasonAndAreAudited()
+    {
+        var escalatedFixture = await ResetAndCreateObligationAsync(withCompleteEvidence: true, taskCode: "TAR-0008");
+        await using (var conclusionContext = CreateContext())
+        {
+            await ConclusionService(conclusionContext, new FixedClock(Now)).ConcludeAsync(new(
+                escalatedFixture.ActorId, Guid.CreateVersion7(), Guid.CreateVersion7(), escalatedFixture.ObligationId, 1));
+        }
+        var direction = await SeedActorAsync("HU028-ESCALATION", CanonicalRole.Direction);
+        await using (var context = CreateContext())
+        {
+            var service = ValidationService(context, Now.AddMinutes(20));
+            var missingReason = await Assert.ThrowsAsync<ValidationDecisionException>(() => service.IssueAsync(new(
+                direction, Guid.CreateVersion7(), Guid.CreateVersion7(), escalatedFixture.ObligationId, 1,
+                ValidationResults.Incomplete, "La evidencia requiere revisión adicional.", null)));
+            Assert.Equal("MOTIVO_REQUERIDO", missingReason.Code);
+            Assert.Empty(await context.ValidationDecisionVersions.AsNoTracking().ToListAsync());
+
+            var escalated = await service.IssueAsync(new(direction, Guid.CreateVersion7(), Guid.CreateVersion7(),
+                escalatedFixture.ObligationId, 1, ValidationResults.Incomplete,
+                "La evidencia requiere revisión adicional.", "Ausencia justificada del superior inmediato."));
+            Assert.Equal(ValidationAuthorityTypes.Escalation, escalated.Decision.AuthorityType);
+            Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item =>
+                item.Action == "VALIDATION_DECISION_ESCALATED" && item.ResourceId == escalated.History.ValidationRequirement!.RequirementId);
+        }
+
+        var selfFixture = await ResetAndCreateObligationAsync(withCompleteEvidence: true, taskCode: "TAR-0008",
+            responsibleRole: CanonicalRole.Direction);
+        await using (var conclusionContext = CreateContext())
+        {
+            await ConclusionService(conclusionContext, new FixedClock(Now)).ConcludeAsync(new(
+                selfFixture.ActorId, Guid.CreateVersion7(), Guid.CreateVersion7(), selfFixture.ObligationId, 1));
+        }
+        await using (var context = CreateContext())
+        {
+            var selfValidated = await ValidationService(context, Now.AddMinutes(20)).IssueAsync(new(
+                selfFixture.ActorId, Guid.CreateVersion7(), Guid.CreateVersion7(), selfFixture.ObligationId, 1,
+                ValidationResults.Fulfilled, "La evidencia vigente acredita el criterio.", null));
+            Assert.Equal(ValidationAuthorityTypes.DirectionSelfValidation, selfValidated.Decision.AuthorityType);
+            Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item =>
+                item.Action == "VALIDATION_DIRECTION_SELF_VALIDATED" && item.ResourceId == selfValidated.History.ValidationRequirement!.RequirementId);
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentIssueAndReplacementLeaveOneCurrentLinearHistory()
+    {
+        var fixture = await ResetAndCreateObligationAsync(withCompleteEvidence: true, taskCode: "TAR-0008");
+        await using (var conclusionContext = CreateContext())
+        {
+            await ConclusionService(conclusionContext, new FixedClock(Now)).ConcludeAsync(new(
+                fixture.ActorId, Guid.CreateVersion7(), Guid.CreateVersion7(), fixture.ObligationId, 1));
+        }
+        var validator = await SeedActorAsync("HU028-RACE", CanonicalRole.Administration);
+        await using var issueContextA = CreateContext();
+        await using var issueContextB = CreateContext();
+        var issueA = CaptureAsync(() => ValidationService(issueContextA, Now.AddMinutes(20)).IssueAsync(new(
+            validator, Guid.CreateVersion7(), Guid.CreateVersion7(), fixture.ObligationId, 1,
+            ValidationResults.Incomplete, "Primera intención concurrente.", null)));
+        var issueB = CaptureAsync(() => ValidationService(issueContextB, Now.AddMinutes(20)).IssueAsync(new(
+            validator, Guid.CreateVersion7(), Guid.CreateVersion7(), fixture.ObligationId, 1,
+            ValidationResults.NotFulfilled, "Segunda intención concurrente.", null)));
+        var issueOutcomes = await Task.WhenAll(issueA, issueB);
+        var issued = Assert.Single(issueOutcomes, item => item.Result is not null).Result!;
+        var issueFailure = Assert.Single(issueOutcomes, item => item.Error is not null).Error!;
+        Assert.True(issueFailure.Code is "DECISION_VALIDACION_YA_EXISTE" or "VALIDACION_CONCURRENCIA_CONFLICTO");
+
+        await using var replacementContextA = CreateContext();
+        await using var replacementContextB = CreateContext();
+        var replacementA = CaptureAsync(() => ValidationService(replacementContextA, Now.AddMinutes(21)).ReplaceAsync(new(
+            validator, Guid.CreateVersion7(), Guid.CreateVersion7(), issued.Decision.DecisionVersionId, 1,
+            ValidationResults.Fulfilled, "Primera sustitución concurrente.", "Corrección concurrente A.")));
+        var replacementB = CaptureAsync(() => ValidationService(replacementContextB, Now.AddMinutes(21)).ReplaceAsync(new(
+            validator, Guid.CreateVersion7(), Guid.CreateVersion7(), issued.Decision.DecisionVersionId, 1,
+            ValidationResults.Fulfilled, "Segunda sustitución concurrente.", "Corrección concurrente B.")));
+        var replacementOutcomes = await Task.WhenAll(replacementA, replacementB);
+        Assert.Single(replacementOutcomes, item => item.Result is not null);
+        var replacementFailure = Assert.Single(replacementOutcomes, item => item.Error is not null).Error!;
+        Assert.True(replacementFailure.Code is "DECISION_VALIDACION_NO_ENCONTRADA" or "VALIDACION_CONCURRENCIA_CONFLICTO");
+
+        await using var verification = CreateContext();
+        var requirement = await verification.ValidationRequirements.AsNoTracking().SingleAsync();
+        var decisions = await verification.ValidationDecisionVersions.AsNoTracking().OrderBy(item => item.VersionNo).ToListAsync();
+        Assert.Equal(2, requirement.RowVersion);
+        Assert.Equal(2, decisions.Count);
+        Assert.Single(decisions, item => item.Status == ValidationStatuses.Current);
+        Assert.Single(decisions, item => item.Status == ValidationStatuses.Superseded);
+        Assert.Equal(decisions[0].Id, decisions[1].SupersedesId);
     }
 
     [Fact]
@@ -205,6 +360,7 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
             var service = new EfObligationConclusionService(
                 failingContext,
                 new EfEvidenceConclusionReviewService(failingContext, NewUuidGenerator()),
+                new NoopValidationRequirementWriter(),
                 new FixedClock(Now),
                 new SequenceUuidGenerator(Guid.CreateVersion7(), duplicateAuditId));
             await Assert.ThrowsAsync<ObligationConclusionInconsistentException>(() => service.ConcludeAsync(new(
@@ -218,6 +374,11 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         Assert.Empty(await verification.ExecutionResults.AsNoTracking().ToListAsync());
         Assert.DoesNotContain(await verification.IdempotencyRecords.AsNoTracking().ToListAsync(), record =>
             record.ResourceType == "EXECUTION_RESULT");
+    }
+
+    private sealed class NoopValidationRequirementWriter : IValidationRequirementWriter
+    {
+        public Task EnsureAsync(EnsureValidationRequirementCommand command, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     [Fact]
@@ -248,7 +409,8 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
 
     private async Task<Fixture> ResetAndCreateObligationAsync(
         bool withCompleteEvidence,
-        string taskCode = "TAR-0018")
+        string taskCode = "TAR-0018",
+        string? responsibleRole = null)
     {
         await using (var reset = CreateContext())
         {
@@ -257,7 +419,7 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         }
 
         var configurationActor = await SeedActorAsync("HU022-DIRECTION", CanonicalRole.Direction);
-        var actor = await SeedActorAsync("HU022-RESPONSIBLE", CanonicalRole.Subcoordination);
+        var actor = await SeedActorAsync("HU022-RESPONSIBLE", responsibleRole ?? ValidationPolicyCatalog.Require(taskCode).ExecutorRole);
         await using var context = CreateContext();
         var audit = new AuditTransaction(context);
         var generator = NewUuidGenerator();
@@ -287,6 +449,18 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         await releaseService.PublishAsync(new(
             configurationActor, Guid.CreateVersion7(), Guid.CreateVersion7(), policyRelease.Id,
             policyRelease.RowVersion, Now.AddMinutes(2), "HU-022 evidence policies"));
+
+        var validationPolicyService = new EfValidationPolicyService(context, new AuditTransaction(context),
+            new FixedClock(Now), generator);
+        var validationRelease = await releaseService.CreateDraftAsync(NewRelease(configurationActor));
+        foreach (var pair in ValidationPolicyCatalog.All)
+        {
+            await validationPolicyService.PutAsync(new(configurationActor, Guid.CreateVersion7(), Guid.CreateVersion7(),
+                pair.Key, validationRelease.Id, true, pair.Value.ExecutorRole, ValidationPolicyValues.ImmediateSuperior,
+                pair.Value.ValidatorRole, ValidationPolicyValues.AllowedResults, null));
+        }
+        await releaseService.PublishAsync(new(configurationActor, Guid.CreateVersion7(), Guid.CreateVersion7(), validationRelease.Id,
+            validationRelease.RowVersion, Now.AddMinutes(3), "HU-028 validation policies"));
 
         var taskDefinition = TaskDefinitionCatalog.Require(taskCode);
         var taskVersion = await context.TaskDefinitionVersions.AsNoTracking()
@@ -343,11 +517,9 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
                 Guid.CreateVersion7(), obligationId, policyId, requirement.Id,
                 requirement.RequirementCode, requirement.Kind, Now.AddMinutes(5));
             context.EvidenceItems.Add(item);
-            if (requirement.RequirementCode == "CHECKLIST_COMPLETO")
+            if (requirement.Kind is EvidenceRequirementKinds.StructuredData or EvidenceRequirementKinds.DigitalRecord or EvidenceRequirementKinds.StructuredChecklist)
             {
-                var payload = JsonDocument.Parse("""
-                    {"schemaVersion":1,"productCorrect":true,"zoneAndFamilyCorrect":true,"stableFormation":true,"labelsVisible":true,"alignmentConsistent":true,"occupancyJustified":true,"clean":true,"intact":true,"signageCorrect":true,"matchesPlanogramOrList":true}
-                    """);
+                var payload = CompleteStructuredPayload(requirement.RequirementCode);
                 context.EvidenceVersions.Add(new EvidenceVersion(
                     Guid.CreateVersion7(), item.Id, 1, payload, actor, Now.AddMinutes(5)));
                 continue;
@@ -361,6 +533,18 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
     }
+
+    private static JsonDocument CompleteStructuredPayload(string requirementCode) => JsonDocument.Parse(requirementCode switch
+    {
+        "CHECKLIST_COMPLETO" => """
+            {"schemaVersion":1,"productCorrect":true,"zoneAndFamilyCorrect":true,"stableFormation":true,"labelsVisible":true,"alignmentConsistent":true,"occupancyJustified":true,"clean":true,"intact":true,"signageCorrect":true,"matchesPlanogramOrList":true}
+            """,
+        "SECUENCIA" => """{"schemaVersion":1,"sequenceSummary":"Secuencia sintética"}""",
+        "DECISION" => """{"schemaVersion":1,"decisionSummary":"Decisión sintética","decidedAt":"2026-09-07T20:00:00Z"}""",
+        "FUNDAMENTO" => """{"schemaVersion":1,"foundationSummary":"Fundamento sintético"}""",
+        "AVISO_INTERNO" => """{"schemaVersion":1,"noticeReference":"AVI-01","notifiedAt":"2026-09-07T20:00:00Z"}""",
+        _ => throw new InvalidOperationException($"No existe payload sintético completo para {requirementCode}."),
+    });
 
     private static async Task AddTar0092EvidenceAsync(
         SgolDbContext context,
@@ -465,8 +649,22 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
     private static EfObligationConclusionService ConclusionService(SgolDbContext context, IClock clock) => new(
         context,
         new EfEvidenceConclusionReviewService(context, NewUuidGenerator()),
+        new EfValidationRequirementWriter(context, NewUuidGenerator()),
         clock,
         NewUuidGenerator());
+
+    private static EfValidationDecisionService ValidationService(SgolDbContext context, DateTimeOffset at) => new(
+        context,
+        new EfEvidenceConclusionReviewService(context, NewUuidGenerator()),
+        new FixedClock(at),
+        NewUuidGenerator());
+
+    private static async Task<(ValidationMutationResult? Result, ValidationDecisionException? Error)> CaptureAsync(
+        Func<Task<ValidationMutationResult>> action)
+    {
+        try { return (await action(), null); }
+        catch (ValidationDecisionException exception) { return (null, exception); }
+    }
 
     private SgolDbContext CreateContext() => new(
         new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(postgres.GetConnectionString()).Options);

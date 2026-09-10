@@ -4,26 +4,44 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-027`
+## Propuesta actual en rama — `HU-028`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-028` — Superior inmediato emite/sustituye validación separada |
+| Estado | Propuesta implementada en `codex/hu-028`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Contrato | `F07_ADENDA_25_CONTRATO_DE_DECISION_DE_VALIDACION_VERSIONADA_HU_028.md`, aprobada íntegramente por el responsable el 2026-09-10 antes de producir código |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `HU-027`: PR `#47`, commit `72d4658136e8d2dfdfc30b4faac93658769b8db6`, pipeline requerido `SUCCESS` run `34525053653`, aprobación humana, merge `c1fc6595de21095186a54d15617a4e07c4142be2`, `origin/master` verificado y ascendencia confirmada |
+| Entregable | Emisión, sustitución e histórico; requisito materializado al concluir o con la primera emisión; decisión separada de ejecución; tres resultados cerrados y una sola versión `VIGENTE` |
+| Autorización | Política exacta congelada; superior inmediato ordinario, nivel posterior motivado, sustitución por original/superior y única autovalidación de Dirección; anti-IDOR y vigencias al instante de decisión |
+| Evidencia | Cada versión enlaza el `evidence_review_snapshot` y conjunto exacto de versiones vigentes usados; sustituciones posteriores no reescriben decisiones previas |
+| Persistencia | Migración `20260910210908_AddValidationDecisions`; `validation_requirement` y `validation_decision_version`, FKs `RESTRICT`, checks, índices únicos, cadena lineal, guardas e invariantes diferibles; sin backfill |
+| Atomicidad y concurrencia | PostgreSQL `SERIALIZABLE`, orden común de bloqueos, ETag, scopes idempotentes separados, auditoría y escritura en una transacción y tres intentos acotados |
+| UI y navegador | No aplican: la Adenda 25 excluye UI y reserva la bandeja pendiente a `HU-031` |
+| Límites | Sin `GET /api/v1/validations/pending`, bandeja, supervisión, indicadores, avisos, reapertura, tarea correctiva, outbox, Worker o integración externa |
+| Gates | Restore locked `20/20`; build Release final `20/20`, cero errores y advertencias; enfocadas HU-028 `31/31` unitarias y `2/2` de arquitectura; suite local final sin PostgreSQL `453/453` unitarias, `29/29` arquitectura y contratos CV sin Docker `34/34`; evidencia PostgreSQL externa compuesta: `197` casos no afectados aprobados en el último recorrido completo y los `3/3` únicos consumidores de `EfValidationDecisionService` aprobados sobre la corrección final de concurrencia, siempre con cero advertencias; modelo EF sin cambios pendientes; formato limpio; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` limpio |
+| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Siguiente tarea | Ninguna habilitada desde esta rama |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
+
+## Base aceptada — `HU-027`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-027` — Dirección versiona validación por TAR |
-| Estado | Propuesta implementada en `codex/hu-027`; no declara la historia `Terminada` ni habilita `HU-028` |
-| Contrato | `F07_ADENDA_24_CONTRATO_DE_POLITICA_DE_VALIDACION_VERSIONADA_HU_027.md`, aprobada íntegramente por el responsable el 2026-09-10 antes de producir código |
-| Commit implementado | Commit que contiene esta actualización |
-| Base aceptada | `TECH-E2E-CV-03` cerrada: PR `#46`, commit `157bc43886b58a2e1a0c036dbda437114cf9f283`, pipeline requerido `SUCCESS` run `34514719087`, aprobación humana, merge `437f1d875491097d208ca7fc3ad11d4094b26b81` y ascendencia verificada en `origin/master` |
-| Entregable | Catálogo cerrado de ocho políticas; único `PUT /api/v1/task-definitions/{taskCode}/validation-policy`; publicación/sustitución versionada; proyecciones vigente e histórica; snapshot nullable e inmutable en obligaciones nuevas |
-| Autorización | Sesión, MFA, cuenta, empleo, rol `DIRECCION`, `PER-VALIDACION-CONFIG` y `LOR-001`; denegación por defecto y TAR fuera del MVP convergente |
-| Persistencia | Migración `20260910191232_AddValidationPolicies`; `validation_policy_version`, FK exacta a `task_definition_version`, historia `RESTRICT`, checks/índices/exclusión/guardas y `work_obligation.validation_policy_version_id` sin backfill |
-| Atomicidad y concurrencia | Política, idempotencia y auditoría comparten transacción; publicación sustituye atómicamente; ETag obligatorio en sucesoras; replay normalizado y restricciones PostgreSQL como autoridad final |
-| UI y navegador | No aplican: la Adenda 24 no autoriza interfaz y no se añadieron vistas, componentes ni estilos |
-| Límites | Sin `validation_requirement`, decisión, emisión, sustitución, escalamiento, autovalidación, bandeja, supervisión, indicadores, mensajería ni capacidad de `HU-028` |
-| Gates | Restore locked `20/20`; build Release `20/20`; unitarias locales `422/422`; arquitectura `27/27`; enfocadas HU-027 `13/13` unitarias y `3/3` de arquitectura; format sin cambios; modelo EF sin cambios pendientes; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` aprobado. Primera corrida PostgreSQL externa: `194/196`; los dos defectos de prueba se corrigieron y recompilaron (`12/12` proyectos, cero advertencias), y la repetición externa enfocada resultó `2/2`, cero advertencias |
-| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
-| Siguiente tarea | Ninguna habilitada desde esta rama; `HU-028` sólo procede tras el cierre efectivo de `HU-027` |
-
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge, y todavía no habilita `HU-028`.
+| Estado | `Terminada` efectiva conforme a la regla condicional de cierre en un PR |
+| Contrato | `F07_ADENDA_24_CONTRATO_DE_POLITICA_DE_VALIDACION_VERSIONADA_HU_027.md`, aprobada íntegramente e incorporada |
+| Pull request | `#47`, merged |
+| Commit implementado | `72d4658136e8d2dfdfc30b4faac93658769b8db6` |
+| Pipeline requerido | `SUCCESS`, run `34525053653`, correspondiente al commit exacto |
+| Aprobación humana | Recibida explícitamente |
+| Commit incorporado en `master` | `c1fc6595de21095186a54d15617a4e07c4142be2` |
+| Ascendencia | Commit implementado y merge verificados como ancestros de `origin/master` |
+| PostgreSQL | Incluido satisfactoriamente en el pipeline requerido |
+| Defectos bloqueantes | Cero conocidos |
+| `Fuentes/` | Sin cambios |
 
 ## Base aceptada — `HU-030`
 

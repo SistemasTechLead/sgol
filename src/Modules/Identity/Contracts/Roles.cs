@@ -36,6 +36,62 @@ public static class RoleHierarchy
 
     public static bool GrantsOwnInbox(string roleCode) => CanonicalRole.IsDefined(roleCode);
 
+    public static bool GrantsValidationIssue(string roleCode) => roleCode is
+        CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
+
+    public static bool GrantsValidationEscalation(string roleCode) => roleCode is
+        CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
+
+    public static bool GrantsValidationReplacement(string roleCode) => roleCode is
+        CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
+
+    public static bool CanIssueValidationOrdinarily(
+        string actorRoleCode,
+        string responsibleRoleCode,
+        string executorRoleCode,
+        string validatorRoleCode,
+        bool samePerson) =>
+        GrantsValidationIssue(actorRoleCode) &&
+        !samePerson &&
+        actorRoleCode == validatorRoleCode &&
+        responsibleRoleCode == executorRoleCode &&
+        IsStrictlySuperior(actorRoleCode, responsibleRoleCode);
+
+    public static bool CanEscalateValidation(
+        string actorRoleCode,
+        string responsibleRoleCode,
+        string validatorRoleCode,
+        bool samePerson) =>
+        GrantsValidationEscalation(actorRoleCode) &&
+        !samePerson &&
+        IsStrictlySuperior(actorRoleCode, validatorRoleCode) &&
+        IsStrictlySuperior(actorRoleCode, responsibleRoleCode);
+
+    public static bool CanSelfValidateAsDirection(string actorRoleCode, bool samePerson) =>
+        samePerson && actorRoleCode == CanonicalRole.Direction && GrantsValidationIssue(actorRoleCode);
+
+    public static bool CanReplaceValidationAsOriginal(
+        string actorRoleCode,
+        string responsibleRoleCode,
+        string originalValidatorRoleCode,
+        bool sameValidatorUser,
+        bool sameResponsiblePerson) =>
+        GrantsValidationReplacement(actorRoleCode) &&
+        sameValidatorUser &&
+        actorRoleCode == originalValidatorRoleCode &&
+        (CanSelfValidateAsDirection(actorRoleCode, sameResponsiblePerson) ||
+         !sameResponsiblePerson && IsStrictlySuperior(actorRoleCode, responsibleRoleCode));
+
+    public static bool CanReplaceValidationAsSuperior(
+        string actorRoleCode,
+        string responsibleRoleCode,
+        string originalValidatorRoleCode,
+        bool sameResponsiblePerson) =>
+        GrantsValidationReplacement(actorRoleCode) &&
+        !sameResponsiblePerson &&
+        IsStrictlySuperior(actorRoleCode, originalValidatorRoleCode) &&
+        IsStrictlySuperior(actorRoleCode, responsibleRoleCode);
+
     public static bool CanAccessLevel(string actorRoleCode, string targetRoleCode)
     {
         if (!CanonicalRole.IsDefined(actorRoleCode) || !CanonicalRole.IsDefined(targetRoleCode))

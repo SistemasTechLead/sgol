@@ -13,6 +13,7 @@ using Sgol.Execution.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
+using Sgol.Validation.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
@@ -21,6 +22,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Execution;
 public sealed class EfObligationConclusionService(
     SgolDbContext dbContext,
     IEvidenceConclusionReviewService evidenceReview,
+    IValidationRequirementWriter validationRequirementWriter,
     IClock clock,
     IUuidGenerator uuidGenerator) : IObligationConclusionService
 {
@@ -150,6 +152,9 @@ public sealed class EfObligationConclusionService(
         var result = new ExecutionResult(
             uuidGenerator.NewUuid(), obligation.Id, review.SnapshotId.Value, command.ActorUserId, concludedAt);
         dbContext.ExecutionResults.Add(result);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await validationRequirementWriter.EnsureAsync(new(
+            obligation.Id, obligation.ValidationPolicyVersionId, concludedAt), cancellationToken);
         dbContext.IdempotencyRecords.Add(new IdempotencyRecord
         {
             Scope = scope,
