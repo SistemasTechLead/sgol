@@ -7,6 +7,7 @@ using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Notifications.Contracts;
 using Sgol.Planning.Contracts;
+using Sgol.Validation.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
@@ -20,6 +21,7 @@ using Sgol.Web.Infrastructure.Persistence.Organization;
 using Sgol.Web.Infrastructure.Persistence.Notifications;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 using Sgol.Web.Infrastructure.Persistence.Versioning;
+using Sgol.Web.Infrastructure.Persistence.Validation;
 using Sgol.Web.Infrastructure.Evidence;
 
 namespace Sgol.Web.Infrastructure.Persistence;
@@ -59,6 +61,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IEvidenceReviewService, EfEvidenceReviewService>();
         services.AddScoped<IEvidenceConclusionReviewService, EfEvidenceConclusionReviewService>();
         services.AddScoped<IObligationConclusionService, EfObligationConclusionService>();
+        services.AddScoped<IValidationRequirementWriter, EfValidationRequirementWriter>();
+        services.AddScoped<IValidationDecisionService, EfValidationDecisionService>();
         services.AddScoped<IInboxReader, EfInboxReader>();
         services.AddScoped<IInternalNoticeService, EfInternalNoticeService>();
         services.AddScoped<IInternalNoticeWriter, EfInternalNoticeWriter>();

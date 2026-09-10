@@ -45,6 +45,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string ObligationConclusionMigrationId = "20260908222252_AddObligationConclusions";
     private const string InternalNoticesMigrationId = "20260909190648_AddInternalNotices";
     private const string ValidationPoliciesMigrationId = "20260910191232_AddValidationPolicies";
+    private const string ValidationDecisionsMigrationId = "20260910210908_AddValidationDecisions";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -94,6 +95,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 ObligationConclusionMigrationId,
                 InternalNoticesMigrationId,
                 ValidationPoliciesMigrationId,
+                ValidationDecisionsMigrationId,
             ],
             appliedMigrations);
 
@@ -145,12 +147,66 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "scheduled_job_run",
                 "task_definition",
                 "task_definition_version",
+                "validation_decision_version",
                 "validation_policy_version",
+                "validation_requirement",
                 "week_period",
                 "work_obligation",
                 "work_plan",
             ],
             tables);
+    }
+
+    [Fact]
+    public async Task ValidationDecisionMigrationInstallsClosedChecksAndVersioningGuards()
+    {
+        await using var factory = CreateFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = scope.ServiceProvider.GetRequiredService<SgolDbContext>();
+        await context.Database.MigrateAsync();
+
+        var checks = await ScalarAsync<long>(context, """
+            SELECT count(*)
+            FROM pg_constraint
+            WHERE contype = 'c'
+              AND conname IN (
+                'CK_validation_requirement_row_version',
+                'CK_validation_requirement_state',
+                'CK_validation_requirement_status',
+                'CK_validation_decision_authority',
+                'CK_validation_decision_foundation',
+                'CK_validation_decision_reason',
+                'CK_validation_decision_result',
+                'CK_validation_decision_status',
+                'CK_validation_decision_version')
+            """);
+        var triggers = await ScalarAsync<long>(context, """
+            SELECT count(*)
+            FROM pg_trigger
+            WHERE NOT tgisinternal
+              AND tgname IN (
+                'trg_validation_requirement_guard',
+                'trg_validation_decision_guard',
+                'trg_validation_decision_consistent',
+                'trg_validation_requirement_consistent',
+                'trg_validation_decision_requirement_consistent')
+            """);
+        var currentIndex = await ScalarAsync<long>(context, """
+            SELECT count(*)
+            FROM pg_class index_relation
+            JOIN pg_index index_metadata ON index_metadata.indexrelid = index_relation.oid
+            JOIN pg_class table_relation ON table_relation.oid = index_metadata.indrelid
+            JOIN pg_namespace schema_relation ON schema_relation.oid = table_relation.relnamespace
+            WHERE schema_relation.nspname = 'public'
+              AND table_relation.relname = 'validation_decision_version'
+              AND index_relation.relname = 'UX_validation_decision_version_current_requirement'
+              AND index_metadata.indisunique
+              AND index_metadata.indpred IS NOT NULL
+            """);
+
+        Assert.Equal(9, checks);
+        Assert.Equal(5, triggers);
+        Assert.Equal(1, currentIndex);
     }
 
     [Fact]
