@@ -5,6 +5,7 @@
 .idea/
 TestResults/
 .artifacts/cv02/
+.artifacts/cv03/
 *.user
 *.suo
 *.nupkg

@@ -2,9 +2,14 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Buffers.Binary;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Sgol.Evidence.Contracts;
 using Sgol.Evidence.Technical;
+using Sgol.JobInfrastructure;
 using Sgol.Testing;
 using Sgol.Web.Infrastructure.Evidence;
 using Xunit;
@@ -13,12 +18,36 @@ namespace Sgol.UnitTests;
 
 public sealed class EvidenceInfrastructureTests
 {
+    [Fact]
+    public void WebEvidenceCompositionRegistersInspectionOutboxHandlerExactlyOnce()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+        var environment = new TestHostEnvironment();
+
+        services.AddSgolEvidenceInfrastructure(configuration, environment);
+        services.AddSgolEvidenceInfrastructure(configuration, environment);
+
+        var registrations = services.Where(descriptor =>
+            descriptor.ServiceType == typeof(IOutboxHandler) &&
+            descriptor.ImplementationType == typeof(EvidenceInspectionOutboxHandler));
+        Assert.Single(registrations);
+    }
+
     public static TheoryData<byte[], string, string, EvidenceMediaType> ValidFiles => new()
     {
         { EvidenceCorpus.Jpeg(), "image/jpeg", "synthetic.jpg", EvidenceMediaType.Jpeg },
         { EvidenceCorpus.Png(), "image/png", "synthetic.png", EvidenceMediaType.Png },
         { EvidenceCorpus.Pdf(), "application/pdf", "synthetic.pdf", EvidenceMediaType.Pdf }
     };
+
+    private sealed class TestHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Production;
+        public string ApplicationName { get; set; } = "Sgol.UnitTests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
 
     [Theory]
     [MemberData(nameof(ValidFiles))]

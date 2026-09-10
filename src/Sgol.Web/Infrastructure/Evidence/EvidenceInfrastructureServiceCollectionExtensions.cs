@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Sgol.Evidence.Contracts;
 using Sgol.Evidence.Technical;
+using Sgol.JobInfrastructure;
 
 namespace Sgol.Web.Infrastructure.Evidence;
 
@@ -39,6 +40,7 @@ public static class EvidenceInfrastructureServiceCollectionExtensions
         services.AddHealthChecks()
             .AddCheck<EvidenceStorageHealthCheck>("evidence-storage", tags: ["evidence-ready"])
             .AddCheck<ClamAvHealthCheck>("evidence-scanner", tags: ["evidence-ready"]);
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOutboxHandler, EvidenceInspectionOutboxHandler>());
         return services;
     }
 
