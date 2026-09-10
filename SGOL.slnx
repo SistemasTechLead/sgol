@@ -17,6 +17,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Sgol.ArchitectureTests/Sgol.ArchitectureTests.csproj" />
     <Project Path="tests/Sgol.Cv02Demo/Sgol.Cv02Demo.csproj" />
+    <Project Path="tests/Sgol.Cv03Demo/Sgol.Cv03Demo.csproj" />
     <Project Path="tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj" />
     <Project Path="tests/Sgol.EvidenceIntegrationTests/Sgol.EvidenceIntegrationTests.csproj" />
     <Project Path="tests/Sgol.UnitTests/Sgol.UnitTests.csproj" />
