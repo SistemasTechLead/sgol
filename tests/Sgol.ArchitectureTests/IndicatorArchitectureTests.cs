@@ -48,6 +48,40 @@ public sealed class IndicatorArchitectureTests
             path => Path.GetFileName(path).Contains("Indicator", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void Hu032AddsOnlyTheApprovedDirectionReadSurface()
+    {
+        var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
+        var web = Path.Combine(root, "src", "Sgol.Web");
+        var endpoint = File.ReadAllText(Path.Combine(
+            web, "Interface", "Endpoints", "DirectionOverviewApiEndpoints.cs"));
+        var reader = File.ReadAllText(Path.Combine(
+            web, "Infrastructure", "Persistence", "Execution", "EfObligationQueryReader.cs"));
+        var contracts = File.ReadAllText(Path.Combine(
+            root, "src", "Modules", "Execution", "Contracts", "Indicators.cs"));
+
+        Assert.Equal(1, Count(endpoint, "MapGet("));
+        Assert.Contains("/api/v1/direction/overview", endpoint, StringComparison.Ordinal);
+        Assert.Contains("PER-DIRECCION-VER", contracts, StringComparison.Ordinal);
+        Assert.Contains("ReadDirectionOverviewAsync", contracts, StringComparison.Ordinal);
+        Assert.DoesNotContain("MapPost(", endpoint, StringComparison.Ordinal);
+        Assert.DoesNotContain("audit-events", endpoint, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("recovery-runs", endpoint, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("export", endpoint, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("amount", endpoint, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("payroll", endpoint, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IsolationLevel.RepeatableRead", reader, StringComparison.Ordinal);
+        Assert.Contains("SET TRANSACTION READ ONLY", reader, StringComparison.Ordinal);
+        Assert.Contains("AsNoTracking()", reader, StringComparison.Ordinal);
+        Assert.DoesNotContain("SaveChanges", reader, StringComparison.Ordinal);
+        Assert.DoesNotContain("AuditEvents.Add", reader, StringComparison.Ordinal);
+
+        var migrations = Directory.EnumerateFiles(Path.Combine(web, "Infrastructure", "Persistence", "Migrations"),
+            "*.cs", SearchOption.TopDirectoryOnly).ToArray();
+        Assert.DoesNotContain(migrations,
+            path => Path.GetFileName(path).Contains("DirectionOverview", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static int Count(string value, string search)
     {
         var count = 0;

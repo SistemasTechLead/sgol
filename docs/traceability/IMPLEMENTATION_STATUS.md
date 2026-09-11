@@ -4,6 +4,31 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
+## Propuesta actual en rama — `HU-032`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-032` — Dirección consulta toda `LOR-001` |
+| Estado | Propuesta implementada en `codex/hu-032`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Contrato | `F07_ADENDA_28_CONTRATO_DE_VISTA_INTEGRAL_DE_DIRECCION_HU_032.md`, aprobada íntegramente por el responsable el 2026-09-11 antes de producir código |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `HU-029`: PR `#50`, commit `0d669d3f17245ee796d01885637cfac7536ea702`, pipeline requerido `SUCCESS` run `34644972538`, aprobación humana, merge `f3d078b27dc665ea0851b9545e99f0f59b5750fc`, PostgreSQL externo `203/203`, `origin/master` verificado exactamente y ascendencia confirmada |
+| Entregable | Único `GET /api/v1/direction/overview`; período semanal ISO obligatorio, los cuatro niveles canónicos, cuatro conteos agregados y carga activa paginada por persona |
+| Autorización | Autenticación, `PER-DIRECCION-VER`, cuenta, persona, empleo y rol `DIRECCION` vigentes en `LOR-001`; permiso aislado, puesto textual y cualquier otro rol se rechazan |
+| Indicadores | Reutiliza exactamente `pending`, `concluded`, `validated`, `nonCompliant` y `activeLoadByPerson` de `HU-029`; sin sexto indicador, monto, incentivo, nómina, rentabilidad ni salud de integraciones |
+| Universo integral | Sin filtros de nivel/persona incluye toda obligación del período en `LOR-001`, incluida la no asignada; ésta participa en los cuatro conteos sin crear fila ficticia de carga |
+| Persistencia | Sin tablas, columnas, vistas, índices, migraciones, backfill, cache ni proyecciones persistidas nuevas |
+| Consistencia | PostgreSQL `REPEATABLE READ, READ ONLY`, `AsNoTracking`, único `queriedAt`, cursores ligados a actor/período/filtros y cálculo sin efectos laterales |
+| UI y navegador | No aplican: la Adenda 28 establece que “tablero” no exige interfaz |
+| Pruebas locales | Enfocadas de endpoint HU-032 `16/16`; arquitectura de indicadores `3/3`; suite final sin PostgreSQL `503/503` unitarias, `34/34` arquitectura y contratos CV sin Docker `34/34` |
+| Gates locales | Restore locked `20/20`; build Release `20/20`, cero errores y advertencias; formato limpio; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` sin errores |
+| PostgreSQL externo | Suite consolidada final `204/204`, cero advertencias, `558.1 s`; ejecutada excepcionalmente fuera del aislamiento en esta sesión por solicitud expresa del desarrollador |
+| Límites | Sin colecciones de supervisión, validaciones pendientes, auditoría general de `HU-033`, idempotencia integral de `HU-034`, continuidad de `HU-035`, exportaciones ni UI |
+| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Siguiente tarea | Ninguna habilitada desde esta rama |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
+
 ## Propuesta actual en rama — `HU-029`
 
 | Campo | Valor |

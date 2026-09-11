@@ -5,6 +5,11 @@ public static class IndicatorAuthorization
     public const string View = "PER-INDICADOR-VER";
 }
 
+public static class DirectionOverviewAuthorization
+{
+    public const string View = "PER-DIRECCION-VER";
+}
+
 public sealed record IndicatorRequest(
     Guid ActorUserId,
     int IsoYear,
@@ -53,8 +58,15 @@ public interface IIndicatorReader
     Task<IndicatorResult> ReadAsync(
         IndicatorRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<IndicatorResult> ReadDirectionOverviewAsync(
+        IndicatorRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class IndicatorAccessDeniedException() : Exception;
 public sealed class IndicatorFilterInvalidException() : Exception;
 public sealed class IndicatorQueryInconsistentException() : Exception;
+public sealed class DirectionOverviewAccessDeniedException() : Exception;
+public sealed class DirectionOverviewFilterInvalidException() : Exception;
+public sealed class DirectionOverviewQueryInconsistentException() : Exception;
