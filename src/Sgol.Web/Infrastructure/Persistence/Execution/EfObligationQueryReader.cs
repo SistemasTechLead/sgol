@@ -6,18 +6,22 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Sgol.Assignment.Contracts;
 using Sgol.BuildingBlocks.Time;
+using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
+using Sgol.Evidence.Contracts;
 using Sgol.Execution.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
+using Sgol.Reporting.Contracts;
+using Sgol.Validation.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
 namespace Sgol.Web.Infrastructure.Persistence.Execution;
 
 public sealed class EfObligationQueryReader(
     SgolDbContext dbContext,
-    IClock clock) : IObligationQueryReader
+    IClock clock) : IObligationQueryReader, IHierarchySupervisionReader
 {
     private const int CursorVersion = 1;
     private const int MaximumCursorLength = 2048;
@@ -142,6 +146,379 @@ public sealed class EfObligationQueryReader(
         return new ObligationDetailPage(detail, nextCursor, queriedAt);
     }
 
+    public async Task<SupervisionPage> ReadSupervisionAsync(
+        SupervisionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateSupervisionRequest(request);
+        var filterHash = SupervisionFilterHash(request);
+        var cursor = DecodeSupervisionCursor(request.Cursor, filterHash);
+
+        await using var transaction = await BeginReadOnlyAsync(cancellationToken);
+        var queriedAt = clock.UtcNow;
+        var actor = await GetSupervisionActorAsync(request.ActorUserId, queriedAt, cancellationToken);
+        var query = BuildSupervisedRows(actor, queriedAt, request.Level, request.ResponsiblePersonId);
+        query = ApplySupervisionFilters(query, request.IsoYear, request.IsoWeek, request.ExecutionStatus);
+        query = ApplyListCursor(query, cursor);
+
+        var rows = await OrderRows(query).Take(request.Limit + 1).ToListAsync(cancellationToken);
+        var hasNextPage = rows.Count > request.Limit;
+        if (hasNextPage) rows.RemoveAt(rows.Count - 1);
+
+        var items = await MapSupervisionItemsAsync(rows, actor, queriedAt, cancellationToken);
+        var nextCursor = hasNextPage ? EncodeListCursor(rows[^1], filterHash) : null;
+        await transaction.CommitAsync(cancellationToken);
+        return new(items, nextCursor, queriedAt);
+    }
+
+    public async Task<PendingValidationsPage> ReadPendingValidationsAsync(
+        PendingValidationsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidatePendingRequest(request);
+        var filterHash = PendingFilterHash(request);
+        var cursor = DecodePendingCursor(request.Cursor, filterHash);
+
+        await using var transaction = await BeginReadOnlyAsync(cancellationToken);
+        var queriedAt = clock.UtcNow;
+        var actor = await GetSupervisionActorAsync(request.ActorUserId, queriedAt, cancellationToken);
+        var allowedValidatorRoles = AllowedPendingValidatorRoles(actor.RoleCode);
+        var query = BuildSupervisedRows(actor, queriedAt, request.Level, request.ResponsiblePersonId);
+        query = ApplySupervisionFilters(query, request.IsoYear, request.IsoWeek, WorkObligationStatuses.Concluded);
+        query = query.Where(row => row.ValidationPolicyVersionId != null && row.ConcludedAt != null &&
+            dbContext.ValidationPolicyVersions.AsNoTracking().Any(policy =>
+                policy.Id == row.ValidationPolicyVersionId &&
+                policy.TaskDefinitionId == row.TaskDefinitionId &&
+                policy.TaskDefinitionVersionId == row.TaskDefinitionVersionId &&
+                policy.IsRequired &&
+                policy.ValidatorRelation == ValidationPolicyValues.ImmediateSuperior &&
+                (policy.Status == VersionStatuses.Current || policy.Status == VersionStatuses.Superseded) &&
+                allowedValidatorRoles.Contains(policy.ValidatorRole) &&
+                dbContext.AssignmentVersions.AsNoTracking().Any(assignment =>
+                    assignment.ObligationId == row.ObligationId &&
+                    assignment.Status == AssignmentVersionStatuses.Current &&
+                    dbContext.AppUsers.AsNoTracking().Any(user =>
+                        user.PersonId == assignment.PersonId &&
+                        user.Status == BootstrapContract.ActiveAccountStatus &&
+                        dbContext.EmploymentVersions.AsNoTracking().Any(employment =>
+                            employment.PersonId == user.PersonId &&
+                            employment.BranchId == BranchScope.LorettaId &&
+                            employment.Status == EmploymentStatus.Active &&
+                            employment.ValidFrom <= queriedAt &&
+                            (employment.ValidTo == null || queriedAt < employment.ValidTo)) &&
+                        dbContext.EmploymentVersions.AsNoTracking().Count(employment =>
+                            employment.PersonId == user.PersonId &&
+                            employment.BranchId == BranchScope.LorettaId &&
+                            employment.Status == EmploymentStatus.Active &&
+                            employment.ValidFrom <= queriedAt &&
+                            (employment.ValidTo == null || queriedAt < employment.ValidTo)) == 1 &&
+                        dbContext.RoleAssignmentVersions.AsNoTracking().Any(role =>
+                            role.UserId == user.Id &&
+                            role.BranchId == BranchScope.LorettaId &&
+                            role.Status == RoleAssignmentStatus.Active &&
+                            role.ValidFrom <= queriedAt &&
+                            (role.ValidTo == null || queriedAt < role.ValidTo) &&
+                            role.RoleCode == policy.ExecutorRole) &&
+                        dbContext.RoleAssignmentVersions.AsNoTracking().Count(role =>
+                            role.UserId == user.Id &&
+                            role.BranchId == BranchScope.LorettaId &&
+                            role.Status == RoleAssignmentStatus.Active &&
+                            role.ValidFrom <= queriedAt &&
+                            (role.ValidTo == null || queriedAt < role.ValidTo)) == 1))) &&
+            !dbContext.ValidationRequirements.AsNoTracking().Any(requirement =>
+                requirement.ObligationId == row.ObligationId &&
+                dbContext.ValidationDecisionVersions.AsNoTracking().Any(decision =>
+                    decision.RequirementId == requirement.Id &&
+                    decision.Status == ValidationStatuses.Current)));
+        query = ApplyPendingCursor(query, cursor);
+
+        var rows = await query.OrderBy(row => row.ConcludedAt).ThenBy(row => row.ObligationId)
+            .Take(request.Limit + 1).ToListAsync(cancellationToken);
+        var hasNextPage = rows.Count > request.Limit;
+        if (hasNextPage) rows.RemoveAt(rows.Count - 1);
+
+        var items = await MapPendingItemsAsync(rows, actor, queriedAt, cancellationToken);
+        var nextCursor = hasNextPage ? EncodePendingCursor(rows[^1], filterHash) : null;
+        await transaction.CommitAsync(cancellationToken);
+        return new(items, nextCursor, queriedAt);
+    }
+
+    private async Task<ActorAccess> GetSupervisionActorAsync(Guid actorUserId, DateTimeOffset queriedAt,
+        CancellationToken cancellationToken)
+    {
+        ActorAccess actor;
+        try
+        {
+            actor = await GetActorAsync(actorUserId, queriedAt, cancellationToken);
+        }
+        catch (ObligationQueryAccessDeniedException)
+        {
+            throw new SupervisionAccessDeniedException();
+        }
+        if (!RoleHierarchy.GrantsSupervisionView(actor.RoleCode))
+        {
+            throw new SupervisionAccessDeniedException();
+        }
+
+        return actor;
+    }
+
+    private IQueryable<ObligationRow> BuildSupervisedRows(ActorAccess actor, DateTimeOffset queriedAt,
+        string? requestedLevel, Guid? responsiblePersonId)
+    {
+        var obligationIds = BuildCurrentResponsibleObligationIds(
+            queriedAt, actor.RoleCode, requestedLevel, responsiblePersonId);
+        return BuildVisibleRows(actor, queriedAt).Where(row => obligationIds.Contains(row.ObligationId));
+    }
+
+    private IQueryable<Guid> BuildCurrentResponsibleObligationIds(DateTimeOffset queriedAt,
+        string actorRoleCode, string? requestedLevel, Guid? responsiblePersonId)
+    {
+        var includeAdministration = actorRoleCode == CanonicalRole.Direction &&
+            (requestedLevel is null || requestedLevel == CanonicalRole.Administration);
+        var includeSubcoordination = actorRoleCode is CanonicalRole.Direction or CanonicalRole.Administration &&
+            (requestedLevel is null || requestedLevel == CanonicalRole.Subcoordination);
+        var includeSalesFloor = actorRoleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination &&
+            (requestedLevel is null || requestedLevel == CanonicalRole.SalesFloor);
+
+        return
+            from assignment in dbContext.AssignmentVersions.AsNoTracking()
+            join user in dbContext.AppUsers.AsNoTracking() on assignment.PersonId equals user.PersonId
+            join employment in dbContext.EmploymentVersions.AsNoTracking() on user.PersonId equals employment.PersonId
+            join role in dbContext.RoleAssignmentVersions.AsNoTracking() on user.Id equals role.UserId
+            where assignment.Status == AssignmentVersionStatuses.Current &&
+                user.Status == BootstrapContract.ActiveAccountStatus &&
+                employment.BranchId == BranchScope.LorettaId &&
+                employment.Status == EmploymentStatus.Active &&
+                employment.ValidFrom <= queriedAt &&
+                (employment.ValidTo == null || queriedAt < employment.ValidTo) &&
+                role.BranchId == BranchScope.LorettaId &&
+                role.Status == RoleAssignmentStatus.Active &&
+                role.ValidFrom <= queriedAt &&
+                (role.ValidTo == null || queriedAt < role.ValidTo) &&
+                (responsiblePersonId == null || assignment.PersonId == responsiblePersonId) &&
+                ((includeAdministration && role.RoleCode == CanonicalRole.Administration) ||
+                 (includeSubcoordination && role.RoleCode == CanonicalRole.Subcoordination) ||
+                 (includeSalesFloor && role.RoleCode == CanonicalRole.SalesFloor)) &&
+                dbContext.EmploymentVersions.AsNoTracking().Count(candidate =>
+                    candidate.PersonId == user.PersonId &&
+                    candidate.BranchId == BranchScope.LorettaId &&
+                    candidate.Status == EmploymentStatus.Active &&
+                    candidate.ValidFrom <= queriedAt &&
+                    (candidate.ValidTo == null || queriedAt < candidate.ValidTo)) == 1 &&
+                dbContext.RoleAssignmentVersions.AsNoTracking().Count(candidate =>
+                    candidate.UserId == user.Id &&
+                    candidate.BranchId == BranchScope.LorettaId &&
+                    candidate.Status == RoleAssignmentStatus.Active &&
+                    candidate.ValidFrom <= queriedAt &&
+                    (candidate.ValidTo == null || queriedAt < candidate.ValidTo)) == 1
+            select assignment.ObligationId;
+    }
+
+    private static IQueryable<ObligationRow> ApplySupervisionFilters(IQueryable<ObligationRow> query,
+        int? isoYear, int? isoWeek, string? executionStatus)
+    {
+        if (isoYear is { } year) query = query.Where(row => row.IsoYear == year);
+        if (isoWeek is { } week) query = query.Where(row => row.IsoWeek == week);
+        if (executionStatus is not null) query = query.Where(row => row.ExecutionStatus == executionStatus);
+        return query;
+    }
+
+    private async Task<IReadOnlyList<SupervisionObligationItem>> MapSupervisionItemsAsync(
+        IReadOnlyList<ObligationRow> rows, ActorAccess actor, DateTimeOffset queriedAt,
+        CancellationToken cancellationToken)
+    {
+        if (rows.Count == 0) return [];
+        var baseItems = await MapItemsAsync(rows, actor, queriedAt, cancellationToken);
+        var ids = rows.Select(row => row.ObligationId).ToArray();
+        var roles = await ReadResponsibleRolesAsync(ids, queriedAt, cancellationToken);
+        var evidence = await ReadCurrentEvidenceAsync(ids, cancellationToken);
+        var validations = await ReadCurrentValidationsAsync(ids, cancellationToken);
+
+        return baseItems.Select(item => new SupervisionObligationItem(
+            item,
+            roles.GetValueOrDefault(item.ObligationId) ?? throw new SupervisionQueryInconsistentException(),
+            evidence.GetValueOrDefault(item.ObligationId) ?? [],
+            validations.GetValueOrDefault(item.ObligationId) ?? new(null, null),
+            SupervisionLinks(item.ObligationId, includeIssue: false))).ToArray();
+    }
+
+    private async Task<IReadOnlyList<PendingValidationItem>> MapPendingItemsAsync(
+        IReadOnlyList<ObligationRow> rows, ActorAccess actor, DateTimeOffset queriedAt,
+        CancellationToken cancellationToken)
+    {
+        if (rows.Count == 0) return [];
+        var baseItems = await MapItemsAsync(rows, actor, queriedAt, cancellationToken);
+        var ids = rows.Select(row => row.ObligationId).ToArray();
+        var roles = await ReadResponsibleRolesAsync(ids, queriedAt, cancellationToken);
+        var requirements = await dbContext.ValidationRequirements.AsNoTracking()
+            .Where(item => ids.Contains(item.ObligationId)).ToListAsync(cancellationToken);
+        var requirementIds = requirements.Select(item => item.Id).ToArray();
+        var decisionCounts = await dbContext.ValidationDecisionVersions.AsNoTracking()
+            .Where(item => requirementIds.Contains(item.RequirementId))
+            .GroupBy(item => item.RequirementId)
+            .Select(group => new { RequirementId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.RequirementId, item => item.Count, cancellationToken);
+        var policyIds = rows.Select(row => row.ValidationPolicyVersionId!.Value).Distinct().ToArray();
+        var policies = await dbContext.ValidationPolicyVersions.AsNoTracking()
+            .Where(item => policyIds.Contains(item.Id)).ToDictionaryAsync(item => item.Id, cancellationToken);
+        var requirementsByObligation = requirements.ToDictionary(item => item.ObligationId);
+        var rowsById = rows.ToDictionary(row => row.ObligationId);
+
+        return baseItems.Select(item =>
+        {
+            var row = rowsById[item.ObligationId];
+            if (row.ConcludedAt is null || row.ValidationPolicyVersionId is not { } policyId ||
+                !policies.TryGetValue(policyId, out var policy))
+                throw new PendingValidationQueryInconsistentException();
+            requirementsByObligation.TryGetValue(item.ObligationId, out var requirement);
+            if (requirement is not null && (requirement.Status != ValidationStatuses.Pending ||
+                decisionCounts.GetValueOrDefault(requirement.Id) != 0))
+                throw new PendingValidationQueryInconsistentException();
+
+            var ordinary = actor.RoleCode == policy.ValidatorRole;
+            var authority = new AvailableValidationAuthority(
+                ordinary ? ValidationAuthorityTypes.Ordinary : ValidationAuthorityTypes.Escalation,
+                policy.ValidatorRole,
+                !ordinary);
+            var details = requirement is null ? null : RequirementDetails(requirement);
+            var rowVersion = requirement?.RowVersion ?? row.RowVersion;
+            return new PendingValidationItem(
+                item,
+                roles.GetValueOrDefault(item.ObligationId) ?? throw new PendingValidationQueryInconsistentException(),
+                row.ConcludedAt.Value,
+                requirement is null ? PendingMaterializationStatuses.Derived : PendingMaterializationStatuses.Materialized,
+                details,
+                authority,
+                $"\"{rowVersion.ToString(CultureInfo.InvariantCulture)}\"",
+                SupervisionLinks(item.ObligationId, includeIssue: true));
+        }).ToArray();
+    }
+
+    private async Task<Dictionary<Guid, string>> ReadResponsibleRolesAsync(Guid[] obligationIds,
+        DateTimeOffset queriedAt, CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from assignment in dbContext.AssignmentVersions.AsNoTracking()
+            join user in dbContext.AppUsers.AsNoTracking() on assignment.PersonId equals user.PersonId
+            join employment in dbContext.EmploymentVersions.AsNoTracking() on user.PersonId equals employment.PersonId
+            join role in dbContext.RoleAssignmentVersions.AsNoTracking() on user.Id equals role.UserId
+            where obligationIds.Contains(assignment.ObligationId) &&
+                assignment.Status == AssignmentVersionStatuses.Current &&
+                user.Status == BootstrapContract.ActiveAccountStatus &&
+                employment.BranchId == BranchScope.LorettaId &&
+                employment.Status == EmploymentStatus.Active &&
+                employment.ValidFrom <= queriedAt &&
+                (employment.ValidTo == null || queriedAt < employment.ValidTo) &&
+                role.BranchId == BranchScope.LorettaId &&
+                role.Status == RoleAssignmentStatus.Active &&
+                role.ValidFrom <= queriedAt &&
+                (role.ValidTo == null || queriedAt < role.ValidTo) &&
+                dbContext.EmploymentVersions.AsNoTracking().Count(candidate =>
+                    candidate.PersonId == user.PersonId &&
+                    candidate.BranchId == BranchScope.LorettaId &&
+                    candidate.Status == EmploymentStatus.Active &&
+                    candidate.ValidFrom <= queriedAt &&
+                    (candidate.ValidTo == null || queriedAt < candidate.ValidTo)) == 1 &&
+                dbContext.RoleAssignmentVersions.AsNoTracking().Count(candidate =>
+                    candidate.UserId == user.Id &&
+                    candidate.BranchId == BranchScope.LorettaId &&
+                    candidate.Status == RoleAssignmentStatus.Active &&
+                    candidate.ValidFrom <= queriedAt &&
+                    (candidate.ValidTo == null || queriedAt < candidate.ValidTo)) == 1
+            select new ResponsibleAccessRow(assignment.ObligationId, assignment.PersonId, role.RoleCode))
+            .ToListAsync(cancellationToken);
+        if (rows.GroupBy(item => item.ObligationId).Any(group => group.Count() != 1))
+            throw new SupervisionQueryInconsistentException();
+        return rows.ToDictionary(item => item.ObligationId, item => item.RoleCode);
+    }
+
+    private async Task<Dictionary<Guid, IReadOnlyList<CurrentEvidenceSummary>>> ReadCurrentEvidenceAsync(
+        Guid[] obligationIds, CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from item in dbContext.EvidenceItems.AsNoTracking()
+            join version in dbContext.EvidenceVersions.AsNoTracking() on item.Id equals version.EvidenceItemId
+            where obligationIds.Contains(item.ObligationId) && version.Status == EvidenceVersionStatuses.Current
+            orderby item.RequirementCode, version.Id
+            select new EvidenceSummaryRow(item.ObligationId, item.Id, item.RowVersion,
+                item.RequirementVersionId, item.RequirementCode, item.RequirementKind,
+                version.Id, version.VersionNo, version.Status, version.SubmittedBy, version.SubmittedAt,
+                version.Reason, version.SupersedesId,
+                version.FileObjectId != null ? EvidenceSourceKinds.File : EvidenceSourceKinds.Structured))
+            .ToListAsync(cancellationToken);
+
+        return rows.GroupBy(item => item.ObligationId).ToDictionary(
+            group => group.Key,
+            group => (IReadOnlyList<CurrentEvidenceSummary>)group.Select(item => new CurrentEvidenceSummary(
+                item.EvidenceItemId,
+                item.ItemRowVersion,
+                new(item.RequirementVersionId, item.RequirementCode, item.RequirementKind),
+                new(item.EvidenceVersionId, item.VersionNo, item.Status, item.SubmittedByUserId,
+                    item.SubmittedAt, item.Reason, item.SupersedesEvidenceVersionId),
+                item.SourceKind)).ToArray());
+    }
+
+    private async Task<Dictionary<Guid, SupervisionValidation>> ReadCurrentValidationsAsync(Guid[] obligationIds,
+        CancellationToken cancellationToken)
+    {
+        var requirements = await dbContext.ValidationRequirements.AsNoTracking()
+            .Where(item => obligationIds.Contains(item.ObligationId)).ToListAsync(cancellationToken);
+        var requirementIds = requirements.Select(item => item.Id).ToArray();
+        var decisions = await dbContext.ValidationDecisionVersions.AsNoTracking()
+            .Where(item => requirementIds.Contains(item.RequirementId)).ToListAsync(cancellationToken);
+        var current = decisions.Where(item => item.Status == ValidationStatuses.Current).ToArray();
+        var snapshotIds = current.Select(item => item.EvidenceReviewSnapshotId).Distinct().ToArray();
+        var snapshots = await dbContext.EvidenceReviewSnapshots.AsNoTracking()
+            .Where(item => snapshotIds.Contains(item.Id)).ToDictionaryAsync(item => item.Id, cancellationToken);
+        var decisionsByRequirement = decisions.GroupBy(item => item.RequirementId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+        var result = new Dictionary<Guid, SupervisionValidation>();
+
+        foreach (var requirement in requirements)
+        {
+            var chain = decisionsByRequirement.GetValueOrDefault(requirement.Id) ?? [];
+            var currentDecisions = chain.Where(item => item.Status == ValidationStatuses.Current).ToArray();
+            if ((requirement.Status == ValidationStatuses.Pending && chain.Length != 0) ||
+                (requirement.Status == ValidationStatuses.Resolved && currentDecisions.Length != 1) ||
+                currentDecisions.Length > 1)
+                throw new SupervisionQueryInconsistentException();
+
+            ValidationDecisionDetails? decision = null;
+            if (currentDecisions.SingleOrDefault() is { } value)
+            {
+                if (!snapshots.TryGetValue(value.EvidenceReviewSnapshotId, out var snapshot))
+                    throw new SupervisionQueryInconsistentException();
+                decision = new(value.Id, value.VersionNo, value.Result, value.Foundation, value.Status,
+                    value.AuthorityType, value.ValidatorUserId, value.ValidatorRole, value.DecidedAt,
+                    value.Reason, value.SupersedesId, value.EvidenceReviewSnapshotId, snapshot.EvidenceVersionIds);
+            }
+
+            result.Add(requirement.ObligationId, new(RequirementDetails(requirement), decision));
+        }
+
+        return result;
+    }
+
+    private static ValidationRequirementDetails RequirementDetails(ValidationRequirement requirement) =>
+        new(requirement.Id, requirement.PolicyVersionId, requirement.Status, requirement.CreatedAt,
+            requirement.ResolvedAt, requirement.RowVersion);
+
+    private static Dictionary<string, string> SupervisionLinks(Guid obligationId, bool includeIssue)
+    {
+        var links = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["self"] = $"/api/v1/obligations/{obligationId:D}",
+            ["evidence"] = $"/api/v1/obligations/{obligationId:D}/evidence",
+            ["evidenceReview"] = $"/api/v1/obligations/{obligationId:D}/evidence-review",
+            ["validations"] = $"/api/v1/obligations/{obligationId:D}/validations",
+        };
+        if (includeIssue) links["issueDecision"] = $"/api/v1/obligations/{obligationId:D}/validation-decisions";
+        return links;
+    }
+
     private async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginReadOnlyAsync(
         CancellationToken cancellationToken)
     {
@@ -262,6 +639,8 @@ public sealed class EfObligationQueryReader(
                 DueAt = obligation.DueAt,
                 ConcludedAt = obligation.ConcludedAt,
                 ExecutionStatus = obligation.ExecutionStatus,
+                ValidationPolicyVersionId = obligation.ValidationPolicyVersionId,
+                RowVersion = obligation.RowVersion,
             };
     }
 
@@ -642,6 +1021,93 @@ public sealed class EfObligationQueryReader(
         _ => 9,
     };
 
+    private static void ValidateSupervisionRequest(SupervisionRequest request)
+    {
+        if (request.ActorUserId == Guid.Empty || request.Limit is < 1 or > 100 ||
+            request.ResponsiblePersonId == Guid.Empty ||
+            (request.Level is not null && !CanonicalRole.IsDefined(request.Level)) ||
+            (request.ExecutionStatus is not null &&
+             request.ExecutionStatus is not (WorkObligationStatuses.Pending or WorkObligationStatuses.Concluded)) ||
+            !ValidIsoWeek(request.IsoYear, request.IsoWeek))
+            throw new SupervisionFilterInvalidException();
+    }
+
+    private static void ValidatePendingRequest(PendingValidationsRequest request)
+    {
+        if (request.ActorUserId == Guid.Empty || request.Limit is < 1 or > 100 ||
+            request.ResponsiblePersonId == Guid.Empty ||
+            (request.Level is not null && !CanonicalRole.IsDefined(request.Level)) ||
+            !ValidIsoWeek(request.IsoYear, request.IsoWeek))
+            throw new PendingValidationsFilterInvalidException();
+    }
+
+    private static bool ValidIsoWeek(int? year, int? week)
+    {
+        if (year.HasValue != week.HasValue) return false;
+        return year is null || year is >= 1 and <= 9999 && week is >= 1 &&
+            week <= ISOWeek.GetWeeksInYear(year.Value);
+    }
+
+    private static string[] AllowedPendingValidatorRoles(string actorRoleCode) => actorRoleCode switch
+    {
+        CanonicalRole.Direction => [CanonicalRole.Direction, CanonicalRole.Administration, CanonicalRole.Subcoordination],
+        CanonicalRole.Administration => [CanonicalRole.Administration, CanonicalRole.Subcoordination],
+        CanonicalRole.Subcoordination => [CanonicalRole.Subcoordination],
+        _ => throw new SupervisionAccessDeniedException(),
+    };
+
+    private static string SupervisionFilterHash(SupervisionRequest request) => FilterHash(
+        request.Level, request.ResponsiblePersonId, request.IsoYear, request.IsoWeek, request.ExecutionStatus);
+
+    private static string PendingFilterHash(PendingValidationsRequest request) => FilterHash(
+        request.Level, request.ResponsiblePersonId, request.IsoYear, request.IsoWeek, null);
+
+    private static string FilterHash(string? level, Guid? personId, int? isoYear, int? isoWeek, string? status)
+    {
+        var canonical = string.Join('\n', level ?? string.Empty,
+            personId?.ToString("D", CultureInfo.InvariantCulture) ?? string.Empty,
+            isoYear?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            isoWeek?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            status ?? string.Empty);
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
+
+    private static ListCursor? DecodeSupervisionCursor(string? value, string filterHash)
+    {
+        try { return DecodeListCursor(value, filterHash); }
+        catch (ObligationQueryFilterInvalidException) { throw new SupervisionFilterInvalidException(); }
+    }
+
+    private static PendingCursor? DecodePendingCursor(string? value, string filterHash)
+    {
+        if (value is null) return null;
+        try
+        {
+            var cursor = DecodeCursor<PendingCursor>(value);
+            if (cursor.Version != CursorVersion || cursor.ObligationId == Guid.Empty ||
+                cursor.PendingSince.Offset != TimeSpan.Zero || cursor.FilterHash.Length != filterHash.Length ||
+                !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(cursor.FilterHash),
+                    Encoding.ASCII.GetBytes(filterHash)))
+                throw new FormatException();
+            return cursor;
+        }
+        catch (Exception exception) when (exception is FormatException or JsonException)
+        {
+            throw new PendingValidationsFilterInvalidException();
+        }
+    }
+
+    private static IQueryable<ObligationRow> ApplyPendingCursor(IQueryable<ObligationRow> query,
+        PendingCursor? cursor) => cursor is null ? query : query.Where(row =>
+            row.ConcludedAt > cursor.PendingSince ||
+            row.ConcludedAt == cursor.PendingSince && row.ObligationId.CompareTo(cursor.ObligationId) > 0);
+
+    private static string EncodePendingCursor(ObligationRow row, string filterHash)
+    {
+        if (row.ConcludedAt is null) throw new PendingValidationQueryInconsistentException();
+        return EncodeCursor(new PendingCursor(CursorVersion, row.ConcludedAt.Value, row.ObligationId, filterHash));
+    }
+
     private static void ValidateListRequest(ObligationListRequest request)
     {
         if (request.ActorUserId == Guid.Empty || request.Limit is < 1 or > 100 ||
@@ -873,6 +1339,8 @@ public sealed class EfObligationQueryReader(
         public DateTimeOffset? DueAt { get; init; }
         public DateTimeOffset? ConcludedAt { get; init; }
         public required string ExecutionStatus { get; init; }
+        public Guid? ValidationPolicyVersionId { get; init; }
+        public required long RowVersion { get; init; }
     }
 
     private sealed record CurrentAssignmentRow(
@@ -883,6 +1351,16 @@ public sealed class EfObligationQueryReader(
         string DisplayName,
         string AssignmentType,
         DateTimeOffset AssignedAt);
+
+    private sealed record ResponsibleAccessRow(Guid ObligationId, Guid PersonId, string RoleCode);
+
+    private sealed record EvidenceSummaryRow(Guid ObligationId, Guid EvidenceItemId, long ItemRowVersion,
+        Guid RequirementVersionId, string RequirementCode, string RequirementKind,
+        Guid EvidenceVersionId, int VersionNo, string Status, Guid SubmittedByUserId,
+        DateTimeOffset SubmittedAt, string? Reason, Guid? SupersedesEvidenceVersionId, string SourceKind);
+
+    private sealed record PendingCursor(int Version, DateTimeOffset PendingSince, Guid ObligationId,
+        string FilterHash);
 
     private sealed class AssignmentHistoryRow
     {
