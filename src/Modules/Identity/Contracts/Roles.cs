@@ -36,6 +36,9 @@ public static class RoleHierarchy
 
     public static bool GrantsOwnInbox(string roleCode) => CanonicalRole.IsDefined(roleCode);
 
+    public static bool GrantsSupervisionView(string roleCode) => roleCode is
+        CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
+
     public static bool GrantsValidationIssue(string roleCode) => roleCode is
         CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
 

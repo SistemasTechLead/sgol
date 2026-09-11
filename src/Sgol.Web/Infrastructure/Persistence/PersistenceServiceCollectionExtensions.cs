@@ -7,6 +7,7 @@ using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Notifications.Contracts;
 using Sgol.Planning.Contracts;
+using Sgol.Reporting.Contracts;
 using Sgol.Validation.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Assignment;
@@ -56,6 +57,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IAssignmentCorrectionService, EfAssignmentCorrectionService>();
         services.AddScoped<IActiveLoadReader, EfActiveLoadReader>();
         services.AddScoped<IObligationQueryReader, EfObligationQueryReader>();
+        services.AddScoped<IHierarchySupervisionReader>(provider =>
+            provider.GetRequiredService<IObligationQueryReader>() as IHierarchySupervisionReader
+            ?? throw new InvalidOperationException("The obligation reader must provide hierarchical supervision."));
         EvidenceInfrastructureServiceCollectionExtensions.AddFailClosedAdapters(services);
         services.AddScoped<IEvidenceContributionService, EfEvidenceContributionService>();
         services.AddScoped<IEvidenceReviewService, EfEvidenceReviewService>();

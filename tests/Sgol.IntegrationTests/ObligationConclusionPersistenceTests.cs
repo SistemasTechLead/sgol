@@ -13,6 +13,7 @@ using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
+using Sgol.Reporting.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
@@ -139,6 +140,98 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         Assert.Single(await context.ExecutionResults.AsNoTracking().Where(item => item.ObligationId == fixture.ObligationId).ToListAsync());
         Assert.Equal([2, 1], replacement.History.Decisions.Select(item => item.VersionNo));
         Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item => item.Action == "VALIDATION_DECISION_REPLACED");
+    }
+
+    [Fact]
+    public async Task Hu031ReadsOnlyInferiorsAndPendingAuthorityWithoutWriteEffects()
+    {
+        var fixture = await ResetAndCreateObligationAsync(withCompleteEvidence: true, taskCode: "TAR-0008");
+        await using (var conclusionContext = CreateContext())
+        {
+            await ConclusionService(conclusionContext, new FixedClock(Now)).ConcludeAsync(new(
+                fixture.ActorId, Guid.CreateVersion7(), Guid.CreateVersion7(), fixture.ObligationId, 1));
+        }
+        var administration = await SeedActorAsync("HU031-ADMIN", CanonicalRole.Administration);
+        var direction = await SeedActorAsync("HU031-DIRECTION", CanonicalRole.Direction);
+        var sales = await SeedActorAsync("HU031-SALES", CanonicalRole.SalesFloor);
+
+        await using var context = CreateContext();
+        var before = new
+        {
+            Requirements = await context.ValidationRequirements.CountAsync(),
+            Decisions = await context.ValidationDecisionVersions.CountAsync(),
+            Audits = await context.AuditEvents.CountAsync(),
+            Idempotency = await context.IdempotencyRecords.CountAsync(),
+            Outbox = await context.OutboxEvents.CountAsync(),
+        };
+        var reader = new EfObligationQueryReader(context, new FixedClock(Now.AddMinutes(20)));
+
+        var supervision = await reader.ReadSupervisionAsync(new(
+            administration, CanonicalRole.Subcoordination, null, 2026, 37,
+            WorkObligationStatuses.Concluded, null, 25));
+        var supervised = Assert.Single(supervision.Items);
+        Assert.Equal(fixture.ObligationId, supervised.Obligation.ObligationId);
+        Assert.Equal(CanonicalRole.Subcoordination, supervised.ResponsibleLevel);
+        Assert.NotEmpty(supervised.CurrentEvidence);
+        Assert.Equal(ValidationStatuses.Pending, supervised.Validation.Requirement?.Status);
+        Assert.Null(supervised.Validation.CurrentDecision);
+
+        var ordinary = Assert.Single((await reader.ReadPendingValidationsAsync(new(
+            administration, null, null, 2026, 37, null, 25))).Items);
+        Assert.Equal(ValidationAuthorityTypes.Ordinary, ordinary.AvailableAuthority.AuthorityType);
+        Assert.Equal(PendingMaterializationStatuses.Materialized, ordinary.MaterializationStatus);
+        Assert.Equal("\"1\"", ordinary.DecisionEtag);
+
+        var escalated = Assert.Single((await reader.ReadPendingValidationsAsync(new(
+            direction, null, null, null, null, null, 25))).Items);
+        Assert.Equal(ValidationAuthorityTypes.Escalation, escalated.AvailableAuthority.AuthorityType);
+        Assert.True(escalated.AvailableAuthority.EscalationReasonRequired);
+
+        Assert.Empty((await reader.ReadSupervisionAsync(new(
+            fixture.ActorId, null, null, null, null, null, null, 25))).Items);
+        await Assert.ThrowsAsync<SupervisionAccessDeniedException>(() => reader.ReadSupervisionAsync(new(
+            sales, null, null, null, null, null, null, 25)));
+
+        var after = new
+        {
+            Requirements = await context.ValidationRequirements.CountAsync(),
+            Decisions = await context.ValidationDecisionVersions.CountAsync(),
+            Audits = await context.AuditEvents.CountAsync(),
+            Idempotency = await context.IdempotencyRecords.CountAsync(),
+            Outbox = await context.OutboxEvents.CountAsync(),
+        };
+        Assert.Equal(before, after);
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task Hu031DerivesLegacyPendingWithoutMaterializingRequirement()
+    {
+        var fixture = await ResetAndCreateObligationAsync(withCompleteEvidence: true, taskCode: "TAR-0008");
+        await using (var conclusionContext = CreateContext())
+        {
+            var conclusion = new EfObligationConclusionService(
+                conclusionContext,
+                new EfEvidenceConclusionReviewService(conclusionContext, NewUuidGenerator()),
+                new NoopValidationRequirementWriter(),
+                new FixedClock(Now),
+                NewUuidGenerator());
+            await conclusion.ConcludeAsync(new(
+                fixture.ActorId, Guid.CreateVersion7(), Guid.CreateVersion7(), fixture.ObligationId, 1));
+        }
+        var administration = await SeedActorAsync("HU031-DERIVED", CanonicalRole.Administration);
+        await using var context = CreateContext();
+        var reader = new EfObligationQueryReader(context, new FixedClock(Now.AddMinutes(20)));
+
+        var pending = Assert.Single((await reader.ReadPendingValidationsAsync(new(
+            administration, null, null, null, null, null, 25))).Items);
+
+        Assert.Equal(PendingMaterializationStatuses.Derived, pending.MaterializationStatus);
+        Assert.Null(pending.ValidationRequirement);
+        Assert.Equal("\"2\"", pending.DecisionEtag);
+        Assert.Empty(await context.ValidationRequirements.AsNoTracking().ToListAsync());
+        Assert.Empty(await context.ValidationDecisionVersions.AsNoTracking().ToListAsync());
+        Assert.Empty(context.ChangeTracker.Entries());
     }
 
     [Fact]
