@@ -351,6 +351,99 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Hu032ReconcilesAllRolesAndUnassignedObligationsWithoutReadEffects()
+    {
+        var fixture = await ResetAndCreateObligationAsync(withCompleteEvidence: false, taskCode: "TAR-0008");
+        var direction = await SeedActorAsync("HU032-DIRECTION", CanonicalRole.Direction);
+        var administration = await SeedActorAsync("HU032-ADMIN", CanonicalRole.Administration);
+        var subcoordination = await SeedActorAsync("HU032-SUBCOORD", CanonicalRole.Subcoordination);
+        var sales = await SeedActorAsync("HU032-SALES", CanonicalRole.SalesFloor);
+
+        await using (var setup = CreateContext())
+        {
+            await AddIndicatorObligationAsync(setup, fixture, direction, "hu032-admin-pending",
+                concluded: false, responsibleUserId: administration);
+            await AddIndicatorObligationAsync(setup, fixture, direction, "hu032-subcoord-concluded",
+                concluded: true, responsibleUserId: subcoordination);
+            await AddIndicatorObligationAsync(setup, fixture, direction, "hu032-direction-pending",
+                concluded: false, responsibleUserId: direction);
+            await AddIndicatorObligationAsync(setup, fixture, direction, "hu032-sales-pending",
+                concluded: false, responsibleUserId: sales);
+            await AddIndicatorObligationAsync(setup, fixture, administration, "hu032-validated",
+                concluded: true, validationResult: ValidationResults.Fulfilled);
+            await AddIndicatorObligationAsync(setup, fixture, direction, "hu032-unassigned",
+                concluded: false, assigned: false);
+        }
+
+        await using var context = CreateContext();
+        var before = new
+        {
+            Obligations = await context.WorkObligations.CountAsync(),
+            Assignments = await context.AssignmentVersions.CountAsync(),
+            Requirements = await context.ValidationRequirements.CountAsync(),
+            Decisions = await context.ValidationDecisionVersions.CountAsync(),
+            Audits = await context.AuditEvents.CountAsync(),
+            Idempotency = await context.IdempotencyRecords.CountAsync(),
+            Outbox = await context.OutboxEvents.CountAsync(),
+        };
+        var reader = new EfObligationQueryReader(context, new FixedClock(Now.AddMinutes(30)));
+        var directionPersonId = await UserPersonId(context, direction);
+        var administrationPersonId = await UserPersonId(context, administration);
+        var subcoordinationPersonId = await UserPersonId(context, subcoordination);
+        var responsiblePersonId = await UserPersonId(context, fixture.ActorId);
+        var salesPersonId = await UserPersonId(context, sales);
+
+        var result = await reader.ReadDirectionOverviewAsync(new(
+            direction, 2026, 37, null, null, null, 100));
+
+        Assert.Equal(7, result.Snapshot.BaseObligationsCount);
+        Assert.Equal(new IndicatorCount(5, 7), result.Snapshot.Pending);
+        Assert.Equal(new IndicatorCount(2, 7), result.Snapshot.Concluded);
+        Assert.Equal(new IndicatorCount(1, 7), result.Snapshot.Validated);
+        Assert.Equal(new IndicatorCount(0, 7), result.Snapshot.NonCompliant);
+        Assert.Equal(5, result.Snapshot.ActiveLoadByPerson.Denominator);
+        Assert.Equal(4, result.Snapshot.ActiveLoadByPerson.Items.Sum(item => item.Count));
+        Assert.Equal(
+            [CanonicalRole.Direction, CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor],
+            result.Snapshot.Scope.IncludedLevels);
+        Assert.Contains(result.Snapshot.ActiveLoadByPerson.Items,
+            item => item.Person.Id == directionPersonId && item.Level == CanonicalRole.Direction && item.Count == 1);
+        Assert.Contains(result.Snapshot.ActiveLoadByPerson.Items,
+            item => item.Person.Id == administrationPersonId &&
+                item.Level == CanonicalRole.Administration && item.Count == 1);
+        Assert.Contains(result.Snapshot.ActiveLoadByPerson.Items,
+            item => item.Person.Id == subcoordinationPersonId &&
+                item.Level == CanonicalRole.Subcoordination && item.Count == 0);
+        Assert.Contains(result.Snapshot.ActiveLoadByPerson.Items,
+            item => item.Person.Id == responsiblePersonId &&
+                item.Level == CanonicalRole.Subcoordination && item.Count == 1);
+        Assert.Contains(result.Snapshot.ActiveLoadByPerson.Items,
+            item => item.Person.Id == salesPersonId && item.Level == CanonicalRole.SalesFloor && item.Count == 1);
+
+        var directionOnly = await reader.ReadDirectionOverviewAsync(new(
+            direction, 2026, 37, CanonicalRole.Direction, null, null, 25));
+        Assert.Equal(1, directionOnly.Snapshot.BaseObligationsCount);
+        Assert.Equal(new IndicatorCount(1, 1), directionOnly.Snapshot.Pending);
+        Assert.Equal([CanonicalRole.Direction], directionOnly.Snapshot.Scope.IncludedLevels);
+
+        await Assert.ThrowsAsync<DirectionOverviewAccessDeniedException>(() =>
+            reader.ReadDirectionOverviewAsync(new(administration, 2026, 37, null, null, null, 25)));
+
+        var after = new
+        {
+            Obligations = await context.WorkObligations.CountAsync(),
+            Assignments = await context.AssignmentVersions.CountAsync(),
+            Requirements = await context.ValidationRequirements.CountAsync(),
+            Decisions = await context.ValidationDecisionVersions.CountAsync(),
+            Audits = await context.AuditEvents.CountAsync(),
+            Idempotency = await context.IdempotencyRecords.CountAsync(),
+            Outbox = await context.OutboxEvents.CountAsync(),
+        };
+        Assert.Equal(before, after);
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
     public async Task EscalationAndDirectionSelfValidationRequireTheirReasonAndAreAudited()
     {
         var escalatedFixture = await ResetAndCreateObligationAsync(withCompleteEvidence: true, taskCode: "TAR-0008");
@@ -724,13 +817,14 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         string? validationResult = null,
         string? supersededResult = null,
         bool validationPolicy = true,
-        bool assigned = true)
+        bool assigned = true,
+        Guid? responsibleUserId = null)
     {
         var template = await context.WorkObligations.AsNoTracking()
             .SingleAsync(item => item.Id == fixture.ObligationId);
         var templateRequest = await context.GenerationRequests.AsNoTracking()
             .SingleAsync(item => item.Id == template.GenerationRequestId);
-        var responsiblePersonId = await UserPersonId(context, fixture.ActorId);
+        var responsiblePersonId = await UserPersonId(context, responsibleUserId ?? fixture.ActorId);
         var requestId = Guid.CreateVersion7();
         var obligationId = Guid.CreateVersion7();
         var request = new GenerationRequest(
