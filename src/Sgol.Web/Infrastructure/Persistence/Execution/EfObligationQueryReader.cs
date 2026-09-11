@@ -13,6 +13,7 @@ using Sgol.Execution.Contracts;
 using Sgol.Generation.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
+using Sgol.Planning.Contracts;
 using Sgol.Reporting.Contracts;
 using Sgol.Validation.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
@@ -21,7 +22,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Execution;
 
 public sealed class EfObligationQueryReader(
     SgolDbContext dbContext,
-    IClock clock) : IObligationQueryReader, IHierarchySupervisionReader
+    IClock clock) : IObligationQueryReader, IHierarchySupervisionReader, IIndicatorReader
 {
     private const int CursorVersion = 1;
     private const int MaximumCursorLength = 2048;
@@ -243,6 +244,276 @@ public sealed class EfObligationQueryReader(
         var nextCursor = hasNextPage ? EncodePendingCursor(rows[^1], filterHash) : null;
         await transaction.CommitAsync(cancellationToken);
         return new(items, nextCursor, queriedAt);
+    }
+
+    public async Task<IndicatorResult> ReadAsync(
+        IndicatorRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateIndicatorRequest(request);
+        var range = WeekContract.Calculate(request.IsoYear, request.IsoWeek);
+        var filterHash = IndicatorFilterHash(request);
+        var cursor = DecodeIndicatorCursor(request.Cursor, filterHash);
+
+        await using var transaction = await BeginReadOnlyAsync(cancellationToken);
+        var queriedAt = clock.UtcNow;
+        var actor = await GetIndicatorActorAsync(request.ActorUserId, queriedAt, cancellationToken);
+        var visiblePeople = await BuildIndicatorVisiblePeopleAsync(
+            actor, queriedAt, request.Level, request.ResponsiblePersonId, cancellationToken);
+        var requestedPersonVisible = request.ResponsiblePersonId is { } requestedPersonId &&
+            visiblePeople.Any(person => person.Id == requestedPersonId);
+        var visiblePersonIds = visiblePeople.Select(person => person.Id).ToArray();
+
+        var obligations =
+            from obligation in dbContext.WorkObligations.AsNoTracking()
+            where obligation.BranchId == BranchScope.LorettaId &&
+                dbContext.WeekPeriods.AsNoTracking().Any(period =>
+                    period.Id == obligation.PeriodId &&
+                    period.BranchId == BranchScope.LorettaId &&
+                    period.IsoYear == request.IsoYear &&
+                    period.IsoWeek == request.IsoWeek) &&
+                dbContext.AssignmentVersions.AsNoTracking().Any(assignment =>
+                    assignment.ObligationId == obligation.Id &&
+                    assignment.Status == AssignmentVersionStatuses.Current &&
+                    assignment.AssignedAt <= queriedAt &&
+                    visiblePersonIds.Contains(assignment.PersonId))
+            select new IndicatorObligationRow
+            {
+                ObligationId = obligation.Id,
+                ExecutionStatus = obligation.ExecutionStatus,
+            };
+
+        await EnsureIndicatorConsistencyAsync(obligations, queriedAt, cancellationToken);
+
+        var baseCount = await obligations.Select(row => row.ObligationId).Distinct().LongCountAsync(cancellationToken);
+        var pendingCount = await obligations.Where(row => row.ExecutionStatus == WorkObligationStatuses.Pending)
+            .Select(row => row.ObligationId).Distinct().LongCountAsync(cancellationToken);
+        var concludedCount = await obligations.Where(row => row.ExecutionStatus == WorkObligationStatuses.Concluded)
+            .Select(row => row.ObligationId).Distinct().LongCountAsync(cancellationToken);
+        var validatedCount = await obligations.Where(row =>
+                dbContext.ValidationRequirements.AsNoTracking().Any(requirement =>
+                    requirement.ObligationId == row.ObligationId &&
+                    dbContext.ValidationDecisionVersions.AsNoTracking().Any(decision =>
+                        decision.RequirementId == requirement.Id &&
+                        decision.Status == ValidationStatuses.Current)))
+            .Select(row => row.ObligationId).Distinct().LongCountAsync(cancellationToken);
+        var nonCompliantCount = await obligations.Where(row =>
+                dbContext.ValidationRequirements.AsNoTracking().Any(requirement =>
+                    requirement.ObligationId == row.ObligationId &&
+                    dbContext.ValidationDecisionVersions.AsNoTracking().Any(decision =>
+                        decision.RequirementId == requirement.Id &&
+                        decision.Status == ValidationStatuses.Current &&
+                        decision.Result == ValidationResults.NotFulfilled)))
+            .Select(row => row.ObligationId).Distinct().LongCountAsync(cancellationToken);
+
+        if (pendingCount + concludedCount != baseCount || nonCompliantCount > validatedCount)
+            throw new IndicatorQueryInconsistentException();
+
+        var pageQuery = ApplyIndicatorCursor(visiblePeople, cursor)
+            .OrderBy(person => person.StableCode, StringComparer.Ordinal)
+            .ThenBy(person => person.Id);
+        var people = pageQuery.Take(request.Limit + 1).ToList();
+        var hasNextPage = people.Count > request.Limit;
+        if (hasNextPage) people.RemoveAt(people.Count - 1);
+
+        var pagePersonIds = people.Select(person => person.Id).ToArray();
+        var loadCounts = await (
+                from assignment in dbContext.AssignmentVersions.AsNoTracking()
+                join obligation in dbContext.WorkObligations.AsNoTracking()
+                    on assignment.ObligationId equals obligation.Id
+                join period in dbContext.WeekPeriods.AsNoTracking()
+                    on obligation.PeriodId equals period.Id
+                where pagePersonIds.Contains(assignment.PersonId) &&
+                    assignment.Status == AssignmentVersionStatuses.Current &&
+                    assignment.AssignedAt <= queriedAt &&
+                    obligation.BranchId == BranchScope.LorettaId &&
+                    obligation.ExecutionStatus == WorkObligationStatuses.Pending &&
+                    period.BranchId == BranchScope.LorettaId &&
+                    period.IsoYear == request.IsoYear &&
+                    period.IsoWeek == request.IsoWeek
+                select new { assignment.PersonId, obligation.Id })
+            .Distinct()
+            .GroupBy(row => row.PersonId)
+            .Select(group => new { PersonId = group.Key, Count = group.LongCount() })
+            .ToDictionaryAsync(row => row.PersonId, row => row.Count, cancellationToken);
+
+        var loadItems = people.Select(person => new ActiveLoadByPersonItem(
+            new IndicatorPerson(person.Id, person.StableCode, person.DisplayName),
+            person.RoleCode,
+            loadCounts.GetValueOrDefault(person.Id))).ToArray();
+        var nextCursor = hasNextPage ? EncodeIndicatorCursor(people[^1], filterHash) : null;
+        var includedLevels = IndicatorIncludedLevels(actor.RoleCode, request.Level);
+        var scope = new IndicatorScope(
+            BranchScope.LorettaCode,
+            actor.RoleCode,
+            includedLevels,
+            request.Level,
+            requestedPersonVisible ? request.ResponsiblePersonId : null);
+        var snapshot = new IndicatorSnapshot(
+            new IndicatorPeriod(
+                request.IsoYear,
+                request.IsoWeek,
+                range.StartsOn,
+                range.EndsOn,
+                ActivationPolicyCatalog.LorettaTimeZone),
+            scope,
+            baseCount,
+            new IndicatorCount(pendingCount, baseCount),
+            new IndicatorCount(concludedCount, baseCount),
+            new IndicatorCount(validatedCount, baseCount),
+            new IndicatorCount(nonCompliantCount, baseCount),
+            new ActiveLoadByPerson(pendingCount, loadItems));
+
+        await transaction.CommitAsync(cancellationToken);
+        return new(snapshot, nextCursor, queriedAt);
+    }
+
+    private async Task<ActorAccess> GetIndicatorActorAsync(
+        Guid actorUserId,
+        DateTimeOffset queriedAt,
+        CancellationToken cancellationToken)
+    {
+        ActorAccess actor;
+        try
+        {
+            actor = await GetActorAsync(actorUserId, queriedAt, cancellationToken);
+        }
+        catch (ObligationQueryAccessDeniedException)
+        {
+            throw new IndicatorAccessDeniedException();
+        }
+
+        if (!RoleHierarchy.GrantsIndicatorView(actor.RoleCode))
+            throw new IndicatorAccessDeniedException();
+        return actor;
+    }
+
+    private async Task<IReadOnlyList<IndicatorPersonRow>> BuildIndicatorVisiblePeopleAsync(
+        ActorAccess actor,
+        DateTimeOffset queriedAt,
+        string? requestedLevel,
+        Guid? responsiblePersonId,
+        CancellationToken cancellationToken)
+    {
+        var lowerRoles = LowerRoleCodes(actor.RoleCode);
+        var candidates = await (
+            from person in dbContext.People.AsNoTracking()
+            join user in dbContext.AppUsers.AsNoTracking() on person.Id equals user.PersonId
+            join employment in dbContext.EmploymentVersions.AsNoTracking() on person.Id equals employment.PersonId
+            join role in dbContext.RoleAssignmentVersions.AsNoTracking() on user.Id equals role.UserId
+            where user.Status == BootstrapContract.ActiveAccountStatus &&
+                employment.BranchId == BranchScope.LorettaId &&
+                employment.Status == EmploymentStatus.Active &&
+                employment.ValidFrom <= queriedAt &&
+                (employment.ValidTo == null || queriedAt < employment.ValidTo) &&
+                role.BranchId == BranchScope.LorettaId &&
+                role.Status == RoleAssignmentStatus.Active &&
+                role.ValidFrom <= queriedAt &&
+                (role.ValidTo == null || queriedAt < role.ValidTo) &&
+                (person.Id == actor.PersonId || lowerRoles.Contains(role.RoleCode)) &&
+                (requestedLevel == null || role.RoleCode == requestedLevel) &&
+                (responsiblePersonId == null || person.Id == responsiblePersonId)
+            select new IndicatorPersonCandidateRow
+            {
+                Id = person.Id,
+                StableCode = person.StableCode,
+                DisplayName = person.DisplayName,
+                UserId = user.Id,
+                RoleCode = role.RoleCode,
+            }).ToListAsync(cancellationToken);
+
+        var ambiguousAccountPeople = await dbContext.AppUsers.AsNoTracking()
+            .Where(user => user.Status == BootstrapContract.ActiveAccountStatus)
+            .GroupBy(user => user.PersonId)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToListAsync(cancellationToken);
+        var ambiguousEmploymentPeople = await dbContext.EmploymentVersions.AsNoTracking()
+            .Where(employment => employment.BranchId == BranchScope.LorettaId &&
+                employment.Status == EmploymentStatus.Active &&
+                employment.ValidFrom <= queriedAt &&
+                (employment.ValidTo == null || queriedAt < employment.ValidTo))
+            .GroupBy(employment => employment.PersonId)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToListAsync(cancellationToken);
+        var ambiguousRoleUsers = await dbContext.RoleAssignmentVersions.AsNoTracking()
+            .Where(role => role.BranchId == BranchScope.LorettaId &&
+                role.Status == RoleAssignmentStatus.Active &&
+                role.ValidFrom <= queriedAt &&
+                (role.ValidTo == null || queriedAt < role.ValidTo))
+            .GroupBy(role => role.UserId)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToListAsync(cancellationToken);
+        var ambiguousAccounts = ambiguousAccountPeople.ToHashSet();
+        var ambiguousEmployments = ambiguousEmploymentPeople.ToHashSet();
+        var ambiguousRoles = ambiguousRoleUsers.ToHashSet();
+
+        return candidates
+            .Where(candidate => !ambiguousAccounts.Contains(candidate.Id) &&
+                !ambiguousEmployments.Contains(candidate.Id) &&
+                !ambiguousRoles.Contains(candidate.UserId))
+            .Select(candidate => new IndicatorPersonRow
+            {
+                Id = candidate.Id,
+                StableCode = candidate.StableCode,
+                DisplayName = candidate.DisplayName,
+                RoleCode = candidate.RoleCode,
+            })
+            .ToArray();
+    }
+
+    private async Task EnsureIndicatorConsistencyAsync(
+        IQueryable<IndicatorObligationRow> obligations,
+        DateTimeOffset queriedAt,
+        CancellationToken cancellationToken)
+    {
+        var obligationIds = obligations.Select(row => row.ObligationId);
+        var invalidAssignment = await obligations.AnyAsync(row =>
+            dbContext.AssignmentVersions.AsNoTracking().Count(assignment =>
+                assignment.ObligationId == row.ObligationId &&
+                assignment.Status == AssignmentVersionStatuses.Current &&
+                assignment.AssignedAt <= queriedAt) != 1, cancellationToken);
+        var duplicateRequirement = await dbContext.ValidationRequirements.AsNoTracking()
+            .Where(requirement => obligationIds.Contains(requirement.ObligationId))
+            .GroupBy(requirement => requirement.ObligationId)
+            .AnyAsync(group => group.Count() > 1, cancellationToken);
+        var invalidValidation = await (
+                from requirement in dbContext.ValidationRequirements.AsNoTracking()
+                join obligation in dbContext.WorkObligations.AsNoTracking()
+                    on requirement.ObligationId equals obligation.Id
+                where obligationIds.Contains(obligation.Id)
+                select new { requirement, obligation })
+            .AnyAsync(row =>
+                row.obligation.ValidationPolicyVersionId == null ||
+                row.requirement.PolicyVersionId != row.obligation.ValidationPolicyVersionId ||
+                row.requirement.Status != ValidationStatuses.Pending &&
+                row.requirement.Status != ValidationStatuses.Resolved ||
+                row.requirement.Status == ValidationStatuses.Pending &&
+                dbContext.ValidationDecisionVersions.AsNoTracking().Any(decision =>
+                    decision.RequirementId == row.requirement.Id) ||
+                row.requirement.Status == ValidationStatuses.Resolved &&
+                dbContext.ValidationDecisionVersions.AsNoTracking().Count(decision =>
+                    decision.RequirementId == row.requirement.Id &&
+                    decision.Status == ValidationStatuses.Current) != 1 ||
+                dbContext.ValidationDecisionVersions.AsNoTracking().Any(decision =>
+                    decision.RequirementId == row.requirement.Id &&
+                    decision.Status != ValidationStatuses.Current &&
+                    decision.Status != ValidationStatuses.Superseded ||
+                    decision.Status == ValidationStatuses.Current &&
+                    (decision.Result != ValidationResults.Fulfilled &&
+                     decision.Result != ValidationResults.Incomplete &&
+                     decision.Result != ValidationResults.NotFulfilled)) ||
+                row.obligation.ExecutionStatus != WorkObligationStatuses.Concluded &&
+                dbContext.ValidationDecisionVersions.AsNoTracking().Any(decision =>
+                    decision.RequirementId == row.requirement.Id &&
+                    decision.Status == ValidationStatuses.Current),
+                cancellationToken);
+
+        if (invalidAssignment || duplicateRequirement || invalidValidation)
+            throw new IndicatorQueryInconsistentException();
     }
 
     private async Task<ActorAccess> GetSupervisionActorAsync(Guid actorUserId, DateTimeOffset queriedAt,
@@ -1041,6 +1312,86 @@ public sealed class EfObligationQueryReader(
             throw new PendingValidationsFilterInvalidException();
     }
 
+    private static void ValidateIndicatorRequest(IndicatorRequest request)
+    {
+        if (request.ActorUserId == Guid.Empty || request.Limit is < 1 or > 100 ||
+            request.ResponsiblePersonId == Guid.Empty ||
+            request.IsoYear is < 1 or > 9999 || request.IsoWeek is < 1 ||
+            request.IsoWeek > ISOWeek.GetWeeksInYear(request.IsoYear) ||
+            request.Level is not null && !CanonicalRole.IsDefined(request.Level))
+        {
+            throw new IndicatorFilterInvalidException();
+        }
+    }
+
+    private static string[] LowerRoleCodes(string actorRoleCode) => actorRoleCode switch
+    {
+        CanonicalRole.Direction =>
+            [CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor],
+        CanonicalRole.Administration => [CanonicalRole.Subcoordination, CanonicalRole.SalesFloor],
+        CanonicalRole.Subcoordination => [CanonicalRole.SalesFloor],
+        CanonicalRole.SalesFloor => [],
+        _ => throw new IndicatorAccessDeniedException(),
+    };
+
+    private static string[] IndicatorIncludedLevels(string actorRoleCode, string? requestedLevel)
+    {
+        var levels = actorRoleCode switch
+        {
+            CanonicalRole.Direction =>
+                new[] { CanonicalRole.Direction, CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor },
+            CanonicalRole.Administration =>
+                [CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor],
+            CanonicalRole.Subcoordination => [CanonicalRole.Subcoordination, CanonicalRole.SalesFloor],
+            CanonicalRole.SalesFloor => [CanonicalRole.SalesFloor],
+            _ => throw new IndicatorAccessDeniedException(),
+        };
+        return requestedLevel is null ? levels : levels.Where(level => level == requestedLevel).ToArray();
+    }
+
+    private static string IndicatorFilterHash(IndicatorRequest request)
+    {
+        var canonical = string.Join('\n',
+            request.ActorUserId.ToString("D", CultureInfo.InvariantCulture),
+            request.IsoYear.ToString(CultureInfo.InvariantCulture),
+            request.IsoWeek.ToString(CultureInfo.InvariantCulture),
+            request.Level ?? string.Empty,
+            request.ResponsiblePersonId?.ToString("D", CultureInfo.InvariantCulture) ?? string.Empty);
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
+
+    private static IEnumerable<IndicatorPersonRow> ApplyIndicatorCursor(
+        IEnumerable<IndicatorPersonRow> query,
+        IndicatorCursor? cursor) => cursor is null ? query : query.Where(person =>
+            string.Compare(person.StableCode, cursor.StableCode, StringComparison.Ordinal) > 0 ||
+            person.StableCode == cursor.StableCode && person.Id.CompareTo(cursor.PersonId) > 0);
+
+    private static string EncodeIndicatorCursor(IndicatorPersonRow person, string filterHash) =>
+        EncodeCursor(new IndicatorCursor(CursorVersion, person.StableCode, person.Id, filterHash));
+
+    private static IndicatorCursor? DecodeIndicatorCursor(string? value, string filterHash)
+    {
+        if (value is null) return null;
+        try
+        {
+            var cursor = DecodeCursor<IndicatorCursor>(value);
+            if (cursor.Version != CursorVersion || string.IsNullOrWhiteSpace(cursor.StableCode) ||
+                cursor.PersonId == Guid.Empty || cursor.FilterHash.Length != filterHash.Length ||
+                !CryptographicOperations.FixedTimeEquals(
+                    Encoding.ASCII.GetBytes(cursor.FilterHash),
+                    Encoding.ASCII.GetBytes(filterHash)))
+            {
+                throw new FormatException();
+            }
+
+            return cursor;
+        }
+        catch (Exception exception) when (exception is FormatException or JsonException)
+        {
+            throw new IndicatorFilterInvalidException();
+        }
+    }
+
     private static bool ValidIsoWeek(int? year, int? week)
     {
         if (year.HasValue != week.HasValue) return false;
@@ -1361,6 +1712,31 @@ public sealed class EfObligationQueryReader(
 
     private sealed record PendingCursor(int Version, DateTimeOffset PendingSince, Guid ObligationId,
         string FilterHash);
+
+    private sealed record IndicatorCursor(int Version, string StableCode, Guid PersonId, string FilterHash);
+
+    private sealed class IndicatorPersonCandidateRow
+    {
+        public required Guid Id { get; init; }
+        public required string StableCode { get; init; }
+        public required string DisplayName { get; init; }
+        public required Guid UserId { get; init; }
+        public required string RoleCode { get; init; }
+    }
+
+    private sealed class IndicatorPersonRow
+    {
+        public required Guid Id { get; init; }
+        public required string StableCode { get; init; }
+        public required string DisplayName { get; init; }
+        public required string RoleCode { get; init; }
+    }
+
+    private sealed class IndicatorObligationRow
+    {
+        public required Guid ObligationId { get; init; }
+        public required string ExecutionStatus { get; init; }
+    }
 
     private sealed class AssignmentHistoryRow
     {

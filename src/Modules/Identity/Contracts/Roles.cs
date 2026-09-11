@@ -39,6 +39,8 @@ public static class RoleHierarchy
     public static bool GrantsSupervisionView(string roleCode) => roleCode is
         CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
 
+    public static bool GrantsIndicatorView(string roleCode) => CanonicalRole.IsDefined(roleCode);
+
     public static bool GrantsValidationIssue(string roleCode) => roleCode is
         CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination;
 
