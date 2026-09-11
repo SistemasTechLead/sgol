@@ -60,6 +60,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IHierarchySupervisionReader>(provider =>
             provider.GetRequiredService<IObligationQueryReader>() as IHierarchySupervisionReader
             ?? throw new InvalidOperationException("The obligation reader must provide hierarchical supervision."));
+        services.AddScoped<IIndicatorReader>(provider =>
+            provider.GetRequiredService<IObligationQueryReader>() as IIndicatorReader
+            ?? throw new InvalidOperationException("The obligation reader must provide operational indicators."));
         EvidenceInfrastructureServiceCollectionExtensions.AddFailClosedAdapters(services);
         services.AddScoped<IEvidenceContributionService, EfEvidenceContributionService>();
         services.AddScoped<IEvidenceReviewService, EfEvidenceReviewService>();

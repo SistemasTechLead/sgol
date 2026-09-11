@@ -4,7 +4,31 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-031`
+## Propuesta actual en rama — `HU-029`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-029` — Superior consulta cinco indicadores objetivos |
+| Estado | Propuesta implementada en `codex/hu-029`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Contrato | `F07_ADENDA_27_CONTRATO_DE_CINCO_INDICADORES_OPERATIVOS_HU_029.md`, aprobada íntegramente por el responsable el 2026-09-11 antes de producir código |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `HU-031`: PR `#49`, commit `9b75e1c2bf1d1719f960fa1ed310a1ef40eb3275`, pipeline requerido `SUCCESS` run `34550189196`, aprobación humana, merge `e47b6de6daa433ec0a62027c4e523931219086e5`, PostgreSQL externo `202/202`, `origin/master` verificado exactamente y ascendencia confirmada |
+| Entregable | Único `GET /api/v1/indicators`; período semanal ISO obligatorio, alcance visible, cuatro conteos agregados y carga activa paginada por persona |
+| Autorización | Autenticación, `PER-INDICADOR-VER`, cuenta, empleo, rol canónico vigente, sucursal, alcance propio e inferior y filtros; Piso sólo propio y Dirección sólo universo asignado, sin vista integral |
+| Indicadores | `pending` por ejecución `PENDIENTE`; `concluded` por ejecución `CONCLUIDA`; `validated` por única decisión `VIGENTE`; `nonCompliant` sólo por decisión vigente `NO_CUMPLIDA`; carga por persona según asignación vigente |
+| Denominadores | Los cuatro conteos usan `baseObligationsCount`; carga usa `pending.count`; la suma completa por persona concilia con pendientes |
+| Persistencia | Sin tablas, columnas, vistas, índices, migraciones, backfill, cache ni proyecciones persistidas nuevas |
+| Consistencia | PostgreSQL `REPEATABLE READ, READ ONLY`, `AsNoTracking`, único `queriedAt`, cursores ligados a actor/período/filtros y cálculo sin efectos laterales |
+| UI y navegador | No aplican: la Adenda 27 no exige interfaz |
+| Gates locales | Restore locked `20/20`; build Release `20/20`, cero errores y advertencias; suite local sin PostgreSQL `487/487` unitarias, `33/33` arquitectura y contratos CV sin Docker `34/34`; formato limpio; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` sin errores |
+| PostgreSQL externo | Suite consolidada ejecutada por el desarrollador fuera de la sesión: `203/203` pruebas aprobadas, `0` advertencias, en `623.1 s` |
+| Límites | Sin `/api/v1/direction/overview`, vista integral de `HU-032`, auditoría general de `HU-033`, UI, monto, incentivo, nómina, porcentaje financiero ni sexto indicador |
+| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Siguiente tarea | Ninguna habilitada desde esta rama |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
+
+## Base aceptada — `HU-031`
 
 | Campo | Valor |
 |---|---|
