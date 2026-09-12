@@ -25,9 +25,10 @@ public static class GenerationRequestApiEndpoints
             return denied;
         }
 
-        if (!Guid.TryParse(context.Request.Headers["Idempotency-Key"], out var idempotencyKey))
+        var idempotency = IdempotencyKeyHeader.Parse(context.Request);
+        if (!idempotency.IsValid)
         {
-            return Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key debe ser un UUID");
+            return Problem(context, 400, idempotency.ErrorCode!, idempotency.Detail!);
         }
 
         if (!TryRequest(request, out var body))
@@ -44,7 +45,7 @@ public static class GenerationRequestApiEndpoints
             var result = await service.CreateAsync(
                 new CreateGenerationRequestCommand(
                     actorUserId,
-                    idempotencyKey,
+                    idempotency.Key,
                     CorrelationId(context),
                     body.RuleVersionId,
                     body.BranchId,
@@ -52,7 +53,7 @@ public static class GenerationRequestApiEndpoints
                     body.OriginType,
                     body.OriginReference),
                 cancellationToken);
-            return result.Result == GenerationRequestResults.Accepted
+            return result.ResponseCode == StatusCodes.Status201Created
                 ? Results.Created($"/api/v1/generation-requests/{result.GenerationRequestId}", Envelope(context, result))
                 : Results.Ok(Envelope(context, result));
         }
@@ -134,6 +135,8 @@ public static class GenerationRequestApiEndpoints
             context, 404, "GENERATION_REQUEST_NO_ENCONTRADA", "La solicitud o regla no existe en el alcance visible"),
         GenerationRequestIdempotencyConflictException => Problem(
             context, 409, "IDEMPOTENCY_CONFLICT", "La clave ya fue usada con otro contenido"),
+        GenerationRequestConflictAuditException => Problem(
+            context, 500, "IDEMPOTENCY_CONFLICT_AUDIT_FAILED", "El conflicto no pudo registrarse"),
         GenerationRequestRuleNotManualException => Problem(
             context, 409, "REGLA_MANUAL_REQUERIDA", exception.Message),
         GenerationRequestTaskInactiveException => Problem(

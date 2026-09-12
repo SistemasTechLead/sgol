@@ -19,7 +19,7 @@ public sealed class GenerationRequestTests
 
         var missingResult = await GenerationRequestApiEndpoints.HandlePostAsync(
             body.RootElement, missing, service, CancellationToken.None);
-        AssertProblem(missingResult, 400, "IDEMPOTENCY_KEY_INVALIDA", missing.TraceIdentifier);
+        AssertProblem(missingResult, 400, "IDEMPOTENCY_KEY_REQUERIDA", missing.TraceIdentifier);
 
         var invalid = AuthenticatedContext();
         invalid.Request.Headers["Idempotency-Key"] = "not-a-uuid";
@@ -27,6 +27,41 @@ public sealed class GenerationRequestTests
             body.RootElement, invalid, service, CancellationToken.None);
         AssertProblem(invalidResult, 400, "IDEMPOTENCY_KEY_INVALIDA", invalid.TraceIdentifier);
         Assert.Null(service.CreateCommand);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" not-a-uuid")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("019d3a10-0100-7000-8000-000000000001 ")]
+    [InlineData("{019d3a10-0100-7000-8000-000000000001}")]
+    public async Task Post_RejectsNonCanonicalOrEmptyIdempotencyKey(string value)
+    {
+        var service = new RecordingService();
+        var context = AuthenticatedContext();
+        context.Request.Headers["Idempotency-Key"] = value;
+        using var body = ValidBody();
+
+        var result = await GenerationRequestApiEndpoints.HandlePostAsync(
+            body.RootElement, context, service, CancellationToken.None);
+
+        AssertProblem(result, 400, "IDEMPOTENCY_KEY_INVALIDA", context.TraceIdentifier);
+        Assert.Null(service.CreateCommand);
+    }
+
+    [Fact]
+    public async Task Post_AcceptsUppercaseCanonicalUuid()
+    {
+        var service = new RecordingService();
+        var context = AuthenticatedContext();
+        var key = Guid.Parse("A19D3A10-0100-7000-8000-00000000000A");
+        context.Request.Headers["idempotency-key"] = key.ToString("D").ToUpperInvariant();
+        using var body = ValidBody();
+
+        await GenerationRequestApiEndpoints.HandlePostAsync(
+            body.RootElement, context, service, CancellationToken.None);
+
+        Assert.Equal(key, service.CreateCommand?.IdempotencyKey);
     }
 
     [Fact]
@@ -176,6 +211,7 @@ public sealed class GenerationRequestTests
                 command.ActorUserId,
                 DateTimeOffset.UtcNow,
                 null,
-                null);
+                null,
+                result == GenerationRequestResults.Accepted ? 201 : 200);
     }
 }

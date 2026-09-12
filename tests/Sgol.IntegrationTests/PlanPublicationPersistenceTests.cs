@@ -327,7 +327,7 @@ public sealed class PlanPublicationPersistenceTests : IAsyncLifetime
             service.PublishAsync(Command(seed with { PlanId = Guid.CreateVersion7() }, Guid.CreateVersion7(), 1)));
 
         Assert.Empty(await context.PlanVersions.AsNoTracking().ToListAsync());
-        Assert.Equal(2, await context.IdempotencyRecords.CountAsync());
+        Assert.Empty(await context.IdempotencyRecords.AsNoTracking().ToListAsync());
         Assert.Equal(3, await context.AuditEvents.CountAsync(item =>
             item.Action == "WORK_PLAN_PUBLICATION_REJECTED"));
     }

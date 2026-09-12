@@ -352,6 +352,7 @@ public sealed class AvailabilityAdministrationPersistenceTests : IAsyncLifetime
         long? expectedRowVersion = null) => new(
             actorUserId,
             Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
             personId,
             localDate,
             isAvailable,

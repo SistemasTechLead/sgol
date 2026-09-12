@@ -70,12 +70,12 @@ public static class WorkPlanApiEndpoints
             return Problem(context, 403, "ACCESO_DENEGADO", "La sesión no identifica un actor autorizado");
         }
 
-        if (context.Request.Headers["Idempotency-Key"].Count != 1 ||
-            !Guid.TryParse(context.Request.Headers["Idempotency-Key"], out var idempotencyKey) ||
-            idempotencyKey == Guid.Empty)
+        var parsedIdempotency = IdempotencyKeyHeader.Parse(context.Request);
+        if (!parsedIdempotency.IsValid)
         {
-            return Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key debe ser un UUID");
+            return Problem(context, 400, parsedIdempotency.ErrorCode!, parsedIdempotency.Detail!);
         }
+        var idempotencyKey = parsedIdempotency.Key;
 
         if (!int.TryParse(isoYear, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedYear) ||
             !int.TryParse(isoWeek, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedWeek) ||

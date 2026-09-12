@@ -80,12 +80,12 @@ public static class PlanPublicationApiEndpoints
             return Problem(context, 400, "SOLICITUD_PUBLICACION_INVALIDA", "La ruta y el cuerpo de publicación son inválidos");
         }
 
-        if (context.Request.Headers["Idempotency-Key"].Count != 1 ||
-            !Guid.TryParse(context.Request.Headers["Idempotency-Key"], out var idempotencyKey) ||
-            idempotencyKey == Guid.Empty)
+        var parsedIdempotency = IdempotencyKeyHeader.Parse(context.Request);
+        if (!parsedIdempotency.IsValid)
         {
-            return Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key debe ser un UUID");
+            return Problem(context, 400, parsedIdempotency.ErrorCode!, parsedIdempotency.Detail!);
         }
+        var idempotencyKey = parsedIdempotency.Key;
 
         if (context.Request.Headers.IfMatch.Count != 1)
         {

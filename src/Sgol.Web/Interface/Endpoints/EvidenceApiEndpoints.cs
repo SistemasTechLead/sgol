@@ -194,8 +194,10 @@ public static class EvidenceApiEndpoints
         key = Guid.Empty;
         if (!TryActor(context, out actor, out failure)) return false;
         if (!context.Request.HasJsonContentType()) { failure = Problem(context, 400, "SOLICITUD_EVIDENCIA_INVALIDA", "Content-Type debe ser application/json"); return false; }
-        if (context.Request.Headers["Idempotency-Key"].Count != 1 || !Guid.TryParseExact(context.Request.Headers["Idempotency-Key"], "D", out key) || key == Guid.Empty)
-        { failure = Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key debe ser un UUID"); return false; }
+        var parsed = IdempotencyKeyHeader.Parse(context.Request);
+        key = parsed.Key;
+        if (!parsed.IsValid)
+        { failure = Problem(context, 400, parsed.ErrorCode!, parsed.Detail!); return false; }
         return true;
     }
 

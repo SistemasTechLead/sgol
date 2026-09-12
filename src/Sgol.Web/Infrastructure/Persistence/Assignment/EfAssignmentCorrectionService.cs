@@ -15,6 +15,7 @@ using Sgol.Organization.Contracts;
 using Sgol.Notifications.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Assignment;
 
@@ -46,8 +47,24 @@ public sealed class EfAssignmentCorrectionService(
         }
 
         var normalized = command with { Reason = AssignmentCorrectionReason.Normalize(command.Reason) };
-        var scope = Scope(normalized.ActorUserId, normalized.ObligationId);
-        var requestHash = Hash(normalized);
+        await EnsureAuthorizedBeforeIdempotencyAsync(normalized, cancellationToken);
+        const string operation = "ASSIGNMENT_CORRECTION_CREATE";
+        var resource = normalized.ObligationId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(normalized.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            operation,
+            normalized.ActorUserId.ToString("D"),
+            resource,
+            new
+            {
+                normalized.ObligationId,
+                normalized.NewResponsiblePersonId,
+                normalized.EligibilityEvaluationId,
+                normalized.Reason,
+            },
+            normalized.ExpectedRowVersion);
+        var legacyScope = LegacyScope(normalized.ActorUserId, normalized.ObligationId);
+        var legacyRequestHash = LegacyHash(normalized);
 
         for (var attempt = 1; attempt <= MaximumAttempts; attempt++)
         {
@@ -67,23 +84,36 @@ public sealed class EfAssignmentCorrectionService(
                         var replay = await dbContext.IdempotencyRecords.AsNoTracking()
                             .SingleOrDefaultAsync(record =>
                                 record.Scope == scope && record.Key == normalized.IdempotencyKey,
-                                token);
+                                token)
+                            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                                .SingleOrDefaultAsync(record =>
+                                    record.Scope == legacyScope && record.Key == normalized.IdempotencyKey,
+                                    token);
                         if (replay is not null)
                         {
-                            if (!string.Equals(replay.RequestHash, requestHash, StringComparison.Ordinal))
+                            var expectedHash = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                ? requestHash
+                                : legacyRequestHash;
+                            if (!string.Equals(replay.RequestHash, expectedHash, StringComparison.Ordinal))
                             {
                                 rejection = new AssignmentCorrectionIdempotencyConflictException();
-                                return RejectedAudit(normalized, obligation?.BranchId, rejection.ErrorCode, clock.UtcNow);
+                                return IdempotencyConflictAudit(normalized, obligation?.BranchId, clock.UtcNow);
                             }
 
                             if (replay.ResourceType.StartsWith(ErrorResourcePrefix, StringComparison.Ordinal))
                             {
-                                rejection = ExceptionFor(
-                                    replay.ResourceType[ErrorResourcePrefix.Length..], replay.ResponseCode);
+                                var errorCode = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                    ? IdempotencyProtocol.ReadPayload<RejectionSnapshot>(replay).ErrorCode
+                                    : replay.ResourceType[ErrorResourcePrefix.Length..];
+                                rejection = ExceptionFor(errorCode, replay.ResponseCode);
                                 return RejectedAudit(normalized, obligation?.BranchId, rejection.ErrorCode, clock.UtcNow);
                             }
 
-                            result = await ReplayAsync(normalized, replay, token);
+                            result = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                ? IdempotencyProtocol.ReadPayload<AssignmentCorrectionResult>(replay)
+                                    with
+                                { Result = AssignmentCorrectionResults.Recovered }
+                                : await ReplayAsync(normalized, replay, token);
                             return RecoveredAudit(normalized, obligation?.BranchId, result, clock.UtcNow);
                         }
 
@@ -276,8 +306,11 @@ public sealed class EfAssignmentCorrectionService(
                             current.Id);
                         dbContext.AssignmentVersions.Add(successor);
                         await noticeWriter.AddAssignmentNoticeAsync(successor.Id, successor.PersonId, correctedAt, token);
-                        AddIdempotency(scope, normalized, requestHash, AssignmentResource, assignmentId, 201, correctedAt);
                         result = Result(normalized, successor, current.Id, obligation.RowVersion, AssignmentCorrectionResults.Created);
+                        AddIdempotency(
+                            scope, normalized, requestHash, AssignmentResource, assignmentId, 201,
+                            result, correctedAt,
+                            $"/api/v1/obligations/{normalized.ObligationId:D}/assignment-corrections");
                         return CreatedAudit(normalized, obligation.BranchId, current, result, correctedAt);
                     },
                     cancellationToken);
@@ -293,9 +326,17 @@ public sealed class EfAssignmentCorrectionService(
                     noticeWriter.RecordAssignmentNoticeCommitted();
                 return completed;
             }
+            catch (Exception exception) when (rejection is AssignmentCorrectionIdempotencyConflictException &&
+                exception is not AssignmentCorrectionIdempotencyConflictException)
+            {
+                dbContext.ChangeTracker.Clear();
+                throw new IdempotencyConflictAuditException(exception);
+            }
             catch (Exception exception) when (IsRetryable(exception) && attempt < MaximumAttempts)
             {
                 dbContext.ChangeTracker.Clear();
+                await IdempotencyProtocol.DelayBeforeRetryAsync(
+                    "ASSIGNMENT_CORRECTION_CREATE", exception, attempt, cancellationToken);
             }
             catch (Exception exception) when (IsRetryable(exception))
             {
@@ -333,6 +374,37 @@ public sealed class EfAssignmentCorrectionService(
             .FromSqlInterpolated($"SELECT * FROM employment_version WHERE person_id = {personId} AND branch_id = {BranchScope.LorettaId} AND valid_to IS NULL FOR UPDATE")
             .AsNoTracking()
             .SingleOrDefaultAsync(token);
+
+    private async Task EnsureAuthorizedBeforeIdempotencyAsync(
+        CorrectAssignmentCommand command,
+        CancellationToken token)
+    {
+        var roleCode = await (
+            from user in dbContext.AppUsers.AsNoTracking()
+            join employment in dbContext.EmploymentVersions.AsNoTracking() on user.PersonId equals employment.PersonId
+            join role in dbContext.RoleAssignmentVersions.AsNoTracking() on user.Id equals role.UserId
+            where user.Id == command.ActorUserId &&
+                user.Status == AccountStatus.Active &&
+                employment.BranchId == BranchScope.LorettaId &&
+                employment.Status == EmploymentStatus.Active &&
+                employment.ValidTo == null &&
+                role.BranchId == BranchScope.LorettaId &&
+                role.Status == RoleAssignmentStatus.Active &&
+                role.ValidTo == null
+            select role.RoleCode)
+            .SingleOrDefaultAsync(token);
+        if (roleCode is not null && RoleHierarchy.GrantsAssignmentCorrection(roleCode))
+        {
+            return;
+        }
+
+        await auditTransaction.ExecuteAsync(
+            RejectedAudit(command, BranchScope.LorettaId, AssignmentCorrectionErrors.AccessDenied, clock.UtcNow),
+            _ => Task.CompletedTask,
+            token);
+        dbContext.ChangeTracker.Clear();
+        throw new AssignmentCorrectionAccessDeniedException();
+    }
 
     private async Task<RoleAssignmentVersion?> LockRoleAsync(Guid userId, CancellationToken token) =>
         await dbContext.RoleAssignmentVersions
@@ -439,17 +511,7 @@ public sealed class EfAssignmentCorrectionService(
         Guid? branchId,
         AssignmentCorrectionException exception,
         DateTimeOffset occurredAt)
-    {
-        AddIdempotency(
-            scope,
-            command,
-            requestHash,
-            ErrorResourcePrefix + exception.ErrorCode,
-            command.ObligationId,
-            HttpStatus(exception),
-            occurredAt);
-        return RejectedAudit(command, branchId, exception.ErrorCode, occurredAt);
-    }
+        => RejectedAudit(command, branchId, exception.ErrorCode, occurredAt);
 
     private void AddIdempotency(
         string scope,
@@ -458,19 +520,20 @@ public sealed class EfAssignmentCorrectionService(
         string resourceType,
         Guid resourceId,
         int responseCode,
-        DateTimeOffset now) =>
-        dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-        {
-            Scope = scope,
-            Key = command.IdempotencyKey,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = resourceType,
-            ResourceId = resourceId,
-            ResponseCode = responseCode,
-            CreatedAt = now,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        });
+        object responsePayload,
+        DateTimeOffset now,
+        string? responseLocation = null) =>
+        dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+            scope,
+            command.IdempotencyKey,
+            requestHash,
+            resourceType,
+            resourceId,
+            responseCode,
+            responsePayload,
+            now,
+            DateTimeOffset.MaxValue,
+            responseLocation: responseLocation));
 
     private AuditEvent CreatedAudit(
         CorrectAssignmentCommand command,
@@ -566,6 +629,14 @@ public sealed class EfAssignmentCorrectionService(
             Outcome = errorCode,
         };
 
+    private AuditEvent IdempotencyConflictAudit(
+        CorrectAssignmentCommand command,
+        Guid? branchId,
+        DateTimeOffset at) => IdempotencyProtocol.ConflictAudit(
+            uuidGenerator.NewUuid(), at, command.ActorUserId, "WORK_OBLIGATION", command.ObligationId,
+            branchId ?? BranchScope.LorettaId, command.CorrelationId, command.IdempotencyKey,
+            "ASSIGNMENT_CORRECTION_CREATE");
+
     private async Task PersistTerminalRejectionAsync(
         CorrectAssignmentCommand command,
         string scope,
@@ -575,16 +646,7 @@ public sealed class EfAssignmentCorrectionService(
     {
         await auditTransaction.ExecuteAsync(async innerToken =>
         {
-            var exists = await dbContext.IdempotencyRecords.AsNoTracking()
-                .AnyAsync(item => item.Scope == scope && item.Key == command.IdempotencyKey, innerToken);
             var now = clock.UtcNow;
-            if (!exists)
-            {
-                AddIdempotency(scope, command, requestHash,
-                    ErrorResourcePrefix + errorCode,
-                    command.ObligationId, 409, now);
-            }
-
             var branch = await dbContext.WorkObligations.AsNoTracking()
                 .Where(item => item.Id == command.ObligationId)
                 .Select(item => (Guid?)item.BranchId)
@@ -623,10 +685,10 @@ public sealed class EfAssignmentCorrectionService(
         _ => throw new InvalidOperationException("Unknown assignment-correction idempotent error."),
     };
 
-    private static string Scope(Guid actor, Guid obligation) =>
+    private static string LegacyScope(Guid actor, Guid obligation) =>
         $"{ScopePrefix}:{actor:D}:{obligation:D}";
 
-    private static string Hash(CorrectAssignmentCommand command)
+    private static string LegacyHash(CorrectAssignmentCommand command)
     {
         var value = string.Join('\n',
             command.ObligationId.ToString("D"),
@@ -636,6 +698,8 @@ public sealed class EfAssignmentCorrectionService(
             command.ExpectedRowVersion.ToString(CultureInfo.InvariantCulture));
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     }
+
+    private sealed record RejectionSnapshot(string ErrorCode);
 
     private static bool IsRetryable(Exception exception)
     {

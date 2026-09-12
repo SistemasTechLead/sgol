@@ -251,9 +251,11 @@ public static class TaskDefinitionApiEndpoints
             return false;
         }
 
-        if (!Guid.TryParse(context.Request.Headers["Idempotency-Key"], out idempotencyKey))
+        var parsed = IdempotencyKeyHeader.Parse(context.Request);
+        idempotencyKey = parsed.Key;
+        if (!parsed.IsValid)
         {
-            invalid = Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key debe ser un UUID");
+            invalid = Problem(context, 400, parsed.ErrorCode!, parsed.Detail!);
             return false;
         }
 

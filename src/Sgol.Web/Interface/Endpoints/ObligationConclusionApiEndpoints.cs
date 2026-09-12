@@ -35,17 +35,12 @@ public static class ObligationConclusionApiEndpoints
             return Problem(context, 400, "SOLICITUD_CONCLUSION_INVALIDA", "La solicitud de conclusión no admite query ni cuerpo");
         }
 
-        var idempotencyHeader = context.Request.Headers["Idempotency-Key"];
-        if (idempotencyHeader.Count == 0)
+        var parsedIdempotency = IdempotencyKeyHeader.Parse(context.Request);
+        if (!parsedIdempotency.IsValid)
         {
-            return Problem(context, 400, "IDEMPOTENCY_KEY_REQUERIDA", "Idempotency-Key es obligatoria");
+            return Problem(context, 400, parsedIdempotency.ErrorCode!, parsedIdempotency.Detail!);
         }
-
-        if (idempotencyHeader.Count != 1 ||
-            !Guid.TryParseExact(idempotencyHeader[0], "D", out var idempotencyKey) || idempotencyKey == Guid.Empty)
-        {
-            return Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key debe ser un UUID canónico");
-        }
+        var idempotencyKey = parsedIdempotency.Key;
 
         var ifMatch = context.Request.Headers.IfMatch;
         if (ifMatch.Count == 0)

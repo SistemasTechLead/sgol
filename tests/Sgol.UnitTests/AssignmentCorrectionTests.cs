@@ -67,7 +67,7 @@ public sealed class AssignmentCorrectionTests
         var missingKey = AuthenticatedContext();
         AssertProblem(await AssignmentCorrectionApiEndpoints.HandlePostAsync(
             Guid.CreateVersion7(), body.RootElement, missingKey, service, CancellationToken.None), 400,
-            "IDEMPOTENCY_KEY_INVALIDA");
+            "IDEMPOTENCY_KEY_REQUERIDA");
 
         var missingEtag = AuthenticatedContext();
         missingEtag.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");

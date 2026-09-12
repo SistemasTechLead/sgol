@@ -290,15 +290,17 @@ public sealed class AutomaticAssignmentPersistenceTests : IAsyncLifetime
             EligibilityResults.EligibleCandidates,
             (only, true));
         await context.SaveChangesAsync();
-        await Assert.ThrowsAsync<AutomaticAssignmentIdempotencyConflictException>(() => service.AssignAsync(
+        var independentResource = await service.AssignAsync(
             command with
             {
                 ObligationId = otherTarget,
                 EligibilityEvaluationId = otherEvaluation.Id,
                 CorrelationId = Guid.CreateVersion7(),
-            }));
-        Assert.DoesNotContain(await context.AssignmentVersions.AsNoTracking().ToListAsync(),
-            item => item.ObligationId == otherTarget);
+            });
+        Assert.Equal(AutomaticAssignmentResults.Created, independentResource.Result);
+        Assert.NotEqual(created.AssignmentId, independentResource.AssignmentId);
+        Assert.Equal(1, await context.AssignmentVersions.CountAsync(item =>
+            item.ObligationId == otherTarget && item.Status == AssignmentVersionStatuses.Current));
 
         var newerEvaluation = AddEvaluation(
             context,

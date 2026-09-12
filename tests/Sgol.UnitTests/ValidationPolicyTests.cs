@@ -108,7 +108,7 @@ public sealed class ValidationPolicyTests
         var result = await ValidationPolicyApiEndpoints.HandlePutAsync(
             "TAR-0005", body.RootElement, context, service, CancellationToken.None);
 
-        Assert.Equal(403, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal(400, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Null(service.Command);
     }
 

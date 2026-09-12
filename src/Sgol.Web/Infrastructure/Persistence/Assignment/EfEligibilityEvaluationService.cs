@@ -14,6 +14,7 @@ using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Assignment;
 
@@ -36,11 +37,21 @@ public sealed class EfEligibilityEvaluationService(
             throw new EligibilityDateInvalidException();
         }
 
-        var requestHash = Hash(
+        const string operation = "ELIGIBILITY_EVALUATION_CREATE";
+        var actor = "system:eligibility-evaluation";
+        var resource = command.ObligationId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(actor, operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(operation, actor, resource, new
+        {
+            command.ObligationId,
+            command.EligibilityDate,
+            command.EligibilityDateSource,
+        });
+        var legacyRequestHash = Hash(
             command.ObligationId.ToString("D", CultureInfo.InvariantCulture),
             command.EligibilityDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             command.EligibilityDateSource);
-        var replay = await FindReplayAsync(command.EvaluationRequestId, requestHash, cancellationToken);
+        var replay = await FindReplayAsync(scope, command, requestHash, legacyRequestHash, cancellationToken);
         if (replay is not null)
         {
             return replay;
@@ -156,18 +167,23 @@ public sealed class EfEligibilityEvaluationService(
                         input.StableCode,
                         input.IsEligible,
                         JsonSerializer.SerializeToDocument(input.Reasons))));
-                    dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-                    {
-                        Scope = IdempotencyScope,
-                        Key = command.EvaluationRequestId,
-                        RequestHash = requestHash,
-                        Status = "COMPLETED",
-                        ResourceType = "ELIGIBILITY_EVALUATION",
-                        ResourceId = evaluationId,
-                        ResponseCode = StatusCodes.Status201Created,
-                        CreatedAt = now,
-                        ExpiresAt = DateTimeOffset.MaxValue,
-                    });
+                    var response = new EligibilityEvaluationDetails(
+                        evaluationId,
+                        command.EvaluationRequestId,
+                        obligation.Id,
+                        now,
+                        command.EligibilityDate,
+                        command.EligibilityDateSource,
+                        policy.Id,
+                        policy.RequiredRole,
+                        policy.RequiredShift,
+                        result,
+                        null,
+                        inputs.Select(ToExplanation).ToArray(),
+                        Replayed: false);
+                    dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+                        scope, command.EvaluationRequestId, requestHash, "ELIGIBILITY_EVALUATION", evaluationId,
+                        StatusCodes.Status201Created, response, now, DateTimeOffset.MaxValue));
 
                     return new AuditEvent
                     {
@@ -201,7 +217,7 @@ public sealed class EfEligibilityEvaluationService(
             EligibilityEvaluationConfiguration.RequestIndex or IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            return await FindReplayAsync(command.EvaluationRequestId, requestHash, cancellationToken)
+            return await FindReplayAsync(scope, command, requestHash, legacyRequestHash, cancellationToken)
                 ?? throw new EligibilityEvaluationIdempotencyConflictException();
         }
         catch
@@ -245,24 +261,58 @@ public sealed class EfEligibilityEvaluationService(
     }
 
     private async Task<EligibilityEvaluationDetails?> FindReplayAsync(
-        Guid requestId,
+        string scope,
+        EvaluateEligibilityCommand command,
         string requestHash,
+        string legacyRequestHash,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Scope == IdempotencyScope && item.Key == requestId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == command.EvaluationRequestId, cancellationToken)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == IdempotencyScope && item.Key == command.EvaluationRequestId, cancellationToken);
         if (record is null)
         {
             return null;
         }
 
-        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+            ? requestHash
+            : legacyRequestHash;
+        if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
         {
+            await IdempotencyProtocol.PersistConflictAsync(
+                auditTransaction,
+                IdempotencyProtocol.ConflictAudit(
+                    uuidGenerator.NewUuid(), clock.UtcNow, null, "WORK_OBLIGATION", command.ObligationId,
+                    BranchScope.LorettaId, command.CorrelationId, command.EvaluationRequestId,
+                    "ELIGIBILITY_EVALUATION_CREATE"),
+                cancellationToken);
             throw new EligibilityEvaluationIdempotencyConflictException();
         }
 
-        return await LoadDetailsAsync(record.ResourceId, replayed: true, cancellationToken);
+        return record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+            ? IdempotencyProtocol.ReadPayload<EligibilityEvaluationDetails>(record) with { Replayed = true }
+            : await LoadDetailsAsync(record.ResourceId, replayed: true, cancellationToken);
     }
+
+    private static EligibilityCandidateExplanation ToExplanation(CandidateInput input) => new(
+        input.PersonId,
+        input.StableCode,
+        input.IsEligible,
+        input.Reasons,
+        input.EmploymentVersionId,
+        input.EmploymentStatus,
+        input.EmploymentBranchId,
+        input.PositionText,
+        input.ShiftText,
+        input.RoleAssignmentVersionId,
+        input.ActiveRoleCode,
+        input.AvailabilityVersionId,
+        input.IsAvailable,
+        null,
+        null,
+        null);
 
     private async Task<EligibilityEvaluationDetails> LoadDetailsAsync(
         Guid evaluationId,

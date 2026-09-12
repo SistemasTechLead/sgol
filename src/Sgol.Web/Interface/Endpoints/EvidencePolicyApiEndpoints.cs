@@ -30,11 +30,12 @@ public static class EvidencePolicyApiEndpoints
 
         try
         {
-            if (!Guid.TryParse(context.Request.Headers["Idempotency-Key"], out var idempotencyKey))
+            var parsedIdempotency = IdempotencyKeyHeader.Parse(context.Request);
+            if (!parsedIdempotency.IsValid)
             {
-                await RecordRejectionAsync(context, service, actorUserId, cancellationToken);
-                return Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key debe ser un UUID");
+                return Problem(context, 400, parsedIdempotency.ErrorCode!, parsedIdempotency.Detail!);
             }
+            var idempotencyKey = parsedIdempotency.Key;
 
             long? expectedRowVersion = null;
             if (context.Request.Headers.ContainsKey("If-Match"))

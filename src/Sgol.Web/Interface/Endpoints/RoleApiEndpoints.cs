@@ -19,14 +19,16 @@ public static class RoleApiEndpoints
             return denied;
         }
 
-        if (!Guid.TryParse(context.Request.Headers["Idempotency-Key"], out var idempotencyKey))
+        var parsedIdempotency = IdempotencyKeyHeader.Parse(context.Request);
+        if (!parsedIdempotency.IsValid)
         {
             return Problem(
                 context,
                 StatusCodes.Status400BadRequest,
-                "IDEMPOTENCY_KEY_INVALIDA",
-                "Idempotency-Key debe ser un UUID");
+                parsedIdempotency.ErrorCode!,
+                parsedIdempotency.Detail!);
         }
+        var idempotencyKey = parsedIdempotency.Key;
 
         if (!TryGetOptionalRowVersion(context, out var rowVersion, out var invalidVersion))
         {

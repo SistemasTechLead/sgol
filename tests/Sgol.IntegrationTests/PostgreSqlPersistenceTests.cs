@@ -46,6 +46,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string InternalNoticesMigrationId = "20260909190648_AddInternalNotices";
     private const string ValidationPoliciesMigrationId = "20260910191232_AddValidationPolicies";
     private const string ValidationDecisionsMigrationId = "20260910210908_AddValidationDecisions";
+    private const string IdempotencyReplayMigrationId = "20260912120000_ExtendIdempotencyReplay";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -96,6 +97,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 InternalNoticesMigrationId,
                 ValidationPoliciesMigrationId,
                 ValidationDecisionsMigrationId,
+                IdempotencyReplayMigrationId,
             ],
             appliedMigrations);
 

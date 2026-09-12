@@ -10,6 +10,7 @@ using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Identity;
 
@@ -49,12 +50,18 @@ public sealed class EfAccountAdministrationService(
         var userName = RequireValue(command.UserName, "UserName");
         var normalizedUserName = userName.ToUpperInvariant();
         var temporaryPassword = RequireTemporaryPassword(command.TemporaryPassword);
-        var scope = CreateScope(command.ActorUserId);
-        var requestHash = ComputeHash(
+        const string operation = "ACCOUNT_CREATE";
+        const string resource = "new:LOR-001";
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource,
+            new { command.PersonId, userName = normalizedUserName, temporaryPassword });
+        var legacyScope = CreateScope(command.ActorUserId);
+        var legacyRequestHash = ComputeHash(
             command.PersonId.ToString("D"),
             normalizedUserName,
             temporaryPassword);
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken);
+        var replay = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+            command.ActorUserId, command.CorrelationId, operation, cancellationToken);
         if (replay is not null)
         {
             return replay;
@@ -85,6 +92,8 @@ public sealed class EfAccountAdministrationService(
             NormalizedUserName = normalizedUserName,
             PasswordHash = passwordHasher.HashPassword(user, temporaryPassword),
         };
+        var response = new AccountSummary(
+            user.Id, user.PersonId, userName, user.Status, user.MustChangePassword, user.MfaEnrolledAt);
 
         try
         {
@@ -114,6 +123,8 @@ public sealed class EfAccountAdministrationService(
                         requestHash,
                         user.Id,
                         StatusCodes.Status201Created,
+                        response,
+                        $"/api/v1/users/{user.Id:D}",
                         now));
 
                     return NewAuditEvent(
@@ -132,8 +143,13 @@ public sealed class EfAccountAdministrationService(
             dbContext.ChangeTracker.Clear();
             var concurrentReplay = await FindReplayAsync(
                 scope,
+                legacyScope,
                 command.IdempotencyKey,
                 requestHash,
+                legacyRequestHash,
+                command.ActorUserId,
+                command.CorrelationId,
+                operation,
                 cancellationToken);
             if (concurrentReplay is not null)
             {
@@ -174,14 +190,20 @@ public sealed class EfAccountAdministrationService(
         var temporaryPassword = requiresTemporaryPassword
             ? RequireTemporaryPassword(command.TemporaryPassword)
             : null;
-        var operation = requestedStatus == AccountStatus.Active ? "reactivate" : "deactivate";
-        var scope = StatusScope(command.ActorUserId, operation, command.UserId);
-        var requestHash = ComputeHash(
+        var operation = requestedStatus == AccountStatus.Active ? "ACCOUNT_REACTIVATE" : "ACCOUNT_DEACTIVATE";
+        var resource = command.UserId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource,
+            new { command.UserId, requestedStatus, reason, temporaryPassword });
+        var legacyOperation = requestedStatus == AccountStatus.Active ? "reactivate" : "deactivate";
+        var legacyScope = StatusScope(command.ActorUserId, legacyOperation, command.UserId);
+        var legacyRequestHash = ComputeHash(
             command.UserId.ToString("D"),
             requestedStatus,
             reason,
             temporaryPassword ?? string.Empty);
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken);
+        var replay = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+            command.ActorUserId, command.CorrelationId, operation, cancellationToken);
         if (replay is not null)
         {
             return replay;
@@ -235,12 +257,17 @@ public sealed class EfAccountAdministrationService(
                     user.SecurityStamp = NewSecurityStamp();
                     var afterData = SafeAccountData(user, credential.UserName);
                     var now = clock.UtcNow;
+                    var response = new AccountSummary(
+                        user.Id, user.PersonId, credential.UserName, user.Status,
+                        user.MustChangePassword, user.MfaEnrolledAt);
                     dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
                         scope,
                         command.IdempotencyKey,
                         requestHash,
                         user.Id,
                         StatusCodes.Status200OK,
+                        response,
+                        null,
                         now));
 
                     return NewAuditEvent(
@@ -258,7 +285,8 @@ public sealed class EfAccountAdministrationService(
         catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            return await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken)
+            return await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+                command.ActorUserId, command.CorrelationId, operation, cancellationToken)
                 ?? throw new AccountIdempotencyConflictException();
         }
         catch
@@ -312,28 +340,66 @@ public sealed class EfAccountAdministrationService(
 
     private async Task<AccountMutationResult?> FindReplayAsync(
         string scope,
+        string legacyScope,
         Guid key,
         string requestHash,
+        string legacyRequestHash,
+        Guid actorUserId,
+        Guid correlationId,
+        string operation,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == legacyScope && item.Key == key, cancellationToken);
         if (record is null)
         {
             return null;
         }
 
-        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+            ? requestHash
+            : legacyRequestHash;
+        if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
         {
             dbContext.ChangeTracker.Clear();
+            await AuditConflictAsync(actorUserId, correlationId, key, operation, record.ResourceId, cancellationToken);
             throw new AccountIdempotencyConflictException();
+        }
+
+        if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+        {
+            return new AccountMutationResult(
+                IdempotencyProtocol.ReadPayload<AccountSummary>(record),
+                Replayed: true);
         }
 
         var account = await LoadAccountAsync(record.ResourceId, cancellationToken)
             ?? throw new AccountNotFoundException();
         return new AccountMutationResult(account, Replayed: true);
     }
+
+    private Task AuditConflictAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid key,
+        string operation,
+        Guid resourceId,
+        CancellationToken token) => IdempotencyProtocol.PersistConflictAsync(
+            auditTransaction,
+            IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(),
+                clock.UtcNow,
+                actorUserId,
+                "APP_USER",
+                resourceId,
+                BranchScope.LorettaId,
+                correlationId,
+                key,
+                operation),
+            token);
 
     private IQueryable<AccountSummary> LoadAccountsQuery() =>
         from user in dbContext.AppUsers.AsNoTracking()
@@ -408,18 +474,19 @@ public sealed class EfAccountAdministrationService(
         string requestHash,
         Guid resourceId,
         int responseCode,
-        DateTimeOffset createdAt) => new()
-        {
-            Scope = scope,
-            Key = key,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = "APP_USER",
-            ResourceId = resourceId,
-            ResponseCode = responseCode,
-            CreatedAt = createdAt,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        };
+        AccountSummary response,
+        string? responseLocation,
+        DateTimeOffset createdAt) => IdempotencyProtocol.Completed(
+            scope,
+            key,
+            requestHash,
+            "APP_USER",
+            resourceId,
+            responseCode,
+            response,
+            createdAt,
+            DateTimeOffset.MaxValue,
+            responseLocation: responseLocation);
 
     private static string CreateScope(Guid actorUserId) => $"users:create:{actorUserId:D}";
 

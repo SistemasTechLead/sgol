@@ -134,8 +134,9 @@ public sealed partial class EvidencePolicyPersistenceTests
             command with { ExpectedRowVersion = 1 }));
         await Assert.ThrowsAsync<ValidationPolicyOverlapException>(() => services.Validation.PutAsync(
             NewValidationPolicy(direction, release.Id, "TAR-0005")));
-        await Assert.ThrowsAsync<ValidationPolicyIdempotencyConflictException>(() => services.Validation.PutAsync(
-            NewValidationPolicy(direction, release.Id, "TAR-0007", key: command.IdempotencyKey)));
+        var independentResource = await services.Validation.PutAsync(
+            NewValidationPolicy(direction, release.Id, "TAR-0007", key: command.IdempotencyKey));
+        Assert.NotEqual(created.PolicyVersionId, independentResource.PolicyVersionId);
         await Assert.ThrowsAsync<ValidationPolicyCoverageException>(() => services.Release.PublishAsync(
             new PublishConfigurationReleaseCommand(
                 direction,
@@ -145,7 +146,7 @@ public sealed partial class EvidencePolicyPersistenceTests
                 release.RowVersion,
                 Now.AddHours(1),
                 "Catálogo incompleto")));
-        Assert.Single(await context.ValidationPolicyVersions.AsNoTracking().ToListAsync());
+        Assert.Equal(2, await context.ValidationPolicyVersions.AsNoTracking().CountAsync());
         Assert.DoesNotContain(await context.AuditEvents.AsNoTracking().ToListAsync(), audit =>
             audit.Action == "VALIDATION_POLICY_PUBLISHED");
 
@@ -172,7 +173,7 @@ public sealed partial class EvidencePolicyPersistenceTests
             new FixedClock(Now),
             new SequenceUuidGenerator(failedPolicyId, duplicateAuditId));
         await Assert.ThrowsAsync<DbUpdateException>(() => failing.PutAsync(
-            NewValidationPolicy(direction, secondRelease.Id, "TAR-0007")));
+            NewValidationPolicy(direction, secondRelease.Id, "TAR-0008")));
         Assert.False(await context.ValidationPolicyVersions.AsNoTracking().AnyAsync(item => item.Id == failedPolicyId));
         Assert.False(await context.IdempotencyRecords.AsNoTracking().AnyAsync(item => item.ResourceId == failedPolicyId));
         Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), audit =>

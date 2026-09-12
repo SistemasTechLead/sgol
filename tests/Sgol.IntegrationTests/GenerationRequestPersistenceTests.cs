@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Sgol.BuildingBlocks.Identifiers;
@@ -43,18 +44,49 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
 
         Assert.Equal(GenerationRequestResults.Accepted, accepted.Result);
         Assert.Equal(GenerationRequestResults.Recovered, recovered.Result);
+        Assert.Equal(StatusCodes.Status201Created, accepted.ResponseCode);
+        Assert.Equal(StatusCodes.Status201Created, recovered.ResponseCode);
         Assert.Equal(accepted.GenerationRequestId, recovered.GenerationRequestId);
         Assert.Null(accepted.ObligationId);
         Assert.Single(await context.GenerationRequests.AsNoTracking().ToListAsync());
-        Assert.Single(await context.IdempotencyRecords.AsNoTracking()
+        var idempotency = Assert.Single(await context.IdempotencyRecords.AsNoTracking()
             .Where(item => item.ResourceType == "GENERATION_REQUEST")
             .ToListAsync());
+        Assert.Equal<short?>(1, idempotency.ProtocolVersion);
+        Assert.NotNull(idempotency.ResponsePayload);
+        Assert.Equal($"/api/v1/generation-requests/{accepted.GenerationRequestId:D}", idempotency.ResponseLocation);
         Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item =>
             item.Action == "GENERATION_REQUEST_ACCEPTED" && item.Outcome == "SUCCESS");
         Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item =>
-            item.Action == "GENERATION_REQUEST_IDEMPOTENCY_CONFLICT" && item.Outcome == "CONFLICT");
+            item.Action == "IDEMPOTENCY_CONFLICT_REJECTED" && item.Outcome == "REJECTED" &&
+            item.RequestId == key.ToString("D") && item.AfterData != null &&
+            !item.AfterData.RootElement.GetRawText().Contains("requestHash", StringComparison.Ordinal));
         Assert.Empty(await context.WorkObligations.AsNoTracking().ToListAsync());
         Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task ConfirmedCommitWithDiscardedResponseIsRecoveredWithoutReexecution()
+    {
+        var scenario = await ResetAndSeedAsync(CanonicalRole.Administration);
+        var key = Guid.CreateVersion7();
+        Guid committedRequestId;
+
+        await using (var firstContext = CreateContext())
+        {
+            var confirmed = await CreateService(firstContext).CreateAsync(Command(scenario, key));
+            committedRequestId = confirmed.GenerationRequestId;
+        }
+
+        await using var retryContext = CreateContext();
+        var recovered = await CreateService(retryContext).CreateAsync(Command(scenario, key));
+
+        Assert.Equal(GenerationRequestResults.Recovered, recovered.Result);
+        Assert.Equal(StatusCodes.Status201Created, recovered.ResponseCode);
+        Assert.Equal(committedRequestId, recovered.GenerationRequestId);
+        Assert.Equal(1, await retryContext.GenerationRequests.CountAsync());
+        Assert.Equal(1, await retryContext.IdempotencyRecords.CountAsync());
+        Assert.Equal(1, await retryContext.AuditEvents.CountAsync(item => item.Action == "GENERATION_REQUEST_ACCEPTED"));
     }
 
     [Fact]

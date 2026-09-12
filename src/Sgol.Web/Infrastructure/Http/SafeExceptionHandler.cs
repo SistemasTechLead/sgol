@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Http;
 
@@ -18,21 +19,41 @@ public sealed class SafeExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
+        var conflictAuditFailed = exception is IdempotencyConflictAuditException;
+        var replayUnavailable = exception is IdempotencyReplayUnavailableException;
+        var status = replayUnavailable
+            ? StatusCodes.Status409Conflict
+            : StatusCodes.Status500InternalServerError;
         LogFailure(
             logger,
-            StatusCodes.Status500InternalServerError,
+            status,
             httpContext.GetCorrelationId(),
             null);
 
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        httpContext.Response.StatusCode = status;
 
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
             ProblemDetails = new ProblemDetails
             {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "An unexpected error occurred."
+                Status = status,
+                Title = replayUnavailable
+                    ? "No se puede reconstruir la respuesta idempotente"
+                    : conflictAuditFailed
+                        ? "No se pudo registrar el conflicto idempotente"
+                        : "An unexpected error occurred.",
+                Extensions = replayUnavailable
+                    ? new Dictionary<string, object?>
+                    {
+                        ["code"] = "IDEMPOTENCY_REPLAY_NO_DISPONIBLE",
+                    }
+                    : conflictAuditFailed
+                    ? new Dictionary<string, object?>
+                    {
+                        ["code"] = "IDEMPOTENCY_CONFLICT_AUDIT_FAILED",
+                    }
+                    : new Dictionary<string, object?>()
             },
             Exception = exception
         });

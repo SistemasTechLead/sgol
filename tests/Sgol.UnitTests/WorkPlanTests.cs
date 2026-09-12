@@ -38,7 +38,7 @@ public sealed class WorkPlanTests
         var missingKey = AuthenticatedContext(withKey: false);
         AssertProblem(await WorkPlanApiEndpoints.HandleEnsureAsync(
             "2026", "36", null, missingKey, service, CancellationToken.None),
-            400, "IDEMPOTENCY_KEY_INVALIDA");
+            400, "IDEMPOTENCY_KEY_REQUERIDA");
 
         Assert.Null(service.Command);
     }

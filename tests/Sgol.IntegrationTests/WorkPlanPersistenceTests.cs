@@ -57,7 +57,7 @@ public sealed class WorkPlanPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SameKeyWithAnotherWeekConflictsWithoutCreatingAnotherPlan()
+    public async Task SameKeyWithAnotherWeekUsesAnIndependentResourceScope()
     {
         var seed = await ResetAndSeedAsync(CanonicalRole.Administration, includePeriod: true);
         await using var context = CreateContext();
@@ -65,14 +65,13 @@ public sealed class WorkPlanPersistenceTests : IAsyncLifetime
         var key = Guid.CreateVersion7();
         await service.EnsureAsync(Command(seed.ActorUserId, key));
 
-        var conflict = await Assert.ThrowsAsync<WorkPlanIdempotencyConflictException>(() =>
+        await Assert.ThrowsAsync<WorkPlanPeriodNotFoundException>(() =>
             service.EnsureAsync(Command(seed.ActorUserId, key) with { IsoWeek = 37 }));
 
-        Assert.Equal("IDEMPOTENCY_CONFLICT", conflict.ErrorCode);
         Assert.Equal(1, await context.WorkPlans.CountAsync());
         Assert.Equal(1, await context.IdempotencyRecords.CountAsync());
-        Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(),
-            item => item.Outcome == "IDEMPOTENCY_CONFLICT");
+        Assert.DoesNotContain(await context.AuditEvents.AsNoTracking().ToListAsync(),
+            item => item.Action == "IDEMPOTENCY_CONFLICT_REJECTED");
     }
 
     [Fact]
@@ -87,7 +86,7 @@ public sealed class WorkPlanPersistenceTests : IAsyncLifetime
             await Assert.ThrowsAsync<WorkPlanPeriodNotFoundException>(() =>
                 service.EnsureAsync(Command(authorized.ActorUserId, Guid.CreateVersion7())));
             Assert.False(await context.WorkPlans.AnyAsync());
-            Assert.Equal(2, await context.IdempotencyRecords.CountAsync());
+            Assert.Empty(await context.IdempotencyRecords.AsNoTracking().ToListAsync());
             Assert.Equal(2, await context.AuditEvents.CountAsync(item => item.Action == "WORK_PLAN_ENSURE_REJECTED"));
         }
 
@@ -99,7 +98,7 @@ public sealed class WorkPlanPersistenceTests : IAsyncLifetime
         await Assert.ThrowsAsync<WorkPlanAccessDeniedException>(() =>
             CreateService(deniedContext).EnsureAsync(Command(denied.ActorUserId, Guid.CreateVersion7())));
         Assert.False(await deniedContext.WorkPlans.AnyAsync());
-        Assert.Single(await deniedContext.IdempotencyRecords.AsNoTracking().ToListAsync());
+        Assert.Empty(await deniedContext.IdempotencyRecords.AsNoTracking().ToListAsync());
         Assert.Contains(await deniedContext.AuditEvents.AsNoTracking().ToListAsync(),
             item => item.Outcome == "ACCESO_DENEGADO");
     }

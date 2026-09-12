@@ -88,12 +88,18 @@ public static class PersonApiEndpoints
             return invalidVersion;
         }
 
+        if (!TryGetIdempotencyKey(context, out var idempotencyKey, out var invalidKey))
+        {
+            return invalidKey;
+        }
+
         try
         {
             var value = await service.PutAsync(
                 new PutAvailabilityCommand(
                     actorUserId,
                     GetCorrelationId(context),
+                    idempotencyKey,
                     personId,
                     localDate,
                     isAvailable,
@@ -213,7 +219,7 @@ public static class PersonApiEndpoints
             request.Reason,
             request.PositionText,
             request.ShiftText,
-            requiresIdempotencyKey: false,
+            operation: "PERSON_EMPLOYMENT_PATCH",
             context,
             service,
             cancellationToken);
@@ -230,7 +236,7 @@ public static class PersonApiEndpoints
             request.Reason,
             positionText: null,
             shiftText: null,
-            requiresIdempotencyKey: true,
+            operation: "PERSON_DEACTIVATE",
             context,
             service,
             cancellationToken);
@@ -247,7 +253,7 @@ public static class PersonApiEndpoints
             request.Reason,
             positionText: null,
             shiftText: null,
-            requiresIdempotencyKey: true,
+            operation: "PERSON_REACTIVATE",
             context,
             service,
             cancellationToken);
@@ -258,7 +264,7 @@ public static class PersonApiEndpoints
         string reason,
         string? positionText,
         string? shiftText,
-        bool requiresIdempotencyKey,
+        string operation,
         HttpContext context,
         IPersonAdministrationService service,
         CancellationToken cancellationToken)
@@ -273,15 +279,9 @@ public static class PersonApiEndpoints
             return invalidVersion;
         }
 
-        Guid? idempotencyKey = null;
-        if (requiresIdempotencyKey)
+        if (!TryGetIdempotencyKey(context, out var idempotencyKey, out var invalidKey))
         {
-            if (!TryGetIdempotencyKey(context, out var parsedKey, out var invalidKey))
-            {
-                return invalidKey;
-            }
-
-            idempotencyKey = parsedKey;
+            return invalidKey;
         }
 
         try
@@ -296,7 +296,8 @@ public static class PersonApiEndpoints
                     reason,
                     idempotencyKey,
                     positionText,
-                    shiftText),
+                    shiftText,
+                    operation),
                 cancellationToken);
             SetETag(context, result.Person);
             return Ok(context, result.Person);
@@ -336,13 +337,15 @@ public static class PersonApiEndpoints
 
     private static bool TryGetIdempotencyKey(HttpContext context, out Guid key, out IResult invalid)
     {
-        if (!Guid.TryParse(context.Request.Headers["Idempotency-Key"], out key))
+        var parsed = IdempotencyKeyHeader.Parse(context.Request);
+        key = parsed.Key;
+        if (!parsed.IsValid)
         {
             invalid = Problem(
                 context,
                 StatusCodes.Status400BadRequest,
-                "IDEMPOTENCY_KEY_INVALIDA",
-                "Idempotency-Key debe ser un UUID");
+                parsed.ErrorCode!,
+                parsed.Detail!);
             return false;
         }
 
@@ -451,6 +454,7 @@ public static class PersonApiEndpoints
         AvailabilityPersonOutOfScopeException => Problem(context, 409, "PERSONA_FUERA_DE_ALCANCE", "La persona no pertenece a LOR-001"),
         AvailabilityIfMatchRequiredException => Problem(context, 400, "IF_MATCH_INVALIDO", "If-Match es obligatorio para corregir disponibilidad"),
         AvailabilityVersionConflictException => Problem(context, 412, "VERSION_CONFLICT", "La versión cambió; vuelve a cargar el recurso"),
+        AvailabilityIdempotencyConflictException => Problem(context, 409, "IDEMPOTENCY_CONFLICT", "La clave idempotente ya se usó con otro contenido"),
         _ => throw exception,
     };
 

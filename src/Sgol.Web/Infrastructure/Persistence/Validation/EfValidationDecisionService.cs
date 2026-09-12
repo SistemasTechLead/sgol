@@ -17,6 +17,7 @@ using Sgol.Organization.Contracts;
 using Sgol.Validation.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Validation;
 
@@ -29,22 +30,48 @@ public sealed class EfValidationDecisionService(
     private const int MaximumAttempts = 3;
     private const string ResourceType = "VALIDATION_DECISION_VERSION";
 
-    public Task<ValidationMutationResult> IssueAsync(IssueValidationDecisionCommand command, CancellationToken cancellationToken = default)
+    public async Task<ValidationMutationResult> IssueAsync(IssueValidationDecisionCommand command, CancellationToken cancellationToken = default)
     {
         Validate(command.ActorUserId, command.IdempotencyKey, command.CorrelationId, command.ObligationId, command.ExpectedRowVersion);
         if (!ValidationResults.IsDefined(command.Result)) throw new ValidationDecisionException("RESULTADO_VALIDACION_INVALIDO");
         var foundation = ValidationText.Foundation(command.Foundation);
         var escalationReason = command.EscalationReason is null ? null : ValidationText.Reason(command.EscalationReason);
         var normalized = command with { Foundation = foundation, EscalationReason = escalationReason };
-        return ExecuteAsync(() => IssueOnceAsync(normalized, cancellationToken), cancellationToken);
+        try
+        {
+            return await ExecuteAsync(
+                "VALIDATION_DECISION_CREATE",
+                () => IssueOnceAsync(normalized, cancellationToken),
+                cancellationToken);
+        }
+        catch (ValidationDecisionException exception) when (exception.Code == "IDEMPOTENCY_CONFLICT")
+        {
+            await PersistConflictAuditAsync(
+                command.ActorUserId, command.CorrelationId, command.IdempotencyKey,
+                "VALIDATION_DECISION_CREATE", command.ObligationId, cancellationToken);
+            throw;
+        }
     }
 
-    public Task<ValidationMutationResult> ReplaceAsync(ReplaceValidationDecisionCommand command, CancellationToken cancellationToken = default)
+    public async Task<ValidationMutationResult> ReplaceAsync(ReplaceValidationDecisionCommand command, CancellationToken cancellationToken = default)
     {
         Validate(command.ActorUserId, command.IdempotencyKey, command.CorrelationId, command.DecisionVersionId, command.ExpectedRowVersion);
         if (!ValidationResults.IsDefined(command.Result)) throw new ValidationDecisionException("RESULTADO_VALIDACION_INVALIDO");
         var normalized = command with { Foundation = ValidationText.Foundation(command.Foundation), Reason = ValidationText.Reason(command.Reason) };
-        return ExecuteAsync(() => ReplaceOnceAsync(normalized, cancellationToken), cancellationToken);
+        try
+        {
+            return await ExecuteAsync(
+                "VALIDATION_DECISION_REPLACE",
+                () => ReplaceOnceAsync(normalized, cancellationToken),
+                cancellationToken);
+        }
+        catch (ValidationDecisionException exception) when (exception.Code == "IDEMPOTENCY_CONFLICT")
+        {
+            await PersistConflictAuditAsync(
+                command.ActorUserId, command.CorrelationId, command.IdempotencyKey,
+                "VALIDATION_DECISION_REPLACE", command.DecisionVersionId, cancellationToken);
+            throw;
+        }
     }
 
     public async Task<ValidationHistoryDetails> GetAsync(GetValidationHistoryQuery query, CancellationToken cancellationToken = default)
@@ -76,10 +103,16 @@ public sealed class EfValidationDecisionService(
         var actor = await LoadActorAsync(command.ActorUserId, decidedAt, token);
         var responsible = await LoadResponsibleRoleAsync(assignment.PersonId, decidedAt, token);
         EnsureIssuePermission(actor, command.EscalationReason);
-        var scope = $"validation:emit:{command.ActorUserId:D}:{obligation.Id:D}";
-        var hash = Hash("POST", $"/api/v1/obligations/{obligation.Id:D}/validation-decisions", command.ExpectedRowVersion,
+        var legacyScope = $"validation:emit:{command.ActorUserId:D}:{obligation.Id:D}";
+        var legacyHash = Hash("POST", $"/api/v1/obligations/{obligation.Id:D}/validation-decisions", command.ExpectedRowVersion,
             command.Result, command.Foundation, command.EscalationReason);
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, token);
+        var actorText = command.ActorUserId.ToString("D");
+        var resource = obligation.Id.ToString("D");
+        var scope = IdempotencyProtocol.Scope(actorText, "VALIDATION_DECISION_CREATE", resource);
+        var hash = IdempotencyProtocol.HashCanonical(
+            "VALIDATION_DECISION_CREATE", actorText, resource,
+            new { command.Result, command.Foundation, command.EscalationReason }, command.ExpectedRowVersion);
+        var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, legacyScope, legacyHash, token);
         if (replay is not null)
         {
             AuthorizeVisible(actor, responsible, assignment.PersonId);
@@ -106,10 +139,12 @@ public sealed class EfValidationDecisionService(
             assignment.PersonId, decidedAt, command.EscalationReason, null, review.SnapshotId.Value);
         requirement.Resolve(decidedAt, requirement.RowVersion);
         dbContext.ValidationDecisionVersions.Add(decision);
-        AddIdempotency(scope, command.IdempotencyKey, hash, decision.Id, decidedAt);
+        await dbContext.SaveChangesAsync(token);
+        var response = await MutationAsync(obligation, decision, false, token);
+        AddIdempotency(scope, command.IdempotencyKey, hash, decision.Id, decidedAt, response);
         AddAudit(command.ActorUserId, command.CorrelationId, command.IdempotencyKey, obligation, requirement, decision, null, evidenceVersionCount);
         await dbContext.SaveChangesAsync(token); await transaction.CommitAsync(token);
-        return await MutationAsync(obligation, decision, false, token);
+        return response;
     }
 
     private async Task<ValidationMutationResult> ReplaceOnceAsync(ReplaceValidationDecisionCommand command, CancellationToken token)
@@ -127,10 +162,16 @@ public sealed class EfValidationDecisionService(
         var actor = await LoadActorAsync(command.ActorUserId, decidedAt, token);
         var responsible = await LoadResponsibleRoleAsync(assignment.PersonId, decidedAt, token);
         if (!RoleHierarchy.GrantsValidationReplacement(actor.RoleCode)) throw new ValidationAccessDeniedException();
-        var scope = $"validation:replace:{command.ActorUserId:D}:{command.DecisionVersionId:D}";
-        var hash = Hash("POST", $"/api/v1/validation-decisions/{command.DecisionVersionId:D}/replacements",
+        var legacyScope = $"validation:replace:{command.ActorUserId:D}:{command.DecisionVersionId:D}";
+        var legacyHash = Hash("POST", $"/api/v1/validation-decisions/{command.DecisionVersionId:D}/replacements",
             command.ExpectedRowVersion, command.Result, command.Foundation, command.Reason);
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, token);
+        var actorText = command.ActorUserId.ToString("D");
+        var resource = command.DecisionVersionId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(actorText, "VALIDATION_DECISION_REPLACE", resource);
+        var hash = IdempotencyProtocol.HashCanonical(
+            "VALIDATION_DECISION_REPLACE", actorText, resource,
+            new { command.Result, command.Foundation, command.Reason }, command.ExpectedRowVersion);
+        var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, legacyScope, legacyHash, token);
         if (replay is not null)
         {
             AuthorizeVisible(actor, responsible, assignment.PersonId);
@@ -156,18 +197,24 @@ public sealed class EfValidationDecisionService(
             assignment.Id, assignment.PersonId, decidedAt, command.Reason, current.Id, review.SnapshotId.Value);
         requirement.Advance(decidedAt, command.ExpectedRowVersion);
         dbContext.ValidationDecisionVersions.Add(successor);
-        AddIdempotency(scope, command.IdempotencyKey, hash, successor.Id, decidedAt);
+        await dbContext.SaveChangesAsync(token);
+        var response = await MutationAsync(obligation, successor, false, token);
+        AddIdempotency(scope, command.IdempotencyKey, hash, successor.Id, decidedAt, response);
         AddAudit(command.ActorUserId, command.CorrelationId, command.IdempotencyKey, obligation, requirement, successor, current, evidenceVersionCount);
         await dbContext.SaveChangesAsync(token); await transaction.CommitAsync(token);
-        return await MutationAsync(obligation, successor, false, token);
+        return response;
     }
 
-    private async Task<T> ExecuteAsync<T>(Func<Task<T>> operation, CancellationToken token)
+    private async Task<T> ExecuteAsync<T>(string operationName, Func<Task<T>> operation, CancellationToken token)
     {
         for (var attempt = 1; attempt <= MaximumAttempts; attempt++)
         {
             try { return await operation(); }
-            catch (Exception exception) when (Retryable(exception) && attempt < MaximumAttempts) { dbContext.ChangeTracker.Clear(); }
+            catch (Exception exception) when (Retryable(exception) && attempt < MaximumAttempts)
+            {
+                dbContext.ChangeTracker.Clear();
+                await IdempotencyProtocol.DelayBeforeRetryAsync(operationName, exception, attempt, token);
+            }
             catch (Exception exception) when (Retryable(exception)) { dbContext.ChangeTracker.Clear(); throw new ValidationConcurrencyException(); }
             catch (EvidenceReviewUnavailableException) { dbContext.ChangeTracker.Clear(); throw new ValidationDecisionException("EVIDENCIA_VALIDACION_NO_DISPONIBLE"); }
             catch { dbContext.ChangeTracker.Clear(); throw; }
@@ -275,26 +322,59 @@ public sealed class EfValidationDecisionService(
             throw new ValidationAccessDeniedException();
     }
 
-    private async Task<IdempotencyRecord?> FindReplayAsync(string scope, Guid key, string hash, CancellationToken token)
+    private async Task<IdempotencyRecord?> FindReplayAsync(
+        string scope,
+        Guid key,
+        string hash,
+        string legacyScope,
+        string legacyHash,
+        CancellationToken token)
     {
         var record = await dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(x => x.Scope == scope && x.Key == key, token);
-        if (record is not null && record.RequestHash != hash) throw new ValidationDecisionException("IDEMPOTENCY_CONFLICT");
+        if (record is null)
+            record = await dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(x => x.Scope == legacyScope && x.Key == key, token);
+        if (record is not null && record.RequestHash != (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion ? hash : legacyHash))
+            throw new ValidationDecisionException("IDEMPOTENCY_CONFLICT");
         return record;
     }
 
-    private void AddIdempotency(string scope, Guid key, string hash, Guid decisionId, DateTimeOffset at) =>
-        dbContext.IdempotencyRecords.Add(new()
+    private void AddIdempotency(
+        string scope,
+        Guid key,
+        string hash,
+        Guid decisionId,
+        DateTimeOffset at,
+        ValidationMutationResult response) =>
+        dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+            scope, key, hash, ResourceType, decisionId, StatusCodes.Status201Created,
+            response, at, DateTimeOffset.MaxValue,
+            responseEtag: $"\"{response.History.RowVersion}\""));
+
+    private async Task PersistConflictAuditAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid requestId,
+        string operation,
+        Guid resourceId,
+        CancellationToken token)
+    {
+        try
         {
-            Scope = scope,
-            Key = key,
-            RequestHash = hash,
-            Status = "COMPLETED",
-            ResourceType = ResourceType,
-            ResourceId = decisionId,
-            ResponseCode = 201,
-            CreatedAt = at,
-            ExpiresAt = DateTimeOffset.MaxValue
-        });
+            dbContext.ChangeTracker.Clear();
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+            dbContext.AuditEvents.Add(IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(), clock.UtcNow, actorUserId, "VALIDATION_DECISION_VERSION", resourceId,
+                BranchScope.LorettaId, correlationId, requestId, operation));
+            await dbContext.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            dbContext.ChangeTracker.Clear();
+        }
+        catch (Exception exception)
+        {
+            dbContext.ChangeTracker.Clear();
+            throw new IdempotencyConflictAuditException(exception);
+        }
+    }
 
     private async Task<int> EvidenceVersionCountAsync(Guid snapshotId, CancellationToken token)
     {
@@ -357,6 +437,8 @@ public sealed class EfValidationDecisionService(
     private async Task<ValidationMutationResult> RecoverAsync(IdempotencyRecord replay, WorkObligation obligation, Guid actorId, CancellationToken token)
     {
         if (replay.ResourceType != ResourceType || replay.ResponseCode != 201) throw new ValidationDecisionException("VALIDACION_INCONSISTENTE");
+        if (replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+            return IdempotencyProtocol.ReadPayload<ValidationMutationResult>(replay) with { Replayed = true };
         var decision = await dbContext.ValidationDecisionVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == replay.ResourceId, token)
             ?? throw new ValidationDecisionException("VALIDACION_INCONSISTENTE");
         if (decision.ValidatorUserId != actorId) throw new ValidationObligationNotFoundException();
