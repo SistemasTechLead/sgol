@@ -46,9 +46,11 @@ public sealed class GenerationRequestConfiguration : IEntityTypeConfiguration<Ge
         builder.Property(request => request.ObligationId).HasColumnName("obligation_id");
         builder.Property(request => request.ErrorCode).HasColumnName("error_code").HasMaxLength(64);
 
-        builder.HasIndex(request => request.IdempotencyKey)
+        builder.HasIndex(request => new { request.RequestedBy, request.IdempotencyKey })
             .IsUnique()
+            .AreNullsDistinct(false)
             .HasDatabaseName(IdempotencyIndex);
+        builder.HasIndex(request => request.RequestedBy);
         builder.HasIndex(request => new
         {
             request.RuleVersionId,

@@ -4,7 +4,32 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-033`
+## Propuesta actual en rama — `HU-034`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-034` — SGOL recupera mutaciones repetidas y registra conflictos |
+| Estado | Propuesta implementada en `codex/hu-034`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Contrato | `F07_ADENDA_30_CONTRATO_DE_IDEMPOTENCIA_INTEGRAL_Y_CONFLICTOS_HU_034.md` y corrección `F07_ADENDA_31_CORRECCION_DE_UNICIDAD_DE_CLAVE_DE_GENERACION_HU_034.md`, aprobadas íntegramente por el responsable el 2026-09-12 antes de continuar la implementación |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `HU-033`: PR `#52`, commit `3d38d5efb4df0a98b0e482bb806b7a76ea39509c`, pipeline requerido `SUCCESS` run `34705323809`, aprobación humana, merge `17af655729f1595ede510d13a06911f9ec3aed62`, PostgreSQL externo `214/214`, `origin/master` verificado exactamente y ascendencia confirmada |
+| Inventario | 29 mutaciones HTTP y tres productores técnicos cerrados por operación estable; no incorpora jobs, outbox, lecturas ni mutaciones naturalmente convergentes al protocolo HTTP |
+| Cabecera y canonicalización | Validador único de una sola `Idempotency-Key` UUID canónica; scope `idem:v1`, canonicalización `IDEM-CANON-1`, SHA-256 y `If-Match` incluido cuando corresponde |
+| Replay | Snapshot minimizado v1 con status, payload semántico, ETag y Location originales; autorización precede al lookup, replay precede a guardas mutables y filas históricas usan sólo su adaptador explícito |
+| Conflicto | Reutilización autorizada de scope y clave con otro hash devuelve el conflicto aprobado y persiste `IDEMPOTENCY_CONFLICT_REJECTED` append-only con tres campos exactos; una falla de esa auditoría produce `500 IDEMPOTENCY_CONFLICT_AUDIT_FAILED` |
+| Persistencia | Migración aditiva de cuatro columnas nullable en `idempotency_record`; PK conservada, sin backfill ni purga; tombstone permanente salvo horizonte de 24 horas de intención de carga; índice de generación corregido a `(requested_by,idempotency_key) UNIQUE NULLS NOT DISTINCT` |
+| Concurrencia | PostgreSQL decide el ganador; reintentos existentes quedan limitados a tres con backoff acotado y jitter, y sólo reinterpretan SQLSTATE o restricciones expresamente reconocidos |
+| Observabilidad | Métricas por operación, outcome, clase SQLSTATE o protocolo, sin clave, actor, recurso, hash, ETag, payload ni otros labels de alta cardinalidad |
+| UI y continuidad | No aplican: sin interfaz, endpoint de conflictos, recuperación administrativa, restauración, compensación, reconciliación ni adelantos de `HU-035` |
+| Pruebas locales | Suite unitaria `548/548`, incluida la matriz transversal del protocolo `12/12`; arquitectura `39/39`, incluidos los controles HU-034 `3/3`; contratos CV sin Docker `34/34`; el proyecto PostgreSQL compila y descubre pruebas sin ejecutarlas |
+| Gates locales | Restore locked `20/20`; build Release `20/20`, cero errores y advertencias, más recompilación enfocada Web `11/11` tras corregir el snapshot; formato limpio tras corregir cuatro diferencias de whitespace; cero vulnerabilidades NuGet conocidas en `19/19` proyectos; espejo `29/29`, protección de `Fuentes/` y rutas de diseño aprobadas; migración sin BOM, `Down()` bloqueado, modelo EF sin cambios pendientes y `git diff --check` limpio |
+| PostgreSQL externo | Primer intento: `0/215` por `PendingModelChangesWarning`, corregido conservando explícitamente el índice simple existente de `requested_by`. Segundo intento: `208/215`, cero advertencias; permitió corregir siete defectos o expectativas HU-034 sobre conjunto sin orden, tombstones de rechazo, marcador `RECUPERADA`, claves de empleo e inventario de migraciones. Tercer intento: `213/215`, cero advertencias; los dos fallos restantes eran expectativas históricas de conflicto al reutilizar una clave en otro recurso y se corrigieron para probar el aislamiento contractual por recurso. Cuarto intento: `214/215`, cero advertencias; reveló una colisión interna del fixture al reutilizar `TAR-0007` después de convertirla en recurso independiente y se aisló la prueba de rollback con `TAR-0008`. Quinto intento: `214/215`, cero advertencias; la prueba laboral concurrente reveló que el ETag se derivaba de un snapshot transitorio con dos sucesores posibles, y se corrigió para usar directamente el `RowVersion` del sucesor de la operación. Ejecución enfocada posterior aportada por el desarrollador: `ConcurrentEmploymentChanges_PersistExactlyOneSuccessor` `1/1`, cero advertencias. Suite consolidada final aportada por el desarrollador: `215/215`, cero advertencias, `550.4 s` |
+| Cierre | Gates técnicos locales y PostgreSQL externo satisfactorios, sin defectos bloqueantes conocidos. Requiere revisión humana, autorización y creación del commit exacto, pipeline requerido verde, aprobación humana del PR, merge y ascendencia verificada en `origin/master` |
+| Siguiente tarea | Ninguna habilitada desde esta rama |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
+
+## Base aceptada — `HU-033`
 
 | Campo | Valor |
 |---|---|

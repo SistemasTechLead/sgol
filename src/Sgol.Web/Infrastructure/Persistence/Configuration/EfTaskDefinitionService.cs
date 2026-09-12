@@ -10,6 +10,7 @@ using Sgol.Configuration.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Configuration;
 
@@ -105,9 +106,15 @@ public sealed class EfTaskDefinitionService(
         await EnsureAuthorizedAsync(command.ActorUserId, command.CorrelationId, cancellationToken);
         var seed = TaskDefinitionCatalog.Require(command.TaskCode);
         using var payload = TaskDefinitionCatalog.ValidatePayload(command.SchemaVersion, command.TaskPayload);
-        var scope = $"TASK_DEFINITION_VERSION_CREATE:{command.ActorUserId:D}:{command.TaskCode}:{command.ReleaseId:D}";
-        var requestHash = Hash(command.ReleaseId.ToString("D"), command.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        var replay = await FindVersionReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken);
+        const string operation = "TASK_DEFINITION_VERSION_CREATE";
+        var resource = $"{command.TaskCode}:{command.ReleaseId:D}";
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource,
+            new { command.ReleaseId, command.SchemaVersion, taskPayload = payload.RootElement });
+        var legacyScope = $"TASK_DEFINITION_VERSION_CREATE:{command.ActorUserId:D}:{command.TaskCode}:{command.ReleaseId:D}";
+        var legacyRequestHash = Hash(command.ReleaseId.ToString("D"), command.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var replay = await FindVersionReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+            command.ActorUserId, command.CorrelationId, operation, cancellationToken);
         if (replay is not null)
         {
             return replay;
@@ -148,7 +155,9 @@ public sealed class EfTaskDefinitionService(
                         command.IdempotencyKey,
                         requestHash,
                         created.Id,
-                        StatusCodes.Status201Created));
+                        StatusCodes.Status201Created,
+                        ToVersionDetails(created),
+                        $"/api/v1/task-definitions/{command.TaskCode}/versions/{created.Id:D}"));
                     return NewAuditEvent(
                         command.ActorUserId,
                         command.CorrelationId,
@@ -162,7 +171,8 @@ public sealed class EfTaskDefinitionService(
         catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            return await FindVersionReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken)
+            return await FindVersionReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+                command.ActorUserId, command.CorrelationId, operation, cancellationToken)
                 ?? throw new TaskDefinitionIdempotencyConflictException();
         }
         catch (DbUpdateException exception) when (GetConstraintName(exception) is VersionNumberIndex or ReleaseDefinitionIndex)
@@ -199,9 +209,13 @@ public sealed class EfTaskDefinitionService(
             return await RequirePublicationReplayAsync(
                 command.ActorUserId,
                 command.IdempotencyKey,
+                command.CorrelationId,
+                command.TaskCode,
                 draft,
                 command.EffectiveFrom,
                 command.Reason,
+                "TASK_DEFINITION_VERSION_PUBLISH",
+                command.ExpectedRowVersion,
                 cancellationToken);
         }
 
@@ -241,9 +255,13 @@ public sealed class EfTaskDefinitionService(
             return await RequirePublicationReplayAsync(
                 command.ActorUserId,
                 command.IdempotencyKey,
+                command.CorrelationId,
+                command.TaskCode,
                 existing,
                 command.EffectiveFrom,
                 command.Reason,
+                "TASK_DEFINITION_DEACTIVATE_NEW",
+                command.ExpectedRowVersion,
                 cancellationToken);
         }
 
@@ -276,20 +294,53 @@ public sealed class EfTaskDefinitionService(
     private async Task<TaskDefinitionVersionDetails> RequirePublicationReplayAsync(
         Guid actorUserId,
         Guid idempotencyKey,
+        Guid correlationId,
+        string taskCode,
         TaskDefinitionVersion version,
         DateTimeOffset effectiveFrom,
         string reason,
+        string operation,
+        long expectedRowVersion,
         CancellationToken cancellationToken)
     {
-        var scope = $"CONFIGURATION_RELEASE_PUBLISH:{actorUserId:D}:{version.ReleaseId:D}";
         var normalizedReason = VersioningRules.NormalizeRequiredReason(reason);
+        var resource = operation == "TASK_DEFINITION_VERSION_PUBLISH"
+            ? $"{taskCode}:{version.Id:D}"
+            : $"{taskCode}:{version.ReleaseId:D}";
+        var scope = IdempotencyProtocol.Scope(actorUserId.ToString("D"), operation, resource);
+        var legacyScope = $"CONFIGURATION_RELEASE_PUBLISH:{actorUserId:D}:{version.ReleaseId:D}";
+        var body = new
+        {
+            TaskCode = taskCode,
+            VersionId = operation == "TASK_DEFINITION_VERSION_PUBLISH" ? version.Id : (Guid?)null,
+            ReleaseId = version.ReleaseId,
+            EffectiveFrom = effectiveFrom,
+            reason = normalizedReason,
+            ActiveForNew = operation == "TASK_DEFINITION_VERSION_PUBLISH",
+            CreateDraft = operation == "TASK_DEFINITION_DEACTIVATE_NEW",
+        };
+        var hash = IdempotencyProtocol.HashCanonical(
+            operation, actorUserId.ToString("D"), resource, body, expectedRowVersion);
         var replay = await dbContext.IdempotencyRecords.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == idempotencyKey, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == idempotencyKey, cancellationToken)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == legacyScope && item.Key == idempotencyKey, cancellationToken);
         if (replay is null || replay.ResourceId != version.ReleaseId ||
             version.EffectiveFrom != effectiveFrom ||
-            !string.Equals(version.Reason, normalizedReason, StringComparison.Ordinal))
+            !string.Equals(version.Reason, normalizedReason, StringComparison.Ordinal) ||
+            replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion && replay.RequestHash != hash)
         {
+            if (replay is not null)
+            {
+                await AuditConflictAsync(
+                    actorUserId, correlationId, idempotencyKey, operation, version.Id, cancellationToken);
+            }
             throw new TaskDefinitionIdempotencyConflictException();
+        }
+
+        if (replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+        {
+            return IdempotencyProtocol.ReadPayload<TaskDefinitionVersionDetails>(replay);
         }
 
         var result = ToVersionDetails(version);
@@ -323,26 +374,54 @@ public sealed class EfTaskDefinitionService(
 
     private async Task<TaskDefinitionVersionDetails?> FindVersionReplayAsync(
         string scope,
+        string legacyScope,
         Guid key,
         string requestHash,
+        string legacyRequestHash,
+        Guid actorUserId,
+        Guid correlationId,
+        string operation,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == legacyScope && item.Key == key, cancellationToken);
         if (record is null)
         {
             return null;
         }
 
-        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+            ? requestHash
+            : legacyRequestHash;
+        if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
         {
+            await AuditConflictAsync(actorUserId, correlationId, key, operation, record.ResourceId, cancellationToken);
             throw new TaskDefinitionIdempotencyConflictException();
+        }
+
+        if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+        {
+            return IdempotencyProtocol.ReadPayload<TaskDefinitionVersionDetails>(record);
         }
 
         var version = await dbContext.TaskDefinitionVersions.AsNoTracking()
             .SingleAsync(item => item.Id == record.ResourceId, cancellationToken);
         return ToVersionDetails(version);
     }
+
+    private Task AuditConflictAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid key,
+        string operation,
+        Guid resourceId,
+        CancellationToken token) => IdempotencyProtocol.PersistConflictAsync(
+            auditTransaction,
+            IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(), clock.UtcNow, actorUserId, "TASK_DEFINITION_VERSION", resourceId,
+                BranchScope.LorettaId, correlationId, key, operation), token);
 
     private async Task EnsureAuthorizedAsync(Guid actorUserId, Guid correlationId, CancellationToken cancellationToken)
     {
@@ -377,18 +456,20 @@ public sealed class EfTaskDefinitionService(
         Guid key,
         string requestHash,
         Guid resourceId,
-        int responseCode) => new()
-        {
-            Scope = scope,
-            Key = key,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = "TASK_DEFINITION_VERSION",
-            ResourceId = resourceId,
-            ResponseCode = responseCode,
-            CreatedAt = clock.UtcNow,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        };
+        int responseCode,
+        TaskDefinitionVersionDetails response,
+        string? responseLocation) => IdempotencyProtocol.Completed(
+            scope,
+            key,
+            requestHash,
+            "TASK_DEFINITION_VERSION",
+            resourceId,
+            responseCode,
+            response,
+            clock.UtcNow,
+            DateTimeOffset.MaxValue,
+            responseEtag: $"\"{response.RowVersion}\"",
+            responseLocation: responseLocation);
 
     private AuditEvent NewAuditEvent(
         Guid actorUserId,
@@ -460,7 +541,7 @@ public sealed class EfTaskDefinitionService(
             ordered.Select(ToVersionDetails).ToArray());
     }
 
-    private static TaskDefinitionVersionDetails ToVersionDetails(TaskDefinitionVersion version) => new(
+    internal static TaskDefinitionVersionDetails ToVersionDetails(TaskDefinitionVersion version) => new(
         version.Id,
         version.VersionNo,
         version.Status,

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Sgol.Generation.Contracts;
 
 public static class GenerationRequestAuthorization
@@ -192,7 +194,8 @@ public sealed record GenerationRequestDetails(
     Guid? RequestedBy,
     DateTimeOffset RequestedAt,
     Guid? ObligationId,
-    string? ErrorCode);
+    string? ErrorCode,
+    [property: JsonIgnore] int ResponseCode = 201);
 
 public interface IGenerationRequestService
 {
@@ -217,6 +220,8 @@ public sealed class GenerationRequestTaskInactiveException() : Exception("The ta
 public sealed class GenerationRequestPeriodNotFoundException() : Exception("The requested period does not exist in LOR-001.");
 public sealed class GenerationRequestOriginInvalidException() : Exception("The origin does not satisfy the current originKeySchema.");
 public sealed class GenerationRequestIdempotencyConflictException() : Exception("The idempotency key was already used with different content.");
+public sealed class GenerationRequestConflictAuditException(Exception innerException)
+    : Exception("The idempotency conflict could not be audited.", innerException);
 public sealed class GenerationRequestValidationException(string message) : Exception(message);
 public sealed class GenerationRequestNotAcceptedException() : Exception("Only an accepted generation request can be materialized.");
 public sealed class GenerationRequestAlreadyMaterializedException() : Exception("The generation request already points to a different obligation.");

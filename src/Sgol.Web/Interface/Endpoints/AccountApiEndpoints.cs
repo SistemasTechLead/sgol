@@ -180,13 +180,15 @@ public static class AccountApiEndpoints
 
     private static bool TryGetIdempotencyKey(HttpContext context, out Guid key, out IResult invalid)
     {
-        if (!Guid.TryParse(context.Request.Headers["Idempotency-Key"], out key))
+        var parsed = IdempotencyKeyHeader.Parse(context.Request);
+        key = parsed.Key;
+        if (!parsed.IsValid)
         {
             invalid = Problem(
                 context,
                 StatusCodes.Status400BadRequest,
-                "IDEMPOTENCY_KEY_INVALIDA",
-                "Idempotency-Key debe ser un UUID");
+                parsed.ErrorCode!,
+                parsed.Detail!);
             return false;
         }
 

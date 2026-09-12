@@ -44,6 +44,7 @@ public sealed class AvailabilityAdministrationTests
     {
         var service = new RecordingAvailabilityService(CreateSnapshot(isAvailable, rowVersion: 1));
         var context = CreateContext();
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
 
         var result = await PersonApiEndpoints.HandlePutAvailabilityAsync(
             PersonId,
@@ -108,6 +109,7 @@ public sealed class AvailabilityAdministrationTests
         var service = new RecordingAvailabilityService(CreateSnapshot(false, rowVersion: 2));
         var context = CreateContext();
         context.Request.Headers.IfMatch = "\"1\"";
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
 
         var result = await PersonApiEndpoints.HandlePutAvailabilityAsync(
             PersonId,

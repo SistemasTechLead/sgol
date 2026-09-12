@@ -32,7 +32,7 @@ public sealed class ObligationConclusionArchitectureTests
 
         Assert.Equal(1, Count(endpoint, "MapPost("));
         Assert.Contains("/api/v1/obligations/{id}/conclusion", endpoint, StringComparison.Ordinal);
-        Assert.Contains("Idempotency-Key", endpoint, StringComparison.Ordinal);
+        Assert.Contains("IdempotencyKeyHeader.Parse", endpoint, StringComparison.Ordinal);
         Assert.Contains("IfMatch", endpoint, StringComparison.Ordinal);
         Assert.Contains("IAntiforgery", endpoint, StringComparison.Ordinal);
         Assert.Contains("IsolationLevel.Serializable", service, StringComparison.Ordinal);

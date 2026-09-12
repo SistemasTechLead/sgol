@@ -1908,10 +1908,6 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BranchId");
 
-                    b.HasIndex("IdempotencyKey")
-                        .IsUnique()
-                        .HasDatabaseName("UX_generation_request_idempotency_key");
-
                     b.HasIndex("ObligationId")
                         .IsUnique()
                         .HasDatabaseName("UX_generation_request_obligation_id")
@@ -1923,6 +1919,12 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ObligationId", "Id")
                         .IsUnique();
+
+                    b.HasIndex("RequestedBy", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_generation_request_idempotency_key");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("RequestedBy", "IdempotencyKey"), false);
 
                     b.HasIndex("RuleVersionId", "BranchId", "PeriodId", "OriginType", "OriginReference")
                         .IsUnique()
@@ -2944,6 +2946,10 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
 
+                    b.Property<short?>("ProtocolVersion")
+                        .HasColumnType("smallint")
+                        .HasColumnName("protocol_version");
+
                     b.Property<string>("RequestHash")
                         .IsRequired()
                         .HasColumnType("character(64)")
@@ -2962,6 +2968,18 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("response_code");
 
+                    b.Property<string>("ResponseEtag")
+                        .HasColumnType("text")
+                        .HasColumnName("response_etag");
+
+                    b.Property<string>("ResponseLocation")
+                        .HasColumnType("text")
+                        .HasColumnName("response_location");
+
+                    b.Property<JsonDocument>("ResponsePayload")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("response_payload");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text")
@@ -2969,7 +2987,12 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Scope", "Key");
 
-                    b.ToTable("idempotency_record", (string)null);
+                    b.ToTable("idempotency_record", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_idempotency_record_protocol", "protocol_version IS NULL OR (protocol_version = 1 AND status = 'COMPLETED' AND response_payload IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_idempotency_record_response_location", "response_location IS NULL OR (response_location LIKE '/api/v1/%' AND response_location !~ '://')");
+                        });
                 });
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Bootstrap.IdentityCredential", b =>

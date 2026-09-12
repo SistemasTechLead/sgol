@@ -12,6 +12,7 @@ using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Generation;
 
@@ -31,13 +32,29 @@ public sealed class EfGenerationRequestService(
     {
         var originType = command.OriginType?.Trim() ?? string.Empty;
         var originReference = command.OriginReference?.Trim() ?? string.Empty;
-        var requestHash = Hash(
+        var legacyRequestHash = Hash(
             command.RuleVersionId.ToString("N"),
             command.BranchId.ToString("N"),
             command.PeriodId.ToString("N"),
             originType,
             originReference);
-        var scope = IdempotencyScopePrefix + command.ActorUserId.ToString("N");
+        var legacyScope = IdempotencyScopePrefix + command.ActorUserId.ToString("N");
+        var actor = command.ActorUserId.ToString("D");
+        const string operation = "GENERATION_REQUEST_CREATE";
+        const string resource = "new:LOR-001";
+        var scope = IdempotencyProtocol.Scope(actor, operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            operation,
+            actor,
+            resource,
+            new
+            {
+                command.RuleVersionId,
+                command.BranchId,
+                command.PeriodId,
+                originType,
+                originReference
+            });
 
         var actorRole = await GenerationAuthorizationQuery.GetCreatorRoleAsync(
             dbContext,
@@ -60,6 +77,8 @@ public sealed class EfGenerationRequestService(
             command.CorrelationId,
             command.IdempotencyKey,
             requestHash,
+            legacyScope,
+            legacyRequestHash,
             cancellationToken);
         if (replay is not null)
         {
@@ -114,12 +133,16 @@ public sealed class EfGenerationRequestService(
                         semanticResult = GenerationRequestResults.Recovered;
                     }
 
+                    var responseCode = semanticResult == GenerationRequestResults.Accepted
+                        ? StatusCodes.Status201Created
+                        : StatusCodes.Status200OK;
                     dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
                         scope,
                         command.IdempotencyKey,
                         requestHash,
                         selectedRequest.Id,
-                        request.RequestedAt));
+                        request.RequestedAt,
+                        ToDetails(selectedRequest, semanticResult, responseCode)));
                     return NewAuditEvent(
                         command.ActorUserId,
                         command.CorrelationId,
@@ -147,6 +170,8 @@ public sealed class EfGenerationRequestService(
                 command.CorrelationId,
                 command.IdempotencyKey,
                 requestHash,
+                legacyScope,
+                legacyRequestHash,
                 cancellationToken);
             if (concurrentReplay is not null)
             {
@@ -154,14 +179,17 @@ public sealed class EfGenerationRequestService(
             }
 
             var keyOwner = await dbContext.GenerationRequests.AsNoTracking()
-                .SingleOrDefaultAsync(item => item.IdempotencyKey == command.IdempotencyKey, cancellationToken);
+                .SingleOrDefaultAsync(
+                    item => item.RequestedBy == command.ActorUserId
+                        && item.IdempotencyKey == command.IdempotencyKey,
+                    cancellationToken);
             if (keyOwner is not null)
             {
                 await AuditConflictAsync(
                     command.ActorUserId,
                     command.CorrelationId,
                     keyOwner.Id,
-                    requestHash,
+                    command.IdempotencyKey,
                     cancellationToken);
                 throw new GenerationRequestIdempotencyConflictException();
             }
@@ -191,7 +219,12 @@ public sealed class EfGenerationRequestService(
             throw;
         }
 
-        var result = ToDetails(selectedRequest, semanticResult);
+        var result = ToDetails(
+            selectedRequest,
+            semanticResult,
+            semanticResult == GenerationRequestResults.Accepted
+                ? StatusCodes.Status201Created
+                : StatusCodes.Status200OK);
         dbContext.ChangeTracker.Clear();
         return result;
     }
@@ -301,24 +334,43 @@ public sealed class EfGenerationRequestService(
         Guid correlationId,
         Guid key,
         string requestHash,
+        string legacyScope,
+        string legacyRequestHash,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken);
         if (record is null)
         {
+            record = await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == legacyScope && item.Key == key, cancellationToken);
+        }
+        if (record is null)
+        {
             return null;
         }
 
-        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+            ? requestHash
+            : legacyRequestHash;
+        if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
         {
-            await AuditConflictAsync(actorUserId, correlationId, record.ResourceId, requestHash, cancellationToken);
+            await AuditConflictAsync(actorUserId, correlationId, record.ResourceId, key, cancellationToken);
             throw new GenerationRequestIdempotencyConflictException();
+        }
+
+        if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+        {
+            return IdempotencyProtocol.ReadPayload<GenerationRequestDetails>(record) with
+            {
+                Result = GenerationRequestResults.Recovered,
+                ResponseCode = record.ResponseCode
+            };
         }
 
         var request = await dbContext.GenerationRequests.AsNoTracking()
             .SingleAsync(item => item.Id == record.ResourceId, cancellationToken);
-        return ToDetails(request, GenerationRequestResults.Recovered);
+        return ToDetails(request, GenerationRequestResults.Recovered, StatusCodes.Status200OK);
     }
 
     private Task<GenerationRequest?> FindFunctionalRequestAsync(
@@ -353,7 +405,8 @@ public sealed class EfGenerationRequestService(
                         command.IdempotencyKey,
                         requestHash,
                         request.Id,
-                        clock.UtcNow));
+                        clock.UtcNow,
+                        ToDetails(request, GenerationRequestResults.Recovered, StatusCodes.Status200OK)));
                     return Task.FromResult(NewAuditEvent(
                         command.ActorUserId,
                         command.CorrelationId,
@@ -373,6 +426,13 @@ public sealed class EfGenerationRequestService(
                 command.CorrelationId,
                 command.IdempotencyKey,
                 requestHash,
+                IdempotencyScopePrefix + command.ActorUserId.ToString("N"),
+                Hash(
+                    command.RuleVersionId.ToString("N"),
+                    command.BranchId.ToString("N"),
+                    command.PeriodId.ToString("N"),
+                    command.OriginType.Trim(),
+                    command.OriginReference.Trim()),
                 cancellationToken);
             if (replay is not null)
             {
@@ -407,20 +467,41 @@ public sealed class EfGenerationRequestService(
         Guid actorUserId,
         Guid correlationId,
         Guid resourceId,
-        string requestHash,
+        Guid idempotencyKey,
         CancellationToken cancellationToken)
     {
-        await auditTransaction.ExecuteAsync(
-            NewAuditEvent(
-                actorUserId,
-                correlationId,
-                resourceId,
-                "GENERATION_REQUEST_IDEMPOTENCY_CONFLICT",
-                JsonSerializer.SerializeToDocument(new { schemaVersion = 1, requestHash }),
-                "CONFLICT"),
-            _ => Task.CompletedTask,
-            cancellationToken);
-        dbContext.ChangeTracker.Clear();
+        try
+        {
+            await auditTransaction.ExecuteAsync(
+                new AuditEvent
+                {
+                    Id = uuidGenerator.NewUuid(),
+                    OccurredAt = clock.UtcNow,
+                    ActorUserId = actorUserId,
+                    ActorType = "USER",
+                    Action = "IDEMPOTENCY_CONFLICT_REJECTED",
+                    ResourceType = "GENERATION_REQUEST",
+                    ResourceId = resourceId,
+                    BranchId = BranchScope.LorettaId,
+                    CorrelationId = correlationId,
+                    RequestId = idempotencyKey.ToString("D"),
+                    AfterData = JsonSerializer.SerializeToDocument(new
+                    {
+                        operation = "GENERATION_REQUEST_CREATE",
+                        protocolVersion = IdempotencyProtocol.CurrentVersion,
+                        reasonCode = "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_CONTENT"
+                    }),
+                    Outcome = "REJECTED"
+                },
+                _ => Task.CompletedTask,
+                cancellationToken);
+            dbContext.ChangeTracker.Clear();
+        }
+        catch (Exception exception)
+        {
+            dbContext.ChangeTracker.Clear();
+            throw new GenerationRequestConflictAuditException(exception);
+        }
     }
 
     private static IdempotencyRecord NewIdempotencyRecord(
@@ -428,18 +509,18 @@ public sealed class EfGenerationRequestService(
         Guid key,
         string requestHash,
         Guid resourceId,
-        DateTimeOffset createdAt) => new()
-        {
-            Scope = scope,
-            Key = key,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = "GENERATION_REQUEST",
-            ResourceId = resourceId,
-            ResponseCode = StatusCodes.Status201Created,
-            CreatedAt = createdAt,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        };
+        DateTimeOffset createdAt,
+        GenerationRequestDetails response) => IdempotencyProtocol.Completed(
+            scope,
+            key,
+            requestHash,
+            "GENERATION_REQUEST",
+            resourceId,
+            response.ResponseCode,
+            response,
+            createdAt,
+            DateTimeOffset.MaxValue,
+            responseLocation: $"/api/v1/generation-requests/{resourceId:D}");
 
     private AuditEvent NewAuditEvent(
         Guid actorUserId,
@@ -479,7 +560,10 @@ public sealed class EfGenerationRequestService(
             request.ErrorCode,
         });
 
-    private static GenerationRequestDetails ToDetails(GenerationRequest request, string result) => new(
+    private static GenerationRequestDetails ToDetails(
+        GenerationRequest request,
+        string result,
+        int responseCode = StatusCodes.Status200OK) => new(
         request.Id,
         request.RuleVersionId,
         request.BranchId,
@@ -490,7 +574,8 @@ public sealed class EfGenerationRequestService(
         request.RequestedBy,
         request.RequestedAt,
         request.ObligationId,
-        request.ErrorCode);
+        request.ErrorCode,
+        responseCode);
 
     private static bool IsUniquenessConflict(DbUpdateException exception) =>
         (exception.InnerException as PostgresException)?.ConstraintName is

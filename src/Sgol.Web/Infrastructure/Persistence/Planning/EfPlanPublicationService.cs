@@ -14,6 +14,7 @@ using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
@@ -41,8 +42,17 @@ public sealed class EfPlanPublicationService(
             throw new ArgumentException("The plan-publication command is invalid.", nameof(command));
         }
 
-        var scope = Scope(command.ActorUserId, command.PlanId);
-        var requestHash = Hash(command);
+        const string operation = "PLAN_PUBLICATION_CREATE";
+        var resource = command.PlanId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            operation,
+            command.ActorUserId.ToString("D"),
+            resource,
+            new { command.PlanId },
+            command.ExpectedRowVersion);
+        var legacyScope = LegacyScope(command.ActorUserId, command.PlanId);
+        var legacyRequestHash = LegacyHash(command);
 
         for (var attempt = 1; attempt <= MaximumAttempts; attempt++)
         {
@@ -54,36 +64,44 @@ public sealed class EfPlanPublicationService(
                     IsolationLevel.ReadCommitted,
                     async token =>
                     {
-                        var replay = await dbContext.IdempotencyRecords
-                            .FromSqlInterpolated($"SELECT * FROM idempotency_record WHERE scope = {scope} AND key = {command.IdempotencyKey} FOR UPDATE")
-                            .AsNoTracking()
-                            .SingleOrDefaultAsync(token);
-
                         var actor = await LockActorAsync(command.ActorUserId, token);
                         var publishedAt = clock.UtcNow;
                         var actorRole = AuthorizedRole(actor, publishedAt);
                         if (actorRole is null)
                         {
                             rejection = new PlanPublicationAccessDeniedException();
-                            AddRejectionIdempotency(replay, scope, command, requestHash, rejection, publishedAt, false);
                             return RejectedAudit(command, null, null, rejection.ErrorCode, publishedAt);
                         }
 
+                        var replay = await LockIdempotencyAsync(
+                            scope, legacyScope, command.IdempotencyKey, token);
+
                         if (replay is not null)
                         {
-                            if (!string.Equals(replay.RequestHash, requestHash, StringComparison.Ordinal))
+                            var expectedHash = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                ? requestHash
+                                : legacyRequestHash;
+                            if (!string.Equals(replay.RequestHash, expectedHash, StringComparison.Ordinal))
                             {
                                 rejection = new PlanPublicationIdempotencyConflictException();
-                                return RejectedAudit(command, null, actorRole, rejection.ErrorCode, publishedAt);
+                                return IdempotencyConflictAudit(command, actorRole, publishedAt);
                             }
 
                             if (replay.ResponseCode is >= 200 and < 300 && replay.ResourceType == PublicationResource)
                             {
-                                result = await LoadReplayAsync(command, replay.ResourceId, actorRole, token);
+                                result = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                    ? IdempotencyProtocol.ReadPayload<PlanPublicationResult>(replay)
+                                        with
+                                    { Result = PlanPublicationResults.Recovered }
+                                    : await LoadReplayAsync(command, replay.ResourceId, actorRole, token);
                                 return RecoveredAudit(command, result, publishedAt);
                             }
 
-                            rejection = await ReplayRejectionAsync(command, replay, token);
+                            rejection = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                ? ExceptionFor(
+                                    IdempotencyProtocol.ReadPayload<RejectionSnapshot>(replay).ErrorCode,
+                                    replay.ResponseCode)
+                                : await ReplayRejectionAsync(command, replay, token);
                             return RejectedAudit(command, null, actorRole, rejection.ErrorCode, publishedAt);
                         }
 
@@ -94,7 +112,6 @@ public sealed class EfPlanPublicationService(
                         if (branch is null || branch.Code != BranchScope.LorettaCode || branch.Status != BranchScope.ActiveStatus)
                         {
                             rejection = new PlanPublicationConflictException();
-                            AddRejectionIdempotency(null, scope, command, requestHash, rejection, publishedAt, false);
                             return RejectedAudit(command, null, actorRole, rejection.ErrorCode, publishedAt);
                         }
 
@@ -105,21 +122,18 @@ public sealed class EfPlanPublicationService(
                         if (plan is null || plan.BranchId != BranchScope.LorettaId)
                         {
                             rejection = new PlanPublicationNotFoundException();
-                            AddRejectionIdempotency(null, scope, command, requestHash, rejection, publishedAt, false);
                             return RejectedAudit(command, null, actorRole, rejection.ErrorCode, publishedAt);
                         }
 
                         if (plan.Status is not WorkPlanStatuses.Draft and not WorkPlanStatuses.Published)
                         {
                             rejection = new PlanPublicationStateConflictException();
-                            AddRejectionIdempotency(null, scope, command, requestHash, rejection, publishedAt, true);
                             return RejectedAudit(command, plan.Id, actorRole, rejection.ErrorCode, publishedAt);
                         }
 
                         if (plan.RowVersion != command.ExpectedRowVersion)
                         {
                             rejection = new PlanPublicationVersionConflictException();
-                            AddRejectionIdempotency(null, scope, command, requestHash, rejection, publishedAt, true);
                             return RejectedAudit(command, plan.Id, actorRole, rejection.ErrorCode, publishedAt);
                         }
 
@@ -143,7 +157,6 @@ public sealed class EfPlanPublicationService(
                         catch (PlanPublicationException exception)
                         {
                             rejection = exception;
-                            AddRejectionIdempotency(null, scope, command, requestHash, rejection, publishedAt, true);
                             return RejectedAudit(command, plan.Id, actorRole, rejection.ErrorCode, publishedAt);
                         }
 
@@ -152,7 +165,6 @@ public sealed class EfPlanPublicationService(
                             rejection = current is null
                                 ? new PlanPublicationEmptyException()
                                 : new PlanPublicationNoChangesException();
-                            AddRejectionIdempotency(null, scope, command, requestHash, rejection, publishedAt, true);
                             return RejectedAudit(command, plan.Id, actorRole, rejection.ErrorCode, publishedAt);
                         }
 
@@ -190,7 +202,7 @@ public sealed class EfPlanPublicationService(
                             publication,
                             snapshot,
                             added);
-                        AddSuccessIdempotency(scope, command, requestHash, publication.Id, publishedAt);
+                        AddSuccessIdempotency(scope, command, requestHash, publication.Id, result, publishedAt);
                         return PublishedAudit(
                             command,
                             result,
@@ -209,6 +221,12 @@ public sealed class EfPlanPublicationService(
 
                 return result ?? throw new InvalidOperationException("The publication transaction produced no result.");
             }
+            catch (Exception exception) when (rejection is PlanPublicationIdempotencyConflictException &&
+                exception is not PlanPublicationIdempotencyConflictException)
+            {
+                dbContext.ChangeTracker.Clear();
+                throw new IdempotencyConflictAuditException(exception);
+            }
             catch (PlanPublicationException)
             {
                 dbContext.ChangeTracker.Clear();
@@ -217,6 +235,8 @@ public sealed class EfPlanPublicationService(
             catch (Exception exception) when (IsRetryable(exception) && attempt < MaximumAttempts)
             {
                 dbContext.ChangeTracker.Clear();
+                await IdempotencyProtocol.DelayBeforeRetryAsync(
+                    "PLAN_PUBLICATION_CREATE", exception, attempt, cancellationToken);
             }
             catch (Exception exception) when (IsRetryable(exception))
             {
@@ -324,6 +344,22 @@ public sealed class EfPlanPublicationService(
             .FromSqlInterpolated($"SELECT * FROM role_assignment_version WHERE user_id = {user.Id} AND branch_id = {BranchScope.LorettaId} AND valid_to IS NULL FOR UPDATE")
             .AsNoTracking().ToListAsync(token);
         return new ActorState(user, employments, roles);
+    }
+
+    private async Task<IdempotencyRecord?> LockIdempotencyAsync(
+        string scope,
+        string legacyScope,
+        Guid key,
+        CancellationToken token)
+    {
+        var record = await dbContext.IdempotencyRecords
+            .FromSqlInterpolated($"SELECT * FROM idempotency_record WHERE scope = {scope} AND key = {key} FOR UPDATE")
+            .AsNoTracking()
+            .SingleOrDefaultAsync(token);
+        return record ?? await dbContext.IdempotencyRecords
+            .FromSqlInterpolated($"SELECT * FROM idempotency_record WHERE scope = {legacyScope} AND key = {key} FOR UPDATE")
+            .AsNoTracking()
+            .SingleOrDefaultAsync(token);
     }
 
     private async Task<ActorState> LockResponsibleAsync(Guid personId, CancellationToken token)
@@ -487,31 +523,11 @@ public sealed class EfPlanPublicationService(
         PublishWorkPlanCommand command,
         string requestHash,
         Guid publicationId,
+        PlanPublicationResult response,
         DateTimeOffset at) =>
         dbContext.IdempotencyRecords.Add(NewIdempotency(
-            scope, command, requestHash, PublicationResource, publicationId, 201, at));
-
-    private void AddRejectionIdempotency(
-        IdempotencyRecord? replay,
-        string scope,
-        PublishWorkPlanCommand command,
-        string requestHash,
-        PlanPublicationException exception,
-        DateTimeOffset at,
-        bool planResolved)
-    {
-        if (replay is null)
-        {
-            dbContext.IdempotencyRecords.Add(NewIdempotency(
-                scope,
-                command,
-                requestHash,
-                planResolved ? PlanResource : BranchResource,
-                planResolved ? command.PlanId : BranchScope.LorettaId,
-                exception.ResponseCode,
-                at));
-        }
-    }
+            scope, command, requestHash, PublicationResource, publicationId, 201, response, at,
+            $"/api/v1/plans/{command.PlanId:D}/publications"));
 
     private static IdempotencyRecord NewIdempotency(
         string scope,
@@ -520,18 +536,19 @@ public sealed class EfPlanPublicationService(
         string resourceType,
         Guid resourceId,
         int responseCode,
-        DateTimeOffset at) => new()
-        {
-            Scope = scope,
-            Key = command.IdempotencyKey,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = resourceType,
-            ResourceId = resourceId,
-            ResponseCode = responseCode,
-            CreatedAt = at,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        };
+        object responsePayload,
+        DateTimeOffset at,
+        string? responseLocation = null) => IdempotencyProtocol.Completed(
+            scope,
+            command.IdempotencyKey,
+            requestHash,
+            resourceType,
+            resourceId,
+            responseCode,
+            responsePayload,
+            at,
+            DateTimeOffset.MaxValue,
+            responseLocation: responseLocation);
 
     private AuditEvent PublishedAudit(
         PublishWorkPlanCommand command,
@@ -606,6 +623,13 @@ public sealed class EfPlanPublicationService(
             null,
             RejectionData(command, planId, scopeRole, errorCode),
             at);
+
+    private AuditEvent IdempotencyConflictAudit(
+        PublishWorkPlanCommand command,
+        string? scopeRole,
+        DateTimeOffset at) => IdempotencyProtocol.ConflictAudit(
+            uuidGenerator.NewUuid(), at, command.ActorUserId, PlanResource, command.PlanId,
+            BranchScope.LorettaId, command.CorrelationId, command.IdempotencyKey, "PLAN_PUBLICATION_CREATE");
 
     private static JsonDocument RejectionData(
         PublishWorkPlanCommand command,
@@ -719,10 +743,10 @@ public sealed class EfPlanPublicationService(
         _ => new PlanPublicationConflictException(),
     };
 
-    private static string Scope(Guid actorUserId, Guid planId) =>
+    private static string LegacyScope(Guid actorUserId, Guid planId) =>
         $"{ScopePrefix}:{actorUserId:D}:{planId:D}";
 
-    private static string Hash(PublishWorkPlanCommand command)
+    private static string LegacyHash(PublishWorkPlanCommand command)
     {
         var canonical = string.Join('\n',
             "WORK_PLAN_PUBLICATION",
@@ -731,6 +755,8 @@ public sealed class EfPlanPublicationService(
             "{}");
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
+
+    private sealed record RejectionSnapshot(string ErrorCode);
 
     private static bool IsRetryable(Exception exception)
     {

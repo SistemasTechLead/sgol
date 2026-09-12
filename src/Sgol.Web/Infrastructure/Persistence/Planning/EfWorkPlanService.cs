@@ -12,6 +12,7 @@ using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
@@ -38,8 +39,16 @@ public sealed class EfWorkPlanService(
             throw new ArgumentException("The work-plan command is invalid.", nameof(command));
         }
 
-        var scope = Scope(command.ActorUserId, command.BranchId);
-        var requestHash = Hash(command);
+        var resource = Resource(command);
+        var scope = IdempotencyProtocol.Scope(
+            command.ActorUserId.ToString("D"), "WORK_PLAN_ENSURE", resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            "WORK_PLAN_ENSURE",
+            command.ActorUserId.ToString("D"),
+            resource,
+            new { command.BranchId, command.IsoYear, command.IsoWeek });
+        var legacyScope = LegacyScope(command.ActorUserId, command.BranchId);
+        var legacyRequestHash = LegacyHash(command);
 
         for (var attempt = 1; attempt <= MaximumAttempts; attempt++)
         {
@@ -61,11 +70,6 @@ public sealed class EfWorkPlanService(
                             throw new WorkPlanConflictException();
                         }
 
-                        var replay = await dbContext.IdempotencyRecords
-                            .FromSqlInterpolated($"SELECT * FROM idempotency_record WHERE scope = {scope} AND key = {command.IdempotencyKey} FOR UPDATE")
-                            .AsTracking()
-                            .SingleOrDefaultAsync(token);
-
                         var actor = await LockActorAsync(command.ActorUserId, token);
                         var ensuredAt = clock.UtcNow;
                         if (!actor.Exists)
@@ -76,26 +80,39 @@ public sealed class EfWorkPlanService(
                         if (!IsAuthorized(actor, ensuredAt))
                         {
                             rejection = new WorkPlanAccessDeniedException();
-                            if (replay is null && actor.Exists)
-                            {
-                                AddRejectionIdempotency(scope, command, requestHash, rejection, ensuredAt);
-                            }
-
                             return RejectedAudit(command, rejection.ErrorCode, ensuredAt);
                         }
 
+                        var replay = await LockIdempotencyAsync(
+                            scope, legacyScope, command.IdempotencyKey, token);
+
                         if (replay is not null)
                         {
-                            if (!string.Equals(replay.RequestHash, requestHash, StringComparison.Ordinal))
+                            var expectedHash = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                ? requestHash
+                                : legacyRequestHash;
+                            if (!string.Equals(replay.RequestHash, expectedHash, StringComparison.Ordinal))
                             {
                                 rejection = new WorkPlanIdempotencyConflictException();
-                                return RejectedAudit(command, rejection.ErrorCode, ensuredAt);
+                                return IdempotencyConflictAudit(command, ensuredAt);
                             }
 
                             if (replay.ResourceType == BranchResource)
                             {
-                                rejection = await ReplayRejectionAsync(command, replay.ResponseCode, token);
+                                rejection = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                    ? ExceptionFor(
+                                        IdempotencyProtocol.ReadPayload<RejectionSnapshot>(replay).ErrorCode,
+                                        replay.ResponseCode)
+                                    : await ReplayRejectionAsync(command, replay.ResponseCode, token);
                                 return RejectedAudit(command, rejection.ErrorCode, ensuredAt);
+                            }
+
+                            if (replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+                            {
+                                result = IdempotencyProtocol.ReadPayload<WorkPlanEnsureResult>(replay)
+                                    with
+                                { Result = WorkPlanResults.Recovered };
+                                return RecoveredAudit(command, result, ensuredAt);
                             }
 
                             var replayedPlan = await LockPlanByIdAsync(replay.ResourceId, token);
@@ -119,7 +136,6 @@ public sealed class EfWorkPlanService(
                         catch (WeekValidationException)
                         {
                             rejection = new WorkPlanIsoWeekInvalidException();
-                            AddRejectionIdempotency(scope, command, requestHash, rejection, ensuredAt);
                             return RejectedAudit(command, rejection.ErrorCode, ensuredAt);
                         }
 
@@ -130,7 +146,6 @@ public sealed class EfWorkPlanService(
                         if (period is null)
                         {
                             rejection = new WorkPlanPeriodNotFoundException();
-                            AddRejectionIdempotency(scope, command, requestHash, rejection, ensuredAt);
                             return RejectedAudit(command, rejection.ErrorCode, ensuredAt);
                         }
 
@@ -139,7 +154,6 @@ public sealed class EfWorkPlanService(
                             period.EndsOn != expectedRange.EndsOn)
                         {
                             rejection = new WorkPlanPeriodIncompatibleException();
-                            AddRejectionIdempotency(scope, command, requestHash, rejection, ensuredAt);
                             return RejectedAudit(command, rejection.ErrorCode, ensuredAt);
                         }
 
@@ -173,6 +187,12 @@ public sealed class EfWorkPlanService(
 
                 return result ?? throw new InvalidOperationException("The work-plan transaction produced no result.");
             }
+            catch (Exception exception) when (rejection is WorkPlanIdempotencyConflictException &&
+                exception is not WorkPlanIdempotencyConflictException)
+            {
+                dbContext.ChangeTracker.Clear();
+                throw new IdempotencyConflictAuditException(exception);
+            }
             catch (WorkPlanException)
             {
                 dbContext.ChangeTracker.Clear();
@@ -181,6 +201,8 @@ public sealed class EfWorkPlanService(
             catch (Exception exception) when (IsRetryable(exception) && attempt < MaximumAttempts)
             {
                 dbContext.ChangeTracker.Clear();
+                await IdempotencyProtocol.DelayBeforeRetryAsync(
+                    "WORK_PLAN_ENSURE", exception, attempt, cancellationToken);
             }
             catch (Exception exception) when (IsRetryable(exception))
             {
@@ -243,6 +265,22 @@ public sealed class EfWorkPlanService(
             .AsTracking()
             .SingleOrDefaultAsync(token);
 
+    private async Task<IdempotencyRecord?> LockIdempotencyAsync(
+        string scope,
+        string legacyScope,
+        Guid key,
+        CancellationToken token)
+    {
+        var record = await dbContext.IdempotencyRecords
+            .FromSqlInterpolated($"SELECT * FROM idempotency_record WHERE scope = {scope} AND key = {key} FOR UPDATE")
+            .AsTracking()
+            .SingleOrDefaultAsync(token);
+        return record ?? await dbContext.IdempotencyRecords
+            .FromSqlInterpolated($"SELECT * FROM idempotency_record WHERE scope = {legacyScope} AND key = {key} FOR UPDATE")
+            .AsTracking()
+            .SingleOrDefaultAsync(token);
+    }
+
     private async Task<WorkPlanException> ReplayRejectionAsync(
         EnsureWorkPlanCommand command,
         int responseCode,
@@ -273,21 +311,7 @@ public sealed class EfWorkPlanService(
             PlanResource,
             result.PlanId,
             result.Result == WorkPlanResults.Created ? 201 : 200,
-            at));
-
-    private void AddRejectionIdempotency(
-        string scope,
-        EnsureWorkPlanCommand command,
-        string requestHash,
-        WorkPlanException exception,
-        DateTimeOffset at) =>
-        dbContext.IdempotencyRecords.Add(NewIdempotency(
-            scope,
-            command,
-            requestHash,
-            BranchResource,
-            BranchScope.LorettaId,
-            exception.ResponseCode,
+            result,
             at));
 
     private static IdempotencyRecord NewIdempotency(
@@ -297,18 +321,17 @@ public sealed class EfWorkPlanService(
         string resourceType,
         Guid resourceId,
         int responseCode,
-        DateTimeOffset at) => new()
-        {
-            Scope = scope,
-            Key = command.IdempotencyKey,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = resourceType,
-            ResourceId = resourceId,
-            ResponseCode = responseCode,
-            CreatedAt = at,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        };
+        object responsePayload,
+        DateTimeOffset at) => IdempotencyProtocol.Completed(
+            scope,
+            command.IdempotencyKey,
+            requestHash,
+            resourceType,
+            resourceId,
+            responseCode,
+            responsePayload,
+            at,
+            DateTimeOffset.MaxValue);
 
     private AuditEvent CreatedAudit(
         EnsureWorkPlanCommand command,
@@ -371,6 +394,12 @@ public sealed class EfWorkPlanService(
             }, JsonSerializerOptions.Web),
             at);
 
+    private AuditEvent IdempotencyConflictAudit(
+        EnsureWorkPlanCommand command,
+        DateTimeOffset at) => IdempotencyProtocol.ConflictAudit(
+            uuidGenerator.NewUuid(), at, command.ActorUserId, PlanResource, BranchScope.LorettaId,
+            command.BranchId, command.CorrelationId, command.IdempotencyKey, "WORK_PLAN_ENSURE");
+
     private AuditEvent NewAudit(
         EnsureWorkPlanCommand command,
         Guid? resourceId,
@@ -404,10 +433,13 @@ public sealed class EfWorkPlanService(
         plan.Status,
         plan.RowVersion);
 
-    private static string Scope(Guid actorUserId, Guid branchId) =>
+    private static string Resource(EnsureWorkPlanCommand command) =>
+        $"{BranchScope.LorettaCode}:{command.IsoYear.ToString(CultureInfo.InvariantCulture)}:{command.IsoWeek.ToString(CultureInfo.InvariantCulture)}";
+
+    private static string LegacyScope(Guid actorUserId, Guid branchId) =>
         $"{ScopePrefix}:{actorUserId:D}:{branchId:D}";
 
-    private static string Hash(EnsureWorkPlanCommand command)
+    private static string LegacyHash(EnsureWorkPlanCommand command)
     {
         var canonical = string.Join('\n',
             "WORK_PLAN_ENSURE",
@@ -416,6 +448,8 @@ public sealed class EfWorkPlanService(
             command.IsoWeek.ToString(CultureInfo.InvariantCulture));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
+
+    private sealed record RejectionSnapshot(string ErrorCode);
 
     private static WorkPlanException ExceptionFor(string? errorCode, int responseCode) => errorCode switch
     {

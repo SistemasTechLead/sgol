@@ -10,6 +10,7 @@ using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Identity;
 
@@ -32,20 +33,26 @@ public sealed class EfRoleAssignmentService(
 
         var reason = RequireValue(command.Reason, "reason");
         var roleCode = NormalizeRoleCode(command.RoleCode);
-        var operation = roleCode is null ? "revoke" : "set";
-        var scope = $"role-assignments:{operation}:{command.ActorUserId:D}:{command.UserId:D}";
-        var requestHash = ComputeHash(
+        const string operation = "ROLE_ASSIGNMENT_CHANGE";
+        var resource = command.UserId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource,
+            new { command.UserId, roleCode, reason }, command.ExpectedRowVersion);
+        var legacyOperation = roleCode is null ? "revoke" : "set";
+        var legacyScope = $"role-assignments:{legacyOperation}:{command.ActorUserId:D}:{command.UserId:D}";
+        var legacyRequestHash = ComputeHash(
             command.UserId.ToString("D", CultureInfo.InvariantCulture),
             roleCode ?? "<REVOKE>",
             reason,
             command.ExpectedRowVersion?.ToString(CultureInfo.InvariantCulture) ?? "<NONE>");
-        var replay = await FindReplayAsync(scope, command, requestHash, cancellationToken);
+        var replay = await FindReplayAsync(scope, legacyScope, command, requestHash, legacyRequestHash, cancellationToken);
         if (replay is not null)
         {
             return replay;
         }
 
         Guid affectedAssignmentId = default;
+        var originalDetails = await LoadDetailsAsync(command.UserId, cancellationToken);
         try
         {
             await auditTransaction.ExecuteAsync(
@@ -157,11 +164,35 @@ public sealed class EfRoleAssignmentService(
                             rowVersion = current.RowVersion,
                         })
                         : SafeRoleData(successor);
+                    var history = originalDetails.History
+                        .Select(item => current is not null && item.Id == current.Id
+                            ? item with
+                            {
+                                Status = current.Status,
+                                ValidTo = current.ValidTo,
+                                RowVersion = current.RowVersion,
+                            }
+                            : item)
+                        .ToList();
+                    if (successor is not null)
+                    {
+                        history.Add(new RoleAssignmentSnapshot(
+                            successor.Id,
+                            successor.RoleCode,
+                            successor.Status,
+                            successor.ValidFrom,
+                            successor.ValidTo,
+                            successor.SupersedesId,
+                            successor.RowVersion));
+                    }
+
+                    var response = new RoleAssignmentDetails(command.UserId, BranchScope.LorettaId, history);
                     dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
                         scope,
                         command.IdempotencyKey,
                         requestHash,
                         affectedAssignmentId,
+                        response,
                         now));
 
                     return NewAuditEvent(
@@ -184,7 +215,7 @@ public sealed class EfRoleAssignmentService(
         catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            return await FindReplayAsync(scope, command, requestHash, cancellationToken)
+            return await FindReplayAsync(scope, legacyScope, command, requestHash, legacyRequestHash, cancellationToken)
                 ?? throw new RoleIdempotencyConflictException();
         }
         catch (DbUpdateException exception) when (GetConstraintName(exception) == ActiveRoleIndex)
@@ -273,28 +304,58 @@ public sealed class EfRoleAssignmentService(
 
     private async Task<RoleAssignmentMutationResult?> FindReplayAsync(
         string scope,
+        string legacyScope,
         ChangeRoleAssignmentCommand command,
         string requestHash,
+        string legacyRequestHash,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == command.IdempotencyKey, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == command.IdempotencyKey, cancellationToken)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == legacyScope && item.Key == command.IdempotencyKey, cancellationToken);
         if (record is null)
         {
             return null;
         }
 
-        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+            ? requestHash
+            : legacyRequestHash;
+        if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
         {
             dbContext.ChangeTracker.Clear();
+            await AuditConflictAsync(command, record.ResourceId, cancellationToken);
             throw new RoleIdempotencyConflictException();
+        }
+
+        if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+        {
+            return new RoleAssignmentMutationResult(
+                IdempotencyProtocol.ReadPayload<RoleAssignmentDetails>(record),
+                Replayed: true);
         }
 
         return new RoleAssignmentMutationResult(
             await LoadDetailsAsync(command.UserId, cancellationToken),
             Replayed: true);
     }
+
+    private Task AuditConflictAsync(ChangeRoleAssignmentCommand command, Guid resourceId, CancellationToken token) =>
+        IdempotencyProtocol.PersistConflictAsync(
+            auditTransaction,
+            IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(),
+                clock.UtcNow,
+                command.ActorUserId,
+                ResourceType,
+                resourceId,
+                BranchScope.LorettaId,
+                command.CorrelationId,
+                command.IdempotencyKey,
+                "ROLE_ASSIGNMENT_CHANGE"),
+            token);
 
     private async Task<RoleAssignmentDetails> LoadDetailsAsync(Guid userId, CancellationToken cancellationToken)
     {
@@ -363,18 +424,17 @@ public sealed class EfRoleAssignmentService(
         Guid key,
         string requestHash,
         Guid resourceId,
-        DateTimeOffset createdAt) => new()
-        {
-            Scope = scope,
-            Key = key,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = ResourceType,
-            ResourceId = resourceId,
-            ResponseCode = StatusCodes.Status200OK,
-            CreatedAt = createdAt,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        };
+        RoleAssignmentDetails response,
+        DateTimeOffset createdAt) => IdempotencyProtocol.Completed(
+            scope,
+            key,
+            requestHash,
+            ResourceType,
+            resourceId,
+            StatusCodes.Status200OK,
+            response,
+            createdAt,
+            DateTimeOffset.MaxValue);
 
     private static string? NormalizeRoleCode(string? roleCode)
     {

@@ -128,9 +128,9 @@ public static class ValidationDecisionApiEndpoints
     {
         actor = key = Guid.Empty; version = 0; failure = null;
         if (!TryActor(context, out actor, out failure)) return false;
-        var values = context.Request.Headers["Idempotency-Key"];
-        if (values.Count == 0) { failure = Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key es obligatoria"); return false; }
-        if (values.Count != 1 || !TryGuid(values[0], out key)) { failure = Problem(context, 400, "IDEMPOTENCY_KEY_INVALIDA", "Idempotency-Key debe ser un UUID canónico"); return false; }
+        var parsed = IdempotencyKeyHeader.Parse(context.Request);
+        key = parsed.Key;
+        if (!parsed.IsValid) { failure = Problem(context, 400, parsed.ErrorCode!, parsed.Detail!); return false; }
         var ifMatch = context.Request.Headers.IfMatch;
         if (ifMatch.Count == 0) { failure = Problem(context, 400, "IF_MATCH_REQUERIDO", "If-Match es obligatorio"); return false; }
         if (!TryEtag(ifMatch, out version)) { failure = Problem(context, 400, "IF_MATCH_INVALIDO", "If-Match debe contener un ETag fuerte vigente"); return false; }

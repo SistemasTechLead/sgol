@@ -15,6 +15,7 @@ using Sgol.JobInfrastructure;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 using Sgol.Web.Infrastructure.Evidence;
 
 namespace Sgol.Web.Infrastructure.Persistence.Evidence;
@@ -46,9 +47,23 @@ public sealed class EfEvidenceContributionService(
             throw new EvidenceItemNotFoundException();
         }
 
-        var scope = Scope("UPLOAD", input.ActorUserId, input.ObligationId);
-        var hash = Hash(input);
-        var replay = await FindReplayAsync(scope, input.IdempotencyKey, hash, cancellationToken);
+        const string operation = "FILE_UPLOAD_INTENT_CREATE";
+        var resource = input.ObligationId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(input.ActorUserId.ToString("D"), operation, resource);
+        var hash = IdempotencyProtocol.HashCanonical(operation, input.ActorUserId.ToString("D"), resource, new
+        {
+            input.ObligationId,
+            input.RequirementCode,
+            input.OriginalFileName,
+            input.DeclaredMediaType,
+            input.SizeBytes,
+            input.Sha256,
+            input.DocumentSubtype,
+        });
+        var legacyScope = LegacyScope("UPLOAD", input.ActorUserId, input.ObligationId);
+        var legacyHash = Hash(input);
+        var replay = await FindReplayAsync(scope, legacyScope, input.IdempotencyKey, hash, legacyHash,
+            input.ActorUserId, input.CorrelationId, operation, input.ObligationId, cancellationToken);
         if (replay is not null)
         {
             var existing = await dbContext.FileObjects.AsNoTracking().SingleAsync(x => x.Id == replay.ResourceId, cancellationToken);
@@ -81,7 +96,11 @@ public sealed class EfEvidenceContributionService(
                 var count = await dbContext.FileObjects.CountAsync(x => x.UploadedBy == input.ActorUserId && x.CreatedAt > now.AddHours(-1), token);
                 if (count >= 30) throw new EvidenceRateLimitException();
                 dbContext.FileObjects.Add(file);
-                AddIdempotency(scope, input.IdempotencyKey, hash, "FILE_OBJECT", id, 201, now);
+                AddIdempotency(
+                    scope, input.IdempotencyKey, hash, "FILE_OBJECT", id, 201, now,
+                    new { fileId = id, status = "PENDIENTE_CARGA", uploadExpiresAt = file.UploadExpiresAt },
+                    now + IdempotencyRetention,
+                    $"/api/v1/files/{id:D}");
                 return Audit("EVIDENCE_UPLOAD_INTENT_CREATED", "FILE_OBJECT", id, input.ActorUserId,
                     input.CorrelationId, now, null, new { fileId = id, status = "PENDIENTE_CARGA" });
             }, cancellationToken);
@@ -89,7 +108,8 @@ public sealed class EfEvidenceContributionService(
         catch (DbUpdateException exception) when (Constraint(exception) == "PK_idempotency_record")
         {
             dbContext.ChangeTracker.Clear();
-            var concurrent = await FindReplayAsync(scope, input.IdempotencyKey, hash, cancellationToken)
+            var concurrent = await FindReplayAsync(scope, legacyScope, input.IdempotencyKey, hash, legacyHash,
+                input.ActorUserId, input.CorrelationId, operation, input.ObligationId, cancellationToken)
                 ?? throw new EvidenceIdempotencyConflictException();
             var existing = await dbContext.FileObjects.AsNoTracking().SingleAsync(x => x.Id == concurrent.ResourceId, cancellationToken);
             if (now > existing.UploadExpiresAt) throw new EvidenceUploadExpiredException();
@@ -116,12 +136,20 @@ public sealed class EfEvidenceContributionService(
         if (file.UploadedBy != command.ActorUserId) throw new EvidenceFileNotFoundException();
         var requirement = await RequireRequirementAsync(access.Obligation, file.RequirementCode, cancellationToken);
         EnsureBinaryKind(requirement);
-        var scope = Scope("COMPLETE", command.ActorUserId, command.FileId);
-        var hash = Hash(new { command.FileId });
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, cancellationToken);
+        const string operation = "FILE_UPLOAD_COMPLETE";
+        var resource = command.FileId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var hash = IdempotencyProtocol.HashCanonical(
+            operation, command.ActorUserId.ToString("D"), resource, new { command.FileId });
+        var legacyScope = LegacyScope("COMPLETE", command.ActorUserId, command.FileId);
+        var legacyHash = Hash(new { command.FileId });
+        var replay = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, hash, legacyHash,
+            command.ActorUserId, command.CorrelationId, operation, command.FileId, cancellationToken);
         if (replay is not null)
         {
             if (replay.ResponseCode != 202) throw new EvidenceFileStateException();
+            if (replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+                return IdempotencyProtocol.ReadPayload<EvidenceFileStatusDetails>(replay);
             return ToStatus(file);
         }
         await RequireBinaryRequirementAsync(access, requirement, cancellationToken);
@@ -147,7 +175,9 @@ public sealed class EfEvidenceContributionService(
                 if (!matches)
                 {
                     file.MarkTerminal(EvidenceFileStatuses.Invalid, null, null, "UPLOAD_METADATA_MISMATCH", now);
-                    AddIdempotency(scope, command.IdempotencyKey, hash, "FILE_OBJECT", file.Id, 422, now);
+                    AddIdempotency(
+                        scope, command.IdempotencyKey, hash, "FILE_OBJECT", file.Id, 422, now,
+                        ToStatus(file), DateTimeOffset.MaxValue);
                     return Audit("EVIDENCE_UPLOAD_REJECTED", "FILE_OBJECT", file.Id, command.ActorUserId,
                         command.CorrelationId, now, new { status = EvidenceFileStatuses.Pending }, new { status = file.ScanStatus });
                 }
@@ -155,7 +185,9 @@ public sealed class EfEvidenceContributionService(
                 file.ConfirmUpload(now);
                 outboxWriter.Enqueue(InspectionEvent, file.Id,
                     JsonSerializer.SerializeToElement(new { fileObjectId = file.Id }), command.CorrelationId);
-                AddIdempotency(scope, command.IdempotencyKey, hash, "FILE_OBJECT", file.Id, 202, now);
+                AddIdempotency(
+                    scope, command.IdempotencyKey, hash, "FILE_OBJECT", file.Id, 202, now,
+                    ToStatus(file), DateTimeOffset.MaxValue);
                 return Audit("EVIDENCE_UPLOAD_COMPLETED", "FILE_OBJECT", file.Id, command.ActorUserId,
                     command.CorrelationId, now, new { status = "PENDIENTE_CARGA" }, new { status = "PENDIENTE_ESCANEO" });
             }, cancellationToken);
@@ -163,10 +195,13 @@ public sealed class EfEvidenceContributionService(
         catch (DbUpdateException exception) when (Constraint(exception) == "PK_idempotency_record")
         {
             dbContext.ChangeTracker.Clear();
-            var concurrent = await FindReplayAsync(scope, command.IdempotencyKey, hash, cancellationToken)
+            var concurrent = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, hash, legacyHash,
+                command.ActorUserId, command.CorrelationId, operation, command.FileId, cancellationToken)
                 ?? throw new EvidenceIdempotencyConflictException();
             file = await dbContext.FileObjects.AsNoTracking().SingleAsync(x => x.Id == concurrent.ResourceId, cancellationToken);
             if (concurrent.ResponseCode != 202) throw new EvidenceFileStateException();
+            if (concurrent.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+                return IdempotencyProtocol.ReadPayload<EvidenceFileStatusDetails>(concurrent);
             return ToStatus(file);
         }
         catch (DbUpdateConcurrencyException)
@@ -208,10 +243,19 @@ public sealed class EfEvidenceContributionService(
             EnsureBinaryKind(requirement);
         else
             structured = RequireStructuredPayload(access, requirement, command.StructuredPayload!);
-        var scope = Scope("CONTRIBUTE", command.ActorUserId, command.ObligationId);
-        var hash = Hash(new { command.ObligationId, command.RequirementCode, command.FileId, structuredPayload = structured?.RootElement });
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, hash, cancellationToken);
-        if (replay is not null) return await LoadDetailsAsync(replay.ResourceId, cancellationToken);
+        const string operation = "EVIDENCE_CONTRIBUTE";
+        var resource = command.ObligationId.ToString("D");
+        var body = new { command.ObligationId, command.RequirementCode, command.FileId, structuredPayload = structured?.RootElement };
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var hash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource, body);
+        var legacyScope = LegacyScope("CONTRIBUTE", command.ActorUserId, command.ObligationId);
+        var legacyHash = Hash(body);
+        var replay = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, hash, legacyHash,
+            command.ActorUserId, command.CorrelationId, operation, command.ObligationId, cancellationToken);
+        if (replay is not null)
+            return replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                ? IdempotencyProtocol.ReadPayload<EvidenceDetails>(replay)
+                : await LoadDetailsAsync(replay.ResourceId, cancellationToken);
         if (command.FileId.HasValue) await RequireBinaryRequirementAsync(access, requirement, cancellationToken);
 
         EvidenceDetails? result = null;
@@ -238,8 +282,11 @@ public sealed class EfEvidenceContributionService(
                 }
                 dbContext.EvidenceItems.Add(item);
                 dbContext.EvidenceVersions.Add(version);
-                AddIdempotency(scope, command.IdempotencyKey, hash, "EVIDENCE_VERSION", version.Id, 201, now);
                 result = Map(item, version, file);
+                AddIdempotency(
+                    scope, command.IdempotencyKey, hash, "EVIDENCE_VERSION", version.Id, 201, now,
+                    result, DateTimeOffset.MaxValue,
+                    $"/api/v1/obligations/{command.ObligationId:D}/evidence");
                 var structuredHash = structured is null ? null : Hash(structured.RootElement);
                 return Audit("EVIDENCE_CONTRIBUTED", "EVIDENCE_ITEM", item.Id, command.ActorUserId,
                     command.CorrelationId, now, null, new
@@ -258,9 +305,12 @@ public sealed class EfEvidenceContributionService(
         catch (DbUpdateException exception) when (Constraint(exception) == "PK_idempotency_record")
         {
             dbContext.ChangeTracker.Clear();
-            var concurrent = await FindReplayAsync(scope, command.IdempotencyKey, hash, cancellationToken)
+            var concurrent = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, hash, legacyHash,
+                command.ActorUserId, command.CorrelationId, operation, command.ObligationId, cancellationToken)
                 ?? throw new EvidenceIdempotencyConflictException();
-            return await LoadDetailsAsync(concurrent.ResourceId, cancellationToken);
+            return concurrent.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                ? IdempotencyProtocol.ReadPayload<EvidenceDetails>(concurrent)
+                : await LoadDetailsAsync(concurrent.ResourceId, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -309,8 +359,17 @@ public sealed class EfEvidenceContributionService(
             EnsureBinaryKind(requestedRequirement);
         else
             requestedStructured = RequireStructuredPayload(access, requestedRequirement, command.StructuredPayload!);
-        var scope = Scope("REPLACE", command.ActorUserId, command.EvidenceItemId);
-        var requestHash = Hash(new
+        const string operation = "EVIDENCE_REPLACE";
+        var resource = command.EvidenceItemId.ToString("D");
+        var body = new
+        {
+            command.ObligationId,
+            command.EvidenceItemId,
+            command.FileId,
+            structuredPayload = requestedStructured?.RootElement,
+            reason
+        };
+        var legacyBody = new
         {
             command.ObligationId,
             command.EvidenceItemId,
@@ -318,9 +377,18 @@ public sealed class EfEvidenceContributionService(
             structuredPayload = requestedStructured?.RootElement,
             reason,
             command.ExpectedRowVersion
-        });
-        var existingReplay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken);
-        if (existingReplay is not null) return await LoadDetailsAsync(existingReplay.ResourceId, cancellationToken);
+        };
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            operation, command.ActorUserId.ToString("D"), resource, body, command.ExpectedRowVersion);
+        var legacyScope = LegacyScope("REPLACE", command.ActorUserId, command.EvidenceItemId);
+        var legacyRequestHash = Hash(legacyBody);
+        var existingReplay = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+            command.ActorUserId, command.CorrelationId, operation, command.EvidenceItemId, cancellationToken);
+        if (existingReplay is not null)
+            return existingReplay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                ? IdempotencyProtocol.ReadPayload<EvidenceDetails>(existingReplay)
+                : await LoadDetailsAsync(existingReplay.ResourceId, cancellationToken);
         if (command.FileId.HasValue) await RequireBinaryRequirementAsync(access, requestedRequirement, cancellationToken);
         EvidenceDetails? result = null;
         try
@@ -362,8 +430,11 @@ public sealed class EfEvidenceContributionService(
                         structured!, command.ActorUserId, now, reason, current.Id);
                 }
                 dbContext.EvidenceVersions.Add(successor);
-                AddIdempotency(scope, command.IdempotencyKey, requestHash, "EVIDENCE_VERSION", successor.Id, 201, now);
                 result = Map(item, successor, file);
+                AddIdempotency(
+                    scope, command.IdempotencyKey, requestHash, "EVIDENCE_VERSION", successor.Id, 201, now,
+                    result, DateTimeOffset.MaxValue,
+                    $"/api/v1/obligations/{command.ObligationId:D}/evidence/{command.EvidenceItemId:D}/replacements");
                 var structuredHash = structured is null ? null : Hash(structured.RootElement);
                 return Audit("EVIDENCE_REPLACED", "EVIDENCE_ITEM", item.Id, command.ActorUserId,
                     command.CorrelationId, now, new { versionId = current.Id, status = EvidenceVersionStatuses.Current },
@@ -383,9 +454,12 @@ public sealed class EfEvidenceContributionService(
         catch (DbUpdateException exception) when (Constraint(exception) == "PK_idempotency_record")
         {
             dbContext.ChangeTracker.Clear();
-            var concurrent = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken)
+            var concurrent = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+                command.ActorUserId, command.CorrelationId, operation, command.EvidenceItemId, cancellationToken)
                 ?? throw new EvidenceIdempotencyConflictException();
-            return await LoadDetailsAsync(concurrent.ResourceId, cancellationToken);
+            return concurrent.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                ? IdempotencyProtocol.ReadPayload<EvidenceDetails>(concurrent)
+                : await LoadDetailsAsync(concurrent.ResourceId, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -551,15 +625,65 @@ public sealed class EfEvidenceContributionService(
             access.TaskCode, requirement.RequirementCode, requirement.Kind, payload.RootElement);
     }
 
-    private async Task<IdempotencyRecord?> FindReplayAsync(string scope, Guid key, string hash, CancellationToken token)
+    private async Task<IdempotencyRecord?> FindReplayAsync(
+        string scope,
+        string legacyScope,
+        Guid key,
+        string hash,
+        string legacyHash,
+        Guid actorUserId,
+        Guid correlationId,
+        string operation,
+        Guid resourceId,
+        CancellationToken token)
     {
-        var record = await dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(x => x.Scope == scope && x.Key == key, token);
-        if (record is not null && record.RequestHash != hash) throw new EvidenceIdempotencyConflictException();
+        var record = await dbContext.IdempotencyRecords.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Scope == scope && x.Key == key, token)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Scope == legacyScope && x.Key == key, token);
+        if (record is not null)
+        {
+            var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion ? hash : legacyHash;
+            if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
+            {
+                await AuditIdempotencyConflictAsync(
+                    actorUserId, correlationId, key, operation, resourceId, token);
+                throw new EvidenceIdempotencyConflictException();
+            }
+        }
+
         return record;
     }
 
-    private void AddIdempotency(string scope, Guid key, string hash, string resourceType, Guid resourceId, int responseCode, DateTimeOffset now) =>
-        dbContext.IdempotencyRecords.Add(new IdempotencyRecord { Scope = scope, Key = key, RequestHash = hash, Status = "COMPLETADA", ResourceType = resourceType, ResourceId = resourceId, ResponseCode = responseCode, CreatedAt = now, ExpiresAt = now + IdempotencyRetention });
+    private Task AuditIdempotencyConflictAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid key,
+        string operation,
+        Guid resourceId,
+        CancellationToken token) => IdempotencyProtocol.PersistConflictAsync(
+            auditTransaction,
+            IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(), clock.UtcNow, actorUserId,
+                operation is "FILE_UPLOAD_INTENT_CREATE" or "FILE_UPLOAD_COMPLETE" ? "FILE_OBJECT" : "EVIDENCE_VERSION",
+                resourceId,
+                BranchScope.LorettaId, correlationId, key, operation),
+            token);
+
+    private void AddIdempotency(
+        string scope,
+        Guid key,
+        string hash,
+        string resourceType,
+        Guid resourceId,
+        int responseCode,
+        DateTimeOffset now,
+        object responsePayload,
+        DateTimeOffset expiresAt,
+        string? responseLocation = null) =>
+        dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+            scope, key, hash, resourceType, resourceId, responseCode,
+            responsePayload, now, expiresAt, responseLocation: responseLocation));
 
     private async Task<EvidenceDetails> LoadDetailsAsync(Guid versionId, CancellationToken token)
     {
@@ -636,7 +760,7 @@ public sealed class EfEvidenceContributionService(
         }
     }
 
-    private static string Scope(string operation, Guid actor, Guid resource) => $"EVIDENCE:{operation}:{actor:D}:{resource:D}";
+    private static string LegacyScope(string operation, Guid actor, Guid resource) => $"EVIDENCE:{operation}:{actor:D}:{resource:D}";
     private static string? Constraint(DbUpdateException exception) =>
         (exception.InnerException as PostgresException)?.ConstraintName;
     private static bool IsEvidenceVersionRace(Exception exception)

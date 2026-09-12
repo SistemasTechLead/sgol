@@ -35,7 +35,8 @@ public sealed record ChangeEmploymentCommand(
     string Reason,
     Guid? IdempotencyKey = null,
     string? PositionText = null,
-    string? ShiftText = null);
+    string? ShiftText = null,
+    string Operation = "PERSON_EMPLOYMENT_PATCH");
 
 public sealed record PersonMutationResult(PersonDetails Person, bool Replayed);
 

@@ -6,6 +6,7 @@ using Sgol.BuildingBlocks.Time;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Organization;
 
@@ -21,6 +22,7 @@ public sealed class EfAvailabilityAdministrationService(
         "IX_availability_day_version_person_id_branch_id_local_date";
     private const string AvailabilitySuccessorIndex =
         "IX_availability_day_version_supersedes_id";
+    private const string IdempotencyPrimaryKey = "PK_idempotency_record";
 
     public async Task<IReadOnlyList<AvailabilityDaySnapshot>> GetAsync(
         Guid actorUserId,
@@ -59,8 +61,30 @@ public sealed class EfAvailabilityAdministrationService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        if (command.IdempotencyKey == Guid.Empty)
+        {
+            throw new AvailabilityValidationException("Idempotency key is required.");
+        }
+
         await EnsureAuthorizedAsync(command.ActorUserId, command.CorrelationId, cancellationToken);
         await EnsureActiveLorettaPersonAsync(command.PersonId, cancellationToken);
+
+        const string operation = "AVAILABILITY_PUT";
+        var resource = $"{command.PersonId:D}:{command.LocalDate:yyyy-MM-dd}";
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            operation,
+            command.ActorUserId.ToString("D"),
+            resource,
+            new { command.PersonId, command.LocalDate, command.IsAvailable },
+            command.ExpectedRowVersion);
+        var replay = await FindReplayAsync(
+            scope, command.IdempotencyKey, requestHash, command.ActorUserId,
+            command.CorrelationId, command.PersonId, cancellationToken);
+        if (replay is not null)
+        {
+            return replay;
+        }
 
         AvailabilityDayVersion? saved = null;
         try
@@ -120,6 +144,18 @@ public sealed class EfAvailabilityAdministrationService(
                     }
 
                     dbContext.AvailabilityDayVersions.Add(saved);
+                    var response = ToSnapshot(saved);
+                    dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+                        scope,
+                        command.IdempotencyKey,
+                        requestHash,
+                        "AVAILABILITY_DAY",
+                        saved.Id,
+                        StatusCodes.Status200OK,
+                        response,
+                        clock.UtcNow,
+                        DateTimeOffset.MaxValue,
+                        responseEtag: $"\"{response.RowVersion}\""));
                     var afterData = SerializeAuditValue(saved);
                     return new AuditEvent
                     {
@@ -144,6 +180,14 @@ public sealed class EfAvailabilityAdministrationService(
             dbContext.ChangeTracker.Clear();
             throw new AvailabilityVersionConflictException();
         }
+        catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
+        {
+            dbContext.ChangeTracker.Clear();
+            return await FindReplayAsync(
+                scope, command.IdempotencyKey, requestHash, command.ActorUserId,
+                command.CorrelationId, command.PersonId, cancellationToken)
+                ?? throw new AvailabilityIdempotencyConflictException();
+        }
         catch (DbUpdateException exception) when (
             GetConstraintName(exception) is CurrentAvailabilityIndex or AvailabilitySuccessorIndex)
         {
@@ -160,6 +204,43 @@ public sealed class EfAvailabilityAdministrationService(
         dbContext.ChangeTracker.Clear();
         return result;
     }
+
+    private async Task<AvailabilityDaySnapshot?> FindReplayAsync(
+        string scope,
+        Guid key,
+        string requestHash,
+        Guid actorUserId,
+        Guid correlationId,
+        Guid personId,
+        CancellationToken token)
+    {
+        var record = await dbContext.IdempotencyRecords.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, token);
+        if (record is null)
+        {
+            return null;
+        }
+
+        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        {
+            await AuditConflictAsync(actorUserId, correlationId, key, personId, token);
+            throw new AvailabilityIdempotencyConflictException();
+        }
+
+        return IdempotencyProtocol.ReadPayload<AvailabilityDaySnapshot>(record);
+    }
+
+    private Task AuditConflictAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid key,
+        Guid personId,
+        CancellationToken token) => IdempotencyProtocol.PersistConflictAsync(
+            auditTransaction,
+            IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(), clock.UtcNow, actorUserId, "AVAILABILITY_DAY", personId,
+                BranchScope.LorettaId, correlationId, key, "AVAILABILITY_PUT"),
+            token);
 
     private async Task EnsureAuthorizedAsync(
         Guid actorUserId,

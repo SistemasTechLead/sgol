@@ -81,7 +81,9 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
                 DisplayName = "Otra persona sintética",
             }));
         Assert.Equal(2, await context.People.CountAsync());
-        Assert.Equal(1, await context.AuditEvents.CountAsync(item => item.ResourceId == first.Person.Id));
+        Assert.Equal(2, await context.AuditEvents.CountAsync(item => item.ResourceId == first.Person.Id));
+        Assert.Equal(1, await context.AuditEvents.CountAsync(item =>
+            item.ResourceId == first.Person.Id && item.Action == "IDEMPOTENCY_CONFLICT_REJECTED"));
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
@@ -338,6 +340,7 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
             EmploymentStatus.Active,
             current.RowVersion,
             "Corrección laboral sintética",
+            IdempotencyKey: Guid.CreateVersion7(),
             PositionText: "Director",
             ShiftText: "Vespertino"));
 
@@ -413,6 +416,7 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
                 EmploymentStatus.Active,
                 1,
                 "Rollback laboral sintético",
+                IdempotencyKey: Guid.CreateVersion7(),
                 PositionText: "Director",
                 ShiftText: "Nocturno")));
 

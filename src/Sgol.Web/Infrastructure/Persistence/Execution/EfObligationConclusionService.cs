@@ -16,6 +16,7 @@ using Sgol.Organization.Contracts;
 using Sgol.Validation.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Execution;
 
@@ -42,19 +43,36 @@ public sealed class EfObligationConclusionService(
             throw new ArgumentException("Conclusion identifiers and expected version are required.", nameof(command));
         }
 
-        var scope = Scope(command.ActorUserId, command.ObligationId);
-        var requestHash = Hash(command.ObligationId, command.ExpectedRowVersion);
+        var legacyScope = Scope(command.ActorUserId, command.ObligationId);
+        var legacyRequestHash = Hash(command.ObligationId, command.ExpectedRowVersion);
+        var actor = command.ActorUserId.ToString("D");
+        var resource = command.ObligationId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(actor, "OBLIGATION_CONCLUDE", resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            "OBLIGATION_CONCLUDE",
+            actor,
+            resource,
+            body: null,
+            command.ExpectedRowVersion);
         for (var attempt = 1; attempt <= MaximumAttempts; attempt++)
         {
             try
             {
-                var result = await ConcludeOnceAsync(command, scope, requestHash, cancellationToken);
+                var result = await ConcludeOnceAsync(
+                    command,
+                    scope,
+                    requestHash,
+                    legacyScope,
+                    legacyRequestHash,
+                    cancellationToken);
                 ConclusionTelemetry.Conclusions.Add(1, tag: new("result", "success"));
                 return result;
             }
             catch (Exception exception) when (IsRetryable(exception) && attempt < MaximumAttempts)
             {
                 dbContext.ChangeTracker.Clear();
+                await IdempotencyProtocol.DelayBeforeRetryAsync(
+                    "OBLIGATION_CONCLUDE", exception, attempt, cancellationToken);
             }
             catch (Exception exception) when (IsRetryable(exception))
             {
@@ -94,6 +112,8 @@ public sealed class EfObligationConclusionService(
         ConcludeObligationCommand command,
         string scope,
         string requestHash,
+        string legacyScope,
+        string legacyRequestHash,
         CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
@@ -114,10 +134,28 @@ public sealed class EfObligationConclusionService(
 
         var replay = await dbContext.IdempotencyRecords.AsNoTracking()
             .SingleOrDefaultAsync(record => record.Scope == scope && record.Key == command.IdempotencyKey, cancellationToken);
+        if (replay is null)
+        {
+            replay = await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(record => record.Scope == legacyScope && record.Key == command.IdempotencyKey, cancellationToken);
+        }
         if (replay is not null)
         {
-            if (!string.Equals(replay.RequestHash, requestHash, StringComparison.Ordinal))
+            var expectedHash = replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                ? requestHash
+                : legacyRequestHash;
+            if (!string.Equals(replay.RequestHash, expectedHash, StringComparison.Ordinal))
             {
+                try
+                {
+                    dbContext.AuditEvents.Add(CreateIdempotencyConflictAudit(command, obligation.BranchId));
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    throw new IdempotencyConflictAuditException(exception);
+                }
                 throw new ObligationConclusionIdempotencyConflictException();
             }
 
@@ -155,22 +193,22 @@ public sealed class EfObligationConclusionService(
         await dbContext.SaveChangesAsync(cancellationToken);
         await validationRequirementWriter.EnsureAsync(new(
             obligation.Id, obligation.ValidationPolicyVersionId, concludedAt), cancellationToken);
-        dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-        {
-            Scope = scope,
-            Key = command.IdempotencyKey,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = ResourceType,
-            ResourceId = result.Id,
-            ResponseCode = 200,
-            CreatedAt = concludedAt,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        });
+        var response = ToResult(obligation, result);
+        dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+            scope,
+            command.IdempotencyKey,
+            requestHash,
+            ResourceType,
+            result.Id,
+            StatusCodes.Status200OK,
+            response,
+            concludedAt,
+            DateTimeOffset.MaxValue,
+            responseEtag: $"\"{response.RowVersion}\""));
         dbContext.AuditEvents.Add(CreateAudit(command, obligation, assignment.Id, result, previousRowVersion));
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return ToResult(obligation, result);
+        return response;
     }
 
     private async Task AuthorizeAsync(
@@ -226,6 +264,11 @@ public sealed class EfObligationConclusionService(
             throw new ObligationConclusionInconsistentException();
         }
 
+        if (replay.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+        {
+            return IdempotencyProtocol.ReadPayload<ObligationConclusionResult>(replay);
+        }
+
         var result = await dbContext.ExecutionResults.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == replay.ResourceId, cancellationToken)
             ?? throw new ObligationConclusionInconsistentException();
@@ -275,6 +318,12 @@ public sealed class EfObligationConclusionService(
             }),
             Outcome = ObligationConclusionResultCodes.Concluded,
         };
+
+    private AuditEvent CreateIdempotencyConflictAudit(
+        ConcludeObligationCommand command,
+        Guid branchId) => IdempotencyProtocol.ConflictAudit(
+            uuidGenerator.NewUuid(), clock.UtcNow, command.ActorUserId, "WORK_OBLIGATION", command.ObligationId,
+            branchId, command.CorrelationId, command.IdempotencyKey, "OBLIGATION_CONCLUDE");
 
     private static ObligationConclusionResult ToResult(WorkObligation obligation, ExecutionResult result) => new(
         obligation.Id,

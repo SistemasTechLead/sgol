@@ -17,6 +17,7 @@ using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Assignment;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 
 namespace Sgol.Web.Infrastructure.Persistence.Generation;
@@ -336,24 +337,45 @@ public sealed class EfRecurringOccurrenceProcessor(
             requestedBy: null,
             window.OccurrenceInstant);
         var now = clock.UtcNow;
+        var resource = $"generation:{identity.OriginReference}";
+        var idempotencyScope = IdempotencyProtocol.Scope(
+            "system:recurring-occurrence", "RECURRING_OCCURRENCE_PROCESS", resource);
+        var idempotencyHash = IdempotencyProtocol.HashCanonical(
+            "RECURRING_OCCURRENCE_PROCESS",
+            "system:recurring-occurrence",
+            resource,
+            new
+            {
+                ruleVersionId,
+                periodId,
+                identity.OriginReference,
+                window.OccurrenceInstant,
+            });
         try
         {
             await auditTransaction.ExecuteAsync(
                 token =>
                 {
                     dbContext.GenerationRequests.Add(request);
-                    dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-                    {
-                        Scope = GenerationScope,
-                        Key = identity.IdempotencyKey,
-                        RequestHash = identity.RequestHash,
-                        Status = "COMPLETED",
-                        ResourceType = "GENERATION_REQUEST",
-                        ResourceId = request.Id,
-                        ResponseCode = 201,
-                        CreatedAt = now,
-                        ExpiresAt = DateTimeOffset.MaxValue,
-                    });
+                    dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+                        idempotencyScope,
+                        identity.IdempotencyKey,
+                        idempotencyHash,
+                        "GENERATION_REQUEST",
+                        request.Id,
+                        201,
+                        new
+                        {
+                            requestId = request.Id,
+                            request.RuleVersionId,
+                            request.BranchId,
+                            request.PeriodId,
+                            request.OriginType,
+                            request.OriginReference,
+                            request.RequestedAt,
+                        },
+                        now,
+                        DateTimeOffset.MaxValue));
                     return Task.FromResult(NewAudit(
                         now,
                         "GENERATION_REQUEST_ACCEPTED",
@@ -416,10 +438,18 @@ public sealed class EfRecurringOccurrenceProcessor(
         var planKey = RecurringGenerationContract.PurposeId(
             "SGOL_RECURRENCE_PLAN_V1",
             identity.IdempotencyKey.ToString("N", CultureInfo.InvariantCulture));
-        var hash = Hash(BranchScope.LorettaId, period.Id);
+        var resource = $"plan:{BranchScope.LorettaCode}:{period.IsoYear}:{period.IsoWeek}";
+        var scope = IdempotencyProtocol.Scope(
+            "system:recurring-occurrence", "RECURRING_OCCURRENCE_PROCESS", resource);
+        var hash = IdempotencyProtocol.HashCanonical(
+            "RECURRING_OCCURRENCE_PROCESS",
+            "system:recurring-occurrence",
+            resource,
+            new { BranchId = BranchScope.LorettaId, period.Id, period.IsoYear, period.IsoWeek });
+        var legacyHash = Hash(BranchScope.LorettaId, period.Id);
         if (existing is not null)
         {
-            await EnsurePlanIdempotencyAsync(existing, planKey, hash, correlationId, cancellationToken);
+            await EnsurePlanIdempotencyAsync(existing, planKey, scope, hash, legacyHash, correlationId, cancellationToken);
             return false;
         }
 
@@ -431,7 +461,7 @@ public sealed class EfRecurringOccurrenceProcessor(
                 token =>
                 {
                     dbContext.WorkPlans.Add(plan);
-                    AddPlanIdempotency(plan, planKey, hash, now);
+                    AddPlanIdempotency(plan, planKey, scope, hash, now);
                     return Task.FromResult(NewAudit(
                         now,
                         "WORK_PLAN_CREATED_BY_RECURRENCE",
@@ -455,7 +485,7 @@ public sealed class EfRecurringOccurrenceProcessor(
                 candidate => candidate.BranchId == BranchScope.LorettaId && candidate.PeriodId == period.Id,
                 cancellationToken)
                 ?? throw new InvalidOperationException("The concurrent work plan could not be recovered.");
-            await EnsurePlanIdempotencyAsync(existing, planKey, hash, correlationId, cancellationToken);
+            await EnsurePlanIdempotencyAsync(existing, planKey, scope, hash, legacyHash, correlationId, cancellationToken);
             return false;
         }
     }
@@ -463,16 +493,19 @@ public sealed class EfRecurringOccurrenceProcessor(
     private async Task EnsurePlanIdempotencyAsync(
         WorkPlan plan,
         Guid key,
+        string scope,
         string hash,
+        string legacyHash,
         Guid correlationId,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(
-            item => item.Scope == PlanScope && item.Key == key,
+            item => (item.Scope == scope || item.Scope == PlanScope) && item.Key == key,
             cancellationToken);
         if (record is not null)
         {
-            if (record.ResourceId != plan.Id || record.RequestHash != hash)
+            var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion ? hash : legacyHash;
+            if (record.ResourceId != plan.Id || record.RequestHash != expectedHash)
             {
                 throw new InvalidOperationException("The recurring work-plan identity conflicts with persisted data.");
             }
@@ -486,7 +519,7 @@ public sealed class EfRecurringOccurrenceProcessor(
             await auditTransaction.ExecuteAsync(
                 token =>
                 {
-                    AddPlanIdempotency(plan, key, hash, now);
+                    AddPlanIdempotency(plan, key, scope, hash, now);
                     return Task.FromResult(NewAudit(
                         now,
                         "WORK_PLAN_RECOVERED_BY_RECURRENCE",
@@ -505,28 +538,27 @@ public sealed class EfRecurringOccurrenceProcessor(
         {
             dbContext.ChangeTracker.Clear();
             record = await dbContext.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(
-                item => item.Scope == PlanScope && item.Key == key,
+                item => (item.Scope == scope || item.Scope == PlanScope) && item.Key == key,
                 cancellationToken);
-            if (record is null || record.ResourceId != plan.Id || record.RequestHash != hash)
+            if (record is null || record.ResourceId != plan.Id ||
+                record.RequestHash != (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion ? hash : legacyHash))
             {
                 throw new InvalidOperationException("The concurrent recurring plan identity could not be recovered.");
             }
         }
     }
 
-    private void AddPlanIdempotency(WorkPlan plan, Guid key, string hash, DateTimeOffset now) =>
-        dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-        {
-            Scope = PlanScope,
-            Key = key,
-            RequestHash = hash,
-            Status = "COMPLETED",
-            ResourceType = "WORK_PLAN",
-            ResourceId = plan.Id,
-            ResponseCode = 201,
-            CreatedAt = now,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        });
+    private void AddPlanIdempotency(WorkPlan plan, Guid key, string scope, string hash, DateTimeOffset now) =>
+        dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+            scope,
+            key,
+            hash,
+            "WORK_PLAN",
+            plan.Id,
+            201,
+            new { plan.Id, plan.BranchId, plan.PeriodId, plan.Status, plan.RowVersion },
+            now,
+            DateTimeOffset.MaxValue));
 
     private async Task<RecurringOccurrenceResult> RecordNonGeneratingResultAsync(
         RecurringWindow window,

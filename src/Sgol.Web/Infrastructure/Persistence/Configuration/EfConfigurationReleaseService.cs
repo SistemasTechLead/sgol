@@ -10,6 +10,7 @@ using Sgol.Configuration.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 using Sgol.Web.Infrastructure.Persistence.Versioning;
 
 namespace Sgol.Web.Infrastructure.Persistence.Configuration;
@@ -83,9 +84,14 @@ public sealed class EfConfigurationReleaseService(
         ArgumentNullException.ThrowIfNull(command);
         await EnsureAuthorizedAsync(command.ActorUserId, command.CorrelationId, cancellationToken);
 
-        var scope = CreateIdempotencyScope(command.ActorUserId);
-        var requestHash = ComputeHash(scope);
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken);
+        const string operation = "CONFIGURATION_RELEASE_CREATE";
+        const string resource = "new:LOR-001";
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource, new { });
+        var legacyScope = CreateIdempotencyScope(command.ActorUserId);
+        var legacyRequestHash = ComputeHash(legacyScope);
+        var replay = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+            command.ActorUserId, command.CorrelationId, operation, cancellationToken);
         if (replay is not null)
         {
             return replay;
@@ -105,18 +111,10 @@ public sealed class EfConfigurationReleaseService(
                 _ =>
                 {
                     dbContext.ConfigurationReleases.Add(release);
-                    dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-                    {
-                        Scope = scope,
-                        Key = command.IdempotencyKey,
-                        RequestHash = requestHash,
-                        Status = "COMPLETED",
-                        ResourceType = "CONFIGURATION_RELEASE",
-                        ResourceId = release.Id,
-                        ResponseCode = StatusCodes.Status201Created,
-                        CreatedAt = now,
-                        ExpiresAt = DateTimeOffset.MaxValue,
-                    });
+                    dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+                        scope, command.IdempotencyKey, requestHash, "CONFIGURATION_RELEASE", release.Id,
+                        StatusCodes.Status201Created, ToDetails(release), now, DateTimeOffset.MaxValue,
+                        responseLocation: $"/api/v1/configuration/releases/{release.Id:D}"));
                     return Task.CompletedTask;
                 },
                 cancellationToken);
@@ -124,7 +122,8 @@ public sealed class EfConfigurationReleaseService(
         catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            return await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken)
+            return await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+                command.ActorUserId, command.CorrelationId, operation, cancellationToken)
                 ?? throw new ConfigurationIdempotencyConflictException();
         }
         catch
@@ -145,8 +144,36 @@ public sealed class EfConfigurationReleaseService(
         ArgumentNullException.ThrowIfNull(command);
         await EnsureAuthorizedAsync(command.ActorUserId, command.CorrelationId, cancellationToken);
         var normalizedReason = VersioningRules.NormalizeRequiredReason(command.Reason);
-        var scope = CreatePublicationIdempotencyScope(command.ActorUserId, command.ReleaseId);
-        var requestHash = ComputeHash(
+        var operation = command.TaskDirective switch
+        {
+            null => "CONFIGURATION_RELEASE_PUBLISH",
+            { VersionId: not null } => "TASK_DEFINITION_VERSION_PUBLISH",
+            _ => "TASK_DEFINITION_DEACTIVATE_NEW",
+        };
+        var resource = command.TaskDirective switch
+        {
+            null => command.ReleaseId.ToString("D"),
+            { VersionId: Guid versionId } directive => $"{directive.TaskCode}:{versionId:D}",
+            { } directive => $"{directive.TaskCode}:{command.ReleaseId:D}",
+        };
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var canonicalIfMatch = command.TaskDirective?.ExpectedRowVersion ?? command.ExpectedRowVersion;
+        var canonicalBody = command.TaskDirective is null
+            ? (object)new { command.ReleaseId, command.EffectiveFrom, reason = normalizedReason }
+            : new
+            {
+                command.TaskDirective.TaskCode,
+                command.TaskDirective.VersionId,
+                command.ReleaseId,
+                command.EffectiveFrom,
+                reason = normalizedReason,
+                command.TaskDirective.ActiveForNew,
+                command.TaskDirective.CreateDraft,
+            };
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            operation, command.ActorUserId.ToString("D"), resource, canonicalBody, canonicalIfMatch);
+        var legacyScope = CreatePublicationIdempotencyScope(command.ActorUserId, command.ReleaseId);
+        var legacyRequestHash = ComputeHash(
             command.ReleaseId.ToString("D"),
             command.ExpectedRowVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
             command.EffectiveFrom.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
@@ -156,7 +183,8 @@ public sealed class EfConfigurationReleaseService(
             command.TaskDirective?.ExpectedRowVersion.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
             command.TaskDirective?.ActiveForNew.ToString() ?? string.Empty,
             command.TaskDirective?.CreateDraft.ToString() ?? string.Empty);
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken);
+        var replay = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+            command.ActorUserId, command.CorrelationId, operation, cancellationToken);
         if (replay is not null)
         {
             return replay;
@@ -353,18 +381,20 @@ public sealed class EfConfigurationReleaseService(
                             command.CorrelationId,
                             validationPlan));
                     }
-                    dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-                    {
-                        Scope = scope,
-                        Key = command.IdempotencyKey,
-                        RequestHash = requestHash,
-                        Status = "COMPLETED",
-                        ResourceType = "CONFIGURATION_RELEASE",
-                        ResourceId = draft.Id,
-                        ResponseCode = StatusCodes.Status200OK,
-                        CreatedAt = publishedAt,
-                        ExpiresAt = DateTimeOffset.MaxValue,
-                    });
+                    var response = ToDetails(draft);
+                    var taskResponse = command.TaskDirective is null
+                        ? null
+                        : EfTaskDefinitionService.ToVersionDetails(taskPlans
+                            .Single(item => item.Draft.TaskDefinitionId == TaskDefinitionCatalog.Require(command.TaskDirective.TaskCode).Id)
+                            .Draft);
+                    var idempotencyResponse = (object?)taskResponse ?? response;
+                    var responseEtag = taskResponse is null
+                        ? $"\"{response.RowVersion}\""
+                        : $"\"{taskResponse.RowVersion}\"";
+                    dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+                        scope, command.IdempotencyKey, requestHash, "CONFIGURATION_RELEASE", draft.Id,
+                        StatusCodes.Status200OK, idempotencyResponse, publishedAt, DateTimeOffset.MaxValue,
+                        responseEtag: responseEtag));
                     var afterData = JsonSerializer.SerializeToDocument(new
                     {
                         schemaVersion = 1,
@@ -372,7 +402,7 @@ public sealed class EfConfigurationReleaseService(
                         superseded = current is null ? null : AuditValue(current),
                     });
                     return (
-                        ToDetails(draft),
+                        response,
                         NewAuditEvent(
                             command.ActorUserId,
                             command.CorrelationId,
@@ -387,7 +417,8 @@ public sealed class EfConfigurationReleaseService(
         catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            return await FindReplayAsync(scope, command.IdempotencyKey, requestHash, cancellationToken)
+            return await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+                command.ActorUserId, command.CorrelationId, operation, cancellationToken)
                 ?? throw new ConfigurationIdempotencyConflictException();
         }
         catch (DbUpdateConcurrencyException)
@@ -419,8 +450,13 @@ public sealed class EfConfigurationReleaseService(
             dbContext.ChangeTracker.Clear();
             var concurrentReplay = await FindReplayAsync(
                 scope,
+                legacyScope,
                 command.IdempotencyKey,
                 requestHash,
+                legacyRequestHash,
+                command.ActorUserId,
+                command.CorrelationId,
+                operation,
                 cancellationToken);
             if (concurrentReplay is not null)
             {
@@ -1296,21 +1332,38 @@ public sealed class EfConfigurationReleaseService(
 
     private async Task<ConfigurationReleaseDetails?> FindReplayAsync(
         string scope,
+        string legacyScope,
         Guid key,
         string requestHash,
+        string legacyRequestHash,
+        Guid actorUserId,
+        Guid correlationId,
+        string operation,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == legacyScope && item.Key == key, cancellationToken);
         if (record is null)
         {
             return null;
         }
 
-        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+            ? requestHash
+            : legacyRequestHash;
+        if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
         {
+            await AuditConflictAsync(actorUserId, correlationId, key, operation, record.ResourceId, cancellationToken);
             throw new ConfigurationIdempotencyConflictException();
+        }
+
+        if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion &&
+            !operation.StartsWith("TASK_DEFINITION_", StringComparison.Ordinal))
+        {
+            return IdempotencyProtocol.ReadPayload<ConfigurationReleaseDetails>(record);
         }
 
         var release = await dbContext.ConfigurationReleases
@@ -1320,6 +1373,18 @@ public sealed class EfConfigurationReleaseService(
         dbContext.ChangeTracker.Clear();
         return ToDetails(release);
     }
+
+    private Task AuditConflictAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid key,
+        string operation,
+        Guid resourceId,
+        CancellationToken token) => IdempotencyProtocol.PersistConflictAsync(
+            auditTransaction,
+            IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(), clock.UtcNow, actorUserId, "CONFIGURATION_RELEASE", resourceId,
+                BranchScope.LorettaId, correlationId, key, operation), token);
 
     private AuditEvent NewAuditEvent(
         Guid actorUserId,

@@ -10,6 +10,7 @@ using Sgol.Configuration.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Configuration;
 
@@ -61,12 +62,18 @@ public sealed class EfEvidencePolicyService(
     {
         var seed = TaskDefinitionCatalog.Require(command.TaskCode);
         var canonical = EvidencePolicyCatalog.Validate(command.TaskCode, command.Requirements);
-        var scope = $"EVIDENCE_POLICY_PUT:{command.ActorUserId:D}:{command.TaskCode}:{command.ReleaseId:D}";
-        var requestHash = Hash(
+        const string operation = "EVIDENCE_POLICY_PUT";
+        var resource = $"{command.TaskCode}:{command.ReleaseId:D}";
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource,
+            new { command.ReleaseId, requirements = canonical }, command.ExpectedRowVersion);
+        var legacyScope = $"EVIDENCE_POLICY_PUT:{command.ActorUserId:D}:{command.TaskCode}:{command.ReleaseId:D}";
+        var legacyRequestHash = Hash(
             command.ReleaseId.ToString("D"),
             string.Join('|', canonical.Select(item => $"{item.Code}:{item.Kind}:{item.ConditionCode}")),
             command.ExpectedRowVersion?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty);
-        var replay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash, command.TaskCode, cancellationToken);
+        var replay = await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+            command.TaskCode, command.ActorUserId, command.CorrelationId, cancellationToken);
         if (replay is not null)
         {
             await auditTransaction.ExecuteAsync(
@@ -166,18 +173,11 @@ public sealed class EfEvidencePolicyService(
                             definition));
                     }
 
-                    dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-                    {
-                        Scope = scope,
-                        Key = command.IdempotencyKey,
-                        RequestHash = requestHash,
-                        Status = "COMPLETED",
-                        ResourceType = "EVIDENCE_POLICY_VERSION",
-                        ResourceId = created.Id,
-                        ResponseCode = StatusCodes.Status201Created,
-                        CreatedAt = clock.UtcNow,
-                        ExpiresAt = DateTimeOffset.MaxValue,
-                    });
+                    var response = ToDetails(command.TaskCode, created, canonical.Select(ToDetails).ToArray());
+                    dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+                        scope, command.IdempotencyKey, requestHash, "EVIDENCE_POLICY_VERSION", created.Id,
+                        StatusCodes.Status201Created, response, clock.UtcNow, DateTimeOffset.MaxValue,
+                        responseLocation: $"/api/v1/task-definitions/{command.TaskCode}/evidence-policy"));
                     return NewAuditEvent(
                         command.ActorUserId,
                         command.CorrelationId,
@@ -191,7 +191,8 @@ public sealed class EfEvidencePolicyService(
         catch (DbUpdateException exception) when ((exception.InnerException as PostgresException)?.ConstraintName == IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            return await FindReplayAsync(scope, command.IdempotencyKey, requestHash, command.TaskCode, cancellationToken)
+            return await FindReplayAsync(scope, legacyScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+                command.TaskCode, command.ActorUserId, command.CorrelationId, cancellationToken)
                 ?? throw new EvidencePolicyIdempotencyConflictException();
         }
         catch (DbUpdateConcurrencyException)
@@ -222,7 +223,6 @@ public sealed class EfEvidencePolicyService(
         EvidencePolicyReleaseNotDraftException or
         EvidencePolicyDefinitionPreconditionException or
         EvidencePolicyIfMatchRequiredException or
-        EvidencePolicyIdempotencyConflictException or
         EvidencePolicyOverlapException or
         EvidencePolicyValidationException or
         VersionConflictException or
@@ -231,21 +231,34 @@ public sealed class EfEvidencePolicyService(
 
     private async Task<EvidencePolicyVersionDetails?> FindReplayAsync(
         string scope,
+        string legacyScope,
         Guid key,
         string hash,
+        string legacyHash,
         string taskCode,
+        Guid actorUserId,
+        Guid correlationId,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == legacyScope && item.Key == key, cancellationToken);
         if (record is null)
         {
             return null;
         }
 
-        if (!string.Equals(record.RequestHash, hash, StringComparison.Ordinal))
+        var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion ? hash : legacyHash;
+        if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
         {
+            await AuditConflictAsync(actorUserId, correlationId, key, record.ResourceId, cancellationToken);
             throw new EvidencePolicyIdempotencyConflictException();
+        }
+
+        if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+        {
+            return IdempotencyProtocol.ReadPayload<EvidencePolicyVersionDetails>(record);
         }
 
         var policy = await dbContext.EvidencePolicyVersions.AsNoTracking()
@@ -264,6 +277,13 @@ public sealed class EfEvidencePolicyService(
             .ToListAsync(cancellationToken);
         return ToDetails(taskCode, policy, requirements);
     }
+
+    private Task AuditConflictAsync(Guid actorUserId, Guid correlationId, Guid key, Guid resourceId, CancellationToken token) =>
+        IdempotencyProtocol.PersistConflictAsync(
+            auditTransaction,
+            IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(), clock.UtcNow, actorUserId, "EVIDENCE_POLICY_VERSION", resourceId,
+                BranchScope.LorettaId, correlationId, key, "EVIDENCE_POLICY_PUT"), token);
 
     private async Task EnsureAuthorizedAsync(Guid actorUserId, Guid correlationId, CancellationToken cancellationToken)
     {

@@ -9,6 +9,7 @@ using Sgol.BuildingBlocks.Time;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Organization;
 
@@ -58,8 +59,14 @@ public sealed class EfPersonAdministrationService(
 
         var stableCode = RequireValue(command.StableCode, "stableCode");
         var displayName = RequireValue(command.DisplayName, "displayName");
-        var requestHash = ComputeHash(stableCode, displayName);
-        var replay = await FindReplayAsync(CreateScope, command.IdempotencyKey, requestHash, cancellationToken);
+        const string operation = "PERSON_CREATE";
+        const string resource = "new:LOR-001";
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            operation, command.ActorUserId.ToString("D"), resource, new { stableCode, displayName });
+        var legacyRequestHash = ComputeHash(stableCode, displayName);
+        var replay = await FindReplayAsync(scope, CreateScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+            command.ActorUserId, command.CorrelationId, operation, cancellationToken);
         if (replay is not null)
         {
             return replay;
@@ -81,6 +88,20 @@ public sealed class EfPersonAdministrationService(
             BranchScope.LorettaId,
             EmploymentStatus.Active,
             now);
+        var response = new PersonDetails(
+            personId,
+            stableCode,
+            displayName,
+            now,
+            [new EmploymentVersionSnapshot(
+                employmentId,
+                EmploymentStatus.Active,
+                now,
+                null,
+                null,
+                employment.RowVersion,
+                employment.PositionText,
+                employment.ShiftText)]);
 
         using var afterData = JsonSerializer.SerializeToDocument(new
         {
@@ -106,11 +127,13 @@ public sealed class EfPersonAdministrationService(
                     dbContext.People.Add(person);
                     dbContext.EmploymentVersions.Add(employment);
                     dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
-                        CreateScope,
+                        scope,
                         command.IdempotencyKey,
                         requestHash,
                         personId,
                         StatusCodes.Status201Created,
+                        response,
+                        employment.RowVersion,
                         now));
                     return Task.CompletedTask;
                 },
@@ -120,16 +143,22 @@ public sealed class EfPersonAdministrationService(
         catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            return await FindReplayAsync(CreateScope, command.IdempotencyKey, requestHash, cancellationToken)
+            return await FindReplayAsync(scope, CreateScope, command.IdempotencyKey, requestHash, legacyRequestHash,
+                command.ActorUserId, command.CorrelationId, operation, cancellationToken)
                 ?? throw new PersonIdempotencyConflictException();
         }
         catch (DbUpdateException exception) when (GetConstraintName(exception) == PersonCodeIndex)
         {
             dbContext.ChangeTracker.Clear();
             var concurrentReplay = await FindReplayAsync(
+                scope,
                 CreateScope,
                 command.IdempotencyKey,
                 requestHash,
+                legacyRequestHash,
+                command.ActorUserId,
+                command.CorrelationId,
+                operation,
                 cancellationToken);
             if (concurrentReplay is not null)
             {
@@ -164,8 +193,30 @@ public sealed class EfPersonAdministrationService(
         var updatesLaborData = command.PositionText is not null || command.ShiftText is not null;
         var positionText = command.PositionText is null ? null : RequireValue(command.PositionText, "positionText");
         var shiftText = command.ShiftText is null ? null : RequireValue(command.ShiftText, "shiftText");
+        if (command.IdempotencyKey is not Guid idempotencyKey ||
+            command.Operation is not ("PERSON_EMPLOYMENT_PATCH" or "PERSON_DEACTIVATE" or "PERSON_REACTIVATE"))
+        {
+            throw new PersonValidationException("A valid idempotent employment operation is required.");
+        }
 
-        var requestHash = ComputeHash(
+        var resource = command.PersonId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), command.Operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            command.Operation,
+            command.ActorUserId.ToString("D"),
+            resource,
+            new
+            {
+                command.PersonId,
+                command.Status,
+                reason,
+                hasPositionText = command.PositionText is not null,
+                positionText,
+                hasShiftText = command.ShiftText is not null,
+                shiftText,
+            },
+            command.ExpectedRowVersion);
+        var legacyRequestHash = ComputeHash(
             command.PersonId.ToString("D", CultureInfo.InvariantCulture),
             command.Status,
             command.ExpectedRowVersion.ToString(CultureInfo.InvariantCulture),
@@ -174,13 +225,11 @@ public sealed class EfPersonAdministrationService(
             positionText ?? string.Empty,
             command.ShiftText is null ? "0" : "1",
             shiftText ?? string.Empty);
-        if (command.IdempotencyKey is Guid idempotencyKey)
+        var replay = await FindReplayAsync(scope, EmploymentScope, idempotencyKey, requestHash, legacyRequestHash,
+            command.ActorUserId, command.CorrelationId, command.Operation, cancellationToken);
+        if (replay is not null)
         {
-            var replay = await FindReplayAsync(EmploymentScope, idempotencyKey, requestHash, cancellationToken);
-            if (replay is not null)
-            {
-                return replay;
-            }
+            return replay;
         }
 
         var current = await dbContext.EmploymentVersions
@@ -222,6 +271,8 @@ public sealed class EfPersonAdministrationService(
         }
 
         var now = clock.UtcNow;
+        var originalDetails = await LoadDetailsAsync(command.PersonId, cancellationToken)
+            ?? throw new PersonNotFoundException();
         var successor = updatesLaborData
             ? current.CreateSuccessor(
                 uuidGenerator.NewUuid(),
@@ -230,6 +281,23 @@ public sealed class EfPersonAdministrationService(
                 effectiveShiftText,
                 now)
             : current.CreateSuccessor(uuidGenerator.NewUuid(), command.Status, now);
+        var response = originalDetails with
+        {
+            EmploymentHistory = originalDetails.EmploymentHistory
+                .Select(item => item.Id == current.Id
+                    ? item with { ValidTo = current.ValidTo, RowVersion = current.RowVersion }
+                    : item)
+                .Append(new EmploymentVersionSnapshot(
+                    successor.Id,
+                    successor.Status,
+                    successor.ValidFrom,
+                    successor.ValidTo,
+                    successor.SupersedesId,
+                    successor.RowVersion,
+                    successor.PositionText,
+                    successor.ShiftText))
+                .ToArray()
+        };
         using var beforeData = JsonSerializer.SerializeToDocument(new
         {
             schemaVersion = 1,
@@ -265,16 +333,15 @@ public sealed class EfPersonAdministrationService(
                 _ =>
                 {
                     dbContext.EmploymentVersions.Add(successor);
-                    if (command.IdempotencyKey is Guid key)
-                    {
-                        dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
-                            EmploymentScope,
-                            key,
-                            requestHash,
-                            command.PersonId,
-                            StatusCodes.Status200OK,
-                            now));
-                    }
+                    dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
+                        scope,
+                        idempotencyKey,
+                        requestHash,
+                        command.PersonId,
+                        StatusCodes.Status200OK,
+                        response,
+                        successor.RowVersion,
+                        now));
 
                     return Task.CompletedTask;
                 },
@@ -290,17 +357,19 @@ public sealed class EfPersonAdministrationService(
             GetConstraintName(exception) is CurrentEmploymentIndex or EmploymentSuccessorIndex)
         {
             dbContext.ChangeTracker.Clear();
-            if (command.IdempotencyKey is Guid key)
+            var concurrentReplay = await FindReplayAsync(
+                scope,
+                EmploymentScope,
+                idempotencyKey,
+                requestHash,
+                legacyRequestHash,
+                command.ActorUserId,
+                command.CorrelationId,
+                command.Operation,
+                cancellationToken);
+            if (concurrentReplay is not null)
             {
-                var concurrentReplay = await FindReplayAsync(
-                    EmploymentScope,
-                    key,
-                    requestHash,
-                    cancellationToken);
-                if (concurrentReplay is not null)
-                {
-                    return concurrentReplay;
-                }
+                return concurrentReplay;
             }
 
             throw new PersonVersionConflictException();
@@ -308,8 +377,8 @@ public sealed class EfPersonAdministrationService(
         catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
         {
             dbContext.ChangeTracker.Clear();
-            var key = command.IdempotencyKey!.Value;
-            return await FindReplayAsync(EmploymentScope, key, requestHash, cancellationToken)
+            return await FindReplayAsync(scope, EmploymentScope, idempotencyKey, requestHash, legacyRequestHash,
+                command.ActorUserId, command.CorrelationId, command.Operation, cancellationToken)
                 ?? throw new PersonIdempotencyConflictException();
         }
         catch
@@ -366,21 +435,39 @@ public sealed class EfPersonAdministrationService(
 
     private async Task<PersonMutationResult?> FindReplayAsync(
         string scope,
+        string legacyScope,
         Guid key,
         string requestHash,
+        string legacyRequestHash,
+        Guid actorUserId,
+        Guid correlationId,
+        string operation,
         CancellationToken cancellationToken)
     {
         var record = await dbContext.IdempotencyRecords
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken)
+            ?? await dbContext.IdempotencyRecords.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Scope == legacyScope && item.Key == key, cancellationToken);
         if (record is null)
         {
             return null;
         }
 
-        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+            ? requestHash
+            : legacyRequestHash;
+        if (!string.Equals(record.RequestHash, expectedHash, StringComparison.Ordinal))
         {
+            await AuditConflictAsync(actorUserId, correlationId, key, operation, record.ResourceId, cancellationToken);
             throw new PersonIdempotencyConflictException();
+        }
+
+        if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+        {
+            return new PersonMutationResult(
+                IdempotencyProtocol.ReadPayload<PersonDetails>(record),
+                Replayed: true);
         }
 
         var person = await LoadDetailsAsync(record.ResourceId, cancellationToken)
@@ -388,6 +475,26 @@ public sealed class EfPersonAdministrationService(
         dbContext.ChangeTracker.Clear();
         return new PersonMutationResult(person, Replayed: true);
     }
+
+    private Task AuditConflictAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid key,
+        string operation,
+        Guid resourceId,
+        CancellationToken token) => IdempotencyProtocol.PersistConflictAsync(
+            auditTransaction,
+            IdempotencyProtocol.ConflictAudit(
+                uuidGenerator.NewUuid(),
+                clock.UtcNow,
+                actorUserId,
+                "PERSON",
+                resourceId,
+                BranchScope.LorettaId,
+                correlationId,
+                key,
+                operation),
+            token);
 
     private async Task<PersonDetails?> LoadDetailsAsync(Guid personId, CancellationToken cancellationToken)
     {
@@ -456,18 +563,20 @@ public sealed class EfPersonAdministrationService(
         string requestHash,
         Guid resourceId,
         int responseCode,
-        DateTimeOffset createdAt) => new()
-        {
-            Scope = scope,
-            Key = key,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = "PERSON",
-            ResourceId = resourceId,
-            ResponseCode = responseCode,
-            CreatedAt = createdAt,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        };
+        PersonDetails response,
+        long responseEtagRowVersion,
+        DateTimeOffset createdAt) => IdempotencyProtocol.Completed(
+            scope,
+            key,
+            requestHash,
+            "PERSON",
+            resourceId,
+            responseCode,
+            response,
+            createdAt,
+            DateTimeOffset.MaxValue,
+            responseEtag: $"\"{responseEtagRowVersion.ToString(CultureInfo.InvariantCulture)}\"",
+            responseLocation: responseCode == StatusCodes.Status201Created ? $"/api/v1/people/{resourceId:D}" : null);
 
     private static string RequireValue(string value, string fieldName)
     {

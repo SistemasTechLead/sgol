@@ -90,6 +90,7 @@ public sealed record AvailabilityDaySnapshot(
 public sealed record PutAvailabilityCommand(
     Guid ActorUserId,
     Guid CorrelationId,
+    Guid IdempotencyKey,
     Guid PersonId,
     DateOnly LocalDate,
     bool IsAvailable,
@@ -123,5 +124,8 @@ public sealed class AvailabilityIfMatchRequiredException()
     : Exception("If-Match is required to correct an availability value.");
 
 public sealed class AvailabilityVersionConflictException() : Exception("The availability version changed.");
+
+public sealed class AvailabilityIdempotencyConflictException()
+    : Exception("The idempotency key was already used with different content.");
 
 public sealed class AvailabilityValidationException(string message) : Exception(message);

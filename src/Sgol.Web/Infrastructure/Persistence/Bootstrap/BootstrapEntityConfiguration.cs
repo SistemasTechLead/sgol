@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Sgol.Organization.Contracts;
@@ -134,6 +135,14 @@ public sealed class IdempotencyRecord
     public DateTimeOffset CreatedAt { get; init; }
 
     public DateTimeOffset ExpiresAt { get; init; }
+
+    public short? ProtocolVersion { get; init; }
+
+    public JsonDocument? ResponsePayload { get; init; }
+
+    public string? ResponseEtag { get; init; }
+
+    public string? ResponseLocation { get; init; }
 }
 
 internal sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<IdempotencyRecord>
@@ -151,6 +160,19 @@ internal sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<
         builder.Property(record => record.ResponseCode).HasColumnName("response_code");
         builder.Property(record => record.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
         builder.Property(record => record.ExpiresAt).HasColumnName("expires_at").HasColumnType("timestamp with time zone");
+        builder.Property(record => record.ProtocolVersion).HasColumnName("protocol_version");
+        builder.Property(record => record.ResponsePayload).HasColumnName("response_payload").HasColumnType("jsonb");
+        builder.Property(record => record.ResponseEtag).HasColumnName("response_etag");
+        builder.Property(record => record.ResponseLocation).HasColumnName("response_location");
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_idempotency_record_protocol",
+                "protocol_version IS NULL OR (protocol_version = 1 AND status = 'COMPLETED' AND response_payload IS NOT NULL)");
+            table.HasCheckConstraint(
+                "CK_idempotency_record_response_location",
+                "response_location IS NULL OR (response_location LIKE '/api/v1/%' AND response_location !~ '://')");
+        });
     }
 }
 

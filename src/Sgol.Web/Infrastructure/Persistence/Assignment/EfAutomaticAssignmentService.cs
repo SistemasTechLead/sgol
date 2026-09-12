@@ -13,6 +13,7 @@ using Sgol.Organization.Contracts;
 using Sgol.Notifications.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Assignment;
 
@@ -43,7 +44,8 @@ public sealed class EfAutomaticAssignmentService(
             throw new ArgumentException("Automatic-assignment identifiers cannot be empty.", nameof(command));
         }
 
-        var requestHash = Hash(command.ObligationId, command.EligibilityEvaluationId);
+        var requestHash = CurrentHash(command);
+        var legacyRequestHash = LegacyHash(command.ObligationId, command.EligibilityEvaluationId);
         for (var attempt = 1; attempt <= MaximumAttempts; attempt++)
         {
             AutomaticAssignmentResult? result = null;
@@ -62,21 +64,26 @@ public sealed class EfAutomaticAssignmentService(
                         {
                             var missingReplay = await dbContext.IdempotencyRecords.AsNoTracking()
                                 .SingleOrDefaultAsync(record =>
-                                    record.Scope == IdempotencyScope &&
+                                    (record.Scope == Scope(command) || record.Scope == IdempotencyScope) &&
                                     record.Key == command.AssignmentRequestId,
                                     token);
                             if (missingReplay is not null)
                             {
-                                if (!string.Equals(missingReplay.RequestHash, requestHash, StringComparison.Ordinal))
+                                var expectedHash = missingReplay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                    ? requestHash
+                                    : legacyRequestHash;
+                                if (!string.Equals(missingReplay.RequestHash, expectedHash, StringComparison.Ordinal))
                                 {
                                     rejection = new AutomaticAssignmentIdempotencyConflictException();
-                                    return RejectedAudit(command, null, rejection.ErrorCode, clock.UtcNow);
+                                    return IdempotencyConflictAudit(command, null, clock.UtcNow);
                                 }
 
                                 if (missingReplay.ResourceType.StartsWith(ErrorResourcePrefix, StringComparison.Ordinal))
                                 {
-                                    rejection = ExceptionFor(
-                                        missingReplay.ResourceType[ErrorResourcePrefix.Length..]);
+                                    var errorCode = missingReplay.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                        ? IdempotencyProtocol.ReadPayload<RejectionSnapshot>(missingReplay).ErrorCode
+                                        : missingReplay.ResourceType[ErrorResourcePrefix.Length..];
+                                    rejection = ExceptionFor(errorCode);
                                     return RejectedAudit(command, null, rejection.ErrorCode, clock.UtcNow);
                                 }
 
@@ -90,24 +97,40 @@ public sealed class EfAutomaticAssignmentService(
 
                         var idempotency = await dbContext.IdempotencyRecords.AsNoTracking()
                             .SingleOrDefaultAsync(record =>
-                                record.Scope == IdempotencyScope &&
+                                (record.Scope == Scope(command) || record.Scope == IdempotencyScope) &&
                                 record.Key == command.AssignmentRequestId,
                                 token);
                         if (idempotency is not null)
                         {
-                            if (!string.Equals(idempotency.RequestHash, requestHash, StringComparison.Ordinal))
+                            var expectedHash = idempotency.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                ? requestHash
+                                : legacyRequestHash;
+                            if (!string.Equals(idempotency.RequestHash, expectedHash, StringComparison.Ordinal))
                             {
                                 rejection = new AutomaticAssignmentIdempotencyConflictException();
-                                return RejectedAudit(command, obligation.BranchId, rejection.ErrorCode, clock.UtcNow);
+                                return IdempotencyConflictAudit(command, obligation.BranchId, clock.UtcNow);
                             }
 
                             if (idempotency.ResourceType.StartsWith(ErrorResourcePrefix, StringComparison.Ordinal))
                             {
-                                rejection = ExceptionFor(idempotency.ResourceType[ErrorResourcePrefix.Length..]);
+                                var errorCode = idempotency.ProtocolVersion == IdempotencyProtocol.CurrentVersion
+                                    ? IdempotencyProtocol.ReadPayload<RejectionSnapshot>(idempotency).ErrorCode
+                                    : idempotency.ResourceType[ErrorResourcePrefix.Length..];
+                                rejection = ExceptionFor(errorCode);
                                 return RejectedAudit(command, obligation.BranchId, rejection.ErrorCode, clock.UtcNow);
                             }
 
-                            result = await ReplayAsync(command, idempotency, token);
+                            if (idempotency.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
+                            {
+                                var snapshot = IdempotencyProtocol.ReadPayload<AutomaticAssignmentResult>(idempotency);
+                                result = snapshot.Result == AutomaticAssignmentResults.Created
+                                    ? snapshot with { Result = AutomaticAssignmentResults.Recovered }
+                                    : snapshot;
+                            }
+                            else
+                            {
+                                result = await ReplayAsync(command, idempotency, token);
+                            }
                             return result.Result == AutomaticAssignmentResults.NoEligibleCandidate
                                 ? NoCandidateAudit(command, obligation.BranchId, clock.UtcNow)
                                 : RecoveredAudit(command, obligation.BranchId, result, clock.UtcNow);
@@ -135,14 +158,15 @@ public sealed class EfAutomaticAssignmentService(
                                 UsesEvaluation(currentAssignment, command.EligibilityEvaluationId))
                             {
                                 var now = clock.UtcNow;
+                                result = Recovered(command, currentAssignment);
                                 AddIdempotency(
                                     command,
                                     requestHash,
                                     AssignmentResource,
                                     currentAssignment.Id,
                                     StatusCodes.Status200OK,
+                                    result,
                                     now);
-                                result = Recovered(command, currentAssignment);
                                 return RecoveredAudit(command, obligation.BranchId, result, now);
                             }
 
@@ -200,14 +224,15 @@ public sealed class EfAutomaticAssignmentService(
                         if (evaluation.Result == EligibilityResults.NoEligibleCandidate)
                         {
                             var now = clock.UtcNow;
+                            result = NoCandidate(command);
                             AddIdempotency(
                                 command,
                                 requestHash,
                                 NoCandidateResource,
                                 obligation.Id,
                                 StatusCodes.Status200OK,
+                                result,
                                 now);
-                            result = NoCandidate(command);
                             return NoCandidateAudit(command, obligation.BranchId, now);
                         }
 
@@ -254,13 +279,6 @@ public sealed class EfAutomaticAssignmentService(
                             calculatedAt);
                         dbContext.AssignmentVersions.Add(assignment);
                         await noticeWriter.AddAssignmentNoticeAsync(assignment.Id, assignment.PersonId, calculatedAt, token);
-                        AddIdempotency(
-                            command,
-                            requestHash,
-                            AssignmentResource,
-                            assignmentId,
-                            StatusCodes.Status201Created,
-                            calculatedAt);
                         result = new AutomaticAssignmentResult(
                             AutomaticAssignmentResults.Created,
                             command.AssignmentRequestId,
@@ -270,6 +288,14 @@ public sealed class EfAutomaticAssignmentService(
                             ranking.Winner.PersonId,
                             calculatedAt,
                             null);
+                        AddIdempotency(
+                            command,
+                            requestHash,
+                            AssignmentResource,
+                            assignmentId,
+                            StatusCodes.Status201Created,
+                            result,
+                            calculatedAt);
                         return CreatedAudit(command, obligation.BranchId, result, calculatedAt);
                     },
                     cancellationToken);
@@ -284,9 +310,17 @@ public sealed class EfAutomaticAssignmentService(
                     noticeWriter.RecordAssignmentNoticeCommitted();
                 return completed;
             }
+            catch (Exception exception) when (rejection is AutomaticAssignmentIdempotencyConflictException &&
+                exception is not AutomaticAssignmentIdempotencyConflictException)
+            {
+                dbContext.ChangeTracker.Clear();
+                throw new IdempotencyConflictAuditException(exception);
+            }
             catch (Exception exception) when (IsRetryable(exception) && attempt < MaximumAttempts)
             {
                 dbContext.ChangeTracker.Clear();
+                await IdempotencyProtocol.DelayBeforeRetryAsync(
+                    "AUTOMATIC_ASSIGNMENT_CREATE", exception, attempt, cancellationToken);
             }
             catch (Exception exception) when (IsRetryable(exception))
             {
@@ -330,20 +364,12 @@ public sealed class EfAutomaticAssignmentService(
         string resourceType,
         Guid resourceId,
         int responseCode,
+        object responsePayload,
         DateTimeOffset now)
     {
-        dbContext.IdempotencyRecords.Add(new IdempotencyRecord
-        {
-            Scope = IdempotencyScope,
-            Key = command.AssignmentRequestId,
-            RequestHash = requestHash,
-            Status = "COMPLETED",
-            ResourceType = resourceType,
-            ResourceId = resourceId,
-            ResponseCode = responseCode,
-            CreatedAt = now,
-            ExpiresAt = DateTimeOffset.MaxValue,
-        });
+        dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+            Scope(command), command.AssignmentRequestId, requestHash, resourceType, resourceId,
+            responseCode, responsePayload, now, DateTimeOffset.MaxValue));
     }
 
     private async Task PersistConcurrencyRejectionAsync(
@@ -357,22 +383,7 @@ public sealed class EfAutomaticAssignmentService(
         await auditTransaction.ExecuteAsync(
             async token =>
             {
-                var requestHash = Hash(command.ObligationId, command.EligibilityEvaluationId);
-                var exists = await dbContext.IdempotencyRecords.AsNoTracking().AnyAsync(record =>
-                    record.Scope == IdempotencyScope && record.Key == command.AssignmentRequestId,
-                    token);
                 var now = clock.UtcNow;
-                if (!exists)
-                {
-                    AddIdempotency(
-                        command,
-                        requestHash,
-                        ErrorResourcePrefix + AutomaticAssignmentErrors.ConcurrencyConflict,
-                        command.ObligationId,
-                        StatusCodes.Status409Conflict,
-                        now);
-                }
-
                 return RejectedAudit(
                     command,
                     branchId,
@@ -388,18 +399,7 @@ public sealed class EfAutomaticAssignmentService(
         Guid? branchId,
         AutomaticAssignmentException exception,
         DateTimeOffset occurredAt)
-    {
-        AddIdempotency(
-            command,
-            requestHash,
-            ErrorResourcePrefix + exception.ErrorCode,
-            command.ObligationId,
-            exception is AutomaticAssignmentObligationNotFoundException
-                ? StatusCodes.Status404NotFound
-                : StatusCodes.Status409Conflict,
-            occurredAt);
-        return RejectedAudit(command, branchId, exception.ErrorCode, occurredAt);
-    }
+        => RejectedAudit(command, branchId, exception.ErrorCode, occurredAt);
 
     private static AutomaticAssignmentException ExceptionFor(string errorCode) => errorCode switch
     {
@@ -560,6 +560,14 @@ public sealed class EfAutomaticAssignmentService(
             null,
             errorCode);
 
+    private AuditEvent IdempotencyConflictAudit(
+        AssignObligationCommand command,
+        Guid? branchId,
+        DateTimeOffset occurredAt) => IdempotencyProtocol.ConflictAudit(
+            uuidGenerator.NewUuid(), occurredAt, null, "WORK_OBLIGATION", command.ObligationId,
+            branchId ?? BranchScope.LorettaId, command.CorrelationId, command.AssignmentRequestId,
+            "AUTOMATIC_ASSIGNMENT_CREATE");
+
     private AuditEvent ResultAudit(
         AssignObligationCommand command,
         Guid? branchId,
@@ -594,7 +602,18 @@ public sealed class EfAutomaticAssignmentService(
             Outcome = outcome,
         };
 
-    private static string Hash(Guid obligationId, Guid evaluationId)
+    private static string Scope(AssignObligationCommand command) => IdempotencyProtocol.Scope(
+        "system:automatic-assignment",
+        "AUTOMATIC_ASSIGNMENT_CREATE",
+        command.ObligationId.ToString("D"));
+
+    private static string CurrentHash(AssignObligationCommand command) => IdempotencyProtocol.HashCanonical(
+        "AUTOMATIC_ASSIGNMENT_CREATE",
+        "system:automatic-assignment",
+        command.ObligationId.ToString("D"),
+        new { command.ObligationId, command.EligibilityEvaluationId });
+
+    private static string LegacyHash(Guid obligationId, Guid evaluationId)
     {
         var value = string.Join(
             '\n',
@@ -602,6 +621,8 @@ public sealed class EfAutomaticAssignmentService(
             evaluationId.ToString("D", CultureInfo.InvariantCulture));
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     }
+
+    private sealed record RejectionSnapshot(string ErrorCode);
 
     private static bool IsRetryable(Exception exception)
     {

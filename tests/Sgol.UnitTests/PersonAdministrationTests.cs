@@ -136,6 +136,7 @@ public sealed class PersonAdministrationTests
         };
         var context = CreateContext(authenticated: true);
         context.Request.Headers.IfMatch = "\"1\"";
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
 
         var result = await PersonApiEndpoints.HandlePatchEmploymentAsync(
             PersonId,
@@ -153,6 +154,7 @@ public sealed class PersonAdministrationTests
         var service = new RecordingPersonService(CreateDetails());
         var context = CreateContext(authenticated: true);
         context.Request.Headers.IfMatch = "\"1\"";
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
 
         var result = await PersonApiEndpoints.HandlePatchEmploymentAsync(
             PersonId,
