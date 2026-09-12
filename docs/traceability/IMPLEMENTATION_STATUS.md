@@ -4,7 +4,33 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-032`
+## Propuesta actual en rama — `HU-033`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-033` — Actor autorizado reconstruye auditoría sin borrado |
+| Estado | Propuesta implementada en `codex/hu-033`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Contrato | `F07_ADENDA_29_CONTRATO_DE_CONSULTA_GENERAL_DE_AUDITORIA_HU_033.md`, aprobada íntegramente por el responsable el 2026-09-11 antes de continuar la implementación |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `HU-032`: PR `#51`, commit `d3c8362d712fe67161a0b99c7abe1f43918fb2eb`, pipeline requerido `SUCCESS` run `34658630103`, aprobación humana, merge `46a8fdb42d9d38973e4979980ab9456ae63016cf`, PostgreSQL externo `204/204`, `origin/master` verificado exactamente y ascendencia confirmada |
+| Entregable | `GET /api/v1/audit-events` y `GET /api/v1/audit-events/{id}`; consulta general o trazabilidad por obligación con período UTC obligatorio, filtros cerrados, orden determinista y cursor ligado al actor, alcance, filtros y cerca temporal |
+| Autorización | Autenticación, `PER-AUDITORIA-VER`, cuenta, empleo y rol canónico vigentes en `LOR-001`; Dirección ve la sucursal, Administración y Subcoordinación ven hechos propios e inferiores históricos y Piso sólo los propios; pares, superiores y otra sucursal quedan fuera |
+| Reconstrucción | `traceObligationId` enlaza exclusivamente relaciones persistidas de configuración, asignación, evidencia y validación; informa completitud por etapa sin inventar correlación, estado actual ni eventos ausentes |
+| Minimización | DTO propio de lectura; `before` y `after` aplican la allowlist exacta aprobada, informan campos omitidos y no exponen motivo textual, `requestId`, `sourceIpHash`, secretos, binarios, URLs firmadas ni contenido íntegro de evidencia |
+| Borrado | No existe operación funcional de borrado; un `DELETE` autenticado a las rutas de auditoría devuelve `405` y registra una sola vez `AUDIT_EVENT_DELETE_ATTEMPTED`; el intento no autenticado devuelve `401` sin auditoría funcional |
+| Persistencia | Reutiliza `audit_event`, `AuditTransaction` y el trigger append-only; sin tablas, columnas, vistas, índices, migraciones, backfill, cache, agregados ni productores retroactivos nuevos |
+| Consistencia | PostgreSQL `REPEATABLE READ, READ ONLY`, `AsNoTracking`, único `queriedAt`; la lectura no inserta auditoría ni modifica recursos, versiones, ETag o row version |
+| UI y navegador | No aplican: la Adenda 29 excluye interfaz y define únicamente API |
+| Pruebas enfocadas | Endpoint y middleware `27/27`; arquitectura `2/2`; proyecto PostgreSQL compila sin errores ni advertencias y contiene `10` casos de jerarquía, autorización vigente, anti-IDOR, reconstrucción indivisible, actores históricos, minimización, cursor/snapshot, no efectos, rechazo append-only y auditoría del intento de borrado |
+| Gates locales | Restore locked `20/20`; build Release `20/20`, cero errores y advertencias; suite local sin PostgreSQL `530/530` unitarias, `36/36` arquitectura y contratos CV sin Docker `34/34`; formato limpio; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` y archivos nuevos sin errores |
+| PostgreSQL externo | Suite consolidada final aportada por el desarrollador: `214/214` pruebas aprobadas, cero advertencias, `541.4 s`. Cinco intentos anteriores permitieron corregir exclusivamente invariantes de la semilla sintética y proyecciones auxiliares no traducibles; el resultado final verifica los diez casos de `HU-033` y los `204` casos no afectados |
+| Límites | Sin consulta de conflictos idempotentes de `HU-034`; sin continuidad, restauración o reconciliación de `HU-035`; sin UI, exportación, purga, retención física o reconstrucción retroactiva |
+| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Siguiente tarea | Ninguna habilitada desde esta rama |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
+
+## Base aceptada — `HU-032`
 
 | Campo | Valor |
 |---|---|

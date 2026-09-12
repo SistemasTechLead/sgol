@@ -7,6 +7,7 @@ public static class HttpPrimitivesApplicationBuilderExtensions
         app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseExceptionHandler();
         app.UseStatusCodePages();
+        app.UseMiddleware<AuditDeleteAttemptMiddleware>();
 
         return app;
     }

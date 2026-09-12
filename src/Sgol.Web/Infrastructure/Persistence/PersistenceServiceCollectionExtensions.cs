@@ -1,4 +1,5 @@
 using Sgol.Assignment.Contracts;
+using Sgol.Auditing.Contracts;
 using Sgol.Configuration.Contracts;
 using Sgol.Execution.Contracts;
 using Sgol.Evidence.Contracts;
@@ -37,7 +38,10 @@ public static class PersistenceServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddSgolJobInfrastructure(configuration);
+        services.AddDataProtection();
         services.AddScoped<AuditTransaction>();
+        services.AddScoped<IAuditEventReader, EfAuditEventReader>();
+        services.AddScoped<IAuditSecurityEventWriter, EfAuditSecurityEventWriter>();
         services.AddScoped<VersioningTransaction>();
         services.AddScoped<EfConfigurationReleaseService>();
         services.AddScoped<IConfigurationReleaseService>(provider => provider.GetRequiredService<EfConfigurationReleaseService>());
