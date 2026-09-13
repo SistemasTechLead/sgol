@@ -471,6 +471,12 @@
       "sgol.notifications": {
         "type": "Project"
       },
+      "sgol.operations": {
+        "type": "Project",
+        "dependencies": {
+          "Sgol.Web": "[1.0.0, )"
+        }
+      },
       "sgol.organization": {
         "type": "Project"
       },
@@ -500,6 +506,7 @@
       "sgol.worker": {
         "type": "Project",
         "dependencies": {
+          "Sgol.Operations": "[1.0.0, )",
           "Sgol.Web": "[1.0.0, )"
         }
       },

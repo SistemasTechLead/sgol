@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Sgol.Web.Infrastructure.Http;
 using Sgol.Web.Infrastructure.Evidence;
 using Sgol.Web.Infrastructure.Persistence;
@@ -38,6 +39,26 @@ app.MapGet("/health/live", (HttpContext context) => Results.Ok(new
     status = "alive",
     meta = new { correlationId = context.GetCorrelationId() }
 }));
+app.MapGet("/health/ready", async (HttpContext context, HealthCheckService healthChecks) =>
+{
+    var ready = false;
+    try
+    {
+        var report = await healthChecks.CheckHealthAsync(
+            registration => registration.Tags.Contains("ready"), context.RequestAborted);
+        ready = report.Status == HealthStatus.Healthy;
+    }
+    catch (Exception) when (!context.RequestAborted.IsCancellationRequested)
+    {
+        ready = false;
+    }
+
+    return Results.Json(new
+    {
+        status = ready ? "ready" : "unavailable",
+        meta = new { correlationId = context.GetCorrelationId() }
+    }, statusCode: ready ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable);
+});
 app.MapRazorPages();
 app.MapBranchApi();
 app.MapPersonApi();

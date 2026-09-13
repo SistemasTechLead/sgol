@@ -35,6 +35,8 @@ public interface IScheduledJob
 {
     string Name { get; }
 
+    bool PreventOverlappingSlots => false;
+
     string ConcurrencyExhaustedErrorCode => "POSTGRES_CONCURRENCY_EXHAUSTED";
 
     Task ExecuteAsync(ScheduledJobContext context, CancellationToken cancellationToken);

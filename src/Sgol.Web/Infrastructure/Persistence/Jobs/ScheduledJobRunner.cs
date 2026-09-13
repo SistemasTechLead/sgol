@@ -44,7 +44,9 @@ public sealed class ScheduledJobRunner(
 
         await using var lockConnection = new NpgsqlConnection(databaseOptions.ConnectionString);
         await lockConnection.OpenAsync(cancellationToken);
-        var lockKey = ComputeLockKey(jobName, scheduledFor);
+        var lockKey = job.PreventOverlappingSlots
+            ? ComputeLockKey(jobName)
+            : ComputeLockKey(jobName, scheduledFor);
         if (!await TryAcquireLockAsync(lockConnection, lockKey, cancellationToken))
         {
             JobLogs.ScheduledJobLockBusy(logger, jobName, "SKIPPED_LOCKED", correlationId);
@@ -328,6 +330,12 @@ public sealed class ScheduledJobRunner(
             scheduledFor.UtcDateTime.ToString("O", CultureInfo.InvariantCulture));
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
         return System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(digest);
+    }
+
+    internal static int ComputeLockKey(string jobName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobName);
+        return ComputeLockKey(jobName, DateTimeOffset.UnixEpoch);
     }
 
     private static bool IsUniqueViolation(Exception exception)

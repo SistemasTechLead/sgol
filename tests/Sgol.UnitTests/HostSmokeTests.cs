@@ -54,6 +54,21 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(payload?.Meta.CorrelationId, Assert.Single(values));
     }
 
+    [Fact]
+    public async Task ReadyEndpoint_FailsClosedWithoutPostgreSqlOrObjectStorageDetails()
+    {
+        using var response = await _client.GetAsync("/health/ready");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.True(
+            response.StatusCode == HttpStatusCode.ServiceUnavailable,
+            $"Expected readiness 503 but received {(int)response.StatusCode}: {payload}");
+        Assert.Contains("unavailable", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("Host=", payload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("bucket", payload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("exception", payload, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData("/css/tokens.css", "--color-acento")]
     [InlineData("/css/components.css", ".navegacion-lateral__item")]

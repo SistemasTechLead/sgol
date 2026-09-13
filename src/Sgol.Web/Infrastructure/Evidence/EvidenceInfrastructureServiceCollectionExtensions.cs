@@ -38,8 +38,8 @@ public static class EvidenceInfrastructureServiceCollectionExtensions
             AddFailClosedAdapters(services);
         }
         services.AddHealthChecks()
-            .AddCheck<EvidenceStorageHealthCheck>("evidence-storage", tags: ["evidence-ready"])
-            .AddCheck<ClamAvHealthCheck>("evidence-scanner", tags: ["evidence-ready"]);
+            .AddCheck<EvidenceStorageHealthCheck>("evidence-storage", tags: ["ready"])
+            .AddCheck<ClamAvHealthCheck>("evidence-scanner", tags: ["worker-ready"]);
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOutboxHandler, EvidenceInspectionOutboxHandler>());
         return services;
     }

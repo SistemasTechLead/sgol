@@ -14,7 +14,9 @@ Los pasos tienen nombres independientes para que GitHub identifique el gate que 
 6. `dotnet build --no-restore --configuration Release` con analizadores .NET, nivel recomendado vigente del SDK y advertencias tratadas como errores;
 7. `dotnet test --no-build --configuration Release`, que ejecuta unitarias, arquitectura, validación de la plantilla de trazabilidad e integración con PostgreSQL real y efímero mediante Testcontainers;
 8. `dotnet format --verify-no-changes`;
-9. consulta de paquetes NuGet directos y transitivos contra vulnerabilidades conocidas. Cualquier hallazgo falla mientras no exista un tratamiento explícitamente aprobado.
+9. consulta de paquetes NuGet directos y transitivos contra vulnerabilidades conocidas. Cualquier hallazgo falla mientras no exista un tratamiento explícitamente aprobado;
+10. gate integral `TECH-OPS-001` en el runner nativo x64: aprovisionamiento sintético, migración, backup/reintento, réplica/reintento y verificaciones aisladas;
+11. conservación, según la política de artefactos configurada en el repositorio, del layout OCI con SBOM/procedencia y de la evidencia técnica pública minimizada: digest, conteos, timestamps, etapa, resultado e inspección de imagen. El runtime privado, TRX detallados, credenciales S3, nombres/URIs de buckets y manifiestos con keys/hashes quedan excluidos. La retención de CI no hereda silenciosamente los 30 días del respaldo PostgreSQL.
 
 La prueba de integración conserva la imagen PostgreSQL fijada por `TECH-BASE-002`, genera su credencial en memoria y elimina el contenedor al terminar. No se admite SQLite ni un mock como sustituto.
 
@@ -30,6 +32,7 @@ El análisis estático conserva dos excepciones estrechas en `.editorconfig`: CA
 |---|---:|---|---|
 | `actions/checkout` | 7.0.1 | SHA de commit `3d3c42e5aac5ba805825da76410c181273ba90b1` | MIT |
 | `actions/setup-dotnet` | 6.0.0 | SHA de commit `a98b56852c35b8e3190ac28c8c2271da59106c68` | MIT |
+| `actions/upload-artifact` | 7.0.1 | SHA de commit `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | MIT |
 | Gitleaks | 8.30.1 | SHA-256 Linux x64 `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb` | MIT |
 | .NET SDK | 10.0.400 | `global.json`, entrada exacta del workflow y comprobación en ejecución | MIT y licencias .NET aplicables |
 | PostgreSQL de integración | `postgres:18.6-alpine3.23` | etiqueta de imagen aprobada en `TECH-BASE-002` | PostgreSQL License |
@@ -51,3 +54,5 @@ dotnet format --verify-no-changes
 ```
 
 La sintaxis y el comportamiento del workflow sólo quedan verificados en GitHub cuando se publica la rama y se abre un pull request. Un resultado local no sustituye esa ejecución ni la revisión humana.
+
+El orquestador `scripts/operations/invoke-tech-ops-amd64-gate.ps1` no conoce GitHub y exige únicamente host x86-64, Docker, PowerShell y la imagen `linux/amd64` ya cargada. Por ello puede trasladarse en el futuro a un equipo físico Intel o AMD x86-64 sin cambiar comandos, contratos ni datos sintéticos. En ARM64 falla cerrado con `AMD64_HOST_REQUIRED`; la emulación no se presenta como evidencia equivalente.

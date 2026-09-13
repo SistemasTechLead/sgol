@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -47,6 +48,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string ValidationPoliciesMigrationId = "20260910191232_AddValidationPolicies";
     private const string ValidationDecisionsMigrationId = "20260910210908_AddValidationDecisions";
     private const string IdempotencyReplayMigrationId = "20260912120000_ExtendIdempotencyReplay";
+    private const string PortableDataProtectionMigrationId = "20260912213000_AddPortableDataProtectionKeyRing";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -98,6 +100,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 ValidationPoliciesMigrationId,
                 ValidationDecisionsMigrationId,
                 IdempotencyReplayMigrationId,
+                PortableDataProtectionMigrationId,
             ],
             appliedMigrations);
 
@@ -124,6 +127,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "branch",
                 "calendar_day_version",
                 "configuration_release",
+                "data_protection_key",
                 "direction_bootstrap",
                 "eligibility_candidate",
                 "eligibility_evaluation",
@@ -157,6 +161,78 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "work_plan",
             ],
             tables);
+    }
+
+    [Fact]
+    public async Task PortableDataProtectionKeyRingIsEncryptedAndReadableAfterRedeploy()
+    {
+        await using (var context = CreateContext())
+        {
+            await context.Database.EnsureDeletedAsync();
+            await context.Database.MigrateAsync();
+        }
+
+        const string certificatePassword = "synthetic-certificate-password";
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest(
+            "CN=SGOL Synthetic Test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(2));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Sgol"] = _postgres.GetConnectionString(),
+            ["DataProtection:ApplicationName"] = "SGOL-TECH-OPS-TEST",
+            ["DataProtection:WrappingCertificate"] = Convert.ToBase64String(
+                certificate.Export(X509ContentType.Pfx, certificatePassword)),
+            ["DataProtection:WrappingCertificatePassword"] = certificatePassword
+        }).Build();
+
+        string protectedValue;
+        await using (var first = Services(configuration))
+        {
+            protectedValue = first.GetRequiredService<IDataProtectionProvider>()
+                .CreateProtector("synthetic-purpose")
+                .Protect("synthetic-protected-value");
+        }
+
+        await using (var second = Services(configuration))
+        {
+            Assert.Equal(
+                "synthetic-protected-value",
+                second.GetRequiredService<IDataProtectionProvider>()
+                    .CreateProtector("synthetic-purpose")
+                    .Unprotect(protectedValue));
+        }
+
+        using var wrongRsa = RSA.Create(2048);
+        var wrongRequest = new CertificateRequest(
+            "CN=SGOL Wrong Synthetic Test", wrongRsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var wrongCertificate = wrongRequest.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(2));
+        var wrongConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Sgol"] = _postgres.GetConnectionString(),
+            ["DataProtection:ApplicationName"] = "SGOL-TECH-OPS-TEST",
+            ["DataProtection:WrappingCertificate"] = Convert.ToBase64String(
+                wrongCertificate.Export(X509ContentType.Pfx, certificatePassword)),
+            ["DataProtection:WrappingCertificatePassword"] = certificatePassword
+        }).Build();
+        await using (var wrong = Services(wrongConfiguration))
+        {
+            Assert.Throws<CryptographicException>(() =>
+                wrong.GetRequiredService<IDataProtectionProvider>()
+                    .CreateProtector("synthetic-purpose")
+                    .Unprotect(protectedValue));
+        }
+
+        await using var verification = CreateContext();
+        await verification.Database.OpenConnectionAsync();
+        await using var command = verification.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "SELECT count(*), string_agg(xml, '') FROM data_protection_key";
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.GetInt64(0) > 0);
+        Assert.DoesNotContain("synthetic-protected-value", reader.GetString(1), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -593,6 +669,19 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
         await using var command = context.Database.GetDbConnection().CreateCommand();
         command.CommandText = sql;
         return (T)(await command.ExecuteScalarAsync() ?? throw new InvalidOperationException("Scalar query returned null."));
+    }
+
+    private SgolDbContext CreateContext() => new(
+        new DbContextOptionsBuilder<SgolDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString(), options => options.CommandTimeout(15))
+            .Options);
+
+    private static ServiceProvider Services(IConfiguration configuration)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSgolPersistence(configuration);
+        return services.BuildServiceProvider();
     }
 
     internal static PostgreSqlContainer CreateContainerForTests()

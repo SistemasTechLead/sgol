@@ -11,6 +11,7 @@
     <Project Path="src/Modules/Planning/Sgol.Planning.csproj" />
     <Project Path="src/Sgol.Admin/Sgol.Admin.csproj" />
     <Project Path="src/Sgol.BuildingBlocks/Sgol.BuildingBlocks.csproj" />
+    <Project Path="src/Sgol.Operations/Sgol.Operations.csproj" />
     <Project Path="src/Sgol.Web/Sgol.Web.csproj" />
     <Project Path="src/Sgol.Worker/Sgol.Worker.csproj" />
   </Folder>
@@ -19,6 +20,7 @@
     <Project Path="tests/Sgol.Cv02Demo/Sgol.Cv02Demo.csproj" />
     <Project Path="tests/Sgol.Cv03Demo/Sgol.Cv03Demo.csproj" />
     <Project Path="tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj" />
+    <Project Path="tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj" />
     <Project Path="tests/Sgol.EvidenceIntegrationTests/Sgol.EvidenceIntegrationTests.csproj" />
     <Project Path="tests/Sgol.UnitTests/Sgol.UnitTests.csproj" />
   </Folder>

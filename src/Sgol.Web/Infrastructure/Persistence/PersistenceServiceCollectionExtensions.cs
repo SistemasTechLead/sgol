@@ -25,6 +25,7 @@ using Sgol.Web.Infrastructure.Persistence.Planning;
 using Sgol.Web.Infrastructure.Persistence.Versioning;
 using Sgol.Web.Infrastructure.Persistence.Validation;
 using Sgol.Web.Infrastructure.Evidence;
+using Sgol.Web.Infrastructure.Persistence.DataProtection;
 
 namespace Sgol.Web.Infrastructure.Persistence;
 
@@ -38,7 +39,10 @@ public static class PersistenceServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddSgolJobInfrastructure(configuration);
-        services.AddDataProtection();
+        services.AddSgolDataProtection(configuration);
+        services.AddHealthChecks()
+            .AddCheck<PostgreSqlReadinessHealthCheck>("postgresql", tags: ["ready"])
+            .AddCheck<DataProtectionReadinessHealthCheck>("data-protection", tags: ["ready"]);
         services.AddScoped<AuditTransaction>();
         services.AddScoped<IAuditEventReader, EfAuditEventReader>();
         services.AddScoped<IAuditSecurityEventWriter, EfAuditSecurityEventWriter>();
