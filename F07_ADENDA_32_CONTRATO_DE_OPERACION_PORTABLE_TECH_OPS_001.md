@@ -328,7 +328,7 @@ El gate externo consolidado ejecutará los controles Docker/PostgreSQL/S3/restor
 - comparación completa de `CA-035`, simulacro trimestral completo y declaración de RPO/RTO observado;
 - UI o prueba de navegador;
 - despliegue o recurso real en DigitalOcean/otro proveedor, App Spec, compra, dominio, DNS o login externo;
-- valor/rotación de secreto real, key/certificado real, firma o publicación de imagen;
+- valor o rotación de secretos reales, material criptográfico real, firma o publicación de imagen;
 - datos reales o copia libre de producción;
 - restore sobre origen/única copia, `--clean`, drop, rollback destructivo, compensación o fabricación de datos;
 - overwrite o purga de evidencia, auditoría, versiones, respaldos, manifiestos u objetos confirmados;
