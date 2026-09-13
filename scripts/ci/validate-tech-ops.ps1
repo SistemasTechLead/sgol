@@ -6,6 +6,7 @@ $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $requiredFiles = @(
     'Dockerfile',
     '.dockerignore',
+    '.gitleaksignore',
     'deploy/staging/compose.yaml',
     'deploy/staging/staging.env',
     'deploy/staging/secrets.example',
@@ -19,6 +20,15 @@ foreach ($relativePath in $requiredFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $relativePath) -PathType Leaf)) {
         throw "TECH-OPS required file is missing: $relativePath"
     }
+}
+
+$expectedGitleaksFingerprint = '401b422efa2a02a87f325311c92543c795dff75c:F07_ADENDA_32_CONTRATO_DE_OPERACION_PORTABLE_TECH_OPS_001.md:generic-api-key:331'
+$gitleaksIgnoreEntries = @(
+    Get-Content -LiteralPath (Join-Path $repositoryRoot '.gitleaksignore') |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and -not $_.StartsWith('#', [StringComparison]::Ordinal) }
+)
+if ($gitleaksIgnoreEntries.Count -ne 1 -or $gitleaksIgnoreEntries[0] -ne $expectedGitleaksFingerprint) {
+    throw '.gitleaksignore must contain only the reviewed historical false-positive fingerprint.'
 }
 
 $dockerfile = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'Dockerfile')

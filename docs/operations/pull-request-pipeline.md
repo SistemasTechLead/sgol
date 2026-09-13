@@ -39,6 +39,8 @@ El análisis estático conserva dos excepciones estrechas en `.editorconfig`: CA
 
 Gitleaks se descarga desde el release oficial, se valida antes de extraer y se ejecuta sin `gitleaks-action`, licencias comerciales ni credenciales. No se escriben reportes de hallazgos como artefactos: el log conserva el gate, ruta y regla necesarias para investigar, pero `--redact` evita mostrar el valor detectado.
 
+`.gitleaksignore` contiene una sola excepción por fingerprint para el falso positivo histórico del commit `401b422efa2a02a87f325311c92543c795dff75c`, ruta `F07_ADENDA_32_CONTRATO_DE_OPERACION_PORTABLE_TECH_OPS_001.md`, regla `generic-api-key` y línea 331. El texto vigente ya eliminó la expresión que originó el hallazgo. El validador TECH-OPS exige coincidencia exacta y rechaza entradas adicionales; no se desactiva la regla ni se excluye el archivo o su historial completo.
+
 La revisión del 2026-08-28 no encontró avisos publicados en las páginas de seguridad de [`actions/checkout`](https://github.com/actions/checkout/security/advisories), [`actions/setup-dotnet`](https://github.com/actions/setup-dotnet/security/advisories) ni [Gitleaks](https://github.com/gitleaks/gitleaks/security/advisories). Es una revisión puntual: las versiones deben reevaluarse cuando se actualice el workflow o aparezca un aviso nuevo.
 
 ## Verificación local
