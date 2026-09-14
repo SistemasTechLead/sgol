@@ -53,6 +53,7 @@ public sealed class TechOpsArchitectureTests
     {
         var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
         var operations = Path.Combine(root, "src", "Sgol.Operations");
+        var processPipeline = File.ReadAllText(Path.Combine(operations, "ExternalProcessPipeline.cs"));
         var source = string.Join(Environment.NewLine,
             Directory.EnumerateFiles(operations, "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText));
         var domain = string.Join(Environment.NewLine,
@@ -60,6 +61,8 @@ public sealed class TechOpsArchitectureTests
                 .Select(File.ReadAllText));
 
         Assert.DoesNotContain("DigitalOcean", source, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("restore.ArgumentList.Add(\"--dbname\")", processPipeline, StringComparison.Ordinal);
+        Assert.Contains("restore.ArgumentList.Add(database)", processPipeline, StringComparison.Ordinal);
         Assert.DoesNotContain("DELETE OBJECT", source, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("DROP DATABASE", source, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("--clean", source, StringComparison.Ordinal);

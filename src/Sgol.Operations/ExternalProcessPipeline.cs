@@ -104,6 +104,12 @@ public sealed class BackupProcessPipeline : IBackupProcessPipeline
     {
         await VerifyArchiveAsync(agePath, pgRestorePath, encryptedPath, identity, cancellationToken);
 
+        var database = destination.Database;
+        if (string.IsNullOrWhiteSpace(database))
+        {
+            throw new OperationsConfigurationException("OPERATIONS_CONFIGURATION_REQUIRED");
+        }
+
         var age = BaseProcess(agePath);
         age.ArgumentList.Add("--decrypt");
         age.ArgumentList.Add("--identity");
@@ -111,6 +117,8 @@ public sealed class BackupProcessPipeline : IBackupProcessPipeline
         age.ArgumentList.Add(encryptedPath);
 
         var restore = CreatePostgresProcess(pgRestorePath, destination);
+        restore.ArgumentList.Add("--dbname");
+        restore.ArgumentList.Add(database);
         restore.ArgumentList.Add("--exit-on-error");
         restore.ArgumentList.Add("--no-owner");
         restore.ArgumentList.Add("--no-privileges");

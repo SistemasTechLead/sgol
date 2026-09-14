@@ -83,6 +83,17 @@ if ($manifest -match '(?i)(AKIA[0-9A-Z]{16}|-----BEGIN .*PRIVATE KEY-----|postgr
     throw 'Staging manifest contains a secret-like value.'
 }
 
+$processPipeline = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/ExternalProcessPipeline.cs')
+foreach ($required in @(
+    'restore.ArgumentList.Add("--dbname")',
+    'restore.ArgumentList.Add(database)',
+    'restore.ArgumentList.Add("--exit-on-error")'
+)) {
+    if ($processPipeline.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "PostgreSQL restore contract is missing: $required"
+    }
+}
+
 $secretLines = Get-Content -LiteralPath (Join-Path $repositoryRoot 'deploy/staging/secrets.example')
 $secretNames = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 foreach ($line in $secretLines) {
