@@ -1,6 +1,6 @@
 # Pipeline de pull request para TECH-BASE-003
 
-El workflow `.github/workflows/pull-request.yml` se ejecuta exclusivamente para `pull_request`. No despliega, publica imágenes ni accede a staging o producción. El job usa `permissions: contents: read`, no conserva credenciales de checkout y no recibe secretos del repositorio.
+El workflow `.github/workflows/pull-request.yml` se ejecuta exclusivamente para `pull_request`. No despliega, publica imágenes ni accede a staging o producción. El job usa `permissions: contents: read`, no conserva credenciales de checkout y no recibe secretos del repositorio. El checkout fija `github.event.pull_request.head.sha`; todas las pruebas, etiquetas OCI y evidencias corresponden al commit implementado, no al merge sintético expuesto como `GITHUB_SHA` por el evento.
 
 ## Gates
 
@@ -16,7 +16,7 @@ Los pasos tienen nombres independientes para que GitHub identifique el gate que 
 8. `dotnet format --verify-no-changes`;
 9. consulta de paquetes NuGet directos y transitivos contra vulnerabilidades conocidas. Cualquier hallazgo falla mientras no exista un tratamiento explícitamente aprobado;
 10. gate integral `TECH-OPS-001` en el runner nativo x64: aprovisionamiento sintético, migración, backup/reintento, réplica/reintento y verificaciones aisladas;
-11. conservación, según la política de artefactos configurada en el repositorio, del layout OCI con SBOM/procedencia y de la evidencia técnica pública minimizada: digest, conteos, timestamps, etapa, resultado e inspección de imagen. El runtime privado, TRX detallados, credenciales S3, nombres/URIs de buckets y manifiestos con keys/hashes quedan excluidos. La retención de CI no hereda silenciosamente los 30 días del respaldo PostgreSQL.
+11. conservación, según la política de artefactos configurada en el repositorio, del layout OCI con SBOM/procedencia y de la evidencia técnica pública minimizada: digest, conteos, timestamps, etapa, resultado e inspección de imagen. El runtime privado, TRX detallados, credenciales S3, nombres/URIs de buckets y manifiestos con keys/hashes quedan excluidos. La retención de CI no hereda silenciosamente los 30 días del respaldo PostgreSQL. El layout con attestations se construye mediante un builder efímero `docker-container`, porque el driver `docker` con image store clásico no admite el índice requerido por SBOM/procedencia.
 
 La prueba de integración conserva la imagen PostgreSQL fijada por `TECH-BASE-002`, genera su credencial en memoria y elimina el contenedor al terminar. No se admite SQLite ni un mock como sustituto.
 

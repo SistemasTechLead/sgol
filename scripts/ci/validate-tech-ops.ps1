@@ -221,6 +221,10 @@ foreach ($required in @(
 $workflow = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.github/workflows/pull-request.yml')
 foreach ($required in @(
     'runs-on: ubuntu-24.04',
+    'IMPLEMENTATION_SHA: ${{ github.event.pull_request.head.sha }}',
+    'ref: ${{ github.event.pull_request.head.sha }}',
+    '--driver docker-container',
+    'test "$(git rev-parse HEAD)" = "$IMPLEMENTATION_SHA"',
     'invoke-tech-ops-amd64-gate.ps1',
     'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
     '${{ runner.temp }}/sgol-tech-ops-amd64/evidence-public/**'
@@ -228,6 +232,10 @@ foreach ($required in @(
     if ($workflow.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "AMD64 workflow contract is missing: $required"
     }
+}
+if ($workflow.IndexOf('GITHUB_SHA', [StringComparison]::Ordinal) -ge 0 -or
+    $workflow.IndexOf('${{ github.sha }}', [StringComparison]::Ordinal) -ge 0) {
+    throw 'Pull-request OCI evidence must identify the exact implementation head SHA, not the synthetic merge SHA.'
 }
 if ($workflow -match '(?im)^\s*\$\{\{ runner\.temp \}\}/sgol-tech-ops-amd64/runtime-private') {
     throw 'Private synthetic runtime must never be uploaded as a CI artifact.'
