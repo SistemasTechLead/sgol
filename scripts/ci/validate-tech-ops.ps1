@@ -224,6 +224,7 @@ foreach ($required in @(
     'IMPLEMENTATION_SHA: ${{ github.event.pull_request.head.sha }}',
     'ref: ${{ github.event.pull_request.head.sha }}',
     '--driver docker-container',
+    "grep -Eq '^Driver:[[:space:]]+docker-container$'",
     'test "$(git rev-parse HEAD)" = "$IMPLEMENTATION_SHA"',
     'invoke-tech-ops-amd64-gate.ps1',
     'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',

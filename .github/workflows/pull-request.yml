@@ -97,7 +97,7 @@ jobs:
             --driver docker-container \
             --use \
             --bootstrap
-          test "$(docker buildx inspect --format '{{.Driver}}')" = "docker-container"
+          docker buildx inspect sgol-ci | grep -Eq '^Driver:[[:space:]]+docker-container$'
           created="$(git show -s --format=%cI "$IMPLEMENTATION_SHA")"
           docker buildx build \
             --platform linux/amd64 \
