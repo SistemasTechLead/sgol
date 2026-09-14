@@ -12,7 +12,7 @@ x-sgol-runtime: &sgol-runtime
   security_opt:
     - no-new-privileges:true
   tmpfs:
-    - /tmp:size=268435456,mode=0700,noexec,nosuid,nodev
+    - /tmp:size=268435456,mode=0700,uid=1654,gid=1654,noexec,nosuid,nodev
   networks:
     - private
 

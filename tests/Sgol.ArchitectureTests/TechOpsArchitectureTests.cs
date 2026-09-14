@@ -36,6 +36,8 @@ public sealed class TechOpsArchitectureTests
         Assert.Contains("read_only: true", manifest, StringComparison.Ordinal);
         Assert.Contains("no-new-privileges:true", manifest, StringComparison.Ordinal);
         Assert.Contains("cap_drop:", manifest, StringComparison.Ordinal);
+        Assert.Contains("/tmp:size=268435456,mode=0700,uid=1654,gid=1654,noexec,nosuid,nodev", manifest,
+            StringComparison.Ordinal);
         Assert.Contains("/health/ready", manifest, StringComparison.Ordinal);
         Assert.Contains("POSTGRESQL_PORTABLE_BACKUP", manifest, StringComparison.Ordinal);
         Assert.Contains("REPLICATE_EVIDENCE_OBJECTS", manifest, StringComparison.Ordinal);

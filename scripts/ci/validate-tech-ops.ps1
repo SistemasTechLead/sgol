@@ -65,6 +65,7 @@ foreach ($required in @(
     'read_only: true',
     'no-new-privileges:true',
     'cap_drop:',
+    '/tmp:size=268435456,mode=0700,uid=1654,gid=1654,noexec,nosuid,nodev',
     '/health/ready',
     'POSTGRESQL_PORTABLE_BACKUP',
     'REPLICATE_EVIDENCE_OBJECTS',
