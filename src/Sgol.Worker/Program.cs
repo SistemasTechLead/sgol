@@ -1,4 +1,5 @@
 using Sgol.JobInfrastructure;
+using Sgol.Operations;
 
 namespace Sgol.Worker;
 
@@ -9,6 +10,7 @@ public static class WorkerProgram
         services =>
         {
             services.AddSgolRecurringGeneration();
+            services.AddSgolPortableOperations();
         },
         configureHostServices: (services, configuration, environment) =>
             services.AddSgolEvidenceWorkerInfrastructure(configuration, environment));

@@ -10,12 +10,13 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "true"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  IMPLEMENTATION_SHA: ${{ github.event.pull_request.head.sha }}
 
 jobs:
   verify:
     name: TECH-BASE-003 / PR gates
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout without persistent credentials
@@ -23,6 +24,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Protect Fuentes
         shell: pwsh
@@ -48,6 +50,10 @@ jobs:
           "$RUNNER_TEMP/gitleaks" dir --redact --no-banner --no-color .
           "$RUNNER_TEMP/gitleaks" git --redact --no-banner --no-color \
             --log-opts="${BASE_SHA}..${HEAD_SHA}" .
+
+      - name: Validate portable operations contract
+        shell: pwsh
+        run: ./scripts/ci/validate-tech-ops.ps1
 
       - name: Set up the pinned .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -81,3 +87,69 @@ jobs:
       - name: Reject vulnerable direct or transitive packages
         shell: pwsh
         run: ./scripts/ci/Assert-NoVulnerablePackages.ps1
+
+      - name: Build immutable OCI image with SBOM and provenance
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$IMPLEMENTATION_SHA"
+          docker buildx create \
+            --name sgol-ci \
+            --driver docker-container \
+            --use \
+            --bootstrap
+          docker buildx inspect sgol-ci | grep -Eq '^Driver:[[:space:]]+docker-container$'
+          created="$(git show -s --format=%cI "$IMPLEMENTATION_SHA")"
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg "VCS_REF=${IMPLEMENTATION_SHA}" \
+            --build-arg "IMAGE_VERSION=pr-${IMPLEMENTATION_SHA::12}" \
+            --build-arg "BUILD_CREATED=${created}" \
+            --build-arg "SOURCE_DIRTY=false" \
+            --tag "sgol:${IMPLEMENTATION_SHA}" \
+            --load .
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg "VCS_REF=${IMPLEMENTATION_SHA}" \
+            --build-arg "IMAGE_VERSION=pr-${IMPLEMENTATION_SHA::12}" \
+            --build-arg "BUILD_CREATED=${created}" \
+            --build-arg "SOURCE_DIRTY=false" \
+            --sbom=true \
+            --provenance=mode=max \
+            --metadata-file "$RUNNER_TEMP/sgol-oci-metadata.json" \
+            --output "type=oci,dest=$RUNNER_TEMP/sgol-${IMPLEMENTATION_SHA}.oci.tar" .
+          test -s "$RUNNER_TEMP/sgol-oci-metadata.json"
+          test -s "$RUNNER_TEMP/sgol-${IMPLEMENTATION_SHA}.oci.tar"
+          test "$(docker image inspect --format '{{.Config.User}}' "sgol:${IMPLEMENTATION_SHA}")" = "1654:1654"
+          test "$(docker image inspect --format '{{index .Config.Labels "com.sgol.source.dirty"}}' "sgol:${IMPLEMENTATION_SHA}")" = "false"
+
+      - name: Scan OCI image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: sgol:${{ env.IMPLEMENTATION_SHA }}
+          format: table
+          exit-code: "1"
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Run integral TECH-OPS gate on native AMD64
+        shell: pwsh
+        run: |
+          if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [Runtime.InteropServices.Architecture]::X64) {
+            throw 'AMD64_HOST_REQUIRED: ubuntu-24.04 must resolve to an x64 runner.'
+          }
+          $imageRef = (docker image inspect --format '{{.Id}}' "sgol:$env:IMPLEMENTATION_SHA").Trim()
+          ./scripts/operations/invoke-tech-ops-amd64-gate.ps1 `
+            -ImageRef $imageRef `
+            -GateRoot (Join-Path $env:RUNNER_TEMP 'sgol-tech-ops-amd64')
+
+      - name: Preserve non-secret OCI and TECH-OPS evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tech-ops-${{ env.IMPLEMENTATION_SHA }}
+          path: |
+            ${{ runner.temp }}/sgol-oci-metadata.json
+            ${{ runner.temp }}/sgol-${{ env.IMPLEMENTATION_SHA }}.oci.tar
+            ${{ runner.temp }}/sgol-tech-ops-amd64/evidence-public/**
+          if-no-files-found: warn
+          compression-level: 0

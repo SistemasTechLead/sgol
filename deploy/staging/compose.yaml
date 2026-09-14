@@ -1,0 +1,149 @@
+name: sgol-staging
+
+x-sgol-image: &sgol-image ${SGOL_IMAGE_REF:?SGOL_IMAGE_REF must be registry/repository@sha256:digest}
+x-sgol-runtime: &sgol-runtime
+  image: *sgol-image
+  env_file:
+    - ${SGOL_ENV_FILE:-staging.env}
+  user: "1654:1654"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=268435456,mode=0700,uid=1654,gid=1654,noexec,nosuid,nodev
+  networks:
+    - private
+
+x-sgol-schedules:
+  REPLICATE_EVIDENCE_OBJECTS:
+    schedule: "5 * * * *"
+    timezone: UTC
+    owner: technical-operator
+  POSTGRESQL_PORTABLE_BACKUP:
+    schedule: "15 2 * * *"
+    timezone: UTC
+    owner: technical-operator
+
+services:
+  web:
+    <<: *sgol-runtime
+    command: ["dotnet", "Sgol.Web.dll"]
+    environment:
+      ConnectionStrings__Sgol: ${ConnectionStrings__Sgol:?external secret required}
+      Evidence__Storage__AccessKey: ${Evidence__Storage__AccessKey:?external secret required}
+      Evidence__Storage__SecretKey: ${Evidence__Storage__SecretKey:?external secret required}
+      DataProtection__WrappingCertificate: ${DataProtection__WrappingCertificate:?external secret required}
+      DataProtection__WrappingCertificatePassword: ${DataProtection__WrappingCertificatePassword:?external secret required}
+    ports:
+      - "127.0.0.1:${SGOL_STAGING_HTTP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "dotnet", "Sgol.Operations.dll", "probe-http", "--url", "http://127.0.0.1:8080/health/ready"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+
+  worker:
+    <<: *sgol-runtime
+    command: ["dotnet", "Sgol.Worker.dll", "outbox"]
+    environment:
+      ConnectionStrings__Sgol: ${ConnectionStrings__Sgol:?external secret required}
+      Evidence__Storage__AccessKey: ${Evidence__Storage__AccessKey:?external secret required}
+      Evidence__Storage__SecretKey: ${Evidence__Storage__SecretKey:?external secret required}
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  migrate:
+    <<: *sgol-runtime
+    profiles: ["migrate"]
+    command: ["dotnet", "Sgol.Operations.dll", "migrate", "--expected-migration", "${SGOL_EXPECTED_MIGRATION:?required}"]
+    environment:
+      ConnectionStrings__Sgol: ${ConnectionStrings__Sgol:?external secret required}
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  recurrence:
+    <<: *sgol-runtime
+    profiles: ["scheduled"]
+    command: ["dotnet", "Sgol.Worker.dll", "run-job", "--job", "GENERATE_DUE_RECURRENCES", "--scheduled-for", "${SGOL_SCHEDULED_FOR:?UTC RFC3339 Z required}"]
+    environment:
+      ConnectionStrings__Sgol: ${ConnectionStrings__Sgol:?external secret required}
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  evidence-cleanup:
+    <<: *sgol-runtime
+    profiles: ["scheduled"]
+    command: ["dotnet", "Sgol.Worker.dll", "run-job", "--job", "CLEAN_EXPIRED_EVIDENCE_UPLOADS", "--scheduled-for", "${SGOL_SCHEDULED_FOR:?UTC RFC3339 Z required}"]
+    environment:
+      ConnectionStrings__Sgol: ${ConnectionStrings__Sgol:?external secret required}
+      Evidence__Storage__AccessKey: ${Evidence__Storage__AccessKey:?external secret required}
+      Evidence__Storage__SecretKey: ${Evidence__Storage__SecretKey:?external secret required}
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  backup:
+    <<: *sgol-runtime
+    profiles: ["scheduled"]
+    command: ["dotnet", "Sgol.Worker.dll", "run-job", "--job", "POSTGRESQL_PORTABLE_BACKUP", "--scheduled-for", "${SGOL_SCHEDULED_FOR:?UTC RFC3339 Z required}"]
+    environment:
+      ConnectionStrings__Sgol: ${ConnectionStrings__Sgol:?external secret required}
+      Backup__PostgreSql__ConnectionString: ${Backup__PostgreSql__ConnectionString:?external secret required}
+      Backup__Storage__AccessKey: ${Backup__Storage__AccessKey:?external secret required}
+      Backup__Storage__SecretKey: ${Backup__Storage__SecretKey:?external secret required}
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  replica:
+    <<: *sgol-runtime
+    profiles: ["scheduled"]
+    command: ["dotnet", "Sgol.Worker.dll", "run-job", "--job", "REPLICATE_EVIDENCE_OBJECTS", "--scheduled-for", "${SGOL_SCHEDULED_FOR:?UTC RFC3339 Z required}"]
+    environment:
+      ConnectionStrings__Sgol: ${ConnectionStrings__Sgol:?external secret required}
+      Replica__Source__AccessKey: ${Replica__Source__AccessKey:?external secret required}
+      Replica__Source__SecretKey: ${Replica__Source__SecretKey:?external secret required}
+      Replica__Destination__AccessKey: ${Replica__Destination__AccessKey:?external secret required}
+      Replica__Destination__SecretKey: ${Replica__Destination__SecretKey:?external secret required}
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  verify-backup:
+    <<: *sgol-runtime
+    profiles: ["verify"]
+    command: ["dotnet", "Sgol.Operations.dll", "verify-postgresql-backup", "--manifest", "${SGOL_BACKUP_MANIFEST_URI:?private S3 URI required}"]
+    environment:
+      ConnectionStrings__Sgol: ${ConnectionStrings__Sgol:?external secret required}
+      Backup__PostgreSql__ConnectionString: ${Backup__PostgreSql__ConnectionString:?external secret required}
+      Backup__Storage__AccessKey: ${Backup__Storage__AccessKey:?external secret required}
+      Backup__Storage__SecretKey: ${Backup__Storage__SecretKey:?external secret required}
+      Restore__PostgreSql__ConnectionString: ${Restore__PostgreSql__ConnectionString:?external secret required}
+      Restore__Encryption__Identity: ${Restore__Encryption__Identity:?external secret required}
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  verify-replica:
+    <<: *sgol-runtime
+    profiles: ["verify"]
+    command: ["dotnet", "Sgol.Operations.dll", "verify-object-replica", "--manifest", "${SGOL_REPLICA_MANIFEST_URI:?private S3 URI required}"]
+    environment:
+      Replica__Source__AccessKey: ${Replica__Source__AccessKey:?external secret required}
+      Replica__Source__SecretKey: ${Replica__Source__SecretKey:?external secret required}
+      Replica__Destination__AccessKey: ${Replica__Destination__AccessKey:?external secret required}
+      Replica__Destination__SecretKey: ${Replica__Destination__SecretKey:?external secret required}
+    healthcheck:
+      disable: true
+    restart: "no"
+
+networks:
+  private:
+    internal: true

@@ -184,6 +184,33 @@ public sealed class JobInfrastructurePersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StableJobLockPreventsDifferentSlotsFromOverlapping()
+    {
+        await ResetAsync();
+        var job = new GatedJob(preventOverlappingSlots: true);
+        var firstSlot = Now.AddHours(-2);
+        var secondSlot = Now.AddHours(-1);
+        await using var firstContext = CreateContext();
+        await using var secondContext = CreateContext();
+        var firstRunner = Runner(firstContext, job);
+        var secondRunner = Runner(secondContext, job);
+
+        var first = firstRunner.RunAsync(job.Name, firstSlot, Guid.CreateVersion7());
+        await job.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var overlapping = await secondRunner.RunAsync(job.Name, secondSlot, Guid.CreateVersion7());
+        job.Release.TrySetResult();
+
+        Assert.Equal(ScheduledJobResult.LockBusy, overlapping);
+        Assert.Equal(ScheduledJobResult.Completed, await first);
+        Assert.Equal(
+            ScheduledJobResult.Completed,
+            await secondRunner.RunAsync(job.Name, secondSlot, Guid.CreateVersion7()));
+        Assert.Equal(2, job.ExecutionCount);
+        await using var verification = CreateContext();
+        Assert.Equal(2, await verification.ScheduledJobRuns.CountAsync());
+    }
+
+    [Fact]
     public async Task FailedScheduledRunIsRecoveredInTheSameRowAndEmitsAnOperationalAlert()
     {
         await ResetAsync();
@@ -419,10 +446,11 @@ public sealed class JobInfrastructurePersistenceTests : IAsyncLifetime
         }
     }
 
-    private sealed class GatedJob : IScheduledJob
+    private sealed class GatedJob(bool preventOverlappingSlots = false) : IScheduledJob
     {
         private int executionCount;
         public string Name => "TECH_TEST_JOB";
+        public bool PreventOverlappingSlots { get; } = preventOverlappingSlots;
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int ExecutionCount => executionCount;

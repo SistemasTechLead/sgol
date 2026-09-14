@@ -4,7 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="..\Sgol.Operations\Sgol.Operations.csproj" />
     <ProjectReference Include="..\Sgol.Web\Sgol.Web.csproj" />
   </ItemGroup>
 </Project>
