@@ -10,7 +10,7 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 |---|---|
 | Tarea | `HU-035` — Dirección verifica recuperación con identidades e historia |
 | Estado | Propuesta implementada en `codex/hu-035`; no declara la historia `Terminada` ni habilita `CV-05` |
-| Contrato | Adendas `F07_ADENDA_33_CONTRATO_DE_RECONCILIACION_Y_SIMULACRO_DE_RECUPERACION_HU_035.md` y `F07_ADENDA_34_CONTRATO_DE_GATE_AMD64_AUTOMATIZADO_HU_035.md`, aprobadas íntegramente por el responsable el 2026-09-14 antes de sus respectivas implementaciones |
+| Contrato | Adendas `F07_ADENDA_33_CONTRATO_DE_RECONCILIACION_Y_SIMULACRO_DE_RECUPERACION_HU_035.md` y `F07_ADENDA_34_CONTRATO_DE_GATE_AMD64_AUTOMATIZADO_HU_035.md`, aprobadas íntegramente por el responsable el 2026-09-14; `F07_ADENDA_35_DIAGNOSTICO_SANITIZADO_DE_REPLICA_HU_035.md`, aprobada íntegramente el 2026-09-15 exclusivamente para diagnóstico sanitizado, implementación local y gates enfocados; la historia continúa sin estado `Terminada` |
 | Commit implementado | Commit que contiene esta actualización |
 | Base aceptada | `TECH-OPS-001`: PR `#54`, commit implementado `eddfdfcca0fa9b6b5a988184610bce6d90efbbb2`, pipeline requerido `SUCCESS` run `34885345138` en segundo intento, aprobación humana, merge `5ad5192663b93594771df29fe90a086c4ea5c90b`, `origin/master` verificado exactamente y ascendencia confirmada |
 | Superficie | API mínima `/api/v1/continuity/reconciliations` para solicitud, consulta y aprobación; job `CAPTURE_RECOVERY_REFERENCE` disparado por outbox; comandos `complete-functional-reference` y `reconcile-functional-restore`; sin UI |

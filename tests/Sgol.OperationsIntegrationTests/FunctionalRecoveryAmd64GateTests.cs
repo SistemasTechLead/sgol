@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Net;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -64,6 +66,129 @@ public sealed class FunctionalRecoveryAmd64GateTests
         new("replay_conflict", RecoveryReconciliationStatuses.Matched, "RECONCILIATION_IMMUTABLE_CONFLICT"),
         new("concurrency", RecoveryReconciliationStatuses.Matched, null)
     ];
+
+    [Fact]
+    [Trait("Category", "Hu035ReplicaDiagnostics")]
+    public void ReplicaDiagnosticOperationsAreClosedAndNormalized()
+    {
+        string[] operations =
+        [
+            "LIST_SOURCE_OBJECTS",
+            "HEAD_SOURCE_METADATA",
+            "READ_SOURCE_HASH",
+            "GET_SOURCE_STREAM",
+            "CHECK_DESTINATION_METADATA",
+            "WRITE_AND_VERIFY_DESTINATION",
+            "READ_DESTINATION_HASH"
+        ];
+
+        foreach (var operation in operations)
+            Assert.Equal(operation, InvokeObjectReplica<string>("NormalizeOperation", operation));
+
+        Assert.Equal("UNKNOWN", InvokeObjectReplica<string>("NormalizeOperation", "READ_OTHER_HASH"));
+        Assert.Equal("UNKNOWN", InvokeObjectReplica<string>("NormalizeOperation", "LIST_SOURCE_OBJECTS\n"));
+        Assert.Equal("REPLICATE_CLEAN", InvokeObjectReplica<string>("NormalizeStage", "REPLICATE_CLEAN"));
+        Assert.Equal("UNKNOWN", InvokeObjectReplica<string>("NormalizeStage", "REPLICATE_CLEAN\n"));
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035ReplicaDiagnostics")]
+    public void ReplicaDiagnosticPayloadIsSanitizedAndPreservesContractCode()
+    {
+        Assert.Equal("AmazonS3Exception",
+            InvokeObjectReplica<string>("SanitizeDiagnosticToken", "AmazonS3Exception"));
+        Assert.Equal("InternalError", InvokeObjectReplica<string>("SanitizeDiagnosticToken", "InternalError"));
+        Assert.Equal("UNKNOWN", InvokeObjectReplica<string>("SanitizeDiagnosticToken", (object?)null));
+        Assert.Equal("UNKNOWN", InvokeObjectReplica<string>("SanitizeDiagnosticToken", "Internal\nError"));
+        Assert.Equal("UNKNOWN", InvokeObjectReplica<string>("SanitizeDiagnosticToken", "AccessKey=synthetic"));
+        Assert.Equal("UNKNOWN", InvokeObjectReplica<string>("SanitizeDiagnosticToken", "http://storage.invalid/private"));
+        Assert.Equal("UNKNOWN", InvokeObjectReplica<string>("SanitizeDiagnosticToken", new string('a', 65)));
+        Assert.Equal("500", InvokeObjectReplica<string>("NormalizeHttpStatusCode", 500));
+        Assert.Equal("NONE", InvokeObjectReplica<string>("NormalizeHttpStatusCode", 0));
+        Assert.Equal("NONE", InvokeObjectReplica<string>("NormalizeHttpStatusCode", 600));
+
+        var storageFailure = new AmazonS3Exception("endpoint=https://storage.invalid AccessKey=synthetic")
+        {
+            StatusCode = HttpStatusCode.InternalServerError,
+            ErrorCode = "InternalError"
+        };
+        Assert.Equal("REPLICA_INFRASTRUCTURE_FAILED",
+            InvokeObjectReplica<string>("ClassifyFailure", storageFailure));
+
+        var failure = InvokeObjectReplica<JobExecutionException>(
+            "CreateFailure",
+            "REPLICA_INFRASTRUCTURE_FAILED",
+            "REPLICATE_CLEAN",
+            "READ_DESTINATION_HASH",
+            storageFailure.GetType().Name,
+            "500",
+            storageFailure.ErrorCode);
+        Assert.Equal("REPLICA_INFRASTRUCTURE_FAILED", failure.ErrorCode);
+        Assert.Equal(5, failure.Data.Count);
+        Assert.Equal("REPLICATE_CLEAN", failure.Data["SGOL_REPLICA_STAGE"]);
+        Assert.Equal("READ_DESTINATION_HASH", failure.Data["SGOL_REPLICA_OPERATION"]);
+        Assert.Equal("AmazonS3Exception", failure.Data["SGOL_REPLICA_EXCEPTION_TYPE"]);
+        Assert.Equal("500", failure.Data["SGOL_REPLICA_HTTP_STATUS"]);
+        Assert.Equal("InternalError", failure.Data["SGOL_REPLICA_S3_ERROR_CODE"]);
+        Assert.Null(failure.InnerException);
+
+        var unsafeFailure = InvokeObjectReplica<JobExecutionException>(
+            "CreateFailure",
+            "REPLICA_INFRASTRUCTURE_FAILED",
+            "REPLICATE_CLEAN\nprivate",
+            "AccessKey=synthetic",
+            "endpoint=https://storage.invalid",
+            "0",
+            "SecretKey=synthetic");
+        Assert.Equal("UNKNOWN", unsafeFailure.Data["SGOL_REPLICA_STAGE"]);
+        Assert.Equal("UNKNOWN", unsafeFailure.Data["SGOL_REPLICA_OPERATION"]);
+        Assert.Equal("UNKNOWN", unsafeFailure.Data["SGOL_REPLICA_EXCEPTION_TYPE"]);
+        Assert.Equal("NONE", unsafeFailure.Data["SGOL_REPLICA_HTTP_STATUS"]);
+        Assert.Equal("UNKNOWN", unsafeFailure.Data["SGOL_REPLICA_S3_ERROR_CODE"]);
+        var serializedData = string.Join('|', unsafeFailure.Data.Values.Cast<object>());
+        Assert.DoesNotContain("storage.invalid", serializedData, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic", serializedData, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035ReplicaDiagnostics")]
+    public void ReplicaPreparationFailureExposesOnlySanitizedDiagnosticsAndKeepsRetryBoundary()
+    {
+        var failure = InvokeObjectReplica<JobExecutionException>(
+            "CreateFailure",
+            "REPLICA_INFRASTRUCTURE_FAILED",
+            "REPLICATE_CLEAN",
+            "WRITE_AND_VERIFY_DESTINATION",
+            "AmazonS3Exception",
+            "500",
+            "InternalError");
+
+        var exposed = ReplicaPreparationFailure(failure);
+        Assert.Equal(
+            "HU035_REPLICA_PREPARATION_FAILED:REPLICA_INFRASTRUCTURE_FAILED:" +
+            "STAGE=REPLICATE_CLEAN:OPERATION=WRITE_AND_VERIFY_DESTINATION:" +
+            "TYPE=AmazonS3Exception:HTTP=500:S3CODE=InternalError",
+            exposed.Message);
+        Assert.Null(exposed.InnerException);
+        Assert.True(ShouldRetryReplicaFailure(failure, 1, 3));
+        Assert.False(ShouldRetryReplicaFailure(failure, 3, 3));
+        Assert.False(ShouldRetryReplicaFailure(new JobExecutionException("DESTINATION_OBJECT_CORRUPT"), 1, 3));
+
+        var unsafeFailure = new JobExecutionException("REPLICA_INFRASTRUCTURE_FAILED");
+        unsafeFailure.Data["SGOL_REPLICA_STAGE"] = "REPLICATE_CLEAN\nprivate";
+        unsafeFailure.Data["SGOL_REPLICA_OPERATION"] = "AccessKey=synthetic";
+        unsafeFailure.Data["SGOL_REPLICA_EXCEPTION_TYPE"] = "endpoint=https://storage.invalid";
+        unsafeFailure.Data["SGOL_REPLICA_HTTP_STATUS"] = "0";
+        unsafeFailure.Data["SGOL_REPLICA_S3_ERROR_CODE"] = "SecretKey=synthetic";
+        var sanitizedExposure = ReplicaPreparationFailure(unsafeFailure);
+        Assert.Equal(
+            "HU035_REPLICA_PREPARATION_FAILED:REPLICA_INFRASTRUCTURE_FAILED:" +
+            "STAGE=UNKNOWN:OPERATION=UNKNOWN:TYPE=UNKNOWN:HTTP=NONE:S3CODE=UNKNOWN",
+            sanitizedExposure.Message);
+        Assert.DoesNotContain("storage.invalid", sanitizedExposure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic", sanitizedExposure.Message, StringComparison.Ordinal);
+        Assert.Null(sanitizedExposure.InnerException);
+    }
 
     [Fact]
     [Trait("Category", "Hu035Contract")]
@@ -438,21 +563,79 @@ public sealed class FunctionalRecoveryAmd64GateTests
                 return;
             }
             catch (JobExecutionException exception)
-                when (exception.ErrorCode == "REPLICA_INFRASTRUCTURE_FAILED" && attempt < maximumAttempts)
+                when (ShouldRetryReplicaFailure(exception, attempt, maximumAttempts))
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
             }
             catch (JobExecutionException exception)
             {
-                var stage = exception.Data["SGOL_REPLICA_STAGE"] as string ?? "UNKNOWN";
-                var exceptionType = exception.Data["SGOL_REPLICA_EXCEPTION_TYPE"] as string ?? "UNKNOWN";
-                var httpStatus = exception.Data["SGOL_REPLICA_HTTP_STATUS"] as string ?? "NONE";
-                var operation = exception.Data["SGOL_REPLICA_OPERATION"] as string ?? "UNKNOWN";
-                throw new InvalidOperationException(
-                    $"HU035_REPLICA_PREPARATION_FAILED:{exception.ErrorCode}:" +
-                    $"STAGE={stage}:OPERATION={operation}:TYPE={exceptionType}:HTTP={httpStatus}", exception);
+                throw ReplicaPreparationFailure(exception);
             }
         }
+    }
+
+    private static bool ShouldRetryReplicaFailure(
+        JobExecutionException exception,
+        int attempt,
+        int maximumAttempts) =>
+        exception.ErrorCode == "REPLICA_INFRASTRUCTURE_FAILED" && attempt < maximumAttempts;
+
+    private static InvalidOperationException ReplicaPreparationFailure(JobExecutionException exception)
+    {
+        var stage = NormalizeReplicaStage(exception.Data["SGOL_REPLICA_STAGE"] as string);
+        var exceptionType = SanitizeReplicaToken(exception.Data["SGOL_REPLICA_EXCEPTION_TYPE"] as string);
+        var httpStatus = NormalizeReplicaHttpStatus(exception.Data["SGOL_REPLICA_HTTP_STATUS"] as string);
+        var operation = NormalizeReplicaOperation(exception.Data["SGOL_REPLICA_OPERATION"] as string);
+        var s3ErrorCode = SanitizeReplicaToken(exception.Data["SGOL_REPLICA_S3_ERROR_CODE"] as string);
+        return new InvalidOperationException(
+            $"HU035_REPLICA_PREPARATION_FAILED:{exception.ErrorCode}:" +
+            $"STAGE={stage}:OPERATION={operation}:TYPE={exceptionType}:HTTP={httpStatus}:S3CODE={s3ErrorCode}");
+    }
+
+    private static string NormalizeReplicaStage(string? value) => value switch
+    {
+        "CONFIGURATION" => "CONFIGURATION",
+        "RECOVER_MANIFEST" => "RECOVER_MANIFEST",
+        "LOAD_PREVIOUS_MANIFEST" => "LOAD_PREVIOUS_MANIFEST",
+        "REPLICATE_QUARANTINE" => "REPLICATE_QUARANTINE",
+        "REPLICATE_CLEAN" => "REPLICATE_CLEAN",
+        "VERIFY_SOURCE_SET" => "VERIFY_SOURCE_SET",
+        "PUBLISH_MANIFEST" => "PUBLISH_MANIFEST",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReplicaOperation(string? value) => value switch
+    {
+        "LIST_SOURCE_OBJECTS" => "LIST_SOURCE_OBJECTS",
+        "HEAD_SOURCE_METADATA" => "HEAD_SOURCE_METADATA",
+        "READ_SOURCE_HASH" => "READ_SOURCE_HASH",
+        "GET_SOURCE_STREAM" => "GET_SOURCE_STREAM",
+        "CHECK_DESTINATION_METADATA" => "CHECK_DESTINATION_METADATA",
+        "WRITE_AND_VERIFY_DESTINATION" => "WRITE_AND_VERIFY_DESTINATION",
+        "READ_DESTINATION_HASH" => "READ_DESTINATION_HASH",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReplicaHttpStatus(string? value) =>
+        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var numericStatus) &&
+        numericStatus is >= 100 and <= 599
+            ? numericStatus.ToString(CultureInfo.InvariantCulture)
+            : "NONE";
+
+    private static string SanitizeReplicaToken(string? value)
+    {
+        const int maximumLength = 64;
+        return !string.IsNullOrEmpty(value) && value.Length <= maximumLength &&
+            value.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-')
+                ? value
+                : "UNKNOWN";
+    }
+
+    private static T InvokeObjectReplica<T>(string methodName, params object?[] arguments)
+    {
+        var method = typeof(ObjectReplica).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Single(candidate => candidate.Name == methodName && candidate.GetParameters().Length == arguments.Length);
+        return Assert.IsType<T>(method.Invoke(null, arguments));
     }
 
     private static async Task MutateReplicaObjectAsync(string testCase)

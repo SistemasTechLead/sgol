@@ -6,6 +6,7 @@ $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $requiredFiles = @(
     'F07_ADENDA_33_CONTRATO_DE_RECONCILIACION_Y_SIMULACRO_DE_RECUPERACION_HU_035.md',
     'F07_ADENDA_34_CONTRATO_DE_GATE_AMD64_AUTOMATIZADO_HU_035.md',
+    'F07_ADENDA_35_DIAGNOSTICO_SANITIZADO_DE_REPLICA_HU_035.md',
     'src/Modules/Continuity/Contracts/RecoveryReconciliation.cs',
     'src/Sgol.Operations/FunctionalSnapshotReader.cs',
     'src/Sgol.Operations/FunctionalRecoveryOperations.cs',
@@ -129,6 +130,104 @@ foreach ($required in @('positive','identity_missing','identity_additional','lin
     if ($amd64Test.IndexOf('"' + $required + '"', [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 AMD64 approved case is missing: $required"
     }
+}
+
+$objectReplica = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/ObjectReplica.cs')
+$replicaOperations = @(
+    'LIST_SOURCE_OBJECTS',
+    'HEAD_SOURCE_METADATA',
+    'READ_SOURCE_HASH',
+    'GET_SOURCE_STREAM',
+    'CHECK_DESTINATION_METADATA',
+    'WRITE_AND_VERIFY_DESTINATION',
+    'READ_DESTINATION_HASH'
+)
+$assignedReplicaOperations = [regex]::Matches(
+    $objectReplica,
+    'diagnostic\.Operation = "([A-Z_]+)";') |
+    ForEach-Object { $_.Groups[1].Value } |
+    Sort-Object -Unique
+if ([string]::Join('|', $assignedReplicaOperations) -ne
+    [string]::Join('|', ($replicaOperations | Sort-Object))) {
+    throw 'HU-035 replica diagnostic operation assignments are not the closed seven-operation set.'
+}
+
+$operationAdjacency = @(
+    'diagnostic\.Operation = "LIST_SOURCE_OBJECTS";\s*var response = await source\.ListObjectsV2Async',
+    'diagnostic\.Operation = "HEAD_SOURCE_METADATA";\s*var metadata = await source\.GetObjectMetadataAsync',
+    'diagnostic\.Operation = "CHECK_DESTINATION_METADATA";\s*var destinationMatches = await HasDestinationMetadataAsync',
+    'diagnostic\.Operation = "READ_SOURCE_HASH";\s*var sourceObject = await ReadObjectHashAsync\(source,',
+    'diagnostic\.Operation = "GET_SOURCE_STREAM";\s*using var sourceResponse = await source\.GetObjectAsync',
+    'diagnostic\.Operation = "WRITE_AND_VERIFY_DESTINATION";\s*await new S3OperationStore\(destination\)\.PutStreamVerifiedAsync',
+    'diagnostic\.Operation = "READ_DESTINATION_HASH";\s*destinationHash = \(await ReadObjectHashAsync\(\s*destination,',
+    'diagnostic\.Operation = "READ_DESTINATION_HASH";\s*var actual = await ReadObjectHashAsync\(destination,'
+)
+foreach ($pattern in $operationAdjacency) {
+    if (-not [regex]::IsMatch($objectReplica, $pattern)) {
+        throw "HU-035 replica diagnostic marker is not adjacent to its approved operation: $pattern"
+    }
+}
+if ([regex]::Matches($objectReplica,
+        'diagnostic\.Operation = "WRITE_AND_VERIFY_DESTINATION";').Count -ne 1) {
+    throw 'WRITE_AND_VERIFY_DESTINATION must identify only PutStreamVerifiedAsync.'
+}
+if ([regex]::Matches($objectReplica,
+        'diagnostic\.Operation = "READ_DESTINATION_HASH";').Count -ne 2) {
+    throw 'READ_DESTINATION_HASH must identify both complete destination hash reads.'
+}
+
+$catchStart = $objectReplica.IndexOf(
+    'catch (Exception exception) when (exception is not OperationCanceledException)',
+    [StringComparison]::Ordinal)
+$failureManifest = $objectReplica.IndexOf(
+    'await TryPublishFailureAsync(options, slot, code, entries);',
+    [StringComparison]::Ordinal)
+if ($catchStart -lt 0 -or $failureManifest -lt 0 -or $failureManifest -le $catchStart) {
+    throw 'HU-035 replica failure catch or failure-manifest call is missing.'
+}
+foreach ($captured in @(
+    'var capturedStage = NormalizeStage(stage);',
+    'var capturedOperation = NormalizeOperation(diagnostic.Operation);',
+    'var capturedExceptionType = SanitizeDiagnosticToken(exception.GetType().Name);',
+    'var capturedHttpStatus =',
+    'var capturedS3ErrorCode ='
+)) {
+    $capturedIndex = $objectReplica.IndexOf($captured, $catchStart, [StringComparison]::Ordinal)
+    if ($capturedIndex -lt $catchStart -or $capturedIndex -ge $failureManifest) {
+        throw "HU-035 replica diagnostic is not captured before failure-manifest publication: $captured"
+    }
+}
+foreach ($forbidden in @('exception.Message', 'exception.StackTrace', 'exception.InnerException',
+    'exception.ToString()')) {
+    if ($objectReplica.IndexOf($forbidden, [StringComparison]::Ordinal) -ge 0) {
+        throw "HU-035 replica diagnostic exposes forbidden exception data: $forbidden"
+    }
+}
+foreach ($required in @(
+    'BucketName = sourceBucket',
+    'ContinuationToken = continuation',
+    'MaxKeys = batchSize',
+    'new GetObjectMetadataRequest',
+    'new GetObjectRequest { BucketName = sourceBucket, Key = item.Key }',
+    'destinationBucket, item.Key, sourceResponse.ResponseStream, itemSize, expectedHash',
+    'metadata.Headers.ContentType ?? "application/octet-stream", allowedMetadata, cancellationToken'
+)) {
+    if ($objectReplica.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "HU-035 replica request contract changed or is missing: $required"
+    }
+}
+foreach ($required in @(
+    'const int maximumAttempts = 3;',
+    'exception.ErrorCode == "REPLICA_INFRASTRUCTURE_FAILED" && attempt < maximumAttempts',
+    'S3CODE={s3ErrorCode}',
+    'Category", "Hu035ReplicaDiagnostics'
+)) {
+    if ($amd64Test.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "HU-035 replica diagnostic gate contract is missing: $required"
+    }
+}
+if ($amd64Test.IndexOf('HTTP={httpStatus}", exception', [StringComparison]::Ordinal) -ge 0) {
+    throw 'HU-035 replica diagnostic gate must not attach the original exception.'
 }
 $workflow = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.github/workflows/pull-request.yml')
 if ($workflow.IndexOf('invoke-hu-035-amd64-gate.ps1', [StringComparison]::Ordinal) -lt 0 -or

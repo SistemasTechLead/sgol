@@ -28,6 +28,7 @@ public sealed class ObjectReplica(
         DateTimeOffset? slot = null;
         var entries = new List<ObjectReplicaManifestEntry>();
         var stage = "CONFIGURATION";
+        var diagnostic = new ReplicaDiagnosticContext();
         try
         {
             options = ReplicaOptions.FromConfiguration(configuration);
@@ -42,7 +43,8 @@ public sealed class ObjectReplica(
             using var source = options.Source.CreateClient();
             using var destination = options.Destination.CreateClient();
             stage = "RECOVER_MANIFEST";
-            if (await RecoverCompleteManifestAsync(destination, options, slot.Value, cancellationToken))
+            diagnostic.Reset();
+            if (await RecoverCompleteManifestAsync(destination, options, slot.Value, diagnostic, cancellationToken))
             {
                 OperationsTelemetry.Record(
                     "object_replica", "recovered", Stopwatch.GetElapsedTime(started), 0, 0);
@@ -51,21 +53,26 @@ public sealed class ObjectReplica(
             }
 
             stage = "LOAD_PREVIOUS_MANIFEST";
+            diagnostic.Reset();
             var previous = await LoadPreviousManifestAsync(destination, options, slot.Value, cancellationToken);
             stage = "REPLICATE_QUARANTINE";
+            diagnostic.Reset();
             await ReplicateBucketAsync(
                 source, destination, options.SourceQuarantineBucket, options.DestinationQuarantineBucket,
                 "quarantine", slot.Value.Hour == 0, options.BatchSize, previous, entries,
-                timeProvider.GetUtcNow(), cancellationToken);
+                timeProvider.GetUtcNow(), diagnostic, cancellationToken);
             stage = "REPLICATE_CLEAN";
+            diagnostic.Reset();
             await ReplicateBucketAsync(
                 source, destination, options.SourceCleanBucket, options.DestinationCleanBucket,
                 "clean", slot.Value.Hour == 0, options.BatchSize, previous, entries,
-                timeProvider.GetUtcNow(), cancellationToken);
+                timeProvider.GetUtcNow(), diagnostic, cancellationToken);
             stage = "VERIFY_SOURCE_SET";
+            diagnostic.Reset();
             AssertNoSilentSourceDeletion(previous, entries);
 
             stage = "PUBLISH_MANIFEST";
+            diagnostic.Reset();
             await PublishManifestAsync(
                 destination, options, build, slot.Value, "COMPLETE", null, entries, cancellationToken);
             OperationsTelemetry.Record(
@@ -75,26 +82,26 @@ public sealed class ObjectReplica(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            var code = exception switch
-            {
-                OperationsConfigurationException configured => configured.ErrorCode,
-                OperationsIntegrityException integrity => integrity.ErrorCode,
-                AmazonS3Exception s3 when s3.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized =>
-                    "REPLICA_AUTHORIZATION_FAILED",
-                _ => "REPLICA_INFRASTRUCTURE_FAILED"
-            };
+            var capturedStage = NormalizeStage(stage);
+            var capturedOperation = NormalizeOperation(diagnostic.Operation);
+            var capturedExceptionType = SanitizeDiagnosticToken(exception.GetType().Name);
+            var capturedHttpStatus = exception is AmazonS3Exception storageFailure
+                ? NormalizeHttpStatusCode((int)storageFailure.StatusCode)
+                : "NONE";
+            var capturedS3ErrorCode = exception is AmazonS3Exception s3Failure
+                ? SanitizeDiagnosticToken(s3Failure.ErrorCode)
+                : "UNKNOWN";
+            var code = ClassifyFailure(exception);
             await TryPublishFailureAsync(options, slot, code, entries);
             OperationsTelemetry.Record("object_replica", "failed", Stopwatch.GetElapsedTime(started), 0, 0);
             OperationsLogs.Failed(logger, "object_replica", "FAILED", code);
-            var failure = new Sgol.JobInfrastructure.JobExecutionException(code);
-            failure.Data["SGOL_REPLICA_STAGE"] = stage;
-            failure.Data["SGOL_REPLICA_EXCEPTION_TYPE"] = exception.GetType().Name;
-            failure.Data["SGOL_REPLICA_HTTP_STATUS"] = exception is AmazonS3Exception storageFailure
-                ? ((int)storageFailure.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture)
-                : "NONE";
-            failure.Data["SGOL_REPLICA_OPERATION"] =
-                exception.Data["SGOL_REPLICA_OPERATION"] as string ?? "UNKNOWN";
-            throw failure;
+            throw CreateFailure(
+                code,
+                capturedStage,
+                capturedOperation,
+                capturedExceptionType,
+                capturedHttpStatus,
+                capturedS3ErrorCode);
         }
     }
 
@@ -109,25 +116,31 @@ public sealed class ObjectReplica(
         ObjectReplicaManifest? previous,
         List<ObjectReplicaManifestEntry> entries,
         DateTimeOffset verifiedAt,
+        ReplicaDiagnosticContext diagnostic,
         CancellationToken cancellationToken)
     {
         string? continuation = null;
         do
         {
+            diagnostic.Operation = "LIST_SOURCE_OBJECTS";
             var response = await source.ListObjectsV2Async(new ListObjectsV2Request
             {
                 BucketName = sourceBucket,
                 ContinuationToken = continuation,
                 MaxKeys = batchSize
             }, cancellationToken);
+            diagnostic.Reset();
             foreach (var item in response.S3Objects ?? [])
             {
+                diagnostic.Reset();
                 var itemSize = item.Size ?? throw new OperationsIntegrityException("SOURCE_OBJECT_SIZE_MISSING");
+                diagnostic.Operation = "HEAD_SOURCE_METADATA";
                 var metadata = await source.GetObjectMetadataAsync(new GetObjectMetadataRequest
                 {
                     BucketName = sourceBucket,
                     Key = item.Key
                 }, cancellationToken);
+                diagnostic.Reset();
                 var expectedHash = metadata.Metadata[EvidenceHashMetadata];
                 var expectedSize = metadata.Metadata[EvidenceSizeMetadata];
                 var expectedMedia = metadata.Metadata[EvidenceMediaMetadata];
@@ -140,8 +153,10 @@ public sealed class ObjectReplica(
                     throw new OperationsIntegrityException("SOURCE_OBJECT_INTEGRITY_FAILED");
                 }
 
+                diagnostic.Operation = "CHECK_DESTINATION_METADATA";
                 var destinationMatches = await HasDestinationMetadataAsync(
                     destination, destinationBucket, item.Key, expectedHash, itemSize, cancellationToken);
+                diagnostic.Reset();
                 string destinationHash;
                 if (!destinationMatches)
                 {
@@ -151,7 +166,9 @@ public sealed class ObjectReplica(
                         throw new OperationsIntegrityException("DESTINATION_OBJECT_MISSING");
                     }
 
+                    diagnostic.Operation = "READ_SOURCE_HASH";
                     var sourceObject = await ReadObjectHashAsync(source, sourceBucket, item.Key, cancellationToken);
+                    diagnostic.Reset();
                     if (sourceObject.Size != itemSize ||
                         !string.Equals(sourceObject.Hash, expectedHash, StringComparison.Ordinal))
                     {
@@ -164,17 +181,23 @@ public sealed class ObjectReplica(
                         ["sgol-size-bytes"] = itemSize.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         ["sgol-media-type"] = expectedMedia
                     };
+                    diagnostic.Operation = "GET_SOURCE_STREAM";
                     using var sourceResponse = await source.GetObjectAsync(
                         new GetObjectRequest { BucketName = sourceBucket, Key = item.Key }, cancellationToken);
+                    diagnostic.Reset();
+                    diagnostic.Operation = "WRITE_AND_VERIFY_DESTINATION";
                     await new S3OperationStore(destination).PutStreamVerifiedAsync(
                         destinationBucket, item.Key, sourceResponse.ResponseStream, itemSize, expectedHash,
                         metadata.Headers.ContentType ?? "application/octet-stream", allowedMetadata, cancellationToken);
+                    diagnostic.Reset();
                     destinationHash = sourceObject.Hash;
                 }
                 else if (fullVerification)
                 {
+                    diagnostic.Operation = "READ_DESTINATION_HASH";
                     destinationHash = (await ReadObjectHashAsync(
                         destination, destinationBucket, item.Key, cancellationToken)).Hash;
+                    diagnostic.Reset();
                     if (!string.Equals(destinationHash, expectedHash, StringComparison.Ordinal))
                     {
                         throw new OperationsIntegrityException("DESTINATION_OBJECT_CORRUPT");
@@ -202,34 +225,26 @@ public sealed class ObjectReplica(
         long expectedSize,
         CancellationToken cancellationToken)
     {
-        try
+        var listed = await destination.ListObjectsV2Async(new ListObjectsV2Request
         {
-            var listed = await destination.ListObjectsV2Async(new ListObjectsV2Request
-            {
-                BucketName = bucket,
-                Prefix = key,
-                MaxKeys = 1
-            }, cancellationToken);
-            if ((listed.S3Objects ?? []).All(item => !string.Equals(item.Key, key, StringComparison.Ordinal)))
-            {
-                return false;
-            }
-
-            var metadata = await destination.GetObjectMetadataAsync(
-                new GetObjectMetadataRequest { BucketName = bucket, Key = key }, cancellationToken);
-            if (metadata.ContentLength != expectedSize ||
-                !string.Equals(metadata.Metadata[EvidenceHashMetadata], expectedHash, StringComparison.Ordinal))
-            {
-                throw new OperationsIntegrityException("DESTINATION_OBJECT_CORRUPT");
-            }
-
-            return true;
-        }
-        catch (AmazonS3Exception exception)
+            BucketName = bucket,
+            Prefix = key,
+            MaxKeys = 1
+        }, cancellationToken);
+        if ((listed.S3Objects ?? []).All(item => !string.Equals(item.Key, key, StringComparison.Ordinal)))
         {
-            exception.Data["SGOL_REPLICA_OPERATION"] = "CHECK_DESTINATION_METADATA";
-            throw;
+            return false;
         }
+
+        var metadata = await destination.GetObjectMetadataAsync(
+            new GetObjectMetadataRequest { BucketName = bucket, Key = key }, cancellationToken);
+        if (metadata.ContentLength != expectedSize ||
+            !string.Equals(metadata.Metadata[EvidenceHashMetadata], expectedHash, StringComparison.Ordinal))
+        {
+            throw new OperationsIntegrityException("DESTINATION_OBJECT_CORRUPT");
+        }
+
+        return true;
     }
 
     private static async Task<ObjectReplicaManifest?> LoadPreviousManifestAsync(
@@ -284,6 +299,7 @@ public sealed class ObjectReplica(
         IAmazonS3 destination,
         ReplicaOptions options,
         DateTimeOffset slot,
+        ReplicaDiagnosticContext diagnostic,
         CancellationToken cancellationToken)
     {
         var key = $"{options.ManifestPrefix}/{slot:yyyy/MM/dd}/objects-{slot:yyyyMMdd'T'HHmmss'Z'}.manifest.json";
@@ -309,7 +325,9 @@ public sealed class ObjectReplica(
                 "clean" => options.DestinationCleanBucket,
                 _ => throw new OperationsIntegrityException("REPLICA_BUCKET_ROLE_INVALID")
             };
+            diagnostic.Operation = "READ_DESTINATION_HASH";
             var actual = await ReadObjectHashAsync(destination, bucket, item.Key, cancellationToken);
+            diagnostic.Reset();
             if (actual.Size != item.Size || !string.Equals(actual.Hash, item.DestinationSha256, StringComparison.Ordinal) ||
                 !string.Equals(item.SourceSha256, item.DestinationSha256, StringComparison.Ordinal))
             {
@@ -404,6 +422,85 @@ public sealed class ObjectReplica(
             new GetObjectRequest { BucketName = bucket, Key = key }, cancellationToken);
         var (hash, size) = await OperationManifestSerializer.HashAsync(response.ResponseStream, cancellationToken);
         return (size, hash);
+    }
+
+    private static string ClassifyFailure(Exception exception) => exception switch
+    {
+        OperationsConfigurationException configured => configured.ErrorCode,
+        OperationsIntegrityException integrity => integrity.ErrorCode,
+        AmazonS3Exception s3 when s3.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized =>
+            "REPLICA_AUTHORIZATION_FAILED",
+        _ => "REPLICA_INFRASTRUCTURE_FAILED"
+    };
+
+    private static Sgol.JobInfrastructure.JobExecutionException CreateFailure(
+        string errorCode,
+        string stage,
+        string operation,
+        string exceptionType,
+        string httpStatus,
+        string s3ErrorCode)
+    {
+        var failure = new Sgol.JobInfrastructure.JobExecutionException(errorCode);
+        failure.Data["SGOL_REPLICA_STAGE"] = NormalizeStage(stage);
+        failure.Data["SGOL_REPLICA_OPERATION"] = NormalizeOperation(operation);
+        failure.Data["SGOL_REPLICA_EXCEPTION_TYPE"] = SanitizeDiagnosticToken(exceptionType);
+        failure.Data["SGOL_REPLICA_HTTP_STATUS"] = NormalizeHttpStatus(httpStatus);
+        failure.Data["SGOL_REPLICA_S3_ERROR_CODE"] = SanitizeDiagnosticToken(s3ErrorCode);
+        return failure;
+    }
+
+    private static string NormalizeStage(string? value) => value switch
+    {
+        "CONFIGURATION" => "CONFIGURATION",
+        "RECOVER_MANIFEST" => "RECOVER_MANIFEST",
+        "LOAD_PREVIOUS_MANIFEST" => "LOAD_PREVIOUS_MANIFEST",
+        "REPLICATE_QUARANTINE" => "REPLICATE_QUARANTINE",
+        "REPLICATE_CLEAN" => "REPLICATE_CLEAN",
+        "VERIFY_SOURCE_SET" => "VERIFY_SOURCE_SET",
+        "PUBLISH_MANIFEST" => "PUBLISH_MANIFEST",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeOperation(string? value) => value switch
+    {
+        "LIST_SOURCE_OBJECTS" => "LIST_SOURCE_OBJECTS",
+        "HEAD_SOURCE_METADATA" => "HEAD_SOURCE_METADATA",
+        "READ_SOURCE_HASH" => "READ_SOURCE_HASH",
+        "GET_SOURCE_STREAM" => "GET_SOURCE_STREAM",
+        "CHECK_DESTINATION_METADATA" => "CHECK_DESTINATION_METADATA",
+        "WRITE_AND_VERIFY_DESTINATION" => "WRITE_AND_VERIFY_DESTINATION",
+        "READ_DESTINATION_HASH" => "READ_DESTINATION_HASH",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeHttpStatusCode(int value) => value is >= 100 and <= 599
+        ? value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        : "NONE";
+
+    private static string NormalizeHttpStatus(string? value) =>
+        int.TryParse(value, System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out var numericStatus)
+            ? NormalizeHttpStatusCode(numericStatus)
+            : "NONE";
+
+    private static string SanitizeDiagnosticToken(string? value)
+    {
+        const int maximumLength = 64;
+        if (string.IsNullOrEmpty(value) || value.Length > maximumLength ||
+            !value.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-'))
+        {
+            return "UNKNOWN";
+        }
+
+        return value;
+    }
+
+    private sealed class ReplicaDiagnosticContext
+    {
+        public string Operation { get; set; } = "UNKNOWN";
+
+        public void Reset() => Operation = "UNKNOWN";
     }
 
     private static bool IsSha256(string? value) =>
