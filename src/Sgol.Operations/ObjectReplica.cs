@@ -92,6 +92,8 @@ public sealed class ObjectReplica(
             failure.Data["SGOL_REPLICA_HTTP_STATUS"] = exception is AmazonS3Exception storageFailure
                 ? ((int)storageFailure.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture)
                 : "NONE";
+            failure.Data["SGOL_REPLICA_OPERATION"] =
+                exception.Data["SGOL_REPLICA_OPERATION"] as string ?? "UNKNOWN";
             throw failure;
         }
     }
@@ -202,6 +204,17 @@ public sealed class ObjectReplica(
     {
         try
         {
+            var listed = await destination.ListObjectsV2Async(new ListObjectsV2Request
+            {
+                BucketName = bucket,
+                Prefix = key,
+                MaxKeys = 1
+            }, cancellationToken);
+            if ((listed.S3Objects ?? []).All(item => !string.Equals(item.Key, key, StringComparison.Ordinal)))
+            {
+                return false;
+            }
+
             var metadata = await destination.GetObjectMetadataAsync(
                 new GetObjectMetadataRequest { BucketName = bucket, Key = key }, cancellationToken);
             if (metadata.ContentLength != expectedSize ||
@@ -212,9 +225,10 @@ public sealed class ObjectReplica(
 
             return true;
         }
-        catch (AmazonS3Exception exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+        catch (AmazonS3Exception exception)
         {
-            return false;
+            exception.Data["SGOL_REPLICA_OPERATION"] = "CHECK_DESTINATION_METADATA";
+            throw;
         }
     }
 
