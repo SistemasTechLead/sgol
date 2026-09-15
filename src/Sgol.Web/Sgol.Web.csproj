@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Modules\Configuration\Sgol.Configuration.csproj" />
+    <ProjectReference Include="..\Modules\Continuity\Sgol.Continuity.csproj" />
     <ProjectReference Include="..\Modules\Execution\Sgol.Execution.csproj" />
     <ProjectReference Include="..\Modules\Evidence\Sgol.Evidence.csproj" />
     <ProjectReference Include="..\Modules\Generation\Sgol.Generation.csproj" />

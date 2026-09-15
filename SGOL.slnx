@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Modules/Assignment/Sgol.Assignment.csproj" />
     <Project Path="src/Modules/Configuration/Sgol.Configuration.csproj" />
+    <Project Path="src/Modules/Continuity/Sgol.Continuity.csproj" />
     <Project Path="src/Modules/Execution/Sgol.Execution.csproj" />
     <Project Path="src/Modules/Evidence/Sgol.Evidence.csproj" />
     <Project Path="src/Modules/Generation/Sgol.Generation.csproj" />

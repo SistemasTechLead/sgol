@@ -31,10 +31,18 @@ public sealed class ScheduledJobRunner(
     private static readonly TimeSpan[] RetryDelays =
         [TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(500)];
 
+    public Task<ScheduledJobResult> RunAsync(
+        string jobName,
+        DateTimeOffset scheduledFor,
+        Guid correlationId,
+        CancellationToken cancellationToken = default) =>
+        RunAsync(jobName, scheduledFor, correlationId, null, cancellationToken);
+
     public async Task<ScheduledJobResult> RunAsync(
         string jobName,
         DateTimeOffset scheduledFor,
         Guid correlationId,
+        string? checkpoint,
         CancellationToken cancellationToken = default)
     {
         if (!registry.TryGet(jobName, out var job) || job is null)
@@ -59,7 +67,8 @@ public sealed class ScheduledJobRunner(
             {
                 try
                 {
-                    return await RunAttemptAsync(job, scheduledFor, correlationId, attempt + 1, cancellationToken);
+                    return await RunAttemptAsync(job, scheduledFor, correlationId, attempt + 1, checkpoint,
+                        cancellationToken);
                 }
                 catch (Exception exception) when (IsUniqueViolation(exception) && attempt == 0)
                 {
@@ -182,6 +191,7 @@ public sealed class ScheduledJobRunner(
         DateTimeOffset scheduledFor,
         Guid correlationId,
         int attempt,
+        string? checkpoint,
         CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
@@ -211,12 +221,15 @@ public sealed class ScheduledJobRunner(
                 JobName = job.Name,
                 ScheduledFor = scheduledFor,
                 StartedAt = startedAt,
-                Status = ScheduledJobStatuses.Running
+                Status = ScheduledJobStatuses.Running,
+                Checkpoint = checkpoint
             };
             dbContext.ScheduledJobRuns.Add(run);
         }
         else
         {
+            if (!string.Equals(run.Checkpoint, checkpoint, StringComparison.Ordinal))
+                throw new JobExecutionException("JOB_CHECKPOINT_CONFLICT");
             run.StartedAt = startedAt;
             run.EndedAt = null;
             run.Status = ScheduledJobStatuses.Running;

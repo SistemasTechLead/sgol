@@ -11,6 +11,13 @@ public interface IBackupProcessPipeline
         string outputPath,
         CancellationToken cancellationToken);
 
+    Task<BackupProcessResult> CreateEncryptedDumpFromSnapshotAsync(
+        BackupOptions options,
+        string outputPath,
+        string postgreSqlSnapshotId,
+        CancellationToken cancellationToken) =>
+        throw new OperationsIntegrityException("REFERENCE_BACKUP_SNAPSHOT_UNSUPPORTED");
+
     Task<RestoreProcessResult> VerifyAndRestoreAsync(
         string agePath,
         string pgRestorePath,
@@ -38,11 +45,44 @@ public sealed class BackupProcessPipeline : IBackupProcessPipeline
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         var connection = options.ParseConnection();
+        var dump = CreateDumpProcess(options, connection, null);
+        return await RunEncryptedDumpAsync(options, outputPath, dump, cancellationToken);
+    }
+
+    public async Task<BackupProcessResult> CreateEncryptedDumpFromSnapshotAsync(
+        BackupOptions options,
+        string outputPath,
+        string postgreSqlSnapshotId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(postgreSqlSnapshotId) || postgreSqlSnapshotId.Length > 128 ||
+            postgreSqlSnapshotId.Any(character => !(char.IsAsciiLetterOrDigit(character) || character is '-' or ':')))
+            throw new OperationsIntegrityException("REFERENCE_BACKUP_SNAPSHOT_INVALID");
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        var dump = CreateDumpProcess(options, options.ParseConnection(), postgreSqlSnapshotId);
+        return await RunEncryptedDumpAsync(options, outputPath, dump, cancellationToken);
+    }
+
+    private static ProcessStartInfo CreateDumpProcess(
+        BackupOptions options,
+        NpgsqlConnectionStringBuilder connection,
+        string? postgreSqlSnapshotId)
+    {
         var dump = CreatePostgresProcess(options.PgDumpPath, connection);
         dump.ArgumentList.Add("--format=custom");
         dump.ArgumentList.Add("--no-owner");
         dump.ArgumentList.Add("--no-privileges");
         dump.ArgumentList.Add("--compress=6");
+        if (postgreSqlSnapshotId is not null) dump.ArgumentList.Add($"--snapshot={postgreSqlSnapshotId}");
+        return dump;
+    }
+
+    private static async Task<BackupProcessResult> RunEncryptedDumpAsync(
+        BackupOptions options,
+        string outputPath,
+        ProcessStartInfo dump,
+        CancellationToken cancellationToken)
+    {
 
         var age = BaseProcess(options.AgePath);
         age.ArgumentList.Add("--encrypt");

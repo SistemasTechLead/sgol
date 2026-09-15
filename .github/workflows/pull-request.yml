@@ -142,7 +142,33 @@ jobs:
             -ImageRef $imageRef `
             -GateRoot (Join-Path $env:RUNNER_TEMP 'sgol-tech-ops-amd64')
 
-      - name: Preserve non-secret OCI and TECH-OPS evidence
+      - name: Dispose private TECH-OPS resources before HU-035
+        if: always()
+        shell: pwsh
+        run: |
+          $gateRoot = Join-Path $env:RUNNER_TEMP 'sgol-tech-ops-amd64'
+          $runtime = Join-Path $gateRoot 'runtime-private/runtime.env'
+          @('sgol-tech-ops-postgres','sgol-tech-ops-s3-source','sgol-tech-ops-s3-destination') |
+            ForEach-Object { docker container rm --force $_ 2>$null }
+          if (Test-Path -LiteralPath $runtime -PathType Leaf) {
+            docker compose --env-file $runtime -f deploy/staging/compose.yaml down --remove-orphans
+          }
+          docker network rm sgol-staging_private 2>$null
+          Remove-Item -LiteralPath (Join-Path $gateRoot 'runtime-private') -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath (Join-Path $gateRoot 'evidence-private') -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Run integral HU-035 recovery gate on native AMD64
+        shell: pwsh
+        run: |
+          if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [Runtime.InteropServices.Architecture]::X64) {
+            throw 'AMD64_HOST_REQUIRED: ubuntu-24.04 must resolve to an x64 runner.'
+          }
+          $imageRef = (docker image inspect --format '{{.Id}}' "sgol:$env:IMPLEMENTATION_SHA").Trim()
+          ./scripts/operations/invoke-hu-035-amd64-gate.ps1 `
+            -ImageRef $imageRef `
+            -GateRoot (Join-Path $env:RUNNER_TEMP 'sgol-hu-035-amd64')
+
+      - name: Preserve non-secret OCI, TECH-OPS and HU-035 evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -151,5 +177,6 @@ jobs:
             ${{ runner.temp }}/sgol-oci-metadata.json
             ${{ runner.temp }}/sgol-${{ env.IMPLEMENTATION_SHA }}.oci.tar
             ${{ runner.temp }}/sgol-tech-ops-amd64/evidence-public/**
+            ${{ runner.temp }}/sgol-hu-035-amd64/evidence-public/**
           if-no-files-found: warn
           compression-level: 0

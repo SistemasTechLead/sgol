@@ -18,7 +18,7 @@ public sealed class Hu034IdempotencyArchitectureTests
             })
             .ToArray();
 
-        Assert.Equal(17, consumers.Length);
+        Assert.Equal(18, consumers.Length);
         foreach (var path in consumers.Where(path => !Path.GetFileName(path).Equals("InboxApiEndpoints.cs", StringComparison.Ordinal)))
         {
             var source = File.ReadAllText(path);

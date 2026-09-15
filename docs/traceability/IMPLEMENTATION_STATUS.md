@@ -4,14 +4,36 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `TECH-OPS-001`
+## Propuesta actual en rama — `HU-035`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `HU-035` — Dirección verifica recuperación con identidades e historia |
+| Estado | Propuesta implementada en `codex/hu-035`; no declara la historia `Terminada` ni habilita `CV-05` |
+| Contrato | Adendas `F07_ADENDA_33_CONTRATO_DE_RECONCILIACION_Y_SIMULACRO_DE_RECUPERACION_HU_035.md` y `F07_ADENDA_34_CONTRATO_DE_GATE_AMD64_AUTOMATIZADO_HU_035.md`, aprobadas íntegramente por el responsable el 2026-09-14 antes de sus respectivas implementaciones |
+| Commit implementado | Commit que contiene esta actualización |
+| Base aceptada | `TECH-OPS-001`: PR `#54`, commit implementado `eddfdfcca0fa9b6b5a988184610bce6d90efbbb2`, pipeline requerido `SUCCESS` run `34885345138` en segundo intento, aprobación humana, merge `5ad5192663b93594771df29fe90a086c4ea5c90b`, `origin/master` verificado exactamente y ascendencia confirmada |
+| Superficie | API mínima `/api/v1/continuity/reconciliations` para solicitud, consulta y aprobación; job `CAPTURE_RECOVERY_REFERENCE` disparado por outbox; comandos `complete-functional-reference` y `reconcile-functional-restore`; sin UI |
+| Contrato funcional | Módulo `Continuity`, snapshots `SGOL-FUNCTIONAL-SNAPSHOT-1`, canonicalización `SGOL-CANON-1`, allowlist de 39 tablas, conteos totales/por estado, hashes por campo/fila/tabla/raíz y diferencias explícitas de identidades, vínculos, versiones, evidencia y auditoría |
+| Persistencia y seguridad | Tres tablas expand-only con eventos/diferencias append-only, triggers PostgreSQL SQLSTATE `55000`, `Down()` bloqueado, idempotencia común, ETag/If-Match, autorización de servidor exclusiva a rol `DIRECCION` vigente en `LOR-001`, anti-IDOR y auditoría transaccional de solicitud, inicio, consulta, resultado y aprobación |
+| Recuperación | Captura `REPEATABLE READ, READ ONLY` en UTC, snapshot PostgreSQL exportado compartido con `pg_dump`, manifiestos privados sin overwrite, restore sintético marcado/aislado distinto del primario, comparación read-only, RPO máximo 3 600 s y RTO máximo 14 400 s |
+| Pruebas enfocadas | Durante implementación: contrato/API/Operations `40/40` y arquitectura/idempotencia `5/5`; proyecto PostgreSQL real y proyecto externo HU-035 opt-in compilan con cero errores/advertencias, pero sus pruebas no se ejecutaron en sesión conforme a `AGENTS.md` |
+| Gates locales | Restore locked `23/23` después de sincronizar sólo lockfiles transitivos; build Release `23/23`, cero errores/advertencias; suite sin PostgreSQL/Docker: unitarias `589/589`, arquitectura `48/48`, OperationsIntegration local con salida `0` y conteos no disponibles por modo binlog, CV-02 `15/15` y CV-03 `19/19`; formato sin cambios; cero vulnerabilidades NuGet conocidas; espejo `29/29`, protección de `Fuentes/`, contrato TECH-OPS, validador HU-035 y `git diff --check` aprobados |
+| Gates externos pendientes | El workflow propone ejecutar en Linux AMD64 nativo la imagen del SHA exacto, PostgreSQL real, dos S3-compatible, snapshot compartido con `pg_dump`, restore integral, reconciliación positiva, replay, consulta, aprobación y la matriz contractual de 18 casos: diferencias de identidad, vínculo, versión, conteo, evidencia y auditoría; corrupción/indisponibilidad; RPO/RTO; rechazo del primario; conflicto y concurrencia. El gate queda implementado pero no ejecutado: la evidencia AMD64 y el pipeline del futuro SHA exacto continúan pendientes y no se presentan como aprobados |
+| Límites | Sin producción, cloud real, datos/secretos reales, reparación, compensación, fabricación, borrado, overwrite, purga, UI, plataforma general de DR, `CV-05` ni tareas posteriores |
+| Cierre | Requiere gates locales finales, ejecución externa satisfactoria, revisión humana, autorización y creación del commit exacto, pipeline verde para ese SHA, aprobación humana del PR, merge, ascendencia verificada en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Siguiente tarea | Ninguna habilitada desde esta rama |
+
+Esta propuesta no autoriza commit, publicación de rama, apertura de pull request, despliegue externo ni merge.
+
+## Base aceptada — `TECH-OPS-001`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `TECH-OPS-001` — Imagen OCI, staging, respaldo y réplica verificables |
-| Estado | Propuesta implementada en `codex/tech-ops-001`; no declara la tarea `Terminada` ni habilita `HU-035` |
+| Estado | `Terminada` en `master` conforme a la evidencia aceptada |
 | Contrato | `F07_ADENDA_32_CONTRATO_DE_OPERACION_PORTABLE_TECH_OPS_001.md`, aprobada íntegramente por el responsable el 2026-09-12 antes de continuar la implementación |
-| Commit implementado | Commit que contiene esta actualización |
+| Commit implementado | `eddfdfcca0fa9b6b5a988184610bce6d90efbbb2` |
 | Base aceptada | `HU-034`: PR `#53`, commit `718608dd93ed9d6c7f08a97c6c7bebd47f4f9a42`, pipeline requerido `SUCCESS` run `34717877842`, aprobación humana, merge `df980342de63b4767866e7b34fb81431b4b73ab7`, `origin/master` verificado exactamente y ascendencia confirmada |
 | Imagen OCI | Dockerfile `linux/amd64` con stages restore/publish/runtime, SDK nativo en `BUILDPLATFORM`, SDK y ASP.NET 10 Noble fijados por digest, publicaciones Web/Worker/Operations sin apphost, PostgreSQL `18.6-1.pgdg24.04+2` y `age` fijados, usuario `1654:1654`, puerto interno `8080` y health local; contexto Windows materializado sin puntos de análisis y sin rutas protegidas |
 | Staging | Compose normativo sin proveedor, una sola referencia de imagen por digest, Web/Worker y procesos one-shot explícitos, root filesystem read-only, tmpfs privado, capacidades eliminadas, red privada, configuración no secreta e inventario cerrado de 15 nombres de secretos |
@@ -22,12 +44,12 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 | Evidencia y pipeline | Validador estático, constructor reproducible compatible con PowerShell 5.1, aprovisionador sintético sin overwrite, orquestador neutral que exige host x86-64 nativo, runbooks, proyecto externo opt-in para dos S3-compatible, build OCI BuildKit con SBOM/procedencia mediante builder `docker-container` y escaneo Trivy fijado por SHA; el workflow fija el checkout y toda evidencia al `pull_request.head.sha`, propone ejecutar el gate integral en `ubuntu-24.04` x64 y conservar sólo layout/metadatos/evidencia pública mediante `actions/upload-artifact` fijada por SHA, excluyendo runtime privado y manifiestos de objetos |
 | Pruebas enfocadas | Unitarias/host `39/39`; arquitectura `4/4`; PostgreSQL real `3/3` para migración, key ring y locking estable; S3-compatible doble opt-in `1/1`; aprovisionamiento y restricción de credenciales S3 `2 x 1/1`; validador TECH-OPS aprobado con 9 artefactos y 15 nombres de secretos |
 | Gates locales | Restore locked `22/22` tras actualizar sólo los lockfiles transitivos CV-02/CV-03 detectados por el primer intento; build Release `22/22`, cero errores/advertencias; suite local sin Docker `562/562` unitarias, `43/43` arquitectura, CV-02 `15/15` y CV-03 `19/19`; formato limpio tras corregir una diferencia de whitespace; cero vulnerabilidades NuGet conocidas; espejo `29/29`, protección de `Fuentes/` y rutas de diseño, contrato TECH-OPS y `git diff --check` aprobados. La suite agregada completa no se repitió; con autorización posterior se ejecutaron aparte los gates enfocados PostgreSQL/Testcontainers y S3-compatible indicados en esta propuesta |
-| Gates externos | Docker/buildx `linux/amd64`, inspección no-root/puerto/health/labels, smoke Worker/`pg_dump`/`age`, SBOM/procedencia, PostgreSQL real enfocado y dos S3-compatible aprobados localmente para la imagen pre-commit marcada `dirty`, `sha256:1f1423d7b937dec63ad5a48897007e89b76bfa5a3a3cc9d77a67f4bfa06b4322`. Se preparó fuera del repositorio un entorno `SGOL_SYNTHETIC_ONLY` con PostgreSQL primario/restore, dos almacenamientos, cinco buckets, cuatro credenciales operativas separadas, PFX/`age` efímeros y semilla SHA-256; Compose renderizó y ambos S3 quedaron sólo en la red privada. El primer intento se detuvo sin tocar servicios por una codificación incompatible con PowerShell 5.1 y el verificador quedó corregido con `UTF8Encoding(false)`. La repetición aprobó PostgreSQL real `3/3` y S3-compatible `1/1`, pero la imagen `linux/amd64` ejecutada mediante emulación en el host ARM64 falló antes de SQL al construir el modelo EF (`NpgsqlArrayTypeMapping` → `ValueComparer.CreateDefault` → `NullReferenceException`); desactivar temporalmente tiered compilation/ReadyToRun no cambió el resultado y la base objetivo permaneció vacía. El workflow propone repetir automáticamente el gate completo en runner x64 nativo y el mismo orquestador queda portable a un futuro equipo físico Intel/AMD x86-64. Pendiente: pipeline del futuro SHA exacto con migración Compose, backup cifrado, reintento idempotente, réplica, restore aislado, verificaciones independientes y Trivy |
+| Gates externos | Imagen OCI, staging, respaldo PostgreSQL, réplica S3-compatible y restauración aislada verificados con datos sintéticos; pipeline requerido `SUCCESS`, run `34885345138`, segundo intento, para el commit implementado exacto |
 | Límites | Sin despliegue, recursos cloud, secretos o datos reales, firma/publicación, purga/overwrite, endpoint funcional, UI, reconciliación, medición integral RPO/RTO ni cualquier implementación o simulacro de `HU-035`/`CA-035` |
-| Cierre | Requiere gates locales y externos satisfactorios, revisión humana, autorización y creación del commit exacto, pipeline verde para ese SHA, aprobación humana del PR, merge, ascendencia verificada en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
-| Siguiente tarea | Ninguna habilitada desde esta rama |
+| Cierre | PR `#54` aprobado y merged; merge `5ad5192663b93594771df29fe90a086c4ea5c90b`; commit implementado y merge pertenecen a `origin/master`; `Fuentes/` protegida y sin defectos bloqueantes registrados |
+| Siguiente tarea | `HU-035`, propuesta actual en rama |
 
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request, publicación de imagen, despliegue ni merge.
+Esta base aceptada no amplía el contrato de `HU-035` ni autoriza operaciones Git o despliegues.
 
 ## Base aceptada — `HU-034`
 

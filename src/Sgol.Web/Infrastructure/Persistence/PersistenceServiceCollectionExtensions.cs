@@ -26,6 +26,9 @@ using Sgol.Web.Infrastructure.Persistence.Versioning;
 using Sgol.Web.Infrastructure.Persistence.Validation;
 using Sgol.Web.Infrastructure.Evidence;
 using Sgol.Web.Infrastructure.Persistence.DataProtection;
+using Sgol.Continuity.Contracts;
+using Sgol.Web.Infrastructure.Persistence.Continuity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Sgol.Web.Infrastructure.Persistence;
 
@@ -89,7 +92,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<EfRoleAssignmentService>();
         services.AddScoped<IRoleAssignmentService>(provider => provider.GetRequiredService<EfRoleAssignmentService>());
         services.AddScoped<IRoleHierarchyResolver>(provider => provider.GetRequiredService<EfRoleAssignmentService>());
-
+        services.AddScoped<EfRecoveryReconciliationService>();
+        services.AddScoped<IRecoveryReconciliationService>(provider => provider.GetRequiredService<EfRecoveryReconciliationService>());
+        services.AddScoped<IRecoveryTechnicalWriter>(provider => provider.GetRequiredService<EfRecoveryReconciliationService>());
         return services;
     }
 }

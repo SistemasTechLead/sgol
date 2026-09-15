@@ -21,4 +21,10 @@
   <ItemGroup Condition="'$(SGOL_TECH_OPS_PROVISIONING_TESTS)' != 'true'">
     <Compile Remove="SyntheticEnvironmentProvisioningTests.cs" />
   </ItemGroup>
+  <ItemGroup Condition="'$(SGOL_HU035_EXTERNAL_TESTS)' != 'true'">
+    <Compile Remove="FunctionalRecoveryExternalTests.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(SGOL_HU035_AMD64_TESTS)' != 'true'">
+    <Compile Remove="FunctionalRecoveryAmd64GateTests.cs" />
+  </ItemGroup>
 </Project>
