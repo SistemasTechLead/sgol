@@ -444,8 +444,12 @@ public sealed class FunctionalRecoveryAmd64GateTests
             }
             catch (JobExecutionException exception)
             {
+                var stage = exception.Data["SGOL_REPLICA_STAGE"] as string ?? "UNKNOWN";
+                var exceptionType = exception.Data["SGOL_REPLICA_EXCEPTION_TYPE"] as string ?? "UNKNOWN";
+                var httpStatus = exception.Data["SGOL_REPLICA_HTTP_STATUS"] as string ?? "NONE";
                 throw new InvalidOperationException(
-                    $"HU035_REPLICA_PREPARATION_FAILED:{exception.ErrorCode}", exception);
+                    $"HU035_REPLICA_PREPARATION_FAILED:{exception.ErrorCode}:" +
+                    $"STAGE={stage}:TYPE={exceptionType}:HTTP={httpStatus}", exception);
             }
         }
     }

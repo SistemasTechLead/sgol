@@ -27,6 +27,7 @@ public sealed class ObjectReplica(
         ReplicaOptions? options = null;
         DateTimeOffset? slot = null;
         var entries = new List<ObjectReplicaManifestEntry>();
+        var stage = "CONFIGURATION";
         try
         {
             options = ReplicaOptions.FromConfiguration(configuration);
@@ -40,6 +41,7 @@ public sealed class ObjectReplica(
 
             using var source = options.Source.CreateClient();
             using var destination = options.Destination.CreateClient();
+            stage = "RECOVER_MANIFEST";
             if (await RecoverCompleteManifestAsync(destination, options, slot.Value, cancellationToken))
             {
                 OperationsTelemetry.Record(
@@ -48,17 +50,22 @@ public sealed class ObjectReplica(
                 return;
             }
 
+            stage = "LOAD_PREVIOUS_MANIFEST";
             var previous = await LoadPreviousManifestAsync(destination, options, slot.Value, cancellationToken);
+            stage = "REPLICATE_QUARANTINE";
             await ReplicateBucketAsync(
                 source, destination, options.SourceQuarantineBucket, options.DestinationQuarantineBucket,
                 "quarantine", slot.Value.Hour == 0, options.BatchSize, previous, entries,
                 timeProvider.GetUtcNow(), cancellationToken);
+            stage = "REPLICATE_CLEAN";
             await ReplicateBucketAsync(
                 source, destination, options.SourceCleanBucket, options.DestinationCleanBucket,
                 "clean", slot.Value.Hour == 0, options.BatchSize, previous, entries,
                 timeProvider.GetUtcNow(), cancellationToken);
+            stage = "VERIFY_SOURCE_SET";
             AssertNoSilentSourceDeletion(previous, entries);
 
+            stage = "PUBLISH_MANIFEST";
             await PublishManifestAsync(
                 destination, options, build, slot.Value, "COMPLETE", null, entries, cancellationToken);
             OperationsTelemetry.Record(
@@ -79,7 +86,13 @@ public sealed class ObjectReplica(
             await TryPublishFailureAsync(options, slot, code, entries);
             OperationsTelemetry.Record("object_replica", "failed", Stopwatch.GetElapsedTime(started), 0, 0);
             OperationsLogs.Failed(logger, "object_replica", "FAILED", code);
-            throw new Sgol.JobInfrastructure.JobExecutionException(code);
+            var failure = new Sgol.JobInfrastructure.JobExecutionException(code);
+            failure.Data["SGOL_REPLICA_STAGE"] = stage;
+            failure.Data["SGOL_REPLICA_EXCEPTION_TYPE"] = exception.GetType().Name;
+            failure.Data["SGOL_REPLICA_HTTP_STATUS"] = exception is AmazonS3Exception storageFailure
+                ? ((int)storageFailure.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : "NONE";
+            throw failure;
         }
     }
 
