@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
+using DotNet.Testcontainers.Builders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,9 +36,11 @@ using Xunit;
 
 namespace Sgol.OperationsIntegrationTests;
 
-[Trait("Category", "Hu035Amd64")]
 public sealed class FunctionalRecoveryAmd64GateTests
 {
+    private const string PostgreSqlImage = "postgres:18.6-alpine3.23";
+    private const string SyntheticReplacementAuthority = ValidationAuthorityTypes.OriginalReplacement;
+    private const string SyntheticJobCheckpoint = "{\"schemaVersion\":1,\"position\":\"complete\"}";
     private static readonly string[] FixtureActorCodes = ["DENIED", "DIR", "RESP"];
 
     private static readonly Amd64Case[] ApprovedCases =
@@ -63,14 +66,59 @@ public sealed class FunctionalRecoveryAmd64GateTests
     ];
 
     [Fact]
+    [Trait("Category", "Hu035Contract")]
     public void SyntheticEvidenceMatchesPersistenceContract()
     {
         SyntheticEvidenceFixture.AssertContract();
         Assert.Equal("application/pdf", SyntheticEvidenceFixture.ContentType);
         Assert.EndsWith(".pdf", SyntheticEvidenceFixture.OriginalName, StringComparison.Ordinal);
+
+        var plan = new WorkPlan(Guid.CreateVersion7(), BranchScope.LorettaId, Guid.CreateVersion7());
+        plan.ApplyPublication();
+        var firstPublicationRowVersion = plan.RowVersion;
+        plan.ApplyPublication();
+        Assert.Equal(firstPublicationRowVersion + 1, plan.RowVersion);
+        Assert.Equal(ValidationAuthorityTypes.OriginalReplacement, SyntheticReplacementAuthority);
+
+        using var outbox = JsonDocument.Parse(SyntheticOutboxPayload(
+            new DeterministicSeed(new string('a', 64))));
+        Assert.Equal(3, outbox.RootElement.EnumerateObject().Count());
+        Assert.Equal(1, outbox.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(JsonValueKind.String, outbox.RootElement.GetProperty("correlationId").ValueKind);
+        Assert.Equal(JsonValueKind.Object, outbox.RootElement.GetProperty("data").ValueKind);
+        using var checkpoint = JsonDocument.Parse(SyntheticJobCheckpoint);
+        Assert.Equal(JsonValueKind.Object, checkpoint.RootElement.ValueKind);
     }
 
     [Fact]
+    [Trait("Category", "Hu035PostgreSqlFixture")]
+    public async Task SyntheticFixturePersistsUnderPostgreSqlConstraints()
+    {
+        const string database = "sgol_hu035_fixture";
+        var password = $"hu035-{Guid.NewGuid():N}";
+        await using var postgres = new ContainerBuilder(PostgreSqlImage)
+            .WithEnvironment("POSTGRES_DB", database)
+            .WithEnvironment("POSTGRES_USER", "postgres")
+            .WithEnvironment("POSTGRES_PASSWORD", password)
+            .WithPortBinding(5432, true)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5432))
+            .Build();
+        await postgres.StartAsync();
+
+        var connectionString = $"Host=127.0.0.1;Port={postgres.GetMappedPublicPort(5432)};" +
+            $"Database={database};Username=postgres;Password={password};SSL Mode=Disable;Timeout=15";
+        await using var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>()
+            .UseNpgsql(connectionString).Options);
+        await context.Database.MigrateAsync();
+        await SeedFunctionalFixtureAsync(context, new DeterministicSeed(new string('a', 64)));
+
+        Assert.Equal(2, await context.PlanVersions.CountAsync());
+        Assert.Equal(2, await context.ValidationDecisionVersions.CountAsync());
+        Assert.Single(await context.FileObjects.ToArrayAsync());
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Amd64")]
     public async Task ExecuteApprovedSyntheticPhase()
     {
         Assert.Equal("true", Required("SGOL_SYNTHETIC_ONLY"));
@@ -560,14 +608,17 @@ public sealed class FunctionalRecoveryAmd64GateTests
             AssignmentVersionStatuses.Current, AssignmentTypes.Correction, JsonDocument.Parse("{}"), at.AddDays(-3),
             "Corrección sintética", direction.UserId, assignment1.Id);
         context.AssignmentVersions.AddRange(assignment1, assignment2);
-        context.InternalNotices.Add(new InternalNotice(seed.Id("notice"), responsible.UserId, assignment2.Id,
-            at.AddDays(-3)));
+        context.InternalNotices.AddRange(
+            new InternalNotice(seed.Id("notice-1"), denied.UserId, assignment1.Id, at.AddDays(-4)),
+            new InternalNotice(seed.Id("notice-2"), responsible.UserId, assignment2.Id, at.AddDays(-3)));
 
         var planVersion1 = new PlanVersion(seed.Id("plan-version-1"), plan.Id, 1,
             CanonicalRole.Direction, direction.UserId, at.AddDays(-3), null, plan.RowVersion);
         planVersion1.Supersede();
+        plan.ApplyPublication();
         var planVersion2 = new PlanVersion(seed.Id("plan-version-2"), plan.Id, 2,
             CanonicalRole.Direction, direction.UserId, at.AddDays(-2), planVersion1.Id, plan.RowVersion);
+        Assert.NotEqual(planVersion1.PlanRowVersion, planVersion2.PlanRowVersion);
         context.PlanVersions.AddRange(planVersion1, planVersion2);
         context.PlanVersionObligations.Add(new PlanVersionObligation(planVersion2.Id, obligation.Id, assignment2.Id));
 
@@ -594,13 +645,11 @@ public sealed class FunctionalRecoveryAmd64GateTests
             evidencePolicyId, requirements[1].Id, requirements[1].RequirementCode, requirements[1].Kind,
             at.AddDays(-2));
         var structured1 = new EvidenceVersion(seed.Id("evidence-structured-version-1"), structuredItem.Id, 1,
-            JsonDocument.Parse("{\"schemaVersion\":1,\"decisionSummary\":\"primera\"," +
-                "\"decidedAt\":\"2026-09-14T18:00:00Z\"}"), responsible.UserId,
+            JsonDocument.Parse(SyntheticEvidenceFixture.FirstSequencePayload), responsible.UserId,
             at.AddDays(-2));
         structured1.Supersede();
         var structured2 = new EvidenceVersion(seed.Id("evidence-structured-version-2"), structuredItem.Id, 2,
-            JsonDocument.Parse("{\"schemaVersion\":1,\"decisionSummary\":\"segunda\"," +
-                "\"decidedAt\":\"2026-09-14T19:00:00Z\"}"), responsible.UserId,
+            JsonDocument.Parse(SyntheticEvidenceFixture.SecondSequencePayload), responsible.UserId,
             at.AddDays(-1), "Sustitución sintética", structured1.Id);
         context.EvidenceItems.Add(structuredItem);
         context.EvidenceVersions.AddRange(structured1, structured2);
@@ -640,7 +689,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
         decision1.Supersede();
         validation.Advance(at.AddHours(-6), validation.RowVersion);
         var decision2 = new ValidationDecisionVersion(seed.Id("decision-2"), validation.Id, 2,
-            ValidationResults.Fulfilled, "Fundamento sintético final", ValidationAuthorityTypes.Ordinary,
+            ValidationResults.Fulfilled, "Fundamento sintético final", SyntheticReplacementAuthority,
             denied.UserId, denied.PersonId, CanonicalRole.Administration, assignment2.Id, responsible.PersonId,
             at.AddHours(-6), "Corrección sintética", decision1.Id, review.Id);
         context.ValidationRequirements.Add(validation);
@@ -657,14 +706,14 @@ public sealed class FunctionalRecoveryAmd64GateTests
         context.OutboxEvents.Add(new OutboxEvent
         {
             Id = seed.Id("fixture-outbox"), EventType = "HU035_SYNTHETIC_EVENT", AggregateId = obligation.Id,
-            Payload = "{\"schemaVersion\":1}", CreatedAt = at.AddDays(-1), AvailableAt = at.AddDays(-1),
-            ProcessedAt = at.AddDays(-1).AddMinutes(1)
+            Payload = SyntheticOutboxPayload(seed), CreatedAt = at.AddDays(-1), AvailableAt = at.AddDays(-1),
+            ProcessedAt = at.AddDays(-1).AddMinutes(1), AttemptCount = 1
         });
         context.ScheduledJobRuns.Add(new ScheduledJobRun
         {
             Id = seed.Id("job-run"), JobName = "HU035_SYNTHETIC_JOB", ScheduledFor = at.AddDays(-1),
             StartedAt = at.AddDays(-1), EndedAt = at.AddDays(-1).AddMinutes(1),
-            Status = ScheduledJobStatuses.Succeeded, Checkpoint = "SYNTHETIC"
+            Status = ScheduledJobStatuses.Succeeded, Checkpoint = SyntheticJobCheckpoint
         });
         await context.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -678,6 +727,13 @@ public sealed class FunctionalRecoveryAmd64GateTests
         NormalizedUserName = name.ToUpperInvariant(),
         PasswordHash = "synthetic-non-secret-hash"
     };
+
+    private static string SyntheticOutboxPayload(DeterministicSeed seed) => JsonSerializer.Serialize(new
+    {
+        schemaVersion = 1,
+        correlationId = seed.Id("fixture-outbox-correlation"),
+        data = new { kind = "HU035_SYNTHETIC" }
+    });
 
     private static VersionRecord Published(Guid id, DateTimeOffset at) => new(id, VersionStatuses.Current,
         at, null, "Fixture sintético HU-035", null, 2);

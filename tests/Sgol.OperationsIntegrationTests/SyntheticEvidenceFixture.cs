@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using Sgol.Configuration.Contracts;
 using Sgol.Evidence.Contracts;
 
 namespace Sgol.OperationsIntegrationTests;
@@ -11,6 +13,10 @@ internal static class SyntheticEvidenceFixture
     public const string OriginalName = "hu-035.pdf";
     public const string ContentType = "application/pdf";
     public const string MetadataMediaType = "Document";
+    public const string FirstSequencePayload =
+        "{\"schemaVersion\":1,\"sequenceSummary\":\"primera\"}";
+    public const string SecondSequencePayload =
+        "{\"schemaVersion\":1,\"sequenceSummary\":\"segunda\"}";
 
     private const string Document =
         "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n" +
@@ -28,5 +34,15 @@ internal static class SyntheticEvidenceFixture
         {
             throw new InvalidOperationException("The synthetic evidence fixture violates its persistence contract.");
         }
+
+        ValidateSequencePayload(FirstSequencePayload);
+        ValidateSequencePayload(SecondSequencePayload);
+    }
+
+    private static void ValidateSequencePayload(string json)
+    {
+        using var payload = JsonDocument.Parse(json);
+        _ = StructuredEvidencePayloadValidator.ValidateAndCanonicalize(
+            "TAR-0008", "SECUENCIA", EvidenceRequirementKinds.DigitalRecord, payload.RootElement);
     }
 }
