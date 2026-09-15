@@ -586,11 +586,13 @@ public sealed class FunctionalRecoveryAmd64GateTests
             evidencePolicyId, requirements[1].Id, requirements[1].RequirementCode, requirements[1].Kind,
             at.AddDays(-2));
         var structured1 = new EvidenceVersion(seed.Id("evidence-structured-version-1"), structuredItem.Id, 1,
-            JsonDocument.Parse("{\"schemaVersion\":1,\"sequenceSummary\":\"primera\"}"), responsible.UserId,
+            JsonDocument.Parse("{\"schemaVersion\":1,\"decisionSummary\":\"primera\"," +
+                "\"decidedAt\":\"2026-09-14T18:00:00Z\"}"), responsible.UserId,
             at.AddDays(-2));
         structured1.Supersede();
         var structured2 = new EvidenceVersion(seed.Id("evidence-structured-version-2"), structuredItem.Id, 2,
-            JsonDocument.Parse("{\"schemaVersion\":1,\"sequenceSummary\":\"segunda\"}"), responsible.UserId,
+            JsonDocument.Parse("{\"schemaVersion\":1,\"decisionSummary\":\"segunda\"," +
+                "\"decidedAt\":\"2026-09-14T19:00:00Z\"}"), responsible.UserId,
             at.AddDays(-1), "Sustitución sintética", structured1.Id);
         context.EvidenceItems.Add(structuredItem);
         context.EvidenceVersions.AddRange(structured1, structured2);
@@ -618,6 +620,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
         context.ExecutionResults.Add(new ExecutionResult(seed.Id("execution"), obligation.Id, review.Id,
             responsible.UserId, at.AddDays(-1)));
         obligation.Conclude(responsible.UserId, at.AddDays(-1), obligation.RowVersion);
+        await context.SaveChangesAsync();
 
         var validation = new ValidationRequirement(seed.Id("validation"), obligation.Id, validationPolicyId,
             at.AddDays(-1));
