@@ -45,11 +45,37 @@ function Replace-ConnectionHost([string]$name, [string]$hostAddress) {
         ($value -replace 'Host=sgol-tech-ops-postgres(?=;|$)', "Host=$hostAddress"), 'Process')
 }
 
-function Get-PublishedPort([string]$container) {
-    $binding = (& docker port $container '8333/tcp').Trim()
-    Assert-DockerSuccess "Could not resolve S3 port for $container."
-    if ($binding -notmatch ':(\d+)$') { throw "Invalid S3 port for $container." }
-    return [int]$Matches[1]
+function Get-PrivateContainerAddress([string]$container, [string]$network) {
+    $address = (& docker inspect --format `
+        "{{(index .NetworkSettings.Networks `"$network`").IPAddress}}" $container).Trim()
+    Assert-DockerSuccess "Could not resolve the isolated address for $container."
+    if ($address -notmatch '^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)') {
+        throw "$container is not attached to the expected private network."
+    }
+    return $address
+}
+
+function Set-RuntimeStorageEndpoints([string]$path, [string]$sourceAddress,
+    [string]$destinationAddress) {
+    $endpoints = @{
+        'Evidence__Storage__Endpoint' = "http://$sourceAddress`:8333"
+        'Backup__Storage__Endpoint' = "http://$destinationAddress`:8333"
+        'Replica__Source__Endpoint' = "http://$sourceAddress`:8333"
+        'Replica__Destination__Endpoint' = "http://$destinationAddress`:8333"
+    }
+    $replaced = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $lines = foreach ($line in Get-Content -LiteralPath $path) {
+        $parts = $line.Split('=', 2)
+        if ($parts.Count -eq 2 -and $endpoints.ContainsKey($parts[0])) {
+            [void]$replaced.Add($parts[0])
+            "$($parts[0])=$($endpoints[$parts[0]])"
+        }
+        else { $line }
+    }
+    if ($replaced.Count -ne $endpoints.Count) {
+        throw 'Synthetic runtime environment is missing one or more storage endpoints.'
+    }
+    [IO.File]::WriteAllLines($path, $lines, $script:utf8WithoutBom)
 }
 
 function Invoke-ImageOperation([string[]]$Arguments, [string]$runtimePath, [string]$privatePath,
@@ -215,21 +241,17 @@ try {
         if ($line -match '^([^#=]+)=') { [void]$environmentNames.Add($Matches[1]) }
     }
 
-    $postgresAddress = (& docker inspect --format `
-        "{{(index .NetworkSettings.Networks `"$networkName`").IPAddress}}" $containers[0]).Trim()
-    Assert-DockerSuccess 'Could not resolve the isolated PostgreSQL address.'
-    if ($postgresAddress -notmatch '^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)') {
-        throw 'PostgreSQL is not attached to the expected private network.'
-    }
+    $postgresAddress = Get-PrivateContainerAddress $containers[0] $networkName
+    $sourceAddress = Get-PrivateContainerAddress $containers[1] $networkName
+    $destinationAddress = Get-PrivateContainerAddress $containers[2] $networkName
     Replace-ConnectionHost 'ConnectionStrings__Sgol' $postgresAddress
     Replace-ConnectionHost 'Backup__PostgreSql__ConnectionString' $postgresAddress
     Replace-ConnectionHost 'Restore__PostgreSql__ConnectionString' $postgresAddress
-    $sourcePort = Get-PublishedPort $containers[1]
-    $destinationPort = Get-PublishedPort $containers[2]
-    [Environment]::SetEnvironmentVariable('Evidence__Storage__Endpoint', "http://127.0.0.1:$sourcePort", 'Process')
-    [Environment]::SetEnvironmentVariable('Backup__Storage__Endpoint', "http://127.0.0.1:$destinationPort", 'Process')
-    [Environment]::SetEnvironmentVariable('Replica__Source__Endpoint', "http://127.0.0.1:$sourcePort", 'Process')
-    [Environment]::SetEnvironmentVariable('Replica__Destination__Endpoint', "http://127.0.0.1:$destinationPort", 'Process')
+    Set-RuntimeStorageEndpoints $runtimePath $sourceAddress $destinationAddress
+    [Environment]::SetEnvironmentVariable('Evidence__Storage__Endpoint', "http://$sourceAddress`:8333", 'Process')
+    [Environment]::SetEnvironmentVariable('Backup__Storage__Endpoint', "http://$destinationAddress`:8333", 'Process')
+    [Environment]::SetEnvironmentVariable('Replica__Source__Endpoint', "http://$sourceAddress`:8333", 'Process')
+    [Environment]::SetEnvironmentVariable('Replica__Destination__Endpoint', "http://$destinationAddress`:8333", 'Process')
 
     $pgDumpWrapper = Join-Path $privateDirectory 'pg-dump-wrapper.sh'
     $ageWrapper = Join-Path $privateDirectory 'age-wrapper.sh'

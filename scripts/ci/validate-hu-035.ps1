@@ -111,10 +111,14 @@ $amd64Gate = Get-Content -Raw -LiteralPath (
 foreach ($required in @('AMD64_LINUX_HOST_REQUIRED', 'SGOL_HU035_AMD64_GATE',
     'FUNCTIONAL_RECOVERY_MATCHED', 'SGOL_TECHNICAL_RESTORE_EVIDENCE',
     'runtime-private', 'evidence-public', 'Remove-Item', 'Reset-RestoreDatabase',
-    'Invoke-ConcurrentReconciliation', 'sgol-hu035-$runIdentity-private')) {
+    'Invoke-ConcurrentReconciliation', 'Get-PrivateContainerAddress',
+    'Set-RuntimeStorageEndpoints', 'sgol-hu035-$runIdentity-private')) {
     if ($amd64Gate.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 AMD64 gate token is missing: $required"
     }
+}
+if ($amd64Gate.IndexOf('docker port', [StringComparison]::Ordinal) -ge 0) {
+    throw 'HU-035 AMD64 gate must not depend on a published S3 port after private-network isolation.'
 }
 $amd64Test = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'tests/Sgol.OperationsIntegrationTests/FunctionalRecoveryAmd64GateTests.cs')
