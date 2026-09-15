@@ -167,8 +167,8 @@ public sealed class FunctionalRecoveryAmd64GateTests
         if (replicaSlot > now) replicaSlot = replicaSlot.AddHours(-1);
         var staleReplicaSlot = replicaSlot.AddHours(-2);
         var replica = new ObjectReplica(configuration, TimeProvider.System, NullLogger<ObjectReplica>.Instance);
-        await replica.ExecuteAsync(staleReplicaSlot, CancellationToken.None);
-        await replica.ExecuteAsync(replicaSlot, CancellationToken.None);
+        await ExecuteReplicaWithBoundedRetryAsync(replica, staleReplicaSlot);
+        await ExecuteReplicaWithBoundedRetryAsync(replica, replicaSlot);
         var replicaOptions = ReplicaOptions.FromConfiguration(configuration);
         var replicaUri = $"s3://{replicaOptions.ManifestBucket}/{replicaOptions.ManifestPrefix}/" +
             $"{replicaSlot:yyyy/MM/dd}/objects-{replicaSlot:yyyyMMdd'T'HHmmss'Z'}.manifest.json";
@@ -423,6 +423,31 @@ public sealed class FunctionalRecoveryAmd64GateTests
         await using var command = new NpgsqlCommand($"SET session_replication_role = replica; {sql}; " +
             "SET session_replication_role = origin", connection);
         await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task ExecuteReplicaWithBoundedRetryAsync(
+        ObjectReplica replica,
+        DateTimeOffset scheduledFor)
+    {
+        const int maximumAttempts = 3;
+        for (var attempt = 1; attempt <= maximumAttempts; attempt++)
+        {
+            try
+            {
+                await replica.ExecuteAsync(scheduledFor, CancellationToken.None);
+                return;
+            }
+            catch (JobExecutionException exception)
+                when (exception.ErrorCode == "REPLICA_INFRASTRUCTURE_FAILED" && attempt < maximumAttempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
+            }
+            catch (JobExecutionException exception)
+            {
+                throw new InvalidOperationException(
+                    $"HU035_REPLICA_PREPARATION_FAILED:{exception.ErrorCode}", exception);
+            }
+        }
     }
 
     private static async Task MutateReplicaObjectAsync(string testCase)
