@@ -97,7 +97,16 @@ jobs:
             --driver docker-container \
             --use \
             --bootstrap
-          docker buildx inspect sgol-ci | grep -Eq '^Driver:[[:space:]]+docker-container$'
+          if inspection="$(docker buildx inspect sgol-ci)"; then
+            if ! grep -Eq '^Driver:[[:space:]]+docker-container$' <<< "$inspection"; then
+              echo "::error::Buildx inspection succeeded but the expected docker-container driver was not found."
+              exit 1
+            fi
+          else
+            inspect_exit=$?
+            echo "::error::docker buildx inspect failed with exit code ${inspect_exit}."
+            exit "$inspect_exit"
+          fi
           created="$(git show -s --format=%cI "$IMPLEMENTATION_SHA")"
           docker buildx build \
             --platform linux/amd64 \
