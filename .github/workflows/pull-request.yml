@@ -148,12 +148,17 @@ jobs:
         run: |
           $gateRoot = Join-Path $env:RUNNER_TEMP 'sgol-tech-ops-amd64'
           $runtime = Join-Path $gateRoot 'runtime-private/runtime.env'
+          $containers = @(docker container ls --all --format '{{.Names}}')
           @('sgol-tech-ops-postgres','sgol-tech-ops-s3-source','sgol-tech-ops-s3-destination') |
-            ForEach-Object { docker container rm --force $_ 2>$null }
+            Where-Object { $containers -contains $_ } |
+            ForEach-Object { docker container rm --force $_ | Out-Null }
           if (Test-Path -LiteralPath $runtime -PathType Leaf) {
             docker compose --env-file $runtime -f deploy/staging/compose.yaml down --remove-orphans
           }
-          docker network rm sgol-staging_private 2>$null
+          $networks = @(docker network ls --format '{{.Name}}')
+          if ($networks -contains 'sgol-staging_private') {
+            docker network rm sgol-staging_private | Out-Null
+          }
           Remove-Item -LiteralPath (Join-Path $gateRoot 'runtime-private') -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath (Join-Path $gateRoot 'evidence-private') -Recurse -Force -ErrorAction SilentlyContinue
 
