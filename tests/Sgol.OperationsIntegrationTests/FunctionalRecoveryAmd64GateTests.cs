@@ -447,6 +447,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
     private static async Task<FixtureActors> SeedFunctionalFixtureAsync(SgolDbContext context, DeterministicSeed seed)
     {
+        await using var transaction = await context.Database.BeginTransactionAsync();
         var at = seed.Timestamp;
         var direction = AddActor(context, seed, "DIR", CanonicalRole.Direction, at, includeHistory: true);
         var denied = AddActor(context, seed, "DENIED", CanonicalRole.Administration, at, includeHistory: false);
@@ -528,11 +529,15 @@ public sealed class FunctionalRecoveryAmd64GateTests
         var generation = new GenerationRequest(seed.Id("generation"), seed.Id("generation-key"),
             seed.Hash("generation-request"), activationRuleId, BranchScope.LorettaId, period.Id,
             ActivationOriginSchemas.ManualReference, "HU035-SYNTHETIC", direction.UserId, at.AddDays(-5));
+        context.GenerationRequests.Add(generation);
+        await context.SaveChangesAsync();
+
         var obligation = new WorkObligation(seed.Id("obligation"), taskVersionId, BranchScope.LorettaId,
             period.Id, generation.Id, "HU035-SYNTHETIC", evidencePolicyId, validationPolicyId);
-        generation.LinkObligation(obligation.Id);
-        context.GenerationRequests.Add(generation);
         context.WorkObligations.Add(obligation);
+        await context.SaveChangesAsync();
+        generation.LinkObligation(obligation.Id);
+        await context.SaveChangesAsync();
 
         var evaluation = new EligibilityEvaluation(seed.Id("eligibility-evaluation"),
             seed.Id("eligibility-request"), obligation.Id, at.AddDays(-4), range.StartsOn,
@@ -650,6 +655,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
             Status = ScheduledJobStatuses.Succeeded, Checkpoint = "SYNTHETIC"
         });
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return new(direction.UserId, denied.UserId);
     }
 
