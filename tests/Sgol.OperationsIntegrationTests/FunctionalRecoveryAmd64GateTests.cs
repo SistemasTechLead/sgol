@@ -594,6 +594,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
             at.AddDays(-1), "Sustitución sintética", structured1.Id);
         context.EvidenceItems.Add(structuredItem);
         context.EvidenceVersions.AddRange(structured1, structured2);
+        await context.SaveChangesAsync();
 
         var reviewEvaluation = EvidenceReviewEvaluator.Evaluate(new EvidenceReviewEvaluationInput(
             obligation.Id, evidencePolicyId, task.TaskCode,
