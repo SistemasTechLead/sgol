@@ -41,21 +41,22 @@ public sealed class SyntheticEnvironmentProvisioningTests
                 await destinationAdmin.PutBucketAsync(bucket);
             }
 
-            var content = "TECH-OPS-001 synthetic evidence object"u8.ToArray();
-            var hash = Convert.ToHexStringLower(SHA256.HashData(content));
+            SyntheticEvidenceFixture.AssertContract();
+            var content = SyntheticEvidenceFixture.Content;
+            var hash = SyntheticEvidenceFixture.Sha256;
             using var evidence = Client(sourceEndpoint, "EVIDENCE");
             var request = new PutObjectRequest
             {
                 BucketName = sourceBuckets[1],
-                Key = "synthetic/tech-ops-001.txt",
+                Key = SyntheticEvidenceFixture.ObjectKey,
                 InputStream = new MemoryStream(content),
                 AutoCloseStream = true,
-                ContentType = "text/plain"
+                ContentType = SyntheticEvidenceFixture.ContentType
             };
             request.Metadata["sgol-sha256"] = hash;
             request.Metadata["sgol-size-bytes"] = content.LongLength.ToString(
                 System.Globalization.CultureInfo.InvariantCulture);
-            request.Metadata["sgol-media-type"] = "Text";
+            request.Metadata["sgol-media-type"] = SyntheticEvidenceFixture.MetadataMediaType;
             await evidence.PutObjectAsync(request);
             return;
         }
@@ -82,14 +83,15 @@ public sealed class SyntheticEnvironmentProvisioningTests
 
     private static async Task AssertSyntheticSeedAsync(AmazonS3Client client, string bucket)
     {
-        using var response = await client.GetObjectAsync(bucket, "synthetic/tech-ops-001.txt");
+        using var response = await client.GetObjectAsync(bucket, SyntheticEvidenceFixture.ObjectKey);
         await using var copy = new MemoryStream();
         await response.ResponseStream.CopyToAsync(copy);
         var hash = Convert.ToHexStringLower(SHA256.HashData(copy.ToArray()));
         Assert.Equal(hash, response.Metadata["x-amz-meta-sgol-sha256"]);
         Assert.Equal(copy.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
             response.Metadata["x-amz-meta-sgol-size-bytes"]);
-        Assert.Equal("Text", response.Metadata["x-amz-meta-sgol-media-type"]);
+        Assert.Equal(SyntheticEvidenceFixture.MetadataMediaType,
+            response.Metadata["x-amz-meta-sgol-media-type"]);
     }
 
     private static AmazonS3Client Client(string endpoint, string identity)

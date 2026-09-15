@@ -63,6 +63,14 @@ public sealed class FunctionalRecoveryAmd64GateTests
     ];
 
     [Fact]
+    public void SyntheticEvidenceMatchesPersistenceContract()
+    {
+        SyntheticEvidenceFixture.AssertContract();
+        Assert.Equal("application/pdf", SyntheticEvidenceFixture.ContentType);
+        Assert.EndsWith(".pdf", SyntheticEvidenceFixture.OriginalName, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExecuteApprovedSyntheticPhase()
     {
         Assert.Equal("true", Required("SGOL_SYNTHETIC_ONLY"));
@@ -279,10 +287,8 @@ public sealed class FunctionalRecoveryAmd64GateTests
             .Where(person => person.StableCode == "DENIED" || person.StableCode == "DIR" ||
                 person.StableCode == "RESP" || person.StableCode == "HU035-ADDITIONAL")
             .OrderBy(person => person.StableCode).Select(person => person.StableCode).ToArrayAsync());
-        var expectedFileHash = Convert.ToHexStringLower(SHA256.HashData(
-            "TECH-OPS-001 synthetic evidence object"u8.ToArray()));
-        Assert.Equal(expectedFileHash, await context.FileObjects.AsNoTracking()
-            .Where(file => file.ObjectKey == "synthetic/tech-ops-001.txt")
+        Assert.Equal(SyntheticEvidenceFixture.Sha256, await context.FileObjects.AsNoTracking()
+            .Where(file => file.ObjectKey == SyntheticEvidenceFixture.ObjectKey)
             .Select(file => file.Sha256).SingleAsync());
         var publicResult = new
         {
@@ -373,7 +379,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
     private static async Task MutateReplicaObjectAsync(string testCase)
     {
-        const string key = "synthetic/tech-ops-001.txt";
+        const string key = SyntheticEvidenceFixture.ObjectKey;
         var sourceBucket = Required("Replica__Source__CleanBucket");
         var destinationBucket = Required("Replica__Destination__CleanBucket");
         using var source = S3Client("Replica__Source", "Replica__Source__AccessKey",
@@ -392,7 +398,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
                 BucketName = destinationBucket,
                 Key = key,
                 ContentBody = "corrupt synthetic content",
-                ContentType = "text/plain"
+                ContentType = SyntheticEvidenceFixture.ContentType
             });
             return;
         }
@@ -406,7 +412,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
             Key = key,
             InputStream = content,
             AutoCloseStream = false,
-            ContentType = "text/plain"
+            ContentType = SyntheticEvidenceFixture.ContentType
         };
         foreach (var metadataKey in sourceObject.Metadata.Keys)
             request.Metadata[metadataKey] = sourceObject.Metadata[metadataKey];
@@ -565,16 +571,18 @@ public sealed class FunctionalRecoveryAmd64GateTests
         context.PlanVersions.AddRange(planVersion1, planVersion2);
         context.PlanVersionObligations.Add(new PlanVersionObligation(planVersion2.Id, obligation.Id, assignment2.Id));
 
-        var fileContent = "TECH-OPS-001 synthetic evidence object"u8.ToArray();
-        var fileHash = Convert.ToHexStringLower(SHA256.HashData(fileContent));
+        SyntheticEvidenceFixture.AssertContract();
+        var fileContent = SyntheticEvidenceFixture.Content;
+        var fileHash = SyntheticEvidenceFixture.Sha256;
         var fileItem = new EvidenceItem(seed.Id("evidence-file-item"), obligation.Id, evidencePolicyId,
             requirements[0].Id, requirements[0].RequirementCode, requirements[0].Kind, at.AddDays(-2));
         var file = new FileObject(seed.Id("file"), BranchScope.LorettaId, obligation.Id, evidencePolicyId,
             requirements[0].Id, requirements[0].RequirementCode, requirements[0].Kind, null,
-            "synthetic/tech-ops-001.txt", "hu-035.txt", "text/plain", fileContent.LongLength, fileHash,
+            SyntheticEvidenceFixture.ObjectKey, SyntheticEvidenceFixture.OriginalName,
+            SyntheticEvidenceFixture.ContentType, fileContent.LongLength, fileHash,
             responsible.UserId, at.AddDays(-2));
         file.ConfirmUpload(at.AddDays(-2).AddMinutes(1));
-        file.MarkClean("text/plain", "synthetic", at.AddDays(-2).AddMinutes(2));
+        file.MarkClean(SyntheticEvidenceFixture.ContentType, "synthetic", at.AddDays(-2).AddMinutes(2));
         file.Link(fileItem.Id, at.AddDays(-2).AddMinutes(3));
         var fileVersion = new EvidenceVersion(seed.Id("evidence-file-version"), fileItem.Id, 1, file.Id,
             responsible.UserId, at.AddDays(-2).AddMinutes(3));
