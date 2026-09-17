@@ -242,6 +242,7 @@ public sealed class ReplicaStreamFocusedTests
         var directory = Path.Combine(Path.GetTempPath(), $"sgol-stream-probe-{Guid.NewGuid():N}");
         var containers = new List<IContainer>();
         var files = new List<string>();
+        var restrictedConfigurations = new List<(string Path, string Content)>();
         string? firstFailure = null;
         var cleanupFailures = new List<string>();
         var operation = "PROVISION";
@@ -260,12 +261,19 @@ public sealed class ReplicaStreamFocusedTests
                 var verbs = isSource ? new[] { "Read", "List" } : new[] { "Read", "Write", "List", "Tagging" };
                 var path = Path.Combine(directory, isSource ? "source.json" : "destination.json");
                 files.Add(path);
+                var operationalIdentity = new
+                {
+                    name = isSource ? "replica-source" : "replica-destination",
+                    credentials = new[] { new { accessKey = key, secretKey = secret } },
+                    actions = buckets.SelectMany(bucket => verbs.Select(verb => $"{verb}:{bucket}")).ToArray()
+                };
+                restrictedConfigurations.Add((path, JsonSerializer.Serialize(new { identities = new[] { operationalIdentity } })));
                 await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new
                 {
                     identities = new[]
                     {
                         new { name = "provisioner", credentials = new[] { new { accessKey = adminKey, secretKey = adminSecret } }, actions = ProvisionerActions },
-                        new { name = isSource ? "replica-source" : "replica-destination", credentials = new[] { new { accessKey = key, secretKey = secret } }, actions = buckets.SelectMany(bucket => verbs.Select(verb => $"{verb}:{bucket}")).ToArray() }
+                        operationalIdentity
                     }
                 }));
                 var container = new ContainerBuilder(image).WithPortBinding(8333, true)
@@ -289,6 +297,27 @@ public sealed class ReplicaStreamFocusedTests
             }
             var sourceOptions = await Provision(true);
             var destinationOptions = await Provision(false);
+            // Same in-place WriteAllText/UTF-8-without-BOM update as HU-035 provisioning;
+            // do not replace the mounted file or regenerate operational identities.
+            foreach (var restricted in restrictedConfigurations)
+                File.WriteAllText(restricted.Path, restricted.Content, new System.Text.UTF8Encoding(false));
+            foreach (var container in containers)
+            {
+                // One stop/start cycle, including the existing TCP readiness strategy.
+                using var restartDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                await container.StopAsync(restartDeadline.Token);
+                await container.StartAsync(restartDeadline.Token);
+            }
+            sourceOptions = sourceOptions with
+            {
+                Endpoint = new UriBuilder(Uri.UriSchemeHttp, containers[0].Hostname,
+                    containers[0].GetMappedPublicPort(8333)).Uri.AbsoluteUri
+            };
+            destinationOptions = destinationOptions with
+            {
+                Endpoint = new UriBuilder(Uri.UriSchemeHttp, containers[1].Hostname,
+                    containers[1].GetMappedPublicPort(8333)).Uri.AbsoluteUri
+            };
             using var source = sourceOptions.CreateClient();
             using var destination = destinationOptions.CreateClient();
             var observed = ReplicaStreamDiagnosticClient.Wrap(destination);

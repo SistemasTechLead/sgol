@@ -82,26 +82,12 @@ public sealed class ObjectReplica(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            var capturedStage = NormalizeStage(stage);
-            var capturedOperation = NormalizeOperation(diagnostic.Operation);
-            var capturedExceptionType = SanitizeDiagnosticToken(exception.GetType().Name);
-            var capturedHttpStatus = exception is AmazonS3Exception storageFailure
-                ? NormalizeHttpStatusCode((int)storageFailure.StatusCode)
-                : "NONE";
-            var capturedS3ErrorCode = exception is AmazonS3Exception s3Failure
-                ? SanitizeDiagnosticToken(s3Failure.ErrorCode)
-                : "UNKNOWN";
-            var code = ClassifyFailure(exception);
+            var failure = CaptureFailure(exception, stage, diagnostic);
+            var code = failure.ErrorCode;
             await TryPublishFailureAsync(options, slot, code, entries);
             OperationsTelemetry.Record("object_replica", "failed", Stopwatch.GetElapsedTime(started), 0, 0);
             OperationsLogs.Failed(logger, "object_replica", "FAILED", code);
-            throw CreateFailure(
-                code,
-                capturedStage,
-                capturedOperation,
-                capturedExceptionType,
-                capturedHttpStatus,
-                capturedS3ErrorCode);
+            throw failure;
         }
     }
 
@@ -185,10 +171,22 @@ public sealed class ObjectReplica(
                     using var sourceResponse = await source.GetObjectAsync(
                         new GetObjectRequest { BucketName = sourceBucket, Key = item.Key }, cancellationToken);
                     diagnostic.Reset();
+                    var destinationStore = new S3OperationStore(destination)
+                    {
+                        CaptureReplicaWriteOperation = true
+                    };
                     diagnostic.Operation = "WRITE_AND_VERIFY_DESTINATION";
-                    await new S3OperationStore(destination).PutStreamVerifiedAsync(
-                        destinationBucket, item.Key, sourceResponse.ResponseStream, itemSize, expectedHash,
-                        metadata.Headers.ContentType ?? "application/octet-stream", allowedMetadata, cancellationToken);
+                    try
+                    {
+                        await destinationStore.PutStreamVerifiedAsync(
+                            destinationBucket, item.Key, sourceResponse.ResponseStream, itemSize, expectedHash,
+                            metadata.Headers.ContentType ?? "application/octet-stream", allowedMetadata, cancellationToken);
+                    }
+                    catch
+                    {
+                        diagnostic.Operation = NormalizeOperation(destinationStore.ReplicaWriteOperation);
+                        throw;
+                    }
                     diagnostic.Reset();
                     destinationHash = sourceObject.Hash;
                 }
@@ -424,6 +422,26 @@ public sealed class ObjectReplica(
         return (size, hash);
     }
 
+    private static Sgol.JobInfrastructure.JobExecutionException CaptureFailure(
+        Exception exception, string stage, ReplicaDiagnosticContext diagnostic)
+    {
+        // The caller excludes cancellation; keep the same boundary when exercised in isolation.
+        if (exception is OperationCanceledException)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception).Throw();
+
+        var capturedStage = NormalizeStage(stage);
+        var capturedOperation = NormalizeOperation(diagnostic.Operation);
+        var capturedExceptionType = SanitizeDiagnosticToken(exception.GetType().Name);
+        var capturedHttpStatus = exception is AmazonS3Exception storageFailure
+            ? NormalizeHttpStatusCode((int)storageFailure.StatusCode)
+            : "NONE";
+        var capturedS3ErrorCode = exception is AmazonS3Exception s3Failure
+            ? SanitizeDiagnosticToken(s3Failure.ErrorCode)
+            : "UNKNOWN";
+        return CreateFailure(ClassifyFailure(exception), capturedStage, capturedOperation,
+            capturedExceptionType, capturedHttpStatus, capturedS3ErrorCode);
+    }
+
     private static string ClassifyFailure(Exception exception) => exception switch
     {
         OperationsConfigurationException configured => configured.ErrorCode,
@@ -470,6 +488,9 @@ public sealed class ObjectReplica(
         "GET_SOURCE_STREAM" => "GET_SOURCE_STREAM",
         "CHECK_DESTINATION_METADATA" => "CHECK_DESTINATION_METADATA",
         "WRITE_AND_VERIFY_DESTINATION" => "WRITE_AND_VERIFY_DESTINATION",
+        "PUT_DESTINATION" => "PUT_DESTINATION",
+        "GET_DESTINATION_VERIFY" => "GET_DESTINATION_VERIFY",
+        "HEAD_DESTINATION_METADATA" => "HEAD_DESTINATION_METADATA",
         "READ_DESTINATION_HASH" => "READ_DESTINATION_HASH",
         _ => "UNKNOWN"
     };

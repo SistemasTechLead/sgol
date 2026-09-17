@@ -27,6 +27,14 @@ No se autoriza modificar producción, dependencias, políticas existentes, proye
 
 ## Gates y límites
 
+### Ajuste enfocado aprobado el 2026-09-17: retirada del administrador y reinicio
+
+Se autoriza exclusivamente en esta adenda y ObjectReplicaExternalTests.cs incorporar el ciclo de preparación omitido por la sonda inicial: después de crear ambos conjuntos de buckets y sembrar el objeto, retirar sólo el administrador de cada configuración propia. Se reutilizan literalmente las mismas identidades operativas, credenciales y permisos. Se actualiza el archivo montado in situ mediante File.WriteAllText con UTF-8 sin BOM, como Write-Utf8File/New-S3Configuration del aprovisionamiento HU-035, sin reemplazo ni renombrado del archivo.
+
+Cada contenedor propio realiza una sola secuencia StopAsync/StartAsync, con un límite de 60 segundos por contenedor que incluye la espera TCP de disponibilidad ya configurada. Después de ambos reinicios se reconstruyen los endpoints con el Hostname y GetMappedPublicPort(8333) actuales de cada contenedor, actualizando exclusivamente Endpoint en las opciones existentes. Se conservan credenciales, región, permisos, reintentos, timeout y las demás opciones. Sólo después se crean los clientes operativos. El ciclo completo conserva el marcador PROVISION; los fallos de transferencia mantienen los marcadores existentes. Se conserva el primer error sanitizado y la limpieza propia incluso si falla el reinicio.
+
+No se cambian objeto, solicitudes, stream, reintentos, recorrido PUT/GET/HEAD, redes ni slots. El ajuste de endpoints maneja el cambio de mapeo observado tras Stop/Start; no declara equivalencia con docker restart. La variante local pasó 1/1 y no reprodujo el fallo original de CI. No corrige ni atribuye la causa del HTTP 500. No se repite esa prueba externa ya aprobada; la revisión de coherencia sólo ejecuta git diff --check y las pruebas puras de diagnóstico afectadas. No autoriza commit, push, CI ni merge.
+
 Primero se ejecuta Category=Hu035ReplicaStreamPure con -p:SGOL_TECH_OPS_EXTERNAL_TESTS=true. Debe probar delegación única, identidad de argumentos/respuestas, fallos asíncronos, conservación del marcador, conflictos gestionados por el almacenamiento real y sanitización. No inicializa Docker ni requiere variables externas. Se revisa git diff --check y el alcance de las rutas.
 
 Después, el responsable ejecutará exclusivamente ReplicaResponseStreamIsConditionallyWrittenAndVerified con la misma propiedad de compilación. Se proporciona un solo comando y se espera su salida. La prueba crea y limpia sus recursos; no necesita PostgreSQL ni el pipeline completo.

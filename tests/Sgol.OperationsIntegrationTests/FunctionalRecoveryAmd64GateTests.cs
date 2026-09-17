@@ -79,6 +79,9 @@ public sealed class FunctionalRecoveryAmd64GateTests
             "GET_SOURCE_STREAM",
             "CHECK_DESTINATION_METADATA",
             "WRITE_AND_VERIFY_DESTINATION",
+            "PUT_DESTINATION",
+            "GET_DESTINATION_VERIFY",
+            "HEAD_DESTINATION_METADATA",
             "READ_DESTINATION_HASH"
         ];
 
@@ -612,6 +615,9 @@ public sealed class FunctionalRecoveryAmd64GateTests
         "GET_SOURCE_STREAM" => "GET_SOURCE_STREAM",
         "CHECK_DESTINATION_METADATA" => "CHECK_DESTINATION_METADATA",
         "WRITE_AND_VERIFY_DESTINATION" => "WRITE_AND_VERIFY_DESTINATION",
+        "PUT_DESTINATION" => "PUT_DESTINATION",
+        "GET_DESTINATION_VERIFY" => "GET_DESTINATION_VERIFY",
+        "HEAD_DESTINATION_METADATA" => "HEAD_DESTINATION_METADATA",
         "READ_DESTINATION_HASH" => "READ_DESTINATION_HASH",
         _ => "UNKNOWN"
     };
@@ -629,6 +635,234 @@ public sealed class FunctionalRecoveryAmd64GateTests
             value.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-')
                 ? value
                 : "UNKNOWN";
+    }
+
+    [Theory]
+    [Trait("Category", "Hu035ReplicaDiagnostics")]
+    [InlineData("put", "PUT_DESTINATION", "REPLICA_INFRASTRUCTURE_FAILED", "PUT")]
+    [InlineData("get", "GET_DESTINATION_VERIFY", "REPLICA_INFRASTRUCTURE_FAILED", "PUT,GET")]
+    [InlineData("read", "GET_DESTINATION_VERIFY", "REPLICA_INFRASTRUCTURE_FAILED", "PUT,GET")]
+    [InlineData("head", "HEAD_DESTINATION_METADATA", "REPLICA_INFRASTRUCTURE_FAILED", "PUT,GET,HEAD")]
+    [InlineData("conflict409-head", "HEAD_DESTINATION_METADATA", "REPLICA_INFRASTRUCTURE_FAILED", "PUT,HEAD")]
+    [InlineData("conflict412-head", "HEAD_DESTINATION_METADATA", "REPLICA_INFRASTRUCTURE_FAILED", "PUT,HEAD")]
+    [InlineData("conflict409-mismatch", "UNKNOWN", "IMMUTABLE_OBJECT_CONFLICT", "PUT,HEAD")]
+    [InlineData("conflict412-mismatch", "UNKNOWN", "IMMUTABLE_OBJECT_CONFLICT", "PUT,HEAD")]
+    [InlineData("conflict409-404", "UNKNOWN", "IMMUTABLE_OBJECT_CONFLICT", "PUT,HEAD")]
+    [InlineData("conflict412-404", "UNKNOWN", "IMMUTABLE_OBJECT_CONFLICT", "PUT,HEAD")]
+    [InlineData("hash-mismatch", "UNKNOWN", "S3_OBJECT_VERIFICATION_FAILED", "PUT,GET")]
+    [InlineData("metadata-mismatch", "UNKNOWN", "S3_WRITE_VERIFICATION_FAILED", "PUT,GET,HEAD")]
+    [InlineData("head-404", "UNKNOWN", "S3_WRITE_VERIFICATION_FAILED", "PUT,GET,HEAD")]
+    [InlineData("success", "UNKNOWN", null, "PUT,GET,HEAD")]
+    [InlineData("conflict409-success", "UNKNOWN", null, "PUT,HEAD,GET,HEAD")]
+    [InlineData("conflict412-success", "UNKNOWN", null, "PUT,HEAD,GET,HEAD")]
+    public async Task RealReplicaWriteFailureReachesSanitizedGate(
+        string scenario, string expectedOperation, string? expectedCode, string expectedCalls)
+    {
+        var result = await RunReplicaWriteScenarioAsync(scenario);
+        Assert.Equal("SOURCE_LIST,SOURCE_HEAD,DESTINATION_LIST,SOURCE_GET_HASH,SOURCE_GET_STREAM," + expectedCalls,
+            string.Join(',', result.Calls));
+        if (expectedCode is null)
+        {
+            Assert.Null(result.Error);
+            Assert.Equal("UNKNOWN", result.Context.GetType().GetProperty("Operation")!.GetValue(result.Context));
+            return;
+        }
+
+        Assert.NotNull(result.Error);
+        // ExecuteAsync uses this same capture/classification helper before failure-manifest publication.
+        var failure = InvokeObjectReplica<JobExecutionException>("CaptureFailure", result.Error, "REPLICATE_CLEAN", result.Context);
+        Assert.Equal(expectedCode, failure.ErrorCode);
+        Assert.Equal(expectedOperation, failure.Data["SGOL_REPLICA_OPERATION"]);
+        result.Context.GetType().GetProperty("Operation")!.SetValue(result.Context, "SOURCE_HEAD");
+        Assert.Equal(expectedOperation, failure.Data["SGOL_REPLICA_OPERATION"]);
+        Assert.Equal(5, failure.Data.Count);
+        Assert.Null(failure.InnerException);
+        var gate = ReplicaPreparationFailure(failure);
+        Assert.Contains($"STAGE=REPLICATE_CLEAN:OPERATION={expectedOperation}:", gate.Message, StringComparison.Ordinal);
+        Assert.Contains(expectedCode, gate.Message, StringComparison.Ordinal);
+        Assert.Null(gate.InnerException);
+        Assert.DoesNotContain("PRIVATE_SENTINEL", gate.Message, StringComparison.Ordinal);
+        foreach (var value in failure.Data.Values)
+            Assert.DoesNotContain("PRIVATE_SENTINEL", Assert.IsType<string>(value), StringComparison.Ordinal);
+        if (result.Error is AmazonS3Exception)
+            Assert.EndsWith("TYPE=AmazonS3Exception:HTTP=500:S3CODE=InternalError", gate.Message, StringComparison.Ordinal);
+        if (scenario == "read")
+            Assert.EndsWith("TYPE=IOException:HTTP=NONE:S3CODE=UNKNOWN", gate.Message, StringComparison.Ordinal);
+        Assert.Equal(expectedCode == "REPLICA_INFRASTRUCTURE_FAILED", ShouldRetryReplicaFailure(failure, 1, 3));
+    }
+
+    [Theory]
+    [Trait("Category", "Hu035ReplicaDiagnostics")]
+    [InlineData("cancel-put")]
+    [InlineData("cancel-get")]
+    [InlineData("cancel-head")]
+    [InlineData("cancel-read")]
+    public async Task RealReplicaWriteCancellationIsNotClassifiedAsInfrastructure(string scenario)
+    {
+        var result = await RunReplicaWriteScenarioAsync(scenario);
+        var cancellation = Assert.IsType<OperationCanceledException>(result.Error);
+        var reflected = Assert.Throws<TargetInvocationException>(() =>
+            InvokeObjectReplica<JobExecutionException>("CaptureFailure", cancellation, "REPLICATE_CLEAN", result.Context));
+        Assert.Same(cancellation, reflected.InnerException);
+    }
+
+    [Theory]
+    [Trait("Category", "Hu035ReplicaDiagnostics")]
+    [InlineData("put")]
+    [InlineData("get")]
+    [InlineData("head")]
+    [InlineData("success")]
+    public async Task UninstrumentedStorePreservesBehaviorWithoutMarkers(string scenario)
+    {
+        var bytes = SyntheticEvidenceFixture.Content;
+        using var cancellation = new CancellationTokenSource();
+        await using var stream = new MemoryStream(bytes, writable: false);
+        var calls = new List<string>();
+        var injected = new AmazonS3Exception("PRIVATE_SENTINEL") { StatusCode = HttpStatusCode.InternalServerError };
+        var client = DispatchProxy.Create<IAmazonS3, ReplicaWriteClientStub>();
+        ((ReplicaWriteClientStub)client).Handler = (method, args) =>
+        {
+            Assert.Equal(cancellation.Token, (CancellationToken)args[1]!);
+            switch (method.Name)
+            {
+                case nameof(IAmazonS3.PutObjectAsync):
+                    calls.Add("PUT");
+                    Assert.Same(stream, ((PutObjectRequest)args[0]!).InputStream);
+                    return scenario == "put" ? FailLater<PutObjectResponse>(injected) : Task.FromResult(new PutObjectResponse());
+                case nameof(IAmazonS3.GetObjectAsync):
+                    calls.Add("GET");
+                    return scenario == "get" ? FailLater<GetObjectResponse>(injected)
+                        : Task.FromResult(new GetObjectResponse { ResponseStream = new MemoryStream(bytes, writable: false) });
+                case nameof(IAmazonS3.GetObjectMetadataAsync):
+                    calls.Add("HEAD");
+                    return scenario == "head" ? FailLater<GetObjectMetadataResponse>(injected)
+                        : Task.FromResult(ReplicaMetadata(bytes.LongLength));
+                default: throw new InvalidOperationException("UNEXPECTED_TEST_CALL");
+            }
+        };
+        var store = new S3OperationStore(client);
+        var error = await Record.ExceptionAsync(() => store.PutStreamVerifiedAsync("synthetic", "synthetic", stream,
+            bytes.LongLength, SyntheticEvidenceFixture.Sha256, SyntheticEvidenceFixture.ContentType, null, cancellation.Token));
+        if (scenario == "success") Assert.Null(error);
+        else Assert.Same(injected, error);
+        Assert.Equal(scenario == "put" ? "PUT" : scenario == "get" ? "PUT,GET" : "PUT,GET,HEAD", string.Join(',', calls));
+        Assert.Equal("UNKNOWN", typeof(S3OperationStore).GetProperty("ReplicaWriteOperation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(store));
+        Assert.False((bool)typeof(S3OperationStore).GetProperty("CaptureReplicaWriteOperation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(store)!);
+    }
+
+    private static async Task<(Exception? Error, object Context, List<string> Calls)> RunReplicaWriteScenarioAsync(string scenario)
+    {
+        var bytes = SyntheticEvidenceFixture.Content;
+        var calls = new List<string>();
+        using var cancellation = new CancellationTokenSource();
+        var injected = scenario.StartsWith("cancel-", StringComparison.Ordinal)
+            ? (Exception)new OperationCanceledException("PRIVATE_SENTINEL", cancellation.Token)
+            : new AmazonS3Exception("PRIVATE_SENTINEL endpoint bucket key metadata credential content")
+            { StatusCode = HttpStatusCode.InternalServerError, ErrorCode = "InternalError" };
+        injected.Data["PRIVATE_SENTINEL"] = "PRIVATE_SENTINEL";
+        Stream? transferStream = null;
+        var sourceGets = 0;
+        var source = DispatchProxy.Create<IAmazonS3, ReplicaWriteClientStub>();
+        ((ReplicaWriteClientStub)source).Handler = (method, args) =>
+        {
+            Assert.Equal(cancellation.Token, (CancellationToken)args[1]!);
+            switch (method.Name)
+            {
+                case nameof(IAmazonS3.ListObjectsV2Async):
+                    calls.Add("SOURCE_LIST");
+                    return Task.FromResult(new ListObjectsV2Response { S3Objects = [new S3Object { Key = "synthetic", Size = bytes.LongLength }] });
+                case nameof(IAmazonS3.GetObjectMetadataAsync):
+                    calls.Add("SOURCE_HEAD");
+                    return Task.FromResult(ReplicaMetadata(bytes.LongLength));
+                case nameof(IAmazonS3.GetObjectAsync):
+                    sourceGets++;
+                    calls.Add(sourceGets == 1 ? "SOURCE_GET_HASH" : "SOURCE_GET_STREAM");
+                    var response = new GetObjectResponse { ResponseStream = new MemoryStream(bytes, writable: false) };
+                    if (sourceGets == 2) transferStream = response.ResponseStream;
+                    return Task.FromResult(response);
+                default: throw new InvalidOperationException("UNEXPECTED_TEST_CALL");
+            }
+        };
+        var destination = DispatchProxy.Create<IAmazonS3, ReplicaWriteClientStub>();
+        ((ReplicaWriteClientStub)destination).Handler = (method, args) =>
+        {
+            Assert.Equal(cancellation.Token, (CancellationToken)args[1]!);
+            switch (method.Name)
+            {
+                case nameof(IAmazonS3.ListObjectsV2Async):
+                    calls.Add("DESTINATION_LIST");
+                    return Task.FromResult(new ListObjectsV2Response { S3Objects = [] });
+                case nameof(IAmazonS3.PutObjectAsync):
+                    calls.Add("PUT");
+                    var put = Assert.IsType<PutObjectRequest>(args[0]);
+                    Assert.Same(transferStream, put.InputStream);
+                    Assert.Equal("*", put.IfNoneMatch);
+                    Assert.False(put.AutoCloseStream);
+                    Assert.Equal(bytes.LongLength, put.Headers.ContentLength);
+                    Assert.Equal(SyntheticEvidenceFixture.ContentType, put.ContentType);
+                    Assert.Equal(SyntheticEvidenceFixture.Sha256, put.Metadata["sha256"]);
+                    Assert.Equal(SyntheticEvidenceFixture.Sha256, put.Metadata["sgol-sha256"]);
+                    Assert.Equal(bytes.LongLength.ToString(CultureInfo.InvariantCulture), put.Metadata["sgol-size-bytes"]);
+                    Assert.Equal(SyntheticEvidenceFixture.MetadataMediaType, put.Metadata["sgol-media-type"]);
+                    if (scenario.StartsWith("conflict", StringComparison.Ordinal))
+                        return FailLater<PutObjectResponse>(new AmazonS3Exception("PRIVATE_SENTINEL")
+                        { StatusCode = scenario.StartsWith("conflict409", StringComparison.Ordinal) ? HttpStatusCode.Conflict : HttpStatusCode.PreconditionFailed });
+                    return scenario is "put" or "cancel-put" ? FailLater<PutObjectResponse>(injected) : Task.FromResult(new PutObjectResponse());
+                case nameof(IAmazonS3.GetObjectAsync):
+                    calls.Add("GET");
+                    if (scenario is "get" or "cancel-get") return FailLater<GetObjectResponse>(injected);
+                    Stream verified = scenario is "read" or "cancel-read"
+                        ? new ReplicaFailingReadStream(scenario == "read" ? new IOException("PRIVATE_SENTINEL") : injected)
+                        : new MemoryStream(scenario == "hash-mismatch" ? "corrupt"u8.ToArray() : bytes, writable: false);
+                    return Task.FromResult(new GetObjectResponse { ResponseStream = verified });
+                case nameof(IAmazonS3.GetObjectMetadataAsync):
+                    calls.Add("HEAD");
+                    if (scenario.EndsWith("404", StringComparison.Ordinal))
+                        return FailLater<GetObjectMetadataResponse>(new AmazonS3Exception("PRIVATE_SENTINEL") { StatusCode = HttpStatusCode.NotFound });
+                    if (scenario is "head" or "cancel-head" || scenario.EndsWith("-head", StringComparison.Ordinal))
+                        return FailLater<GetObjectMetadataResponse>(injected);
+                    return Task.FromResult(ReplicaMetadata(scenario.EndsWith("mismatch", StringComparison.Ordinal) ? 0 : bytes.LongLength));
+                default: throw new InvalidOperationException("UNEXPECTED_TEST_CALL");
+            }
+        };
+        var context = Activator.CreateInstance(typeof(ObjectReplica).GetNestedType("ReplicaDiagnosticContext", BindingFlags.NonPublic)!, nonPublic: true)!;
+        var method = typeof(ObjectReplica).GetMethod("ReplicateBucketAsync", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var task = (Task)method.Invoke(null, [source, destination, "synthetic-source", "synthetic-destination", "clean", false, 500,
+            null, new List<ObjectReplicaManifestEntry>(), DateTimeOffset.UnixEpoch, context, cancellation.Token])!;
+        return (await Record.ExceptionAsync(() => task), context, calls);
+    }
+
+    private static GetObjectMetadataResponse ReplicaMetadata(long size)
+    {
+        var response = new GetObjectMetadataResponse { ContentLength = size };
+        response.Headers.ContentType = SyntheticEvidenceFixture.ContentType;
+        response.Metadata["x-amz-meta-sha256"] = SyntheticEvidenceFixture.Sha256;
+        response.Metadata["x-amz-meta-sgol-sha256"] = SyntheticEvidenceFixture.Sha256;
+        response.Metadata["x-amz-meta-sgol-size-bytes"] = SyntheticEvidenceFixture.Content.LongLength.ToString(CultureInfo.InvariantCulture);
+        response.Metadata["x-amz-meta-sgol-media-type"] = SyntheticEvidenceFixture.MetadataMediaType;
+        return response;
+    }
+
+    private static async Task<T> FailLater<T>(Exception error)
+    {
+        await Task.Yield();
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+        return default!;
+    }
+
+    public class ReplicaWriteClientStub : DispatchProxy
+    {
+        public Func<MethodInfo, object?[], object?> Handler { get; set; } = null!;
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => Handler(targetMethod!, args!);
+    }
+
+    private sealed class ReplicaFailingReadStream(Exception error) : MemoryStream
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            new(FailLater<int>(error));
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            FailLater<int>(error);
     }
 
     private static T InvokeObjectReplica<T>(string methodName, params object?[] arguments)

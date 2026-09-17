@@ -158,7 +158,7 @@ $operationAdjacency = @(
     'diagnostic\.Operation = "CHECK_DESTINATION_METADATA";\s*var destinationMatches = await HasDestinationMetadataAsync',
     'diagnostic\.Operation = "READ_SOURCE_HASH";\s*var sourceObject = await ReadObjectHashAsync\(source,',
     'diagnostic\.Operation = "GET_SOURCE_STREAM";\s*using var sourceResponse = await source\.GetObjectAsync',
-    'diagnostic\.Operation = "WRITE_AND_VERIFY_DESTINATION";\s*await new S3OperationStore\(destination\)\.PutStreamVerifiedAsync',
+    'diagnostic\.Operation = "WRITE_AND_VERIFY_DESTINATION";\s*try\s*\{\s*await destinationStore\.PutStreamVerifiedAsync',
     'diagnostic\.Operation = "READ_DESTINATION_HASH";\s*destinationHash = \(await ReadObjectHashAsync\(\s*destination,',
     'diagnostic\.Operation = "READ_DESTINATION_HASH";\s*var actual = await ReadObjectHashAsync\(destination,'
 )
@@ -185,6 +185,12 @@ $failureManifest = $objectReplica.IndexOf(
 if ($catchStart -lt 0 -or $failureManifest -lt 0 -or $failureManifest -le $catchStart) {
     throw 'HU-035 replica failure catch or failure-manifest call is missing.'
 }
+$captureCall = $objectReplica.IndexOf('var failure = CaptureFailure(exception, stage, diagnostic);', $catchStart, [StringComparison]::Ordinal)
+if ($captureCall -lt $catchStart -or $captureCall -ge $failureManifest) {
+    throw 'HU-035 must capture the failure before publishing its failure manifest.'
+}
+$captureBody = [regex]::Match($objectReplica,
+    '(?s)private static Sgol\.JobInfrastructure\.JobExecutionException CaptureFailure\(.*?(?=private static string ClassifyFailure)').Value
 foreach ($captured in @(
     'var capturedStage = NormalizeStage(stage);',
     'var capturedOperation = NormalizeOperation(diagnostic.Operation);',
@@ -192,10 +198,45 @@ foreach ($captured in @(
     'var capturedHttpStatus =',
     'var capturedS3ErrorCode ='
 )) {
-    $capturedIndex = $objectReplica.IndexOf($captured, $catchStart, [StringComparison]::Ordinal)
-    if ($capturedIndex -lt $catchStart -or $capturedIndex -ge $failureManifest) {
+    if ($captureBody.IndexOf($captured, [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 replica diagnostic is not captured before failure-manifest publication: $captured"
     }
+}
+$store = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/S3OperationStore.cs')
+$innerOperations = @('PUT_DESTINATION', 'GET_DESTINATION_VERIFY', 'HEAD_DESTINATION_METADATA')
+$markedOperations = [regex]::Matches($store, 'MarkReplicaWriteOperation\("([A-Z_]+)"\)') |
+    ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+if ([string]::Join('|', $markedOperations) -ne [string]::Join('|', (($innerOperations + 'UNKNOWN') | Sort-Object))) {
+    throw 'HU-035 internal write operations are not the closed three-operation set.'
+}
+foreach ($operation in ($replicaOperations + $innerOperations)) {
+    $mapping = '"' + $operation + '" => "' + $operation + '"'
+    if (-not $objectReplica.Contains($mapping) -or -not $amd64Test.Contains($mapping)) {
+        throw "HU-035 operation does not propagate through both normalizers: $operation"
+    }
+}
+foreach ($pattern in @(
+    'MarkReplicaWriteOperation\("PUT_DESTINATION"\);\s*await client\.PutObjectAsync\(request, cancellationToken\);\s*MarkReplicaWriteOperation\("UNKNOWN"\);',
+    'MarkReplicaWriteOperation\("GET_DESTINATION_VERIFY"\);\s*using var response = await client\.GetObjectAsync',
+    'response.ResponseStream, cancellationToken\);\s*MarkReplicaWriteOperation\("UNKNOWN"\);\s*if \(actualSize',
+    'MarkReplicaWriteOperation\("HEAD_DESTINATION_METADATA"\);\s*var metadata = await client\.GetObjectMetadataAsync',
+    'new GetObjectMetadataRequest \{ BucketName = bucket, Key = key \}, cancellationToken\);\s*MarkReplicaWriteOperation\("UNKNOWN"\);',
+    'exception.StatusCode == HttpStatusCode.NotFound\)\s*\{\s*MarkReplicaWriteOperation\("UNKNOWN"\);\s*return false;',
+    'exception.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed\)\s*\{\s*if \(!await ExistsWithHashAsync\(bucket, key, sha256, size, cancellationToken\)\)',
+    'if \(CaptureReplicaWriteOperation\)\s*ReplicaWriteOperation = operation;'
+)) {
+    if (-not [regex]::IsMatch($store, $pattern)) { throw "HU-035 storage diagnostic invariant missing: $pattern" }
+}
+if ([regex]::Matches($objectReplica, 'CaptureReplicaWriteOperation = true').Count -ne 1 -or
+    -not [regex]::IsMatch($objectReplica, 'catch\s*\{\s*diagnostic.Operation = NormalizeOperation\(destinationStore.ReplicaWriteOperation\);\s*throw;') -or
+    -not $objectReplica.Contains('catch (Exception exception) when (exception is not OperationCanceledException)') -or
+    -not $captureBody.Contains('return CreateFailure(ClassifyFailure(exception), capturedStage, capturedOperation,')) {
+    throw 'HU-035 write diagnostics must remain opt-in and preserve exception/cancellation propagation.'
+}
+foreach ($requestToken in @('InputStream = input', 'AutoCloseStream = false', 'IfNoneMatch = "*"',
+    'request.Headers.ContentLength = size;', 'request.Metadata["sha256"] = sha256;',
+    'request.Metadata[item.Key] = item.Value;', 'await VerifyObjectAsync(bucket, key, expectedHash, expectedSize, cancellationToken);')) {
+    if (-not $store.Contains($requestToken)) { throw "HU-035 storage request changed: $requestToken" }
 }
 foreach ($forbidden in @('exception.Message', 'exception.StackTrace', 'exception.InnerException',
     'exception.ToString()')) {
