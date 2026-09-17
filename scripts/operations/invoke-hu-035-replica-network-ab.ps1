@@ -67,6 +67,7 @@ function Set-AbPreparationStage($State,
         'SOURCE_START','DESTINATION_START','SOURCE_BRIDGE_CONNECT','DESTINATION_BRIDGE_CONNECT',
         'SOURCE_PORT_READ','DESTINATION_PORT_READ','SOURCE_READY','DESTINATION_READY','PROVISION_ENVIRONMENT',
         'PROVISION_CREATE','SOURCE_ADMIN_REMOVE','DESTINATION_ADMIN_REMOVE','STORAGE_RESTART',
+        'SOURCE_RESTART_PORT_READ','DESTINATION_RESTART_PORT_READ','RESTART_PROVISION_ENVIRONMENT',
         'SOURCE_RESTART_READY','DESTINATION_RESTART_READY','PROVISION_VERIFY',
         'SOURCE_BRIDGE_DISCONNECT','DESTINATION_BRIDGE_DISCONNECT','FINAL_NETWORK_CREATE',
         'SOURCE_RENAME','DESTINATION_RENAME','SOURCE_FINAL_CONNECT','DESTINATION_FINAL_CONNECT',
@@ -94,7 +95,8 @@ function Invoke-AbPair([scriptblock]$Prepare, [scriptblock]$Run, [scriptblock]$C
     foreach ($variant in @('A','B')) {
         $state = @{ variant=$variant; outcome='PREPARATION_FAILED'; attempts=@(); manifestVerified=$false;
             verifiedObjectCount=0; cleanup='UNCONFIRMED'; resources=@{}; preparationStage='UNKNOWN';
-            preparationPhase=$null; preparationCounters=@{}; preparationFailure=$null }
+            preparationPhase=$null; preparationCounters=@{}; preparationFailure=$null;
+            sourcePortChanged=$null; destinationPortChanged=$null }
         try {
             & $Prepare $state | Out-Null
             $state.outcome = 'EVIDENCE_INVALID'
@@ -110,7 +112,8 @@ function Invoke-AbPair([scriptblock]$Prepare, [scriptblock]$Run, [scriptblock]$C
             catch { $state.cleanup = 'UNCONFIRMED' }
             $public = [ordered]@{ variant=$variant; outcome=$state.outcome; attempts=@($state.attempts);
                 manifestVerified=$state.manifestVerified; verifiedObjectCount=$state.verifiedObjectCount; cleanup=$state.cleanup;
-                preparationFailure=$state.preparationFailure }
+                preparationFailure=$state.preparationFailure;
+                sourcePortChanged=$state.sourcePortChanged; destinationPortChanged=$state.destinationPortChanged }
             $results.Add($public)
             try { & $Publish $results.ToArray() | Out-Null }
             catch { throw 'AB_PUBLICATION_FAILED' }
@@ -221,6 +224,23 @@ function New-AbStorage($State) {
             }
             Set-AbPreparationStage $State 'STORAGE_RESTART'
             [void](Invoke-AbDocker -Arguments (@('restart') + $containers))
+            for ($index=0; $index -lt $containers.Count; $index++) {
+                $side = if ($index -eq 0) { 'SOURCE' } else { 'DESTINATION' }
+                Set-AbPreparationStage $State "${side}_RESTART_PORT_READ"
+                $binding = Invoke-AbDocker -Arguments @('port',$containers[$index],'8333/tcp')
+                $currentPort = 0
+                if ($binding -notmatch '\A127\.0\.0\.1:(\d+)\z' -or
+                    -not [int]::TryParse($Matches[1], [ref]$currentPort) -or $currentPort -lt 1 -or $currentPort -gt 65535) {
+                    Throw-AbPreparationFailure 'AB_PORT_INVALID' $null
+                }
+                $changed = $ports[$index] -ne $currentPort
+                if ($index -eq 0) { $State.sourcePortChanged = $changed }
+                else { $State.destinationPortChanged = $changed }
+                $ports[$index] = $currentPort
+            }
+            Set-AbPreparationStage $State 'RESTART_PROVISION_ENVIRONMENT'
+            Set-AbEnvironment 'SGOL_PROVISION_SOURCE_ENDPOINT' "http://127.0.0.1:$($ports[0])"
+            Set-AbEnvironment 'SGOL_PROVISION_DESTINATION_ENDPOINT' "http://127.0.0.1:$($ports[1])"
             for ($index=0; $index -lt $ports.Count; $index++) {
                 $side = if ($index -eq 0) { 'SOURCE' } else { 'DESTINATION' }
                 Set-AbPreparationStage $State "${side}_RESTART_READY"
@@ -388,6 +408,9 @@ function Test-AbPure {
     $simulatedNetworks=[Collections.Generic.HashSet[string]]::new(); [void]$simulatedNetworks.Add('unrelated-network')
     $commands=[Collections.Generic.List[string]]::new(); $cleanupSimulation='normal'
     $preparationMode='success'; $failurePhase='create'
+    $mappingMode='same'; $restarted=[Collections.Generic.HashSet[string]]::new()
+    $waitPorts=[Collections.Generic.List[int]]::new()
+    $verifyEndpoints=[Collections.Generic.List[string]]::new()
     function docker {
         $Arguments = [string[]]$args
         $script:LASTEXITCODE = 0
@@ -396,9 +419,24 @@ function Test-AbPure {
             $script:LASTEXITCODE = 125
             return 'SENSITIVE_SENTINEL'
         }
-        if ($Arguments[0] -eq 'run') { [void]$simulatedContainers.Add($Arguments[[Array]::IndexOf($Arguments,'--name')+1]); return '' }
-        if ($Arguments[0] -eq 'port') { return '127.0.0.1:12345' }
-        if ($Arguments[0] -eq 'restart') { return '' }
+        if ($Arguments[0] -eq 'run') {
+            $name=$Arguments[[Array]::IndexOf($Arguments,'--name')+1]
+            [void]$simulatedContainers.Add($name); [void]$restarted.Remove($name); return ''
+        }
+        if ($Arguments[0] -eq 'port') {
+            if ($restarted.Contains($Arguments[1])) {
+                $source=$Arguments[1].EndsWith('-source-bootstrap')
+                if (($mappingMode -eq 'sourceFailure' -and $source) -or ($mappingMode -eq 'destinationFailure' -and -not $source)) {
+                    $script:LASTEXITCODE=19; return 'SENSITIVE_SENTINEL'
+                }
+                if ($mappingMode -eq 'invalidDestination' -and -not $source) { return 'SENSITIVE_SENTINEL' }
+                if ($mappingMode -ne 'same') { return $(if ($source) {'127.0.0.1:12346'} else {'127.0.0.1:12347'}) }
+            }
+            return '127.0.0.1:12345'
+        }
+        if ($Arguments[0] -eq 'restart') {
+            foreach ($name in $Arguments[1..2]) { [void]$restarted.Add($name) }; return ''
+        }
         if ($Arguments[0] -eq 'container') {
             switch ($Arguments[1]) {
                 'rename' { [void]$simulatedContainers.Remove($Arguments[2]); [void]$simulatedContainers.Add($Arguments[3]); return '' }
@@ -421,7 +459,15 @@ function Test-AbPure {
         }
         throw 'AB_UNEXPECTED_SIMULATED_COMMAND'
     }
-    function Wait-AbPort([int]$Port) { Assert-Ab ($Port -eq 12345) }
+    function Wait-AbPort([int]$Port) {
+        $waitPorts.Add($Port)
+        Assert-Ab ($Port -in @(12345,12346,12347))
+        if ($Port -ne 12345) {
+            # Both endpoints must already be refreshed before either post-restart wait.
+            Assert-Ab ($env:SGOL_PROVISION_SOURCE_ENDPOINT -ceq 'http://127.0.0.1:12346')
+            Assert-Ab ($env:SGOL_PROVISION_DESTINATION_ENDPOINT -ceq 'http://127.0.0.1:12347')
+        }
+    }
     $testCalls=[Collections.Generic.List[string]]::new()
     function dotnet {
         $arguments = [string[]]$args
@@ -438,6 +484,10 @@ function Test-AbPure {
         $logger = $arguments[[Array]::IndexOf($arguments,'--logger')+1]
         Assert-Ab ($logger -ceq "trx;LogFileName=$env:SGOL_PROVISION_PHASE.trx")
         $testCalls.Add($env:SGOL_PROVISION_PHASE)
+        if ($env:SGOL_PROVISION_PHASE -eq 'verify') {
+            $verifyEndpoints.Add($env:SGOL_PROVISION_SOURCE_ENDPOINT)
+            $verifyEndpoints.Add($env:SGOL_PROVISION_DESTINATION_ENDPOINT)
+        }
         $script:LASTEXITCODE = 0
         if ($env:SGOL_PROVISION_PHASE -eq $failurePhase) {
             if ($preparationMode -eq 'testFailure') { $script:LASTEXITCODE = 17; return 'SENSITIVE_SENTINEL' }
@@ -528,6 +578,52 @@ function Test-AbPure {
         Assert-Ab ($results.Count -eq 1 -and $results[0].cleanup -ceq 'UNCONFIRMED')
         Assert-Ab ($results[0].preparationFailure.code -ceq 'TEST_EXIT_FAILED' -and $results[0].preparationFailure.exitCode -eq 17)
         $preparationMode='success'
+        foreach ($mappingMode in @('same','changed','sourceFailure','destinationFailure','invalidDestination')) {
+            $waitPorts.Clear(); $verifyEndpoints.Clear(); $testCalls.Clear(); $commands.Clear()
+            $run={param($s) $s.outcome='PASSED_INITIAL'}
+            $results=Invoke-AbPair ${function:New-AbStorage} $run ${function:Remove-AbStorage} $publish
+            Assert-Ab ($results.Count -eq 2)
+            $succeeded=$mappingMode -in @('same','changed')
+            foreach ($result in $results) {
+                Assert-Ab ($result.cleanup -ceq 'CONFIRMED')
+                Assert-Ab ((@($result.Keys | Sort-Object) -join ',') -ceq 'attempts,cleanup,destinationPortChanged,manifestVerified,outcome,preparationFailure,sourcePortChanged,variant,verifiedObjectCount')
+                if ($succeeded) {
+                    Assert-Ab ($null -eq $result.preparationFailure)
+                    Assert-Ab ($result.sourcePortChanged -is [bool] -and $result.sourcePortChanged -eq ($mappingMode -eq 'changed'))
+                    Assert-Ab ($result.destinationPortChanged -is [bool] -and $result.destinationPortChanged -eq ($mappingMode -eq 'changed'))
+                }
+                else {
+                    Assert-Ab ($result.outcome -ceq 'PREPARATION_FAILED')
+                    $expectedStage=if ($mappingMode -eq 'sourceFailure') {'SOURCE_RESTART_PORT_READ'} else {'DESTINATION_RESTART_PORT_READ'}
+                    Assert-Ab ($result.preparationFailure.stage -ceq $expectedStage)
+                    $expectedCode=if ($mappingMode -eq 'invalidDestination') {'AB_PORT_INVALID'} else {'AB_DOCKER_FAILED'}
+                    Assert-Ab ($result.preparationFailure.code -ceq $expectedCode)
+                    if ($mappingMode -eq 'invalidDestination') { Assert-Ab ($null -eq $result.preparationFailure.exitCode) }
+                    else { Assert-Ab ($result.preparationFailure.exitCode -eq 19) }
+                    Assert-Ab ($null -eq $result.destinationPortChanged)
+                    if ($mappingMode -eq 'sourceFailure') { Assert-Ab ($null -eq $result.sourcePortChanged) }
+                    else { Assert-Ab ($result.sourcePortChanged -eq $true) }
+                }
+                $json=$result | ConvertTo-Json -Depth 8
+                Assert-Ab ($json -notmatch 'SENSITIVE_SENTINEL|127\.0\.0\.1|12345|12346|12347|http://')
+            }
+            if ($succeeded) {
+                $expectedWaits=if ($mappingMode -eq 'changed') {'12345,12345,12346,12347,12345,12345,12346,12347'} else {'12345,12345,12345,12345,12345,12345,12345,12345'}
+                Assert-Ab (($waitPorts -join ',') -ceq $expectedWaits)
+                $expectedEndpoints=if ($mappingMode -eq 'changed') {'http://127.0.0.1:12346,http://127.0.0.1:12347,http://127.0.0.1:12346,http://127.0.0.1:12347'} else {'http://127.0.0.1:12345,http://127.0.0.1:12345,http://127.0.0.1:12345,http://127.0.0.1:12345'}
+                Assert-Ab (($verifyEndpoints -join ',') -ceq $expectedEndpoints)
+                Assert-Ab (($testCalls -join ',') -ceq 'create,verify,create,verify')
+            }
+            else {
+                Assert-Ab (($waitPorts -join ',') -ceq '12345,12345,12345,12345')
+                Assert-Ab ($verifyEndpoints.Count -eq 0)
+                Assert-Ab (($testCalls -join ',') -ceq 'create,create')
+            }
+            Assert-Ab (@($commands | Where-Object { $_ -like 'restart *' }).Count -eq 2)
+            Assert-Ab ($simulatedContainers.SetEquals([string[]]@('unrelated-container')))
+            Assert-Ab ($simulatedNetworks.SetEquals([string[]]@('unrelated-network')))
+        }
+        $mappingMode='same'
         # Validate the actual result reader, including native exit status and TRX consistency.
         $publicRoot=Join-Path $fixtureRoot 'public'
         [void][IO.Directory]::CreateDirectory($publicRoot)
