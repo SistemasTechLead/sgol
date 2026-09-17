@@ -4,12 +4,12 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Propuesta actual en rama — `HU-035`
+## Implementada localmente — `HU-035`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-035` — Dirección verifica recuperación con identidades e historia |
-| Estado | Propuesta implementada en `codex/hu-035`; no declara la historia `Terminada` ni habilita `CV-05` |
+| Estado | `Implementada localmente` en `codex/hu-035`; el código, la migración y la trazabilidad existen y compilan. No equivale a `Terminada`, `Publicada` o `Integrada` ni acredita todavía el simulacro integral |
 | Contrato | Adendas `F07_ADENDA_33_CONTRATO_DE_RECONCILIACION_Y_SIMULACRO_DE_RECUPERACION_HU_035.md` y `F07_ADENDA_34_CONTRATO_DE_GATE_AMD64_AUTOMATIZADO_HU_035.md`, aprobadas íntegramente por el responsable el 2026-09-14; `F07_ADENDA_35_DIAGNOSTICO_SANITIZADO_DE_REPLICA_HU_035.md`, aprobada íntegramente el 2026-09-15 exclusivamente para diagnóstico sanitizado, implementación local y gates enfocados; la historia continúa sin estado `Terminada` |
 | Commit implementado | Commit que contiene esta actualización |
 | Contrato diagnóstico complementario | `F07_ADENDA_36_PRUEBA_ENFOCADA_DE_STREAM_DE_REPLICA_HU_035.md`, aprobada el 2026-09-15: prueba sintética enfocada del stream de réplica y pruebas puras, sin cambio productivo ni aceptación AMD64; HU-035 continúa no terminada |
@@ -24,12 +24,14 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 | Recuperación | Captura `REPEATABLE READ, READ ONLY` en UTC, snapshot PostgreSQL exportado compartido con `pg_dump`, manifiestos privados sin overwrite, restore sintético marcado/aislado distinto del primario, comparación read-only, RPO máximo 3 600 s y RTO máximo 14 400 s |
 | Pruebas enfocadas | Durante implementación: contrato/API/Operations `40/40` y arquitectura/idempotencia `5/5`; proyecto PostgreSQL real y proyecto externo HU-035 opt-in compilan con cero errores/advertencias, pero sus pruebas no se ejecutaron en sesión conforme a `AGENTS.md` |
 | Gates locales | Restore locked `23/23` después de sincronizar sólo lockfiles transitivos; build Release `23/23`, cero errores/advertencias; suite sin PostgreSQL/Docker: unitarias `589/589`, arquitectura `48/48`, OperationsIntegration local con salida `0` y conteos no disponibles por modo binlog, CV-02 `15/15` y CV-03 `19/19`; formato sin cambios; cero vulnerabilidades NuGet conocidas; espejo `29/29`, protección de `Fuentes/`, contrato TECH-OPS, validador HU-035 y `git diff --check` aprobados |
-| Gates externos pendientes | El workflow propone ejecutar en Linux AMD64 nativo la imagen del SHA exacto, PostgreSQL real, dos S3-compatible, snapshot compartido con `pg_dump`, restore integral, reconciliación positiva, replay, consulta, aprobación y la matriz contractual de 18 casos: diferencias de identidad, vínculo, versión, conteo, evidencia y auditoría; corrupción/indisponibilidad; RPO/RTO; rechazo del primario; conflicto y concurrencia. El gate queda implementado pero no ejecutado: la evidencia AMD64 y el pipeline del futuro SHA exacto continúan pendientes y no se presentan como aprobados |
+| Validación local actual | El 2026-09-17 se ejecutó de nuevo `dotnet build SGOL.slnx --no-restore --configuration Release`: `23/23` proyectos, cero errores y cero advertencias. Web arrancó en Development con configuración sintética; `/health/live` respondió `200` y las tres rutas HU-035 respondieron `401 application/problem+json` sin sesión, confirmando enrutamiento y denegación por defecto. No se reutilizaron los tests históricos como evidencia de esta comprobación |
+| Dependencia transversal observada | El host Web no registra `AddAuthentication`, `UseAuthentication`, cookie, login ni MFA. Por ello no existe actualmente un camino HTTP hospedado para obtener un `ClaimsPrincipal` autenticado y el smoke real `2xx` de HU-035 no puede ejecutarse desde un cliente o frontend. No se añade un bypass dentro de HU-035; la autenticación local con cookie segura y MFA exige contrato e implementación separados conforme a F06 |
+| Validación diferida | Linux AMD64 nativo, PostgreSQL real, dos S3-compatible, snapshot compartido con `pg_dump`, restore integral, reconciliación positiva, replay autenticado, consulta, aprobación y matriz de 18 casos. Esta evidencia no se presenta como aprobada y no bloquea conservar HU-035 como `Implementada localmente`; sí será necesaria para declararla `Terminada` |
 | Límites | Sin producción, cloud real, datos/secretos reales, reparación, compensación, fabricación, borrado, overwrite, purga, UI, plataforma general de DR, `CV-05` ni tareas posteriores |
-| Cierre | Requiere gates locales finales, ejecución externa satisfactoria, revisión humana, autorización y creación del commit exacto, pipeline verde para ese SHA, aprobación humana del PR, merge, ascendencia verificada en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
-| Siguiente tarea | Ninguna habilitada desde esta rama |
+| Cierre local | La implementación contractual queda disponible para consumo y planificación del frontend. La integración HTTP autenticada permanece bloqueada por la dependencia transversal indicada; el cierre formal conserva el simulacro integral, publicación e integración como validaciones posteriores |
+| Siguiente paso | Definir e implementar la autenticación hospedada aprobada antes de conectar un frontend real; mientras tanto puede desarrollarse el cliente contra los contratos y estados estables de HU-035 sin inventar respuestas del backend |
 
-Esta propuesta no autoriza commit, publicación de rama, apertura de pull request, despliegue externo ni merge.
+Este estado local no autoriza push, apertura de pull request, despliegue externo ni merge.
 
 ## Base aceptada — `TECH-OPS-001`
 
