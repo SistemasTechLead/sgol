@@ -478,22 +478,26 @@ $environmentNames = [Collections.Generic.HashSet[string]]::new([StringComparer]:
 New-Item -ItemType Directory -Path $privateDirectory, $publicDirectory | Out-Null
 
 try {
+    & docker network create --driver bridge --internal $networkName *> $null
+    Assert-DockerSuccess 'Could not create the run-scoped HU-035 private network.'
     & (Join-Path $PSScriptRoot 'new-tech-ops-synthetic-environment.ps1') `
-        -ImageRef $ImageRef -OutputDirectory $runtimeDirectory | Out-Null
+        -ImageRef $ImageRef -OutputDirectory $runtimeDirectory `
+        -StorageNetworkName $networkName | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'HU-035 synthetic infrastructure provisioning failed.' }
     $runtimePath = Join-Path $runtimeDirectory 'runtime.env'
     & docker compose --env-file $runtimePath -f (Join-Path $repositoryRoot 'deploy/staging/compose.yaml') `
         rm --force --stop migrate *> $null
     Assert-DockerSuccess 'Could not remove the bootstrap-only migrate container.'
-    & docker network create --driver bridge --internal $networkName *> $null
-    Assert-DockerSuccess 'Could not create the run-scoped HU-035 private network.'
     for ($index = 0; $index -lt $bootstrapContainers.Count; $index++) {
         & docker container rename $bootstrapContainers[$index] $containers[$index]
         Assert-DockerSuccess 'Could not scope a HU-035 synthetic container name.'
-        & docker network connect --alias $bootstrapContainers[$index] $networkName $containers[$index]
-        Assert-DockerSuccess 'Could not attach a HU-035 synthetic container to its run-scoped network.'
-        & docker network disconnect $bootstrapNetworkName $containers[$index]
-        Assert-DockerSuccess 'Could not detach a HU-035 synthetic container from the bootstrap network.'
+        if ($index -eq 0) {
+            # Only PostgreSQL moves; SeaweedFS started on the definitive network.
+            & docker network connect --alias $bootstrapContainers[$index] $networkName $containers[$index]
+            Assert-DockerSuccess 'Could not attach a HU-035 synthetic container to its run-scoped network.'
+            & docker network disconnect $bootstrapNetworkName $containers[$index]
+            Assert-DockerSuccess 'Could not detach a HU-035 synthetic container from the bootstrap network.'
+        }
     }
     & docker network rm $bootstrapNetworkName *> $null
     Assert-DockerSuccess 'Could not remove the bootstrap network.'

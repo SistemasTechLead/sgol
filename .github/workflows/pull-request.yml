@@ -238,7 +238,6 @@ jobs:
       - name: Checkout dispatched revision without persistent credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Require exact SHA and native Linux AMD64 before build
         shell: pwsh
@@ -273,7 +272,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: hu035-network-ab-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: hu035-network-ab-${{ inputs.expected_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/sgol-network-ab/public/network-ab-summary.json
             ${{ runner.temp }}/sgol-network-ab/public/A-result.json

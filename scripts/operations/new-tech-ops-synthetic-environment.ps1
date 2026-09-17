@@ -5,7 +5,10 @@ param(
     [string]$ImageRef,
 
     [ValidateScript({ -not (Test-Path -LiteralPath $_ -PathType Leaf) })]
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+
+    [ValidatePattern('^(?:sgol-hu035-[0-9a-f]{12}-private)?$')]
+    [string]$StorageNetworkName = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,6 +45,14 @@ $postgresContainer = 'sgol-tech-ops-postgres'
 $sourceContainer = 'sgol-tech-ops-s3-source'
 $destinationContainer = 'sgol-tech-ops-s3-destination'
 $composeNetwork = 'sgol-staging_private'
+$storageNetwork = $composeNetwork
+$sourceNetworkArguments = @()
+$destinationNetworkArguments = @()
+if ($StorageNetworkName) {
+    $storageNetwork = $StorageNetworkName
+    $sourceNetworkArguments = @('--network-alias', $sourceContainer)
+    $destinationNetworkArguments = @('--network-alias', $destinationContainer)
+}
 $postgresImage = 'postgres:18.6-alpine3.23'
 $seaweedImage = 'chrislusf/seaweedfs:4.45@sha256:fc9f76fa993ad69966ffeb2f65d0318fcae39c6f8e20cf68ef7b3a5cb97769e5'
 $sourceQuarantine = 'sgol-staging-evidence-quarantine'
@@ -265,6 +276,13 @@ $compose = Join-Path $repositoryRoot 'deploy/staging/compose.yaml'
 Assert-DockerSuccess 'Could not create the isolated Compose network.'
 & docker network inspect $composeNetwork *> $null
 Assert-DockerSuccess 'Compose did not create the expected private network.'
+if ($StorageNetworkName) {
+    $networkProperties = (& docker network inspect --format '{{.Internal}}|{{.Driver}}' $storageNetwork).Trim()
+    Assert-DockerSuccess 'Could not inspect the HU-035 storage network.'
+    if ($networkProperties -cne 'true|bridge') {
+        throw 'HU035_STORAGE_NETWORK_MUST_BE_INTERNAL_BRIDGE'
+    }
+}
 
 & docker run --detach --name $postgresContainer --network $composeNetwork `
     --env "POSTGRES_PASSWORD=$postgresAdminPassword" --env 'POSTGRES_USER=postgres' --env 'POSTGRES_DB=postgres' `
@@ -300,11 +318,11 @@ Assert-DockerSuccess 'Could not apply read-only backup grants.'
 $sourceHostPort = New-FreeLoopbackPort
 $destinationHostPort = New-FreeLoopbackPort
 if ($sourceHostPort -eq $destinationHostPort) { $destinationHostPort = New-FreeLoopbackPort }
-& docker run --detach --name $sourceContainer --network $composeNetwork --publish "127.0.0.1:$sourceHostPort`:8333" `
+& docker run --detach --name $sourceContainer --network $storageNetwork @sourceNetworkArguments --publish "127.0.0.1:$sourceHostPort`:8333" `
     --mount "type=bind,source=$sourceConfigPath,target=/run/sgol/s3.json,readonly" `
     $seaweedImage mini '-dir=/data' '-s3.config=/run/sgol/s3.json' | Out-Null
 Assert-DockerSuccess 'Could not create source S3-compatible storage.'
-& docker run --detach --name $destinationContainer --network $composeNetwork --publish "127.0.0.1:$destinationHostPort`:8333" `
+& docker run --detach --name $destinationContainer --network $storageNetwork @destinationNetworkArguments --publish "127.0.0.1:$destinationHostPort`:8333" `
     --mount "type=bind,source=$destinationConfigPath,target=/run/sgol/s3.json,readonly" `
     $seaweedImage mini '-dir=/data' '-s3.config=/run/sgol/s3.json' | Out-Null
 Assert-DockerSuccess 'Could not create destination S3-compatible storage.'
@@ -326,6 +344,10 @@ New-S3Configuration $sourceOperationalIdentities $sourceConfigPath
 New-S3Configuration $destinationOperationalIdentities $destinationConfigPath
 & docker restart $sourceContainer $destinationContainer | Out-Null
 Assert-DockerSuccess 'Could not remove the temporary S3 provisioning identities.'
+if ($StorageNetworkName) {
+    $sourcePort = Get-PublishedPort $sourceContainer
+    $destinationPort = Get-PublishedPort $destinationContainer
+}
 Wait-TcpPort $sourcePort 'Restricted source S3-compatible storage'
 Wait-TcpPort $destinationPort 'Restricted destination S3-compatible storage'
 Set-ProvisionEnvironment 'verify' $sourcePort $destinationPort
@@ -337,8 +359,8 @@ Assert-DockerSuccess 'Could not detach source S3 from the temporary provisioning
 & docker network disconnect bridge $destinationContainer
 Assert-DockerSuccess 'Could not detach destination S3 from the temporary provisioning bridge.'
 
-$sourceAddress = Get-ContainerAddress $sourceContainer $composeNetwork
-$destinationAddress = Get-ContainerAddress $destinationContainer $composeNetwork
+$sourceAddress = Get-ContainerAddress $sourceContainer $storageNetwork
+$destinationAddress = Get-ContainerAddress $destinationContainer $storageNetwork
 Write-RuntimeEnvironment $sourceAddress $destinationAddress
 $summaryPath = Join-Path $outputPath 'environment-summary.json'
 $summary = [ordered]@{
