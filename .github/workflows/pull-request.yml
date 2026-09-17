@@ -2,6 +2,12 @@ name: Pull request gates
 
 on:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed 40-character commit SHA for the isolated HU-035 network experiment
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,6 +20,7 @@ env:
 
 jobs:
   verify:
+    if: github.event_name == 'pull_request'
     name: TECH-BASE-003 / PR gates
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -214,3 +221,63 @@ jobs:
             ${{ runner.temp }}/sgol-replica-stream-public/replica-stream.trx
           if-no-files-found: warn
           compression-level: 0
+
+  hu035-network-ab:
+    if: github.event_name == 'workflow_dispatch'
+    name: HU-035 / isolated network A-B experiment (not acceptance)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    concurrency:
+      group: hu035-network-ab-manual
+      cancel-in-progress: false
+    env:
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
+    steps:
+      - name: Checkout dispatched revision without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Require exact SHA and native Linux AMD64 before build
+        shell: pwsh
+        run: ./scripts/operations/invoke-hu-035-replica-network-ab.ps1 -ExpectedSha $env:EXPECTED_SHA -ValidateOnly
+      - name: Set up pinned SDK for focused experiment
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.400
+      - name: Build only the experiment test project and its dependencies
+        shell: bash
+        run: |
+          test "$(dotnet --version)" = '10.0.400'
+          dotnet restore tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj --locked-mode -p:SGOL_TECH_OPS_PROVISIONING_TESTS=true -p:SGOL_HU035_AMD64_TESTS=true
+          dotnet build tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj --no-restore --configuration Release -p:SGOL_TECH_OPS_PROVISIONING_TESTS=true -p:SGOL_HU035_AMD64_TESTS=true
+      - name: Build one local image shared by both variants
+        shell: bash
+        run: |
+          created="$(git show -s --format=%cI HEAD)"
+          docker build --platform linux/amd64 \
+            --build-arg "VCS_REF=$EXPECTED_SHA" \
+            --build-arg "IMAGE_VERSION=ab-${EXPECTED_SHA:0:12}" \
+            --build-arg "BUILD_CREATED=$created" \
+            --build-arg 'SOURCE_DIRTY=false' \
+            --tag "sgol-ab:$EXPECTED_SHA" .
+      - name: Run A then B with isolated cleanup and exact manifest acceptance
+        shell: pwsh
+        run: |
+          $imageRef = (docker image inspect --format '{{.Id}}' "sgol-ab:$env:EXPECTED_SHA").Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'AB_IMAGE_INSPECTION_FAILED' }
+          ./scripts/operations/invoke-hu-035-replica-network-ab.ps1 -ExpectedSha $env:EXPECTED_SHA -ImageRef $imageRef -OutputDirectory (Join-Path $env:RUNNER_TEMP 'sgol-network-ab')
+      - name: Preserve only sanitized experiment results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hu035-network-ab-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/sgol-network-ab/public/network-ab-summary.json
+            ${{ runner.temp }}/sgol-network-ab/public/A-result.json
+            ${{ runner.temp }}/sgol-network-ab/public/B-result.json
+            ${{ runner.temp }}/sgol-network-ab/public/A.trx
+            ${{ runner.temp }}/sgol-network-ab/public/B.trx
+          if-no-files-found: warn

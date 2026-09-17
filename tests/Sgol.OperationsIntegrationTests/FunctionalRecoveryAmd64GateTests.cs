@@ -44,6 +44,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
     private const string SyntheticReplacementAuthority = ValidationAuthorityTypes.OriginalReplacement;
     private const string SyntheticJobCheckpoint = "{\"schemaVersion\":1,\"position\":\"complete\"}";
     private static readonly string[] FixtureActorCodes = ["DENIED", "DIR", "RESP"];
+    private static readonly JsonSerializerOptions NetworkAbJsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private static readonly Amd64Case[] ApprovedCases =
     [
@@ -554,27 +555,209 @@ public sealed class FunctionalRecoveryAmd64GateTests
     }
 
     private static async Task ExecuteReplicaWithBoundedRetryAsync(
-        ObjectReplica replica,
-        DateTimeOffset scheduledFor)
+        IObjectReplica replica,
+        DateTimeOffset scheduledFor,
+        List<NetworkReplicaAttempt>? attempts = null)
     {
         const int maximumAttempts = 3;
         for (var attempt = 1; attempt <= maximumAttempts; attempt++)
         {
+            var startedAt = DateTimeOffset.UtcNow;
             try
             {
                 await replica.ExecuteAsync(scheduledFor, CancellationToken.None);
+                attempts?.Add(new(attempt, startedAt, DateTimeOffset.UtcNow, "SUCCEEDED", null));
                 return;
             }
             catch (JobExecutionException exception)
                 when (ShouldRetryReplicaFailure(exception, attempt, maximumAttempts))
             {
+                attempts?.Add(new(attempt, startedAt, DateTimeOffset.UtcNow, "FAILED", ReplicaPreparationFailure(exception).Message));
                 await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
             }
             catch (JobExecutionException exception)
             {
+                attempts?.Add(new(attempt, startedAt, DateTimeOffset.UtcNow, "FAILED", ReplicaPreparationFailure(exception).Message));
                 throw ReplicaPreparationFailure(exception);
             }
+            catch (Exception exception)
+            {
+                attempts?.Add(new(attempt, startedAt, DateTimeOffset.UtcNow,
+                    exception is OperationCanceledException ? "CANCELLED" : "FAILED", "UNEXPECTED_REPLICA_FAILURE"));
+                throw;
+            }
         }
+    }
+
+    // Separate opt-in entry point: no PostgreSQL, Worker or recovery matrix is initialized.
+    [Fact]
+    [Trait("Category", "Hu035ReplicaNetworkAb")]
+    public async Task FirstReplicaOnPreparedNetworkHasExactCompleteManifest()
+    {
+        if (Required("SGOL_HU035_NETWORK_AB") != "true" ||
+            !OperatingSystem.IsLinux() || System.Runtime.InteropServices.RuntimeInformation.OSArchitecture !=
+            System.Runtime.InteropServices.Architecture.X64)
+            throw new InvalidOperationException("NETWORK_AB_NATIVE_AMD64_REQUIRED");
+
+        var variant = Required("SGOL_HU035_NETWORK_VARIANT");
+        if (variant is not ("A" or "B")) throw new InvalidOperationException("NETWORK_AB_VARIANT_INVALID");
+        var resultPath = Required("SGOL_HU035_NETWORK_RESULT");
+        var slot = DateTimeOffset.ParseExact(Required("SGOL_HU035_NETWORK_SLOT"),
+            "yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal);
+        var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+        var build = OperationBuildIdentity.FromConfiguration(configuration);
+        var attempts = new List<NetworkReplicaAttempt>();
+        var outcome = "REPLICA_FAILED";
+        var manifestVerified = false;
+        try
+        {
+            var replica = new ObjectReplica(configuration, TimeProvider.System, NullLogger<ObjectReplica>.Instance);
+            await ExecuteReplicaWithBoundedRetryAsync(replica, slot, attempts);
+            outcome = "MANIFEST_READ_FAILED";
+            var options = ReplicaOptions.FromConfiguration(configuration);
+            using var destination = options.Destination.CreateClient();
+            var key = $"{options.ManifestPrefix}/{slot:yyyy/MM/dd}/objects-{slot:yyyyMMdd'T'HHmmss'Z'}.manifest.json";
+            var stored = await new S3OperationStore(destination).ReadAsync(options.ManifestBucket, key, CancellationToken.None);
+            outcome = "MANIFEST_INVALID";
+            var manifest = OperationManifestSerializer.Deserialize<ObjectReplicaManifest>(stored.Content);
+            ValidateNetworkManifest(manifest, slot, build);
+            if (!stored.Content.AsSpan().SequenceEqual(OperationManifestSerializer.Serialize(manifest)))
+                throw new InvalidOperationException("NETWORK_AB_MANIFEST_INVALID");
+            manifestVerified = true;
+            outcome = attempts.Count == 1 ? "PASSED_INITIAL" : "PASSED_AFTER_RETRY";
+        }
+        catch (OperationCanceledException) { outcome = "CANCELLED"; }
+        catch (Exception) { /* Original exception and private data never enter public evidence. */ }
+        finally
+        {
+            await File.WriteAllTextAsync(resultPath, JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1, variant, revision = build.Revision, imageDigest = build.ImageDigest,
+                scheduledFor = slot, outcome, manifestVerified, verifiedObjectCount = manifestVerified ? 1 : 0,
+                attempts
+            }, NetworkAbJsonOptions));
+        }
+        if (!manifestVerified) throw new InvalidOperationException($"NETWORK_AB_{outcome}");
+    }
+
+    private static void ValidateNetworkManifest(ObjectReplicaManifest manifest, DateTimeOffset slot, OperationBuildIdentity build)
+    {
+        if (manifest is not { SchemaVersion: 1, Kind: "SGOL_EVIDENCE_OBJECT_REPLICA", Status: "COMPLETE", ErrorClass: null } ||
+            manifest.ScheduledFor != slot || manifest.Revision != build.Revision || manifest.ImageDigest != build.ImageDigest ||
+            manifest.Objects is not { Count: 1 })
+            throw new InvalidOperationException("NETWORK_AB_MANIFEST_INVALID");
+        var entry = manifest.Objects[0];
+        if (entry.BucketRole != "clean" || entry.Key != SyntheticEvidenceFixture.ObjectKey ||
+            entry.Size != SyntheticEvidenceFixture.Content.LongLength || entry.SourceSha256 != SyntheticEvidenceFixture.Sha256 ||
+            entry.DestinationSha256 != SyntheticEvidenceFixture.Sha256 || entry.Status != "VERIFIED")
+            throw new InvalidOperationException("NETWORK_AB_MANIFEST_INVALID");
+    }
+
+    [Theory]
+    [Trait("Category", "Hu035ReplicaNetworkAbPure")]
+    [InlineData("valid")]
+    [InlineData("slot")]
+    [InlineData("schema")]
+    [InlineData("kind")]
+    [InlineData("status")]
+    [InlineData("error")]
+    [InlineData("revision")]
+    [InlineData("image")]
+    [InlineData("empty")]
+    [InlineData("multiple")]
+    [InlineData("role")]
+    [InlineData("key")]
+    [InlineData("size")]
+    [InlineData("sourceHash")]
+    [InlineData("destinationHash")]
+    [InlineData("verified")]
+    public void NetworkManifestRequiresExactSlotAndVerifiedSyntheticObject(string mutation)
+    {
+        var slot = new DateTimeOffset(2026, 9, 17, 12, 5, 0, TimeSpan.Zero);
+        var build = new OperationBuildIdentity(new string('a', 40), "sha256:" + new string('b', 64));
+        var entry = new ObjectReplicaManifestEntry("clean", SyntheticEvidenceFixture.ObjectKey,
+            SyntheticEvidenceFixture.Content.LongLength, SyntheticEvidenceFixture.Sha256, SyntheticEvidenceFixture.Sha256, slot, "VERIFIED");
+        var manifest = new ObjectReplicaManifest(1, "SGOL_EVIDENCE_OBJECT_REPLICA", slot, slot, build.Revision, build.ImageDigest, "COMPLETE", null, [entry]);
+        manifest = mutation switch
+        {
+            "slot" => manifest with { ScheduledFor = slot.AddHours(1) },
+            "schema" => manifest with { SchemaVersion = 2 },
+            "kind" => manifest with { Kind = "OTHER" },
+            "status" => manifest with { Status = "FAILED" },
+            "error" => manifest with { ErrorClass = "FAILURE" },
+            "revision" => manifest with { Revision = new string('c', 40) },
+            "image" => manifest with { ImageDigest = "sha256:" + new string('c', 64) },
+            "empty" => manifest with { Objects = [] },
+            "multiple" => manifest with { Objects = [entry, entry] },
+            "role" => manifest with { Objects = [entry with { BucketRole = "quarantine" }] },
+            "key" => manifest with { Objects = [entry with { Key = "SENSITIVE_SENTINEL" }] },
+            "size" => manifest with { Objects = [entry with { Size = 0 }] },
+            "sourceHash" => manifest with { Objects = [entry with { SourceSha256 = "SENSITIVE_SENTINEL" }] },
+            "destinationHash" => manifest with { Objects = [entry with { DestinationSha256 = "SENSITIVE_SENTINEL" }] },
+            "verified" => manifest with { Objects = [entry with { Status = "COPIED" }] },
+            _ => manifest
+        };
+        if (mutation == "valid") ValidateNetworkManifest(manifest, slot, build);
+        else Assert.Equal("NETWORK_AB_MANIFEST_INVALID", Assert.Throws<InvalidOperationException>(() =>
+            ValidateNetworkManifest(manifest, slot, build)).Message);
+    }
+
+    [Theory]
+    [Trait("Category", "Hu035ReplicaNetworkAbPure")]
+    [InlineData(0, "REPLICA_INFRASTRUCTURE_FAILED", 1, true)]
+    [InlineData(1, "REPLICA_INFRASTRUCTURE_FAILED", 2, true)]
+    [InlineData(3, "REPLICA_INFRASTRUCTURE_FAILED", 3, false)]
+    [InlineData(3, "SOURCE_OBJECT_HASH_MISMATCH", 1, false)]
+    public async Task NetworkAttemptsObserveTheExistingRetryBoundary(int failures, string code, int expected, bool succeeds)
+    {
+        var attempts = new List<NetworkReplicaAttempt>();
+        var calls = 0;
+        var replica = new NetworkReplicaStub(() => ++calls <= failures ? Task.FromException(new JobExecutionException(code)) : Task.CompletedTask);
+        var action = () => ExecuteReplicaWithBoundedRetryAsync(replica, DateTimeOffset.UtcNow, attempts);
+        if (succeeds) await action();
+        else await Assert.ThrowsAsync<InvalidOperationException>(action);
+        Assert.Equal(expected, calls);
+        Assert.Equal(Enumerable.Range(1, expected), attempts.Select(item => item.Attempt));
+        Assert.All(attempts, item => Assert.True(item.EndedAt >= item.StartedAt));
+        Assert.All(attempts.Take(failures), item => Assert.Equal("FAILED", item.Outcome));
+        if (succeeds) Assert.Equal("SUCCEEDED", attempts[^1].Outcome);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035ReplicaNetworkAbPure")]
+    public async Task NetworkAttemptCancellationIsNotRetriedOrConverted()
+    {
+        var cancellation = new OperationCanceledException();
+        var attempts = new List<NetworkReplicaAttempt>();
+        var error = await Assert.ThrowsAsync<OperationCanceledException>(() => ExecuteReplicaWithBoundedRetryAsync(
+            new NetworkReplicaStub(() => Task.FromException(cancellation)), DateTimeOffset.UtcNow, attempts));
+        Assert.Same(cancellation, error);
+        Assert.Single(attempts);
+        Assert.Equal("CANCELLED", attempts[0].Outcome);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035ReplicaNetworkAbPure")]
+    public async Task NetworkAttemptEvidenceContainsOnlySanitizedFailure()
+    {
+        var failure = new JobExecutionException("SOURCE_OBJECT_HASH_MISMATCH");
+        const string sentinel = "https://private.invalid/SECRET_SENTINEL";
+        foreach (var name in new[] { "SGOL_REPLICA_STAGE", "SGOL_REPLICA_OPERATION", "SGOL_REPLICA_EXCEPTION_TYPE",
+            "SGOL_REPLICA_HTTP_STATUS", "SGOL_REPLICA_S3_ERROR_CODE" }) failure.Data[name] = sentinel;
+        var attempts = new List<NetworkReplicaAttempt>();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteReplicaWithBoundedRetryAsync(
+            new NetworkReplicaStub(() => Task.FromException(failure)), DateTimeOffset.UtcNow, attempts));
+        Assert.Single(attempts);
+        var json = JsonSerializer.Serialize(attempts, NetworkAbJsonOptions);
+        Assert.DoesNotContain("SECRET_SENTINEL", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("private.invalid", json, StringComparison.Ordinal);
+        Assert.Contains("STAGE=UNKNOWN:OPERATION=UNKNOWN:TYPE=UNKNOWN:HTTP=NONE:S3CODE=UNKNOWN", json, StringComparison.Ordinal);
+    }
+
+    private sealed record NetworkReplicaAttempt(int Attempt, DateTimeOffset StartedAt, DateTimeOffset EndedAt, string Outcome, string? Diagnostic);
+    private sealed class NetworkReplicaStub(Func<Task> execute) : IObjectReplica
+    {
+        public Task ExecuteAsync(DateTimeOffset scheduledFor, CancellationToken cancellationToken) => execute();
     }
 
     private static bool ShouldRetryReplicaFailure(
