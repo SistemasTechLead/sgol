@@ -171,6 +171,25 @@ jobs:
           Remove-Item -LiteralPath (Join-Path $gateRoot 'runtime-private') -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath (Join-Path $gateRoot 'evidence-private') -Recurse -Force -ErrorAction SilentlyContinue
 
+      - name: Run focused replica stream probe on native AMD64
+        shell: pwsh
+        run: |
+          if (-not [Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([Runtime.InteropServices.OSPlatform]::Linux) -or
+              [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [Runtime.InteropServices.Architecture]::X64) {
+            throw 'AMD64_LINUX_HOST_REQUIRED'
+          }
+          $results = Join-Path $env:RUNNER_TEMP 'sgol-replica-stream-public'
+          dotnet test tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj `
+            --configuration Release --no-restore -p:SGOL_TECH_OPS_EXTERNAL_TESTS=true `
+            --filter 'FullyQualifiedName=Sgol.OperationsIntegrationTests.ReplicaStreamFocusedTests.ReplicaResponseStreamIsConditionallyWrittenAndVerified' `
+            --results-directory $results --logger 'trx;LogFileName=replica-stream.trx'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          [xml]$trx = Get-Content -Raw -LiteralPath (Join-Path $results 'replica-stream.trx')
+          $counts = $trx.TestRun.ResultSummary.Counters
+          if ($counts.total -ne '1' -or $counts.executed -ne '1' -or $counts.passed -ne '1') {
+            throw 'REPLICA_STREAM_PROBE_EXPECTED_EXACTLY_ONE_PASS'
+          }
+
       - name: Run integral HU-035 recovery gate on native AMD64
         shell: pwsh
         run: |
@@ -192,5 +211,6 @@ jobs:
             ${{ runner.temp }}/sgol-${{ env.IMPLEMENTATION_SHA }}.oci.tar
             ${{ runner.temp }}/sgol-tech-ops-amd64/evidence-public/**
             ${{ runner.temp }}/sgol-hu-035-amd64/evidence-public/**
+            ${{ runner.temp }}/sgol-replica-stream-public/replica-stream.trx
           if-no-files-found: warn
           compression-level: 0
