@@ -13,7 +13,7 @@ function Assert-AbSha([string]$Expected, [string]$Actual) {
     if ($Expected -cnotmatch '\A[0-9a-f]{40}\z' -or $Expected -cne $Actual) { throw 'AB_SHA_MISMATCH' }
 }
 
-function Test-AbTrx([string]$Text, [int]$Total = 1, [switch]$AllowFailure) {
+function Test-AbTrx([string]$Text, [int]$Total = 1, [switch]$AllowFailure, [hashtable]$Observation) {
     try {
         # Disable DTD/entity resolution even for synthetic artifacts.
         $settings = [Xml.XmlReaderSettings]::new()
@@ -26,6 +26,12 @@ function Test-AbTrx([string]$Text, [int]$Total = 1, [switch]$AllowFailure) {
         $executed = [int]$counts.GetAttribute('executed')
         $passed = [int]$counts.GetAttribute('passed')
         $failed = [int]$counts.GetAttribute('failed')
+        if ($null -ne $Observation) {
+            foreach ($key in @('total','executed','passed','failed')) {
+                $number = 0
+                if ([int]::TryParse($counts.GetAttribute($key), [ref]$number) -and $number -ge 0) { $Observation[$key] = $number }
+            }
+        }
         return [int]$counts.GetAttribute('total') -eq $Total -and $executed -eq $Total -and
             (($passed -eq $Total -and $failed -eq 0) -or ($AllowFailure -and $passed -eq 0 -and $failed -eq $Total))
     }
@@ -49,23 +55,62 @@ function Get-AbInterpretation($Variants) {
     return 'INCONCLUSIVE'
 }
 
+function Throw-AbPreparationFailure([string]$Code, [Nullable[int]]$ExitCode) {
+    $failure = [InvalidOperationException]::new('AB_PREPARATION_FAILED')
+    $failure.Data['AbCode'] = $Code
+    if ($null -ne $ExitCode) { $failure.Data['AbExitCode'] = $ExitCode }
+    throw $failure
+}
+
+function Set-AbPreparationStage($State,
+    [ValidateSet('DIRECTORY_CREATE','NETWORK_CREATE','SOURCE_CONFIG_WRITE','DESTINATION_CONFIG_WRITE',
+        'SOURCE_START','DESTINATION_START','SOURCE_BRIDGE_CONNECT','DESTINATION_BRIDGE_CONNECT',
+        'SOURCE_PORT_READ','DESTINATION_PORT_READ','SOURCE_READY','DESTINATION_READY','PROVISION_ENVIRONMENT',
+        'PROVISION_CREATE','SOURCE_ADMIN_REMOVE','DESTINATION_ADMIN_REMOVE','STORAGE_RESTART',
+        'SOURCE_RESTART_READY','DESTINATION_RESTART_READY','PROVISION_VERIFY',
+        'SOURCE_BRIDGE_DISCONNECT','DESTINATION_BRIDGE_DISCONNECT','FINAL_NETWORK_CREATE',
+        'SOURCE_RENAME','DESTINATION_RENAME','SOURCE_FINAL_CONNECT','DESTINATION_FINAL_CONNECT',
+        'SOURCE_BOOTSTRAP_DISCONNECT','DESTINATION_BOOTSTRAP_DISCONNECT',
+        'SOURCE_FINAL_INSPECT','DESTINATION_FINAL_INSPECT','BOOTSTRAP_NETWORK_REMOVE')][string]$Stage) {
+    $State.preparationStage = $Stage
+}
+
+function Get-AbPreparationFailure($State, [Management.Automation.ErrorRecord]$Record) {
+    # Never serialize ErrorRecord/Exception or infer a code from its message.
+    $type = $Record.Exception.GetType().Name
+    if ($type -cnotin @('InvalidOperationException','RuntimeException','IOException','UnauthorizedAccessException',
+        'CommandNotFoundException','ParameterBindingException','ArgumentException','XmlException')) { $type = 'UNKNOWN' }
+    $code = $Record.Exception.Data['AbCode']
+    if ($code -cnotin @('AB_DOCKER_FAILED','AB_STORAGE_NOT_READY','AB_PORT_INVALID','AB_PRIVATE_ADDRESS_INVALID',
+        'TEST_EXIT_FAILED','TRX_MISSING','TRX_REJECTED')) { $code = 'UNKNOWN' }
+    $exitCode = $Record.Exception.Data['AbExitCode']
+    if ($exitCode -isnot [int]) { $exitCode = $null }
+    return [ordered]@{ stage=$State.preparationStage; exceptionType=$type; code=$code; exitCode=$exitCode;
+        phase=$State.preparationPhase; counters=$State.preparationCounters }
+}
+
 function Invoke-AbPair([scriptblock]$Prepare, [scriptblock]$Run, [scriptblock]$Cleanup, [scriptblock]$Publish) {
     $results = [Collections.Generic.List[object]]::new()
     foreach ($variant in @('A','B')) {
         $state = @{ variant=$variant; outcome='PREPARATION_FAILED'; attempts=@(); manifestVerified=$false;
-            verifiedObjectCount=0; cleanup='UNCONFIRMED'; resources=@{} }
+            verifiedObjectCount=0; cleanup='UNCONFIRMED'; resources=@{}; preparationStage='UNKNOWN';
+            preparationPhase=$null; preparationCounters=@{}; preparationFailure=$null }
         try {
             & $Prepare $state | Out-Null
             $state.outcome = 'EVIDENCE_INVALID'
             & $Run $state | Out-Null
         }
         catch { # Never emit a dynamic message from preparation, Docker, test runner or evidence parsing.
+            if ($state.outcome -eq 'PREPARATION_FAILED' -and $null -eq $state.preparationFailure) {
+                $state.preparationFailure = Get-AbPreparationFailure $state $_
+            }
         }
         finally {
             try { if ((& $Cleanup $state) -eq $true) { $state.cleanup = 'CONFIRMED' } }
             catch { $state.cleanup = 'UNCONFIRMED' }
             $public = [ordered]@{ variant=$variant; outcome=$state.outcome; attempts=@($state.attempts);
-                manifestVerified=$state.manifestVerified; verifiedObjectCount=$state.verifiedObjectCount; cleanup=$state.cleanup }
+                manifestVerified=$state.manifestVerified; verifiedObjectCount=$state.verifiedObjectCount; cleanup=$state.cleanup;
+                preparationFailure=$state.preparationFailure }
             $results.Add($public)
             try { & $Publish $results.ToArray() | Out-Null }
             catch { throw 'AB_PUBLICATION_FAILED' }
@@ -78,7 +123,8 @@ function Invoke-AbPair([scriptblock]$Prepare, [scriptblock]$Run, [scriptblock]$C
 
 function Invoke-AbDocker([string[]]$Arguments) {
     $output = @(& docker @Arguments 2>&1)
-    if ($LASTEXITCODE -ne 0) { throw 'AB_DOCKER_FAILED' }
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { Throw-AbPreparationFailure 'AB_DOCKER_FAILED' $exitCode }
     return ($output -join "`n").Trim()
 }
 
@@ -94,7 +140,7 @@ function Wait-AbPort([int]$Port) {
         finally { $tcp.Dispose() }
         Start-Sleep -Milliseconds 250
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
-    throw 'AB_STORAGE_NOT_READY'
+    Throw-AbPreparationFailure 'AB_STORAGE_NOT_READY' $null
 }
 
 function Set-AbEnvironment([string]$Name, [string]$Value) {
@@ -107,19 +153,22 @@ function Invoke-AbTest([string]$Filter, [string]$Directory, [string]$Name) {
     & dotnet test $project --configuration Release --no-build --no-restore `
         -p:SGOL_TECH_OPS_PROVISIONING_TESTS=true -p:SGOL_HU035_AMD64_TESTS=true `
         --filter $Filter --results-directory $Directory --logger "trx;LogFileName=$Name" *> $null
-    return $LASTEXITCODE
+    $exitCode = $LASTEXITCODE
+    return $exitCode
 }
 
 function New-AbStorage($State) {
     $variant = $State.variant.ToLowerInvariant()
     $prefix = "$runPrefix-$variant"
     $private = Join-Path $privateRoot $variant
+    Set-AbPreparationStage $State 'DIRECTORY_CREATE'
     [void][IO.Directory]::CreateDirectory($private)
     $final = "$prefix-private"; $bootstrap = "$prefix-bootstrap"
     $initial = if ($variant -eq 'a') { $bootstrap } else { $final }
     # Record intended resources BEFORE creation so a partial setup remains cleanable.
     $State.resources = @{ containers=@("$prefix-source-bootstrap","$prefix-destination-bootstrap","$prefix-source","$prefix-destination");
         networks=@($initial,$final) | Select-Object -Unique; directory=$private }
+    Set-AbPreparationStage $State 'NETWORK_CREATE'
     [void](Invoke-AbDocker -Arguments @('network','create','--driver','bridge','--internal',$initial))
     $operational = @(
         @(
@@ -136,51 +185,94 @@ function New-AbStorage($State) {
     for ($index=0; $index -lt 2; $index++) {
         $admin = if ($index -eq 0) { 'SOURCE_ADMIN' } else { 'DESTINATION_ADMIN' }
         $config = @{ identities=@(@{ name=$admin; credentials=@($identities[$admin]); actions=@('Admin','Read','Write','List','Tagging') }) + $operational[$index] }
+        $side = if ($index -eq 0) { 'SOURCE' } else { 'DESTINATION' }
+        Set-AbPreparationStage $State "${side}_CONFIG_WRITE"
         [IO.File]::WriteAllText($configPaths[$index], ($config | ConvertTo-Json -Depth 8 -Compress), $utf8)
         $networkAlias = if ($index -eq 0) { 'sgol-tech-ops-s3-source' } else { 'sgol-tech-ops-s3-destination' }
+        Set-AbPreparationStage $State "${side}_START"
         [void](Invoke-AbDocker -Arguments @('run','--detach','--name',$containers[$index],'--network',$initial,'--network-alias',$networkAlias,
             '--publish','127.0.0.1::8333','--mount',"type=bind,source=$($configPaths[$index]),target=/run/sgol/s3.json,readonly",
             $seaweedImage,'mini','-dir=/data','-s3.config=/run/sgol/s3.json'))
     }
-    foreach ($container in $containers) { [void](Invoke-AbDocker -Arguments @('network','connect','bridge',$container)) }
     foreach ($container in $containers) {
-        $binding = Invoke-AbDocker -Arguments @('port',$container,'8333/tcp')
-        if ($binding -notmatch '\A127\.0\.0\.1:(\d+)\z') { throw 'AB_PORT_INVALID' }
-        $ports += [int]$Matches[1]; Wait-AbPort $ports[-1]
+        $side = if ($container -eq $containers[0]) { 'SOURCE' } else { 'DESTINATION' }
+        Set-AbPreparationStage $State "${side}_BRIDGE_CONNECT"
+        [void](Invoke-AbDocker -Arguments @('network','connect','bridge',$container))
     }
+    foreach ($container in $containers) {
+        $side = if ($container -eq $containers[0]) { 'SOURCE' } else { 'DESTINATION' }
+        Set-AbPreparationStage $State "${side}_PORT_READ"
+        $binding = Invoke-AbDocker -Arguments @('port',$container,'8333/tcp')
+        if ($binding -notmatch '\A127\.0\.0\.1:(\d+)\z') { Throw-AbPreparationFailure 'AB_PORT_INVALID' $null }
+        $ports += [int]$Matches[1]
+        Set-AbPreparationStage $State "${side}_READY"
+        Wait-AbPort $ports[-1]
+    }
+    Set-AbPreparationStage $State 'PROVISION_ENVIRONMENT'
     Set-AbEnvironment 'SGOL_PROVISION_SOURCE_ENDPOINT' "http://127.0.0.1:$($ports[0])"
     Set-AbEnvironment 'SGOL_PROVISION_DESTINATION_ENDPOINT' "http://127.0.0.1:$($ports[1])"
     foreach ($phase in @('create','verify')) {
         if ($phase -eq 'verify') {
             # Same in-place File.WriteAllText update and docker restart as HU-035 provisioning.
             for ($index=0; $index -lt 2; $index++) {
+                $side = if ($index -eq 0) { 'SOURCE' } else { 'DESTINATION' }
+                Set-AbPreparationStage $State "${side}_ADMIN_REMOVE"
                 [IO.File]::WriteAllText($configPaths[$index], (@{ identities=$operational[$index] } | ConvertTo-Json -Depth 8 -Compress), $utf8)
             }
+            Set-AbPreparationStage $State 'STORAGE_RESTART'
             [void](Invoke-AbDocker -Arguments (@('restart') + $containers))
-            foreach ($port in $ports) { Wait-AbPort $port }
+            for ($index=0; $index -lt $ports.Count; $index++) {
+                $side = if ($index -eq 0) { 'SOURCE' } else { 'DESTINATION' }
+                Set-AbPreparationStage $State "${side}_RESTART_READY"
+                Wait-AbPort $ports[$index]
+            }
         }
+        Set-AbPreparationStage $State $(if ($phase -eq 'create') { 'PROVISION_CREATE' } else { 'PROVISION_VERIFY' })
+        $State.preparationPhase = $phase
+        $State.preparationCounters = @{}
         Set-AbEnvironment 'SGOL_PROVISION_PHASE' $phase
         $code = Invoke-AbTest 'FullyQualifiedName=Sgol.OperationsIntegrationTests.SyntheticEnvironmentProvisioningTests.ProvisionOrVerifySyntheticBucketsAndSeed|FullyQualifiedName=Sgol.OperationsIntegrationTests.SyntheticEnvironmentProvisioningTests.BackupIdentitySupportsConditionalPutGetAndHead' $private "$phase.trx"
         $trx = Join-Path $private "$phase.trx"
-        if ($code -ne 0 -or -not (Test-Path -LiteralPath $trx) -or -not (Test-AbTrx ([IO.File]::ReadAllText($trx)) 2)) { throw 'AB_PROVISION_FAILED' }
+        if ($code -ne 0) { Throw-AbPreparationFailure 'TEST_EXIT_FAILED' $code }
+        if (-not (Test-Path -LiteralPath $trx)) { Throw-AbPreparationFailure 'TRX_MISSING' $code }
+        if (-not (Test-AbTrx ([IO.File]::ReadAllText($trx)) 2 -Observation $State.preparationCounters)) {
+            Throw-AbPreparationFailure 'TRX_REJECTED' $code
+        }
+        $State.preparationPhase = $null
+        $State.preparationCounters = @{}
     }
-    foreach ($container in $containers) { [void](Invoke-AbDocker -Arguments @('network','disconnect','bridge',$container)) }
-    if ($variant -eq 'a') { [void](Invoke-AbDocker -Arguments @('network','create','--driver','bridge','--internal',$final)) }
+    foreach ($container in $containers) {
+        $side = if ($container -eq $containers[0]) { 'SOURCE' } else { 'DESTINATION' }
+        Set-AbPreparationStage $State "${side}_BRIDGE_DISCONNECT"
+        [void](Invoke-AbDocker -Arguments @('network','disconnect','bridge',$container))
+    }
+    if ($variant -eq 'a') {
+        Set-AbPreparationStage $State 'FINAL_NETWORK_CREATE'
+        [void](Invoke-AbDocker -Arguments @('network','create','--driver','bridge','--internal',$final))
+    }
     for ($index=0; $index -lt 2; $index++) {
         $name = if ($index -eq 0) { "$prefix-source" } else { "$prefix-destination" }
+        $side = if ($index -eq 0) { 'SOURCE' } else { 'DESTINATION' }
+        Set-AbPreparationStage $State "${side}_RENAME"
         [void](Invoke-AbDocker -Arguments @('container','rename',$containers[$index],$name))
         if ($variant -eq 'a') {
             $alias = if ($index -eq 0) { 'sgol-tech-ops-s3-source' } else { 'sgol-tech-ops-s3-destination' }
+            Set-AbPreparationStage $State "${side}_FINAL_CONNECT"
             [void](Invoke-AbDocker -Arguments @('network','connect','--alias',$alias,$final,$name))
+            Set-AbPreparationStage $State "${side}_BOOTSTRAP_DISCONNECT"
             [void](Invoke-AbDocker -Arguments @('network','disconnect',$bootstrap,$name))
         }
+        Set-AbPreparationStage $State "${side}_FINAL_INSPECT"
         $inspection = (Invoke-AbDocker -Arguments @('container','inspect',$name) | ConvertFrom-Json)[0]
         $address = $inspection.NetworkSettings.Networks.$final.IPAddress
-        if ($address -notmatch '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)') { throw 'AB_PRIVATE_ADDRESS_INVALID' }
+        if ($address -notmatch '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)') { Throw-AbPreparationFailure 'AB_PRIVATE_ADDRESS_INVALID' $null }
         $side = if ($index -eq 0) { 'Source' } else { 'Destination' }
         Set-AbEnvironment "Replica__${side}__Endpoint" "http://${address}:8333"
     }
-    if ($variant -eq 'a') { [void](Invoke-AbDocker -Arguments @('network','rm',$bootstrap)) }
+    if ($variant -eq 'a') {
+        Set-AbPreparationStage $State 'BOOTSTRAP_NETWORK_REMOVE'
+        [void](Invoke-AbDocker -Arguments @('network','rm',$bootstrap))
+    }
 }
 
 function Remove-AbStorage($State, [scriptblock]$Docker = { param($arguments) Invoke-AbDocker $arguments }) {
@@ -295,8 +387,15 @@ function Test-AbPure {
     $simulatedContainers=[Collections.Generic.HashSet[string]]::new(); [void]$simulatedContainers.Add('unrelated-container')
     $simulatedNetworks=[Collections.Generic.HashSet[string]]::new(); [void]$simulatedNetworks.Add('unrelated-network')
     $commands=[Collections.Generic.List[string]]::new(); $cleanupSimulation='normal'
-    function Invoke-AbDocker([string[]]$Arguments) {
+    $preparationMode='success'; $failurePhase='create'
+    function docker {
+        $Arguments = [string[]]$args
+        $script:LASTEXITCODE = 0
         $commands.Add($Arguments -join ' ')
+        if ($preparationMode -eq 'dockerFailure' -and $Arguments[0] -eq 'network' -and $Arguments[1] -eq 'create') {
+            $script:LASTEXITCODE = 125
+            return 'SENSITIVE_SENTINEL'
+        }
         if ($Arguments[0] -eq 'run') { [void]$simulatedContainers.Add($Arguments[[Array]::IndexOf($Arguments,'--name')+1]); return '' }
         if ($Arguments[0] -eq 'port') { return '127.0.0.1:12345' }
         if ($Arguments[0] -eq 'restart') { return '' }
@@ -323,10 +422,33 @@ function Test-AbPure {
         throw 'AB_UNEXPECTED_SIMULATED_COMMAND'
     }
     function Wait-AbPort([int]$Port) { Assert-Ab ($Port -eq 12345) }
-    function Invoke-AbTest([string]$Filter, [string]$Directory, [string]$Name) {
-        Assert-Ab ($Filter.Contains('ProvisionOrVerifySyntheticBucketsAndSeed'))
-        [IO.File]::WriteAllText((Join-Path $Directory $Name), '<TestRun><ResultSummary><Counters total="2" executed="2" passed="2" failed="0" /></ResultSummary></TestRun>')
-        return 0
+    $testCalls=[Collections.Generic.List[string]]::new()
+    function dotnet {
+        $arguments = [string[]]$args
+        Assert-Ab ($arguments[0] -ceq 'test')
+        Assert-Ab ($arguments[1] -ceq $project)
+        Assert-Ab ($arguments -contains '--no-build' -and $arguments -contains '--no-restore')
+        # PowerShell binds -p:value as two tokens for a function double (one for a native executable).
+        Assert-Ab ((@($arguments | Where-Object { $_ -ceq '-p:' }).Count -eq 2) -and
+            $arguments -contains 'SGOL_TECH_OPS_PROVISIONING_TESTS=true' -and $arguments -contains 'SGOL_HU035_AMD64_TESTS=true')
+        Assert-Ab ($arguments[[Array]::IndexOf($arguments,'--configuration')+1] -ceq 'Release')
+        $filter = $arguments[[Array]::IndexOf($arguments,'--filter')+1]
+        Assert-Ab ($filter -ceq 'FullyQualifiedName=Sgol.OperationsIntegrationTests.SyntheticEnvironmentProvisioningTests.ProvisionOrVerifySyntheticBucketsAndSeed|FullyQualifiedName=Sgol.OperationsIntegrationTests.SyntheticEnvironmentProvisioningTests.BackupIdentitySupportsConditionalPutGetAndHead')
+        $directory = $arguments[[Array]::IndexOf($arguments,'--results-directory')+1]
+        $logger = $arguments[[Array]::IndexOf($arguments,'--logger')+1]
+        Assert-Ab ($logger -ceq "trx;LogFileName=$env:SGOL_PROVISION_PHASE.trx")
+        $testCalls.Add($env:SGOL_PROVISION_PHASE)
+        $script:LASTEXITCODE = 0
+        if ($env:SGOL_PROVISION_PHASE -eq $failurePhase) {
+            if ($preparationMode -eq 'testFailure') { $script:LASTEXITCODE = 17; return 'SENSITIVE_SENTINEL' }
+            if ($preparationMode -eq 'missingTrx') { return }
+        }
+        $xml = '<TestRun><ResultSummary><Counters total="2" executed="2" passed="2" failed="0" /></ResultSummary></TestRun>'
+        if ($env:SGOL_PROVISION_PHASE -eq $failurePhase) {
+            if ($preparationMode -eq 'invalidTrx') { $xml = '<broken SENSITIVE_SENTINEL' }
+            if ($preparationMode -eq 'rejectedTrx') { $xml = '<TestRun><ResultSummary><Counters total="2" executed="1" passed="1" failed="0" secret="SENSITIVE_SENTINEL" /></ResultSummary></TestRun>' }
+        }
+        [IO.File]::WriteAllText((Join-Path $directory "$env:SGOL_PROVISION_PHASE.trx"), $xml)
     }
     try {
         $previousConfigs=$null
@@ -356,6 +478,56 @@ function Test-AbPure {
             $cleanupSimulation='normal'
             Assert-Ab (Remove-AbStorage $state); $checks++
         }
+        # Exercise real preparation, both command boundaries, capture and original cleanup together.
+        foreach ($failurePhase in @('create','verify')) {
+            foreach ($preparationMode in @('testFailure','missingTrx','invalidTrx','rejectedTrx','dockerFailure')) {
+                $testCalls.Clear()
+                $cleanupCalls=[Collections.Generic.List[string]]::new()
+                $prepare=${function:New-AbStorage}
+                $run={param($s) throw 'UNEXPECTED_REPLICA_EXECUTION'}
+                $cleanup={param($s)
+                    # Overwrite the process status and provoke a later failure: neither replaces the first diagnostic.
+                    $script:LASTEXITCODE=99
+                    $cleanupCalls.Add($s.variant)
+                    $done=Remove-AbStorage $s
+                    Assert-Ab (-not (Test-Path -LiteralPath $s.resources.directory))
+                    return $done
+                }
+                $publish={param($r) Assert-Ab (-not (($r | ConvertTo-Json -Depth 8) -match 'SENSITIVE_SENTINEL'))}
+                $results=Invoke-AbPair $prepare $run $cleanup $publish
+                Assert-Ab ($results.Count -eq 2)
+                Assert-Ab (($cleanupCalls -join ',') -ceq 'A,B')
+                Assert-Ab ($simulatedContainers.SetEquals([string[]]@('unrelated-container')))
+                Assert-Ab ($simulatedNetworks.SetEquals([string[]]@('unrelated-network')))
+                foreach ($result in $results) {
+                    Assert-Ab ($result.outcome -ceq 'PREPARATION_FAILED' -and $result.cleanup -ceq 'CONFIRMED')
+                    $diagnostic=$result.preparationFailure
+                    Assert-Ab ((@($diagnostic.Keys | Sort-Object) -join ',') -ceq 'code,counters,exceptionType,exitCode,phase,stage')
+                    Assert-Ab ($diagnostic.exceptionType -ceq 'InvalidOperationException')
+                    $expectedStage=if ($preparationMode -eq 'dockerFailure') {'NETWORK_CREATE'} elseif ($failurePhase -eq 'create') {'PROVISION_CREATE'} else {'PROVISION_VERIFY'}
+                    Assert-Ab ($diagnostic.stage -ceq $expectedStage)
+                    $expectedCode=switch ($preparationMode) { 'testFailure' {'TEST_EXIT_FAILED'} 'missingTrx' {'TRX_MISSING'} 'dockerFailure' {'AB_DOCKER_FAILED'} default {'TRX_REJECTED'} }
+                    Assert-Ab ($diagnostic.code -ceq $expectedCode)
+                    $expectedExit=if ($preparationMode -eq 'dockerFailure') {125} elseif ($preparationMode -eq 'testFailure') {17} else {0}
+                    Assert-Ab ($diagnostic.exitCode -eq $expectedExit)
+                    if ($preparationMode -eq 'dockerFailure') { Assert-Ab ($null -eq $diagnostic.phase) }
+                    else { Assert-Ab ($diagnostic.phase -ceq $failurePhase) }
+                    if ($preparationMode -eq 'rejectedTrx') {
+                        Assert-Ab ((@($diagnostic.counters.Keys | Sort-Object) -join ',') -ceq 'executed,failed,passed,total')
+                        Assert-Ab ($diagnostic.counters.total -eq 2 -and $diagnostic.counters.executed -eq 1 -and $diagnostic.counters.passed -eq 1 -and $diagnostic.counters.failed -eq 0)
+                    }
+                    else { Assert-Ab ($diagnostic.counters.Count -eq 0) }
+                }
+                $expectedCalls=if ($preparationMode -eq 'dockerFailure') {''} elseif ($failurePhase -eq 'create') {'create,create'} else {'create,verify,create,verify'}
+                Assert-Ab (($testCalls -join ',') -ceq $expectedCalls)
+            }
+        }
+        $preparationMode='testFailure'; $failurePhase='create'
+        $cleanup={param($s) [void](Remove-AbStorage $s); throw 'SENSITIVE_SENTINEL'}
+        $results=Invoke-AbPair ${function:New-AbStorage} $run $cleanup $publish
+        Assert-Ab ($results.Count -eq 1 -and $results[0].cleanup -ceq 'UNCONFIRMED')
+        Assert-Ab ($results[0].preparationFailure.code -ceq 'TEST_EXIT_FAILED' -and $results[0].preparationFailure.exitCode -eq 17)
+        $preparationMode='success'
         # Validate the actual result reader, including native exit status and TRX consistency.
         $publicRoot=Join-Path $fixtureRoot 'public'
         [void][IO.Directory]::CreateDirectory($publicRoot)
