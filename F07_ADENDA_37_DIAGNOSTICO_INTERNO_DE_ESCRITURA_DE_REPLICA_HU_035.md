@@ -34,3 +34,21 @@ Pruebas puras con clientes simulados ejecutan ReplicateBucketAsync real, su alma
 Se ejecuta únicamente Category=Hu035ReplicaDiagnostics con -p:SGOL_HU035_AMD64_TESTS=true, compilación requerida, validador HU-035 y git diff --check. Las pruebas no requieren Docker, PostgreSQL, S3 ni variables del simulacro. No se repiten pruebas externas ni gates integrales. Un futuro run del SHA autorizado será necesario para observar el diagnóstico del fallo real.
 
 No se autoriza commit, push, CI, nuevo PR, merge ni tareas posteriores. La instrumentación validada no equivale a causa identificada.
+
+## Ajuste mínimo aprobado: captura del servidor durante REFERENCE
+
+El responsable aprueba la implementación local y pruebas puras exclusivamente en esta adenda, scripts/operations/invoke-hu-035-amd64-gate.ps1, scripts/ci/test-hu-035-server-diagnostics.ps1 y docs/traceability/IMPLEMENTATION_STATUS.md.
+
+Ante una excepción dentro de la preparación REFERENCE, se capturan los logs existentes del contenedor SeaweedFS de destino antes de la limpieza. No basta el valor residual de stage. Se conservan el error original, el alcance del descriptor y las instrucciones, alcance y resultados de la limpieza. No se añaden sondas, operaciones S3, cambios productivos, redes, permisos, reintentos, dependencias ni cambios de verbosidad.
+
+La lectura de docker logs espera como máximo ocho segundos, sin follow, y retiene como máximo 262144 caracteres por canal. Tras solicitar la terminación del lector, se espera como máximo 500 ms para comprobar su salida. No hay esperas ilimitadas; estos límites no garantizan disponibilidad ante bloqueos del sistema operativo. Las pruebas comprueban además que los procesos simulados terminaron. Los identificadores y detalles de esos procesos no se publican.
+
+Los canales se mantienen separados; sólo se colapsan duplicados exactos entre stdout y stderr. El parser dispone de un segundo, limita cada línea a 16384 caracteres y publica como máximo 32 eventos. Conserva la precisión RFC3339Nano del timestamp Docker. Reconoce exclusivamente CHUNK_UPLOAD_FAILED y CREATE_ENTRY_FAILED mediante los prefijos verificados en weed/s3api/s3api_object_handlers_put.go de la etiqueta oficial 4.45, commit 79b87202136cebdaaa7db4d94eaa5915ad381276. La única correlación permitida es TIME_WINDOW_ONLY. No se atribuye una petición exacta, no se clasifican sockets y no se comparan direcciones antiguas.
+
+El artifact existente recibe exclusivamente hu-035-server-diagnostic.json con campos cerrados de estado, límites, contadores, ventana temporal y eventos sanitizados. No contiene líneas originales, fragmentos dinámicos, endpoints, claves, credenciales, metadata, contenido, fingerprints ni excepciones originales. Los logs crudos sólo permanecen transitoriamente en memoria. Las pruebas comprueban listas exactas de propiedades del JSON y sus eventos y ausencia de centinelas sensibles.
+
+Se distinguen captura fallida, vacía, incompleta y sin eventos reconocidos. Un fallo de captura, parser o escritura no reemplaza el fallo original ni impide intentar la limpieza; sólo se permiten mensajes fijos del capturador. Ninguna indexación de contenedores ni construcción de rutas se evalúa antes de entrar en la finalización protegida. Ausencia de eventos reconocidos no demuestra ausencia de errores del servidor.
+
+El único gate nuevo es scripts/ci/test-hu-035-server-diagnostics.ps1: pruebas puras de formatos temporales, canales, límites, sanitización, capturador simulado y funciones de REFERENCE/finalización realmente usadas por el gate. Se ejecuta también el bloque de limpieza extraído del AST del gate con Docker simulado y rutas temporales propias, verificando sus variables escalares y resumen, fallos anteriores/posteriores a REFERENCE y conservación del fallo original. Se comprueba la sintaxis del gate y git diff --check. No se autoriza ejecutar CI, pruebas externas, commit, push ni merge.
+
+Fuentes oficiales: https://github.com/seaweedfs/seaweedfs/blob/79b87202136cebdaaa7db4d94eaa5915ad381276/weed/s3api/s3api_object_handlers_put.go y https://docs.docker.com/reference/cli/docker/container/logs/.

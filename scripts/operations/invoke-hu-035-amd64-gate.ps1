@@ -16,6 +16,267 @@ $bootstrapNetworkName = 'sgol-staging_private'
 $bootstrapContainers = @('sgol-tech-ops-postgres', 'sgol-tech-ops-s3-source', 'sgol-tech-ops-s3-destination')
 $utf8WithoutBom = [Text.UTF8Encoding]::new($false)
 
+function Initialize-Hu035LogCapture {
+    if ('Hu035LogCapture' -as [type]) { return }
+    Add-Type -ErrorAction Stop -TypeDefinition @'
+using System;
+using System.Diagnostics;
+using System.Text;
+using System.Threading.Tasks;
+
+public sealed class Hu035LogCaptureResult {
+    public string Status = "START_FAILED";
+    public bool Truncated;
+    public int? ExitCode;
+    public int? ProcessId;
+    public bool ProcessExited;
+    public string Stdout = "";
+    public string Stderr = "";
+}
+
+public static class Hu035LogCapture {
+    public static Hu035LogCaptureResult Run(
+        string executable, string[] arguments, int timeoutMs, int limit) {
+        if (timeoutMs < 1 || limit < 1) throw new ArgumentOutOfRangeException();
+        var result = new Hu035LogCaptureResult();
+        var text = new[] { new StringBuilder(), new StringBuilder() };
+        var buffers = new[] { new char[4096], new char[4096] };
+        var eof = new bool[2];
+        var reads = new Task<int>[2];
+        var process = new Process();
+        var started = false;
+        var watch = Stopwatch.StartNew();
+        process.StartInfo = new ProcessStartInfo(executable) {
+            UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true, RedirectStandardError = true
+        };
+        foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
+        try {
+            started = process.Start();
+            if (!started) return result;
+            result.ProcessId = process.Id;
+            result.Status = "TIMEOUT";
+            var readers = new[] { process.StandardOutput, process.StandardError };
+            for (var i = 0; i < 2; i++)
+                reads[i] = readers[i].ReadAsync(buffers[i], 0, 4096);
+            while (watch.ElapsedMilliseconds < timeoutMs) {
+                for (var i = 0; i < 2; i++) {
+                    if (eof[i] || !reads[i].IsCompleted) continue;
+                    var count = reads[i].GetAwaiter().GetResult();
+                    if (count == 0) { eof[i] = true; continue; }
+                    var available = limit - text[i].Length;
+                    text[i].Append(buffers[i], 0, Math.Min(count, available));
+                    if (count > available) {
+                        result.Status = "VOLUME_LIMIT";
+                        result.Truncated = true;
+                        return result;
+                    }
+                    reads[i] = readers[i].ReadAsync(buffers[i], 0, 4096);
+                }
+                if (eof[0] && eof[1] && process.HasExited) {
+                    result.ExitCode = process.ExitCode;
+                    result.Status = process.ExitCode == 0 ? "OK" : "NONZERO_EXIT";
+                    return result;
+                }
+                System.Threading.Thread.Sleep(10);
+            }
+        }
+        catch { result.Status = started ? "READ_FAILED" : "START_FAILED"; }
+        finally {
+            if (started) {
+                try {
+                    if (!process.HasExited) process.Kill(true);
+                    result.ProcessExited = process.WaitForExit(500);
+                } catch {}
+            }
+            result.Stdout = text[0].ToString();
+            result.Stderr = text[1].ToString();
+            try { process.Dispose(); } catch {}
+        }
+        return result;
+    }
+}
+'@ | Out-Null
+}
+
+function Read-Hu035ServerLogs {
+    param([string]$Container, [DateTimeOffset]$Since, [DateTimeOffset]$Until)
+    Initialize-Hu035LogCapture
+    $arguments = @('logs', '--timestamps', '--since', $Since.ToUniversalTime().ToString('O'),
+        '--until', $Until.ToUniversalTime().ToString('O'), $Container)
+    # Raw streams and process details remain private; never serialize this result.
+    return [Hu035LogCapture]::Run('docker', $arguments, 8000, 262144)
+}
+
+function New-Hu035ServerSummary {
+    param([DateTimeOffset]$Since, [DateTimeOffset]$Until)
+    return [ordered]@{
+        schemaVersion = 1
+        captureStatus = 'CAPTURE_FAILED'
+        captureExitCode = $null
+        windowStartedAtUtc = $Since.ToUniversalTime().ToString('O')
+        windowEndedAtUtc = $Until.ToUniversalTime().ToString('O')
+        observation = 'INCOMPLETE'
+        emptyCapture = $false
+        truncated = $false
+        oversizedLines = 0
+        unrecognizedLines = 0
+        outsideWindowLines = 0
+        discardedPartialLines = 0
+        duplicateEvents = 0
+        eventLimitReached = $false
+        parserLimitReached = $false
+        events = @()
+    }
+}
+
+function ConvertTo-Hu035ServerSummary {
+    param([object]$Capture, [DateTimeOffset]$Since, [DateTimeOffset]$Until)
+    $summary = New-Hu035ServerSummary $Since $Until
+    $allowed = @('OK', 'START_FAILED', 'READ_FAILED', 'TIMEOUT', 'NONZERO_EXIT', 'VOLUME_LIMIT')
+    if ($Capture.Status -notin $allowed) { throw 'INVALID_CAPTURE_STATUS' }
+    $summary.captureStatus = $Capture.Status
+    if ($null -ne $Capture.ExitCode) { $summary.captureExitCode = [int]$Capture.ExitCode }
+    $summary.truncated = [bool]$Capture.Truncated
+    $summary.emptyCapture = ([string]$Capture.Stdout).Length -eq 0 -and
+        ([string]$Capture.Stderr).Length -eq 0
+    $lower = $Since.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff",
+        [Globalization.CultureInfo]::InvariantCulture) + '00Z'
+    $upper = $Until.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff",
+        [Globalization.CultureInfo]::InvariantCulture) + '00Z'
+    $pattern = '^(?<second>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})' +
+        '(?:\.(?<fraction>\d{1,9}))?Z E\d{4} \d{2}:\d{2}:\d{2}\.\d{6}\s+\d+ ' +
+        's3api_object_handlers_put\.go:\d+\] (?<body>.*)$'
+    $regex = [regex]::new($pattern, [Text.RegularExpressions.RegexOptions]::CultureInvariant,
+        [TimeSpan]::FromMilliseconds(25))
+    $rules = [ordered]@{
+        'putToFiler: chunked upload failed:' = 'CHUNK_UPLOAD_FAILED'
+        'putToFiler: CreateEntry returned error:' = 'CREATE_ENTRY_FAILED'
+        'putToFiler: failed to create entry for ' = 'CREATE_ENTRY_FAILED'
+    }
+    $events = [Collections.Generic.List[object]]::new()
+    $stdoutEvents = @{}
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $incomplete = $Capture.Status -ne 'OK' -or $summary.truncated
+    foreach ($channel in @('STDOUT', 'STDERR')) {
+        $text = if ($channel -eq 'STDOUT') { [string]$Capture.Stdout } else { [string]$Capture.Stderr }
+        $lines = $text.Split([char]10)
+        for ($index = 0; $index -lt $lines.Count; $index++) {
+            if ($watch.ElapsedMilliseconds -ge 1000) { $summary.parserLimitReached = $true; break }
+            $line = $lines[$index].TrimEnd([char]13)
+            if ($line.Length -eq 0) { continue }
+            if ($incomplete -and $index -eq $lines.Count - 1 -and
+                -not $text.EndsWith("`n", [StringComparison]::Ordinal)) {
+                $summary.discardedPartialLines++; continue
+            }
+            if ($line.Length -gt 16384) { $summary.oversizedLines++; continue }
+            $match = $regex.Match($line)
+            if (-not $match.Success) { $summary.unrecognizedLines++; continue }
+            $second = [datetime]::MinValue
+            if (-not [datetime]::TryParseExact($match.Groups['second'].Value,
+                "yyyy-MM-dd'T'HH:mm:ss", [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::None, [ref]$second)) {
+                $summary.unrecognizedLines++; continue
+            }
+            $stamp = $match.Groups['second'].Value + '.' +
+                $match.Groups['fraction'].Value.PadRight(9, '0') + 'Z'
+            if ([string]::CompareOrdinal($stamp, $lower) -lt 0 -or
+                [string]::CompareOrdinal($stamp, $upper) -gt 0) {
+                $summary.outsideWindowLines++; continue
+            }
+            $eventCode = $null
+            foreach ($prefix in $rules.Keys) {
+                if ($match.Groups['body'].Value.StartsWith($prefix, [StringComparison]::Ordinal)) {
+                    $eventCode = $rules[$prefix]; break
+                }
+            }
+            if ($null -eq $eventCode) { $summary.unrecognizedLines++; continue }
+            $fingerprint = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
+                [Text.Encoding]::UTF8.GetBytes($line)))
+            if ($channel -eq 'STDERR' -and $stdoutEvents.ContainsKey($fingerprint)) {
+                $stdoutEvents[$fingerprint].channel = 'BOTH'
+                $summary.duplicateEvents++; continue
+            }
+            if ($events.Count -ge 32) { $summary.eventLimitReached = $true; continue }
+            $event = [ordered]@{
+                occurredAtUtc = $stamp
+                channel = $channel
+                component = 'S3_PUT'
+                eventCode = $eventCode
+                correlation = 'TIME_WINDOW_ONLY'
+            }
+            $events.Add($event)
+            if ($channel -eq 'STDOUT') { $stdoutEvents[$fingerprint] = $event }
+        }
+        if ($summary.parserLimitReached) { break }
+    }
+    $summary.events = @($events | Sort-Object occurredAtUtc)
+    if ($incomplete -or $summary.oversizedLines -gt 0 -or
+        $summary.eventLimitReached -or $summary.parserLimitReached) {
+        $summary.observation = 'INCOMPLETE'
+    } elseif ($summary.emptyCapture) {
+        $summary.observation = 'EMPTY'
+    } elseif ($events.Count -eq 0) {
+        $summary.observation = 'NO_RECOGNIZED_EVENTS'
+    } else { $summary.observation = 'RECOGNIZED_EVENTS' }
+    return $summary
+}
+
+function Write-Hu035ServerSummary {
+    param([string]$Path, [object]$Summary)
+    [IO.File]::WriteAllText($Path, ($Summary | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+}
+
+function Invoke-Hu035Reference {
+    param([hashtable]$State, [scriptblock]$Action)
+    $State.StartedAt = [DateTimeOffset]::UtcNow
+    $State.Failed = $false
+    try { . $Action }
+    catch {
+        $State.Failed = $true
+        $State.EndedAt = [DateTimeOffset]::UtcNow
+        throw
+    }
+}
+
+function Invoke-Hu035Finalization {
+    param(
+        [hashtable]$State,
+        [scriptblock]$Cleanup,
+        [scriptblock]$Reader = {
+            param($container, $since, $until)
+            Read-Hu035ServerLogs $container $since $until
+        },
+        [scriptblock]$Parser = {
+            param($capture, $since, $until)
+            ConvertTo-Hu035ServerSummary $capture $since $until
+        },
+        [scriptblock]$Writer = {
+            param($path, $summary)
+            Write-Hu035ServerSummary $path $summary
+        }
+    )
+    try {
+        if ($State.Failed -eq $true -and $State.StartedAt -is [DateTimeOffset] -and
+            $State.EndedAt -is [DateTimeOffset]) {
+            $summary = New-Hu035ServerSummary $State.StartedAt $State.EndedAt
+            try { $capture = & $Reader $State.Container $State.StartedAt $State.EndedAt }
+            catch { $capture = $null }
+            if ($null -ne $capture) {
+                try { $summary = & $Parser $capture $State.StartedAt $State.EndedAt }
+                catch {
+                    $summary = New-Hu035ServerSummary $State.StartedAt $State.EndedAt
+                    $summary.captureStatus = 'PARSER_FAILED'
+                }
+            }
+            try { & $Writer $State.Path $summary | Out-Null }
+            catch { Write-Output 'HU035_SERVER_DIAGNOSTIC_WRITE_FAILED' }
+        }
+    }
+    catch { Write-Output 'HU035_SERVER_DIAGNOSTIC_FAILED' }
+    finally { . $Cleanup }
+}
+
 function Test-AbsolutePath([string]$value) {
     if ([IO.Path]::DirectorySeparatorChar -eq '\') {
         return $value -match '^(?:[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+)'
@@ -212,6 +473,7 @@ $verifyTrx = Join-Path $publicDirectory 'hu-035-verify.trx'
 $startedAt = [DateTimeOffset]::UtcNow
 $stage = 'PROVISION'
 $result = 'FAILED'
+$referenceDiagnostic = @{ Failed = $false; StartedAt = $null; EndedAt = $null }
 $environmentNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 New-Item -ItemType Directory -Path $privateDirectory, $publicDirectory | Out-Null
 
@@ -280,6 +542,9 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
     [Environment]::SetEnvironmentVariable('SGOL_HU035_AMD64_TESTS', 'true', 'Process')
 
     $stage = 'REFERENCE'
+    . Invoke-Hu035Reference -State $referenceDiagnostic -Action {
+    $referenceDiagnostic.Container = $containers[2]
+    $referenceDiagnostic.Path = Join-Path $publicDirectory 'hu-035-server-diagnostic.json'
     & dotnet test (Join-Path $repositoryRoot 'tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj') `
         --configuration Release --no-restore -p:SGOL_HU035_AMD64_TESTS=true --filter 'Category=Hu035Amd64' `
         --logger "trx;LogFileName=$prepareTrx"
@@ -290,6 +555,7 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
     if ($descriptor.kind -ne 'SGOL_HU035_AMD64_DESCRIPTOR' -or
         $descriptor.expectedMigration -ne $expectedMigration -or $descriptor.cases.Count -ne 18) {
         throw 'HU-035 descriptor is invalid or the approved matrix is incomplete.'
+    }
     }
 
     $stage = 'REFERENCE_READY'
@@ -402,6 +668,8 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
     $result = 'SUCCEEDED'
 }
 finally {
+    # Only initialized state and a literal block are evaluated before entering the guard.
+    . Invoke-Hu035Finalization -State $referenceDiagnostic -Cleanup {
     $cleanupFailed = $false
     foreach ($container in $allCleanupContainers) {
         & docker container inspect $container *> $null
@@ -443,6 +711,7 @@ finally {
         'SGOL_HU035_AMD64_TESTS','SGOL_HU035_CASE','SGOL_HU035_REFERENCE_MANIFEST_URI',
         'SGOL_HU035_RESTORE_EVIDENCE_PATH','Continuity__ReplicaManifestUri')) {
         [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+    }
     }
 }
 
