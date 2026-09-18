@@ -21,6 +21,10 @@ function Slice([string]$text, [string]$start, [string]$end) {
 }
 $provisionAst = Read-Ast (Join-Path $root 'scripts/operations/new-tech-ops-synthetic-environment.ps1')
 $gateAst = Read-Ast (Join-Path $root 'scripts/operations/invoke-hu-035-amd64-gate.ps1')
+$gateText = $gateAst.Extent.Text
+Assert-Test ($gateText.Contains("`$ageContent = `$wrapperTemplate.Replace('docker run --rm --platform',")) 'age wrapper derived from approved template'
+Assert-Test ($gateText.Contains("'docker run --rm --interactive --platform'")) 'age wrapper keeps stdin attached'
+Assert-Test (([regex]::Matches($gateText, '--interactive')).Count -eq 1) 'interactive stdin limited to age wrapper'
 $provisionText = $provisionAst.Extent.Text
 foreach ($name in @('Assert-DockerSuccess','Get-PublishedPort','Get-ContainerAddress','Set-ProvisionEnvironment')) {
     $function = $provisionAst.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)

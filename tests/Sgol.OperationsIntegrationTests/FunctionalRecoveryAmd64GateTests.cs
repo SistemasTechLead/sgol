@@ -357,6 +357,55 @@ public sealed class FunctionalRecoveryAmd64GateTests
             (_, _) => Task.CompletedTask,
             CancellationToken.None);
         Assert.Equal(FunctionalSnapshotSchema.Tables.Length, snapshot.Snapshot.Tables.Count);
+
+        var failureConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Sgol"] = connectionString,
+            ["Backup:PostgreSql:ConnectionString"] = connectionString,
+            ["Backup:Storage:Endpoint"] = "http://127.0.0.1:8333",
+            ["Backup:Storage:Region"] = "synthetic",
+            ["Backup:Storage:AccessKey"] = "backup-access",
+            ["Backup:Storage:SecretKey"] = "backup-secret",
+            ["Backup:Storage:AllowInsecureTransport"] = "true",
+            ["Backup:MaximumAttempts"] = "3",
+            ["Backup:StorageTimeoutSeconds"] = "60",
+            ["Backup:Storage:Bucket"] = "backup-bucket",
+            ["Backup:Storage:Prefix"] = "backups/v1",
+            ["Backup:Encryption:Recipient"] = "age1" + new string('q', 32),
+            ["Backup:PgDumpPath"] = Path.Combine(Path.GetTempPath(), "pg_dump"),
+            ["Backup:AgePath"] = Path.Combine(Path.GetTempPath(), "age"),
+            ["Backup:ProcessTimeoutSeconds"] = "60",
+            ["Replica:MaximumAttempts"] = "3",
+            ["Replica:TimeoutSeconds"] = "60",
+            ["Replica:BatchSize"] = "500",
+            ["Replica:Source:Endpoint"] = "http://127.0.0.1:8333",
+            ["Replica:Source:Region"] = "synthetic",
+            ["Replica:Source:AccessKey"] = "source-access",
+            ["Replica:Source:SecretKey"] = "source-secret",
+            ["Replica:Source:AllowInsecureTransport"] = "true",
+            ["Replica:Destination:Endpoint"] = "http://127.0.0.1:9333",
+            ["Replica:Destination:Region"] = "synthetic",
+            ["Replica:Destination:AccessKey"] = "destination-access",
+            ["Replica:Destination:SecretKey"] = "destination-secret",
+            ["Replica:Destination:AllowInsecureTransport"] = "true",
+            ["Replica:Source:QuarantineBucket"] = "source-quarantine",
+            ["Replica:Source:CleanBucket"] = "source-clean",
+            ["Replica:Destination:QuarantineBucket"] = "destination-quarantine",
+            ["Replica:Destination:CleanBucket"] = "destination-clean",
+            ["Replica:Destination:ManifestBucket"] = "manifest-bucket",
+            ["Replica:Destination:ManifestPrefix"] = "objects/v1",
+            ["Continuity:ReplicaManifestUri"] = "s3://manifest-bucket/objects/v1/synthetic.json",
+            ["SGOL_REVISION"] = new string('a', 40),
+            ["SGOL_IMAGE_DIGEST"] = "sha256:" + new string('b', 64)
+        }).Build();
+        var operations = new FunctionalRecoveryOperations(
+            failureConfiguration, new IOExceptionBackupPipeline(), TimeProvider.System);
+        var failure = await Assert.ThrowsAnyAsync<Exception>(() => operations.CaptureReferenceAsync(
+            Guid.Parse("018f4f4c-2df3-7c10-8f20-102030405061"), CancellationToken.None));
+        Assert.Equal("OperationsReferenceCaptureException", failure.GetType().Name);
+        Assert.Equal("REFERENCE_EXPORT_BACKUP_IO_ERROR",
+            failure.GetType().GetProperty("ErrorCode")!.GetValue(failure));
+        Assert.Null(failure.InnerException);
     }
 
     [Fact]
@@ -1354,6 +1403,23 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
         public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
             FailLater<int>(error);
+    }
+
+    private sealed class IOExceptionBackupPipeline : IBackupProcessPipeline
+    {
+        public Task<BackupProcessResult> CreateEncryptedDumpAsync(
+            BackupOptions options, string outputPath, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<BackupProcessResult> CreateEncryptedDumpFromSnapshotAsync(
+            BackupOptions options, string outputPath, string postgreSqlSnapshotId,
+            CancellationToken cancellationToken) =>
+            throw new IOException("private path");
+
+        public Task<RestoreProcessResult> VerifyAndRestoreAsync(
+            string agePath, string pgRestorePath, string encryptedPath, string identity,
+            NpgsqlConnectionStringBuilder destination, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private static T InvokeObjectReplica<T>(string methodName, params object?[] arguments)

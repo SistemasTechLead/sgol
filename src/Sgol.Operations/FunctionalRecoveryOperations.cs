@@ -49,15 +49,9 @@ public sealed class FunctionalRecoveryOperations(
                 async (snapshotId, token) =>
                 {
                     stage = "EXPORT_BACKUP";
-                    try
-                    {
-                        process = await processPipeline.CreateEncryptedDumpFromSnapshotAsync(
-                            options, encryptedPath, snapshotId, token);
-                    }
-                    finally
-                    {
-                        stage = "CAPTURE_SNAPSHOT";
-                    }
+                    process = await processPipeline.CreateEncryptedDumpFromSnapshotAsync(
+                        options, encryptedPath, snapshotId, token);
+                    stage = "CAPTURE_SNAPSHOT";
                 }, cancellationToken);
             if (process is null) throw new OperationsIntegrityException("REFERENCE_BACKUP_SNAPSHOT_MISMATCH");
             stage = "PUT_BACKUP";

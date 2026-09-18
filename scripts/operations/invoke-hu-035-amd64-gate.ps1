@@ -633,7 +633,8 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
     $pgDumpContent = $wrapperTemplate.Replace('__NETWORK__', $networkName).Replace(
         '__RUNTIME__', $runtimePath).Replace('__IMAGE__', $ImageRef).Replace(
         '__COMMAND__', '/usr/bin/pg_dump')
-    $ageContent = $wrapperTemplate.Replace('__NETWORK__', $networkName).Replace(
+    $ageContent = $wrapperTemplate.Replace('docker run --rm --platform',
+        'docker run --rm --interactive --platform').Replace('__NETWORK__', $networkName).Replace(
         '__RUNTIME__', $runtimePath).Replace('__IMAGE__', $ImageRef).Replace(
         '__COMMAND__', '/usr/bin/age')
     [IO.File]::WriteAllText($pgDumpWrapper, $pgDumpContent, $utf8WithoutBom)

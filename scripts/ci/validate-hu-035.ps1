@@ -346,6 +346,12 @@ if ($amd64Test.IndexOf('FunctionalSnapshotReader.CaptureReferenceAsync(', [Strin
     $amd64Test.IndexOf('FunctionalSnapshotSchema.Tables.Length', [StringComparison]::Ordinal) -lt 0) {
     throw 'HU-035 PostgreSQL fixture must execute the real functional snapshot reader.'
 }
+$gate = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'scripts/operations/invoke-hu-035-amd64-gate.ps1')
+if ($gate.IndexOf("`$ageContent = `$wrapperTemplate.Replace('docker run --rm --platform',", [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf("'docker run --rm --interactive --platform'", [StringComparison]::Ordinal) -lt 0 -or
+    ([regex]::Matches($gate, '--interactive')).Count -ne 1) {
+    throw 'HU-035 age wrapper must keep stdin attached without changing the pg_dump wrapper.'
+}
 $workflow = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.github/workflows/pull-request.yml')
 if ($workflow.IndexOf('invoke-hu-035-amd64-gate.ps1', [StringComparison]::Ordinal) -lt 0 -or
     $workflow.IndexOf('sgol-hu-035-amd64/evidence-public/**', [StringComparison]::Ordinal) -lt 0) {
