@@ -521,9 +521,10 @@ public sealed class RecoveryReferenceRequestedOutboxHandler(
     {
         var id = context.Data.GetProperty("reconciliationId").GetGuid();
         var scheduledFor = context.Data.GetProperty("scheduledFor").GetDateTimeOffset();
+        var checkpoint = JsonSerializer.Serialize(new { reconciliationId = id });
         await using var scope = scopeFactory.CreateAsyncScope();
         var result = await scope.ServiceProvider.GetRequiredService<ScheduledJobRunner>().RunAsync(
-            "CAPTURE_RECOVERY_REFERENCE", scheduledFor, context.CorrelationId, id.ToString("D"),
+            "CAPTURE_RECOVERY_REFERENCE", scheduledFor, context.CorrelationId, checkpoint,
             cancellationToken);
         if (result is ScheduledJobResult.Failed or ScheduledJobResult.LockBusy)
         {

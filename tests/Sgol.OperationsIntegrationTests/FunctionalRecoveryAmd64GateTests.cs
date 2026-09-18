@@ -228,6 +228,21 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
     [Fact]
     [Trait("Category", "Hu035Contract")]
+    public void RecoveryReferenceCheckpointRequiresClosedJsonObject()
+    {
+        var reconciliationId = Guid.Parse("018f4f4c-2df3-7c10-8f20-102030405060");
+        Assert.True(TryReadRecoveryReferenceCheckpoint(
+            JsonSerializer.Serialize(new { reconciliationId }), out var parsed));
+        Assert.Equal(reconciliationId, parsed);
+
+        Assert.False(TryReadRecoveryReferenceCheckpoint(reconciliationId.ToString("D"), out _));
+        Assert.False(TryReadRecoveryReferenceCheckpoint(
+            JsonSerializer.Serialize(new { reconciliationId, unexpected = true }), out _));
+        Assert.False(TryReadRecoveryReferenceCheckpoint("{not-json", out _));
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
     public void SyntheticEvidenceMatchesPersistenceContract()
     {
         SyntheticEvidenceFixture.AssertContract();
@@ -376,6 +391,15 @@ public sealed class FunctionalRecoveryAmd64GateTests
             if (outboxResult != OutboxProcessResult.Processed)
                 throw new InvalidOperationException(await CaptureReferenceDispatchFailureAsync(
                     context, created.ReconciliationId, testCase.Name, outboxResult));
+            var scheduledRun = await context.ScheduledJobRuns.AsNoTracking()
+                .Where(item => item.JobName == CaptureRecoveryReferenceJob.JobName)
+                .OrderByDescending(item => item.ScheduledFor)
+                .FirstAsync();
+            using var checkpoint = JsonDocument.Parse(scheduledRun.Checkpoint!);
+            Assert.Equal(JsonValueKind.Object, checkpoint.RootElement.ValueKind);
+            Assert.Single(checkpoint.RootElement.EnumerateObject());
+            Assert.Equal(created.ReconciliationId,
+                checkpoint.RootElement.GetProperty("reconciliationId").GetGuid());
             var latest = await context.RecoveryReconciliationEvents.AsNoTracking()
                 .Where(item => item.ReconciliationId == created.ReconciliationId)
                 .OrderByDescending(item => item.Sequence).FirstAsync();
@@ -909,6 +933,18 @@ public sealed class FunctionalRecoveryAmd64GateTests
         "RECOVERY_STATE_INVALID" => "RECOVERY_STATE_INVALID",
         _ => "UNKNOWN"
     };
+
+    private static bool TryReadRecoveryReferenceCheckpoint(string checkpoint, out Guid reconciliationId)
+    {
+        var method = typeof(CaptureRecoveryReferenceJob).GetMethod(
+            "TryReadReconciliationId",
+            BindingFlags.Static | BindingFlags.NonPublic) ??
+            throw new InvalidOperationException("Recovery reference checkpoint parser is missing.");
+        object?[] arguments = [checkpoint, Guid.Empty];
+        var result = (bool)method.Invoke(null, arguments)!;
+        reconciliationId = (Guid)arguments[1]!;
+        return result;
+    }
 
     private static string NormalizeReplicaStage(string? value) => value switch
     {

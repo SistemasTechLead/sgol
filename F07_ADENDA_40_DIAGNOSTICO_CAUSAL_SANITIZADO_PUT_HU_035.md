@@ -38,6 +38,8 @@ El responsable aprobó el 2026-09-18 ampliar esta misma adenda después de que e
 
 Los valores no reconocidos se reducen a `UNKNOWN`; la ausencia comprobada se expresa como `ABSENT` o `NONE`. No se publican identificadores, checkpoints, timestamps, payloads, mensajes, excepciones, endpoints ni secretos. Si la consulta diagnóstica falla, prevalece una salida cerrada con `UNKNOWN`; el resultado original del procesador no se modifica ni se reintenta por esta captura.
 
+El run `35386054702` sobre el SHA exacto `e4f64b7abe2174f36d7836aabd7481339d42652a` demostró `CASE=positive`, `OUTBOX_RESULT=RETRY_SCHEDULED`, `OUTBOX_ERROR=RECOVERY_REFERENCE_JOB_FAILED`, `JOB_STATUS=ABSENT` y `JOB_ERROR=NONE`. La correlación con el contrato persistente demuestra que el handler entregaba un UUID plano como checkpoint mientras `CK_scheduled_job_run_checkpoint` exige un objeto JSON. La inserción se revertía antes de dejar fila del job y el runner devolvía fallo al outbox. La corrección fiel serializa únicamente `reconciliationId` dentro de un objeto JSON y exige ese mismo esquema cerrado al leerlo; no altera la semántica del despacho, sus reintentos ni sus estados.
+
 ## Invariantes conservadas
 
 No cambian producción, topología, ciclo de vida, imagen, configuración, permisos, credenciales, PUT/GET/HEAD, streams, objetos, sondas S3, outbox, job, timeouts, reintentos, limpieza, matriz de 18 casos, RPO/RTO, condiciones de aprobación ni workflow. Las consultas diagnósticas sólo ocurren después de que REFERENCE ya falló.

@@ -135,6 +135,21 @@ foreach ($required in @('positive','identity_missing','identity_additional','lin
     }
 }
 
+$continuityPersistence = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'src/Sgol.Web/Infrastructure/Persistence/Continuity/EfRecoveryReconciliationService.cs')
+$operationsJobs = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/OperationsJobs.cs')
+foreach ($required in @(
+    'JsonSerializer.Serialize(new { reconciliationId = id })',
+    'TryReadReconciliationId(context.Checkpoint, out var reconciliationId)',
+    'root.EnumerateObject().Count() == 1',
+    'root.TryGetProperty("reconciliationId", out var value)'
+)) {
+    if ($continuityPersistence.IndexOf($required, [StringComparison]::Ordinal) -lt 0 -and
+        $operationsJobs.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "HU-035 recovery reference checkpoint contract is missing: $required"
+    }
+}
+
 $objectReplica = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/ObjectReplica.cs')
 $replicaOperations = @(
     'LIST_SOURCE_OBJECTS',

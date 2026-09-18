@@ -21,7 +21,7 @@ Use los artefactos de `TECH-OPS-001`: imagen OCI inmutable `linux/amd64`, backup
 ## Camino positivo
 
 1. Dirección ejecuta `POST /api/v1/continuity/reconciliations` con `Idempotency-Key` UUID y motivo sintético. Conserve el `reconciliationId` y el ETag.
-2. Ejecute el Worker outbox. El evento `RECOVERY_REFERENCE_REQUESTED` invoca mediante `ScheduledJobRunner` el job `CAPTURE_RECOVERY_REFERENCE`, con advisory lock estable y checkpoint igual al ID. La captura usa `REPEATABLE READ, READ ONLY`, UTC, `pg_export_snapshot()` y `pg_dump --snapshot` dentro de la misma transacción.
+2. Ejecute el Worker outbox. El evento `RECOVERY_REFERENCE_REQUESTED` invoca mediante `ScheduledJobRunner` el job `CAPTURE_RECOVERY_REFERENCE`, con advisory lock estable y checkpoint JSON objeto que contiene únicamente `reconciliationId`. La captura usa `REPEATABLE READ, READ ONLY`, UTC, `pg_export_snapshot()` y `pg_dump --snapshot` dentro de la misma transacción.
 3. Verifique que el estado sea `REFERENCE_CAPTURING`. Un fallo de configuración, integridad o cardinalidad debe producir `FAILED`, nunca referencia lista.
 4. Tras disponer de los URI privados de referencia, backup y réplica, complete su asociación:
 
