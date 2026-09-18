@@ -347,6 +347,16 @@ public sealed class FunctionalRecoveryAmd64GateTests
         Assert.Equal(2, await context.PlanVersions.CountAsync());
         Assert.Equal(2, await context.ValidationDecisionVersions.CountAsync());
         Assert.Single(await context.FileObjects.ToArrayAsync());
+
+        var snapshot = await FunctionalSnapshotReader.CaptureReferenceAsync(
+            connectionString,
+            Guid.Parse("018f4f4c-2df3-7c10-8f20-102030405060"),
+            BranchScope.LorettaId,
+            new string('a', 40),
+            "sha256:" + new string('b', 64),
+            (_, _) => Task.CompletedTask,
+            CancellationToken.None);
+        Assert.Equal(FunctionalSnapshotSchema.Tables.Length, snapshot.Snapshot.Tables.Count);
     }
 
     [Fact]

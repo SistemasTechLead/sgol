@@ -336,6 +336,16 @@ if ($functionalRecovery.IndexOf('internal sealed class OperationsReferenceCaptur
         [StringComparison]::Ordinal) -ge 0) {
     throw 'HU-035 reference capture classifier must not retain an original exception.'
 }
+$snapshotReader = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/FunctionalSnapshotReader.cs')
+if ($snapshotReader.IndexOf('SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\" DESC LIMIT 1',
+        [StringComparison]::Ordinal) -lt 0 -or
+    $snapshotReader.IndexOf('SELECT migration_id FROM', [StringComparison]::Ordinal) -ge 0) {
+    throw 'HU-035 snapshot reader must query the exact EF migrations history identifier.'
+}
+if ($amd64Test.IndexOf('FunctionalSnapshotReader.CaptureReferenceAsync(', [StringComparison]::Ordinal) -lt 0 -or
+    $amd64Test.IndexOf('FunctionalSnapshotSchema.Tables.Length', [StringComparison]::Ordinal) -lt 0) {
+    throw 'HU-035 PostgreSQL fixture must execute the real functional snapshot reader.'
+}
 $workflow = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.github/workflows/pull-request.yml')
 if ($workflow.IndexOf('invoke-hu-035-amd64-gate.ps1', [StringComparison]::Ordinal) -lt 0 -or
     $workflow.IndexOf('sgol-hu-035-amd64/evidence-public/**', [StringComparison]::Ordinal) -lt 0) {

@@ -91,7 +91,7 @@ public sealed class FunctionalSnapshotReader
         CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand(
-            "SELECT migration_id FROM \"__EFMigrationsHistory\" ORDER BY migration_id DESC LIMIT 1", connection, transaction);
+            "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\" DESC LIMIT 1", connection, transaction);
         var migration = (string?)await command.ExecuteScalarAsync(cancellationToken);
         if (!string.Equals(migration, ExpectedLatestMigration, StringComparison.Ordinal))
             throw new RecoveryContractException("REFERENCE_VERSION_UNSUPPORTED");
