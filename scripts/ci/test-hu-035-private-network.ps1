@@ -124,6 +124,7 @@ try {
         Assert-Test ($runs.Count -eq 2) 'two storage starts'
         foreach ($pair in @(@($runs[0], $sourceContainer), @($runs[1], $destinationContainer))) {
             Assert-Test ($pair[0].Contains("--network|$expectedNetwork|")) 'primary network from startup'
+            Assert-Test ($pair[0].Contains("|mini|-ip=$($pair[1])|-ip.bind=0.0.0.0|")) 'stable advertised alias with unrestricted bind'
             if ($StorageNetworkName) { Assert-Test ($pair[0].Contains("--network-alias|$($pair[1])|")) 'exact consumer alias' }
             else { Assert-Test (-not $pair[0].Contains('--network-alias')) 'default has no new aliases' }
         }

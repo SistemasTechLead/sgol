@@ -156,6 +156,9 @@ function ConvertTo-Hu035RuntimeSummary {
         }
 
         $finalAddress = if ($null -eq $finalProperty) { '' } else { [string]$finalProperty.Value.IPAddress }
+        $finalAliases = if ($null -eq $finalProperty) { @() } else {
+            @($finalProperty.Value.Aliases | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        }
         $advertised = @($nodes | ForEach-Object {
             $value = [string]$_.Url
             if ($value -match '^(?<host>[^:]+):\d+$') { $Matches['host'] }
@@ -163,7 +166,9 @@ function ConvertTo-Hu035RuntimeSummary {
         if ([string]::IsNullOrWhiteSpace($finalAddress) -or $advertised.Count -eq 0) {
             $summary.advertisedAddressScope = 'UNRESOLVED'
         }
-        elseif (@($advertised | Where-Object { $_ -cne $finalAddress }).Count -eq 0) {
+        elseif (@($advertised | Where-Object {
+                $_ -cne $finalAddress -and $finalAliases -cnotcontains $_
+            }).Count -eq 0) {
             $summary.advertisedAddressScope = 'FINAL_NETWORK'
         }
         else { $summary.advertisedAddressScope = 'OUTSIDE_FINAL_NETWORK' }

@@ -16,7 +16,7 @@ No use producción, la única copia, credenciales reales ni archivos dentro de `
 
 Prepare personas, cuentas, historia laboral y de roles, configuración versionada, semana/plan/obligaciones, asignaciones, ejecución, evidencia de archivo y estructurada, sustitución, validación, idempotencia, outbox, avisos y auditoría. Incluya por lo menos dos versiones y dos vínculos por agregado relevante. Los objetos deben estar en buckets S3-compatible privados sintéticos y tener tamaño y SHA-256 coherentes con `file_object`.
 
-Use los artefactos de `TECH-OPS-001`: imagen OCI inmutable `linux/amd64`, backup portable cifrado, manifiesto de réplica `COMPLETE`, dos almacenamientos S3-compatible y restore técnico sobre PostgreSQL nuevo/vacío. El restore debe producir `SGOL_TECHNICAL_RESTORE_EVIDENCE` con `startedAt`, `completedAt`, duración monotónica, digest de imagen y hashes de backup/manifiesto.
+Use los artefactos de `TECH-OPS-001`: imagen OCI inmutable `linux/amd64`, backup portable cifrado, manifiesto de réplica `COMPLETE`, dos almacenamientos S3-compatible y restore técnico sobre PostgreSQL nuevo/vacío. En el simulacro HU-035, ambos SeaweedFS arrancan y permanecen en la red privada final; anuncian su alias estable de esa red aunque durante el aprovisionamiento exista una conexión temporal adicional. El restore debe producir `SGOL_TECHNICAL_RESTORE_EVIDENCE` con `startedAt`, `completedAt`, duración monotónica, digest de imagen y hashes de backup/manifiesto.
 
 ## Camino positivo
 

@@ -40,12 +40,18 @@ Los valores no reconocidos se reducen a `UNKNOWN`; la ausencia comprobada se exp
 
 El run `35386054702` sobre el SHA exacto `e4f64b7abe2174f36d7836aabd7481339d42652a` demostró `CASE=positive`, `OUTBOX_RESULT=RETRY_SCHEDULED`, `OUTBOX_ERROR=RECOVERY_REFERENCE_JOB_FAILED`, `JOB_STATUS=ABSENT` y `JOB_ERROR=NONE`. La correlación con el contrato persistente demuestra que el handler entregaba un UUID plano como checkpoint mientras `CK_scheduled_job_run_checkpoint` exige un objeto JSON. La inserción se revertía antes de dejar fila del job y el runner devolvía fallo al outbox. La corrección fiel serializa únicamente `reconciliationId` dentro de un objeto JSON y exige ese mismo esquema cerrado al leerlo; no altera la semántica del despacho, sus reintentos ni sus estados.
 
+## Causa demostrada del PUT y corrección aprobada
+
+El run `35388790792` sobre el SHA exacto `ad8f13abcc31449a2e025b4386ad546961ef9e9a` superó el despacho `REFERENCE` corregido y volvió a reproducir `REPLICATE_CLEAN / PUT_DESTINATION / HTTP 500 / InternalError`. La captura sanitizada demostró simultáneamente red `FINAL_ONLY`, nodo `PRESENT`, capacidad `POSITIVE` y dirección anunciada `OUTSIDE_FINAL_NETWORK`. El aprovisionamiento iniciaba ambos SeaweedFS en la red privada final, añadía temporalmente `bridge`, reiniciaba los procesos mientras ambas redes estaban presentes y retiraba después `bridge`. Como `weed mini` seleccionaba automáticamente la identidad anunciada al reiniciar, conservaba una dirección de la red temporal ya retirada; el PUT S3 podía alcanzar el frontend, pero éste no podía completar la escritura contra la dirección anunciada del nodo de datos.
+
+El responsable aprobó el 2026-09-18 la corrección mínima: conservar el alias ya creado en la red final como identidad anunciada de cada SeaweedFS y mantener el bind en `0.0.0.0`. El diagnóstico considera perteneciente a la red final tanto su dirección como uno de sus aliases exactos. No se añade red, reinicio, servicio, dependencia, credencial, permiso, timeout o reintento, ni cambia ninguna operación PUT/GET/HEAD.
+
 ## Invariantes conservadas
 
-No cambian producción, topología, ciclo de vida, imagen, configuración, permisos, credenciales, PUT/GET/HEAD, streams, objetos, sondas S3, outbox, job, timeouts, reintentos, limpieza, matriz de 18 casos, RPO/RTO, condiciones de aprobación ni workflow. Las consultas diagnósticas sólo ocurren después de que REFERENCE ya falló.
+No cambian producción, topología, ciclo de vida, imagen, permisos, credenciales, PUT/GET/HEAD, streams, objetos, sondas S3, outbox, job, timeouts, reintentos, limpieza, matriz de 18 casos, RPO/RTO, condiciones de aprobación ni workflow. La única configuración corregida fija la identidad anunciada a un alias que ya forma parte de la red privada final. Las consultas diagnósticas sólo ocurren después de un fallo real.
 
 La validación exige sintaxis PowerShell, pruebas puras sobre funciones reales, categorías exactas, límites de proceso, ausencia de datos privados, conservación del fallo original y ejecución literal de la limpieza existente. Se ejecutan además el validador HU-035 y `git diff --check`.
 
 ## Uso y límite de decisión
 
-Se autoriza publicar esta instrumentación únicamente en `codex/hu-035` y ejecutar una vez el gate integral del PR #55 sobre su SHA exacto. El resultado diagnóstico no acepta HU-035 ni habilita merge. Si la evidencia exige cambiar alguno de los invariantes anteriores, se presentará la decisión contractual mínima antes de corregir código.
+Se autoriza publicar esta instrumentación y la corrección causal únicamente en `codex/hu-035` y ejecutar una vez el gate integral del PR #55 sobre su SHA exacto. El resultado no acepta HU-035 ni habilita merge por sí solo. Si la evidencia exige cambiar alguno de los invariantes anteriores, se presentará la decisión contractual mínima antes de modificarlo.

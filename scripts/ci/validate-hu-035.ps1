@@ -124,6 +124,13 @@ foreach ($required in @('AMD64_LINUX_HOST_REQUIRED', 'SGOL_HU035_AMD64_GATE',
 if ($amd64Gate.IndexOf('docker port', [StringComparison]::Ordinal) -ge 0) {
     throw 'HU-035 AMD64 gate must not depend on a published S3 port after private-network isolation.'
 }
+$syntheticEnvironment = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'scripts/operations/new-tech-ops-synthetic-environment.ps1')
+foreach ($required in @('"-ip=$sourceContainer"', '"-ip=$destinationContainer"', "'-ip.bind=0.0.0.0'")) {
+    if ($syntheticEnvironment.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "HU-035 storage advertised-address invariant is missing: $required"
+    }
+}
 $amd64Test = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'tests/Sgol.OperationsIntegrationTests/FunctionalRecoveryAmd64GateTests.cs')
 foreach ($required in @('positive','identity_missing','identity_additional','link_missing','link_altered',

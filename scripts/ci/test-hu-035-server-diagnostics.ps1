@@ -129,6 +129,11 @@ $runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture $networksFinal $top
 Assert-True ($runtime.captureStatus -eq 'OK' -and $runtime.networkState -eq 'FINAL_ONLY' -and
     $runtime.advertisedAddressScope -eq 'FINAL_NETWORK' -and $runtime.dataNodeRegistration -eq 'PRESENT' -and
     $runtime.writableCapacity -eq 'POSITIVE') 'FINAL_RUNTIME_STATE_MISCLASSIFIED'
+$networksFinalAlias = '{"sgol-hu035-0123456789ab-private":{"IPAddress":"10.23.0.3","Aliases":["sgol-tech-ops-s3-destination"]}}'
+$topologyFinalAlias = '{"Topology":{"Free":944,"DataCenters":[{"Racks":[{"DataNodes":[{"Url":"sgol-tech-ops-s3-destination:9340"}]}]}]}}'
+$runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture $networksFinalAlias $topologyFinalAlias)
+Assert-True ($runtime.networkState -eq 'FINAL_ONLY' -and
+    $runtime.advertisedAddressScope -eq 'FINAL_NETWORK') 'FINAL_ALIAS_RUNTIME_STATE_MISCLASSIFIED'
 $networksTransient = '{"sgol-hu035-0123456789ab-private":{"IPAddress":"10.23.0.3"},"bridge":{"IPAddress":"172.17.0.4"}}'
 $topologyOutside = '{"Topology":{"Free":0,"DataCenters":[{"Racks":[{"DataNodes":[{"Url":"172.17.0.4:9340"}]}]}]}}'
 $runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture $networksTransient $topologyOutside)
