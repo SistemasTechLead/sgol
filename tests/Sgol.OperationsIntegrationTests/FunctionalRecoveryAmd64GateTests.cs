@@ -228,6 +228,32 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
     [Fact]
     [Trait("Category", "Hu035Contract")]
+    public void ReferenceCaptureFailureExposesOnlyClosedSanitizedDiagnostics()
+    {
+        var diagnostic = FormatReferenceCaptureFailure(
+            "positive",
+            ScheduledJobStatuses.Succeeded,
+            null,
+            RecoveryReconciliationStatuses.Failed,
+            "UNEXPECTED_RECONCILIATION_FAILURE");
+
+        Assert.Equal(
+            "HU035_REFERENCE_CAPTURE_FAILED:CASE=positive:JOB_STATUS=SUCCEEDED:JOB_ERROR=NONE:" +
+            "RECONCILIATION_STATUS=FAILED:RECONCILIATION_ERROR=UNEXPECTED_RECONCILIATION_FAILURE",
+            diagnostic);
+
+        const string sentinel = "https://private.invalid/AccessKey=synthetic";
+        var sanitized = FormatReferenceCaptureFailure(sentinel, sentinel, sentinel, sentinel, sentinel);
+        Assert.Equal(
+            "HU035_REFERENCE_CAPTURE_FAILED:CASE=UNKNOWN:JOB_STATUS=UNKNOWN:JOB_ERROR=UNKNOWN:" +
+            "RECONCILIATION_STATUS=UNKNOWN:RECONCILIATION_ERROR=UNKNOWN",
+            sanitized);
+        Assert.DoesNotContain("private.invalid", sanitized, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic", sanitized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
     public void RecoveryReferenceCheckpointRequiresClosedJsonObject()
     {
         var reconciliationId = Guid.Parse("018f4f4c-2df3-7c10-8f20-102030405060");
@@ -403,7 +429,9 @@ public sealed class FunctionalRecoveryAmd64GateTests
             var latest = await context.RecoveryReconciliationEvents.AsNoTracking()
                 .Where(item => item.ReconciliationId == created.ReconciliationId)
                 .OrderByDescending(item => item.Sequence).FirstAsync();
-            Assert.Equal(RecoveryReconciliationStatuses.ReferenceCapturing, latest.Status);
+            if (latest.Status != RecoveryReconciliationStatuses.ReferenceCapturing)
+                throw new InvalidOperationException(FormatReferenceCaptureFailure(
+                    testCase.Name, scheduledRun.Status, scheduledRun.Error, latest.Status, latest.ErrorCode));
             var prefix = $"{backupOptions.Prefix}/continuity/v1/{created.ReconciliationId:D}";
             descriptors.Add(new
             {
@@ -884,6 +912,18 @@ public sealed class FunctionalRecoveryAmd64GateTests
         $"JOB_STATUS={NormalizeReferenceJobStatus(jobStatus)}:" +
         $"JOB_ERROR={NormalizeReferenceJobError(jobError)}";
 
+    private static string FormatReferenceCaptureFailure(
+        string? caseName,
+        string? jobStatus,
+        string? jobError,
+        string? reconciliationStatus,
+        string? reconciliationError) =>
+        $"HU035_REFERENCE_CAPTURE_FAILED:CASE={NormalizeReferenceCase(caseName)}:" +
+        $"JOB_STATUS={NormalizeReferenceJobStatus(jobStatus)}:" +
+        $"JOB_ERROR={NormalizeReferenceJobError(jobError)}:" +
+        $"RECONCILIATION_STATUS={NormalizeReferenceReconciliationStatus(reconciliationStatus)}:" +
+        $"RECONCILIATION_ERROR={NormalizeReferenceReconciliationError(reconciliationError)}";
+
     private static string NormalizeReferenceCase(string? value) => value switch
     {
         "positive" or "identity_missing" or "identity_additional" or "link_missing" or "link_altered" or
@@ -931,6 +971,27 @@ public sealed class FunctionalRecoveryAmd64GateTests
         "RECOVERY_RECONCILIATION_ID_INVALID" => "RECOVERY_RECONCILIATION_ID_INVALID",
         "RECOVERY_RECONCILIATION_NOT_FOUND" => "RECOVERY_RECONCILIATION_NOT_FOUND",
         "RECOVERY_STATE_INVALID" => "RECOVERY_STATE_INVALID",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceReconciliationStatus(string? value) => value switch
+    {
+        RecoveryReconciliationStatuses.Requested => RecoveryReconciliationStatuses.Requested,
+        RecoveryReconciliationStatuses.ReferenceCapturing => RecoveryReconciliationStatuses.ReferenceCapturing,
+        RecoveryReconciliationStatuses.Failed => RecoveryReconciliationStatuses.Failed,
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceReconciliationError(string? value) => value switch
+    {
+        null => "NONE",
+        "RECONCILIATION_ID_INVALID" => "RECONCILIATION_ID_INVALID",
+        "REFERENCE_BACKUP_SNAPSHOT_MISMATCH" => "REFERENCE_BACKUP_SNAPSHOT_MISMATCH",
+        "REPLICA_MANIFEST_URI_INVALID" => "REPLICA_MANIFEST_URI_INVALID",
+        "BACKUP_EMPTY" => "BACKUP_EMPTY",
+        "REPLICA_MANIFEST_INVALID" => "REPLICA_MANIFEST_INVALID",
+        "RECONCILIATION_IMMUTABLE_CONFLICT" => "RECONCILIATION_IMMUTABLE_CONFLICT",
+        "UNEXPECTED_RECONCILIATION_FAILURE" => "UNEXPECTED_RECONCILIATION_FAILURE",
         _ => "UNKNOWN"
     };
 

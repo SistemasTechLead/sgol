@@ -46,6 +46,8 @@ El run `35388790792` sobre el SHA exacto `ad8f13abcc31449a2e025b4386ad546961ef9e
 
 El responsable aprobó el 2026-09-18 la corrección mínima: conservar el alias ya creado en la red final como identidad anunciada de cada SeaweedFS y mantener el bind en `0.0.0.0`. El diagnóstico considera perteneciente a la red final tanto su dirección como uno de sus aliases exactos. No se añade red, reinicio, servicio, dependencia, credencial, permiso, timeout o reintento, ni cambia ninguna operación PUT/GET/HEAD.
 
+El run `35391823674` sobre el SHA exacto `c86d62b170c68689d18d7755bb72af9433b567c6` confirmó la corrección de red con `FINAL_ONLY / FINAL_NETWORK / PRESENT / POSITIVE`, pero terminó en `REFERENCE` con el evento de reconciliación en `FAILED` después de que el outbox fuera procesado. El artifact no incluyó el código cerrado de ese evento. El responsable aprobó el 2026-09-18 ampliar únicamente el fallo diagnóstico para publicar el caso normalizado, estado/error cerrado de `scheduled_job_run` y estado/error cerrado del evento de reconciliación. Los valores no incluidos en las listas cerradas se reducen a `UNKNOWN`; no se publican excepciones, mensajes, endpoints, identificadores, credenciales ni contenido.
+
 ## Invariantes conservadas
 
 No cambian producción, topología, ciclo de vida, imagen, permisos, credenciales, PUT/GET/HEAD, streams, objetos, sondas S3, outbox, job, timeouts, reintentos, limpieza, matriz de 18 casos, RPO/RTO, condiciones de aprobación ni workflow. La única configuración corregida fija la identidad anunciada a un alias que ya forma parte de la red privada final. Las consultas diagnósticas sólo ocurren después de un fallo real.

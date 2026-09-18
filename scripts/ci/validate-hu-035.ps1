@@ -291,7 +291,10 @@ foreach ($required in @(
     'OUTBOX_RESULT={NormalizeOutboxResult(outboxResult)}',
     'OUTBOX_ERROR={NormalizeReferenceOutboxError(outboxError)}',
     'JOB_STATUS={NormalizeReferenceJobStatus(jobStatus)}',
-    'JOB_ERROR={NormalizeReferenceJobError(jobError)}'
+    'JOB_ERROR={NormalizeReferenceJobError(jobError)}',
+    'HU035_REFERENCE_CAPTURE_FAILED',
+    'RECONCILIATION_STATUS={NormalizeReferenceReconciliationStatus(reconciliationStatus)}',
+    'RECONCILIATION_ERROR={NormalizeReferenceReconciliationError(reconciliationError)}'
 )) {
     if ($amd64Test.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 replica diagnostic gate contract is missing: $required"
