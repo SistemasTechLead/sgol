@@ -303,6 +303,39 @@ foreach ($required in @(
 if ($amd64Test.IndexOf('HTTP={httpStatus}", exception', [StringComparison]::Ordinal) -ge 0) {
     throw 'HU-035 replica diagnostic gate must not attach the original exception.'
 }
+$functionalRecovery = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/FunctionalRecoveryOperations.cs')
+$operationsJobs = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/OperationsJobs.cs')
+foreach ($required in @(
+    'CAPTURE_SNAPSHOT',
+    'EXPORT_BACKUP',
+    'PUT_BACKUP',
+    'PUT_BACKUP_MANIFEST',
+    'READ_REPLICA_MANIFEST',
+    'PUT_REFERENCE_SNAPSHOT',
+    'PUT_REFERENCE_MANIFEST',
+    'S3_INTERNAL_ERROR',
+    'S3_ERROR',
+    'POSTGRESQL_ERROR',
+    'EXTERNAL_PROCESS_ERROR',
+    'IO_ERROR',
+    'UNEXPECTED',
+    'OperationsReferenceCaptureException')) {
+    if ($functionalRecovery.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "HU-035 reference capture classifier token is missing: $required"
+    }
+}
+if ($functionalRecovery.IndexOf('new OperationsReferenceCaptureException($"REFERENCE_{stage}_{classification}")',
+        [StringComparison]::Ordinal) -lt 0 -or
+    $operationsJobs.IndexOf('OperationsReferenceCaptureException reference => reference.ErrorCode',
+        [StringComparison]::Ordinal) -lt 0) {
+    throw 'HU-035 reference capture failure is not persisted with its closed stage and class.'
+}
+if ($functionalRecovery.IndexOf('internal sealed class OperationsReferenceCaptureException(string errorCode) : Exception(errorCode)',
+        [StringComparison]::Ordinal) -lt 0 -or
+    $functionalRecovery.IndexOf('OperationsReferenceCaptureException(string errorCode) : Exception(errorCode,',
+        [StringComparison]::Ordinal) -ge 0) {
+    throw 'HU-035 reference capture classifier must not retain an original exception.'
+}
 $workflow = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.github/workflows/pull-request.yml')
 if ($workflow.IndexOf('invoke-hu-035-amd64-gate.ps1', [StringComparison]::Ordinal) -lt 0 -or
     $workflow.IndexOf('sgol-hu-035-amd64/evidence-public/**', [StringComparison]::Ordinal) -lt 0) {

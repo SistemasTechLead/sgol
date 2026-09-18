@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Reflection;
+using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -250,6 +251,35 @@ public sealed class FunctionalRecoveryAmd64GateTests
             sanitized);
         Assert.DoesNotContain("private.invalid", sanitized, StringComparison.Ordinal);
         Assert.DoesNotContain("synthetic", sanitized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
+    public void ReferenceCaptureFailuresExposeOnlyClosedStageAndClass()
+    {
+        var internalS3 = new AmazonS3Exception("endpoint=https://private.invalid AccessKey=synthetic")
+        {
+            StatusCode = HttpStatusCode.InternalServerError,
+            ErrorCode = "InternalError"
+        };
+        var otherS3 = new AmazonS3Exception("SecretKey=synthetic")
+        {
+            StatusCode = HttpStatusCode.ServiceUnavailable,
+            ErrorCode = "ServiceUnavailable"
+        };
+
+        AssertReferenceCaptureFailure("PUT_BACKUP", internalS3,
+            "REFERENCE_PUT_BACKUP_S3_INTERNAL_ERROR");
+        AssertReferenceCaptureFailure("READ_REPLICA_MANIFEST", otherS3,
+            "REFERENCE_READ_REPLICA_MANIFEST_S3_ERROR");
+        AssertReferenceCaptureFailure("CAPTURE_SNAPSHOT", new NpgsqlException("Password=synthetic"),
+            "REFERENCE_CAPTURE_SNAPSHOT_POSTGRESQL_ERROR");
+        AssertReferenceCaptureFailure("EXPORT_BACKUP", new Win32Exception(2, "private path"),
+            "REFERENCE_EXPORT_BACKUP_EXTERNAL_PROCESS_ERROR");
+        AssertReferenceCaptureFailure("PUT_REFERENCE_SNAPSHOT", new IOException("private path"),
+            "REFERENCE_PUT_REFERENCE_SNAPSHOT_IO_ERROR");
+        AssertReferenceCaptureFailure("PUT_REFERENCE_MANIFEST", new InvalidOperationException("private value"),
+            "REFERENCE_PUT_REFERENCE_MANIFEST_UNEXPECTED");
     }
 
     [Fact]
@@ -982,18 +1012,42 @@ public sealed class FunctionalRecoveryAmd64GateTests
         _ => "UNKNOWN"
     };
 
-    private static string NormalizeReferenceReconciliationError(string? value) => value switch
+    private static string NormalizeReferenceReconciliationError(string? value)
     {
-        null => "NONE",
-        "RECONCILIATION_ID_INVALID" => "RECONCILIATION_ID_INVALID",
-        "REFERENCE_BACKUP_SNAPSHOT_MISMATCH" => "REFERENCE_BACKUP_SNAPSHOT_MISMATCH",
-        "REPLICA_MANIFEST_URI_INVALID" => "REPLICA_MANIFEST_URI_INVALID",
-        "BACKUP_EMPTY" => "BACKUP_EMPTY",
-        "REPLICA_MANIFEST_INVALID" => "REPLICA_MANIFEST_INVALID",
-        "RECONCILIATION_IMMUTABLE_CONFLICT" => "RECONCILIATION_IMMUTABLE_CONFLICT",
-        "UNEXPECTED_RECONCILIATION_FAILURE" => "UNEXPECTED_RECONCILIATION_FAILURE",
-        _ => "UNKNOWN"
-    };
+        if (value is null) return "NONE";
+        string[] existing =
+        [
+            "RECONCILIATION_ID_INVALID",
+            "REFERENCE_BACKUP_SNAPSHOT_MISMATCH",
+            "REPLICA_MANIFEST_URI_INVALID",
+            "BACKUP_EMPTY",
+            "REPLICA_MANIFEST_INVALID",
+            "RECONCILIATION_IMMUTABLE_CONFLICT",
+            "UNEXPECTED_RECONCILIATION_FAILURE"
+        ];
+        if (existing.Contains(value, StringComparer.Ordinal)) return value;
+        string[] stages =
+        [
+            "CAPTURE_SNAPSHOT",
+            "EXPORT_BACKUP",
+            "PUT_BACKUP",
+            "PUT_BACKUP_MANIFEST",
+            "READ_REPLICA_MANIFEST",
+            "PUT_REFERENCE_SNAPSHOT",
+            "PUT_REFERENCE_MANIFEST"
+        ];
+        string[] classifications =
+        [
+            "S3_INTERNAL_ERROR",
+            "S3_ERROR",
+            "POSTGRESQL_ERROR",
+            "EXTERNAL_PROCESS_ERROR",
+            "IO_ERROR",
+            "UNEXPECTED"
+        ];
+        return stages.Any(stage => classifications.Any(classification =>
+            value == $"REFERENCE_{stage}_{classification}")) ? value : "UNKNOWN";
+    }
 
     private static bool TryReadRecoveryReferenceCheckpoint(string checkpoint, out Guid reconciliationId)
     {
@@ -1005,6 +1059,21 @@ public sealed class FunctionalRecoveryAmd64GateTests
         var result = (bool)method.Invoke(null, arguments)!;
         reconciliationId = (Guid)arguments[1]!;
         return result;
+    }
+
+    private static void AssertReferenceCaptureFailure(string stage, Exception source, string expected)
+    {
+        var method = typeof(FunctionalRecoveryOperations).GetMethod(
+            "CreateReferenceCaptureFailure",
+            BindingFlags.Static | BindingFlags.NonPublic) ??
+            throw new InvalidOperationException("Reference capture failure classifier is missing.");
+        var failure = Assert.IsAssignableFrom<Exception>(method.Invoke(null, [stage, source]));
+        Assert.Equal("OperationsReferenceCaptureException", failure.GetType().Name);
+        Assert.Equal(expected, failure.GetType().GetProperty("ErrorCode")!.GetValue(failure));
+        Assert.Equal(expected, failure.Message);
+        Assert.Null(failure.InnerException);
+        Assert.DoesNotContain("private", failure.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("synthetic", failure.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeReplicaStage(string? value) => value switch

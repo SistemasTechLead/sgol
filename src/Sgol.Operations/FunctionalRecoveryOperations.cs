@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Diagnostics;
 using System.Net;
+using System.ComponentModel;
 using Amazon.Runtime;
 using Amazon.S3;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +40,7 @@ public sealed class FunctionalRecoveryOperations(
         Directory.CreateDirectory(directory);
         var encryptedPath = Path.Combine(directory, "backup.dump.age");
         BackupProcessResult? process = null;
+        var stage = "CAPTURE_SNAPSHOT";
         try
         {
             var exported = await FunctionalSnapshotReader.CaptureReferenceAsync(
@@ -46,10 +48,19 @@ public sealed class FunctionalRecoveryOperations(
                 build.Revision, build.ImageDigest,
                 async (snapshotId, token) =>
                 {
-                    process = await processPipeline.CreateEncryptedDumpFromSnapshotAsync(
-                        options, encryptedPath, snapshotId, token);
+                    stage = "EXPORT_BACKUP";
+                    try
+                    {
+                        process = await processPipeline.CreateEncryptedDumpFromSnapshotAsync(
+                            options, encryptedPath, snapshotId, token);
+                    }
+                    finally
+                    {
+                        stage = "CAPTURE_SNAPSHOT";
+                    }
                 }, cancellationToken);
             if (process is null) throw new OperationsIntegrityException("REFERENCE_BACKUP_SNAPSHOT_MISMATCH");
+            stage = "PUT_BACKUP";
             await using var encrypted = new FileStream(encryptedPath, FileMode.Open, FileAccess.Read, FileShare.Read,
                 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
             var (backupHash, backupSize) = await OperationManifestSerializer.HashAsync(encrypted, cancellationToken);
@@ -60,6 +71,7 @@ public sealed class FunctionalRecoveryOperations(
             var backupStore = new S3OperationStore(backupClient);
             await backupStore.PutFileVerifiedAsync(options.Bucket, backupKey, encryptedPath, backupHash,
                 "application/octet-stream", cancellationToken);
+            stage = "PUT_BACKUP_MANIFEST";
             var serverVersion = await ReadServerVersionAsync(options.ParseConnection(), cancellationToken);
             var backupManifest = new PostgreSqlBackupManifest(1, "SGOL_POSTGRESQL_PORTABLE_BACKUP",
                 exported.Snapshot.CapturedAt, timeProvider.GetUtcNow(), build.Revision, build.ImageDigest,
@@ -73,6 +85,7 @@ public sealed class FunctionalRecoveryOperations(
 
             using var replicaClient = replica.Destination.CreateClient();
             var replicaStore = new S3OperationStore(replicaClient);
+            stage = "READ_REPLICA_MANIFEST";
             var replicaObject = await replicaStore.TryReadAsync(replicaBucket, replicaKey, cancellationToken)
                 ?? throw new OperationsIntegrityException("REPLICA_MANIFEST_INVALID");
             var replicaManifest = OperationManifestSerializer.Deserialize<ObjectReplicaManifest>(replicaObject.Content);
@@ -83,6 +96,7 @@ public sealed class FunctionalRecoveryOperations(
 
             var snapshotBytes = OperationManifestSerializer.Serialize(exported.Snapshot);
             var snapshotKey = prefix + "/reference.snapshot.json";
+            stage = "PUT_REFERENCE_SNAPSHOT";
             await backupStore.PutBytesVerifiedAsync(options.Bucket, snapshotKey, snapshotBytes, "application/json", null,
                 cancellationToken);
             var reference = new FunctionalRecoveryReferenceManifest(1, "SGOL_FUNCTIONAL_RECOVERY_REFERENCE",
@@ -92,6 +106,7 @@ public sealed class FunctionalRecoveryOperations(
                 backupManifestHash, replicaKey, replicaObject.Sha256, replicaManifest.ScheduledFor, "COMPLETE");
             var referenceBytes = OperationManifestSerializer.Serialize(reference);
             var referenceKey = prefix + "/reference.manifest.json";
+            stage = "PUT_REFERENCE_MANIFEST";
             await backupStore.PutBytesVerifiedAsync(options.Bucket, referenceKey, referenceBytes, "application/json", null,
                 cancellationToken);
             return new(exported.Snapshot.CapturedAt, $"s3://{options.Bucket}/{referenceKey}", Hash(referenceBytes),
@@ -100,6 +115,12 @@ public sealed class FunctionalRecoveryOperations(
         catch (OperationsIntegrityException exception) when (exception.ErrorCode == "IMMUTABLE_OBJECT_CONFLICT")
         {
             throw new OperationsIntegrityException("RECONCILIATION_IMMUTABLE_CONFLICT");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException and
+            not OperationsConfigurationException and not OperationsIntegrityException and
+            not RecoveryContractException and not OperationsReferenceCaptureException)
+        {
+            throw CreateReferenceCaptureFailure(stage, exception);
         }
         finally
         {
@@ -443,6 +464,22 @@ public sealed class FunctionalRecoveryOperations(
     private static string Hash(byte[] value) =>
         Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(value));
 
+    private static OperationsReferenceCaptureException CreateReferenceCaptureFailure(
+        string stage, Exception exception)
+    {
+        var classification = exception switch
+        {
+            AmazonS3Exception s3 when s3.StatusCode == HttpStatusCode.InternalServerError &&
+                string.Equals(s3.ErrorCode, "InternalError", StringComparison.Ordinal) => "S3_INTERNAL_ERROR",
+            AmazonS3Exception => "S3_ERROR",
+            NpgsqlException => "POSTGRESQL_ERROR",
+            Win32Exception => "EXTERNAL_PROCESS_ERROR",
+            IOException or UnauthorizedAccessException => "IO_ERROR",
+            _ => "UNEXPECTED"
+        };
+        return new OperationsReferenceCaptureException($"REFERENCE_{stage}_{classification}");
+    }
+
     private static void EnsureArtifactSize(byte[] value)
     {
         if (value.LongLength > FunctionalSnapshotContract.MaximumSnapshotBytes)
@@ -456,4 +493,9 @@ public sealed class FunctionalRecoveryOperations(
         try { if (Directory.Exists(directory)) Directory.Delete(directory, false); }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
     }
+}
+
+internal sealed class OperationsReferenceCaptureException(string errorCode) : Exception(errorCode)
+{
+    public string ErrorCode { get; } = errorCode;
 }

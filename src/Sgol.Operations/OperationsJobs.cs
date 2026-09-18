@@ -81,6 +81,7 @@ public sealed class CaptureRecoveryReferenceJob(
             {
                 OperationsConfigurationException configured => configured.ErrorCode,
                 OperationsIntegrityException integrity => integrity.ErrorCode,
+                OperationsReferenceCaptureException reference => reference.ErrorCode,
                 RecoveryContractException contract => contract.ErrorCode,
                 _ => "UNEXPECTED_RECONCILIATION_FAILURE"
             };
