@@ -3,6 +3,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Sgol.Web.Infrastructure.Http;
 using Sgol.Web.Infrastructure.Evidence;
 using Sgol.Web.Infrastructure.Persistence;
+using Sgol.Web.Infrastructure.Authentication;
 using Sgol.Web.Presentation.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,7 @@ builder.Logging.AddJsonConsole(options =>
 
 builder.Services.AddRazorPages();
 builder.Services.AddSgolHttpPrimitives();
+builder.Services.AddSgolHostedAuthentication();
 builder.Services.AddSgolEvidenceInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddAntiforgery(options =>
 {
@@ -33,6 +35,10 @@ var app = builder.Build();
 
 app.UseSgolHttpPrimitives();
 app.UseStaticFiles();
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseMiddleware<AntiforgeryValidationMiddleware>();
+app.UseAuthorization();
 
 app.MapGet("/health/live", (HttpContext context) => Results.Ok(new
 {
@@ -60,6 +66,7 @@ app.MapGet("/health/ready", async (HttpContext context, HealthCheckService healt
     }, statusCode: ready ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable);
 });
 app.MapRazorPages();
+app.MapAuthenticationApi();
 app.MapBranchApi();
 app.MapPersonApi();
 app.MapAccountApi();

@@ -114,6 +114,33 @@ public sealed class AccountAdministrationTests
         Assert.Null(service.CreateCommand);
     }
 
+    [Fact]
+    public async Task ResetMfa_ForwardsReasonAndRedactsTemporaryCredential()
+    {
+        var service = new RecordingAccountService(CreateAccount());
+        var context = CreateContext(authenticated: true);
+        var idempotencyKey = Guid.CreateVersion7();
+        context.Request.Headers["Idempotency-Key"] = idempotencyKey.ToString("D");
+        var request = new ResetMfaRequest
+        {
+            Reason = "Recuperación sintética",
+            TemporaryPassword = SyntheticPassword,
+        };
+
+        var result = await AccountApiEndpoints.HandleMfaResetAsync(
+            UserId,
+            request,
+            context,
+            service,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal(idempotencyKey, service.ResetCommand?.IdempotencyKey);
+        Assert.Equal("Recuperación sintética", service.ResetCommand?.Reason);
+        Assert.DoesNotContain(SyntheticPassword, request.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(SyntheticPassword, service.ResetCommand?.ToString(), StringComparison.Ordinal);
+    }
+
     private static void AssertSafeResponseContract()
     {
         var propertyNames = typeof(AccountSummary)
@@ -168,6 +195,8 @@ public sealed class AccountAdministrationTests
 
         public ChangeAccountStatusCommand? StatusCommand { get; private set; }
 
+        public ResetMfaCommand? ResetCommand { get; private set; }
+
         public bool Reactivated { get; private set; }
 
         public Task<IReadOnlyList<AccountSummary>> ListAsync(
@@ -199,6 +228,14 @@ public sealed class AccountAdministrationTests
         {
             StatusCommand = command;
             Reactivated = true;
+            return Task.FromResult(new AccountMutationResult(account, Replayed: false));
+        }
+
+        public Task<AccountMutationResult> ResetMfaAsync(
+            ResetMfaCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            ResetCommand = command;
             return Task.FromResult(new AccountMutationResult(account, Replayed: false));
         }
     }

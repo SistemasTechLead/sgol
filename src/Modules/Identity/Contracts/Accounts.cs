@@ -52,6 +52,25 @@ public sealed class ChangeAccountStatusCommand
         $"Reason = {Reason}, TemporaryPassword = [REDACTED] }}";
 }
 
+public sealed class ResetMfaCommand
+{
+    public required Guid ActorUserId { get; init; }
+
+    public required Guid IdempotencyKey { get; init; }
+
+    public required Guid CorrelationId { get; init; }
+
+    public required Guid UserId { get; init; }
+
+    public required string Reason { get; init; }
+
+    public required string TemporaryPassword { get; init; }
+
+    public override string ToString() =>
+        $"{nameof(ResetMfaCommand)} {{ ActorUserId = {ActorUserId}, UserId = {UserId}, " +
+        $"Reason = {Reason}, TemporaryPassword = [REDACTED] }}";
+}
+
 public sealed record AccountMutationResult(AccountSummary Account, bool Replayed);
 
 public interface IAccountAdministrationService
@@ -71,6 +90,10 @@ public interface IAccountAdministrationService
 
     Task<AccountMutationResult> ReactivateAsync(
         ChangeAccountStatusCommand command,
+        CancellationToken cancellationToken = default);
+
+    Task<AccountMutationResult> ResetMfaAsync(
+        ResetMfaCommand command,
         CancellationToken cancellationToken = default);
 }
 

@@ -34,7 +34,7 @@ El endpoint técnico `GET /health/live` responde `200 OK` con un estado de vida 
 
 La persistencia obtiene su cadena mediante `ConnectionStrings:Sgol`; para ejecución local se inyecta como `ConnectionStrings__Sgol` fuera de Git. La prueba de integración crea PostgreSQL y credenciales efímeros mediante Testcontainers. Consulta [docs/operations/postgresql-local.md](docs/operations/postgresql-local.md) para ejecutar y verificar la migración inicial vacía.
 
-El bootstrap de la primera cuenta `DIRECCION` se ejecuta exclusivamente con `Sgol.Admin` y entradas efímeras. Consulta [docs/operations/direction-bootstrap.md](docs/operations/direction-bootstrap.md); no existe una cuenta predeterminada ni una ruta HTTP equivalente.
+El bootstrap de la primera cuenta `DIRECCION` se ejecuta exclusivamente con `Sgol.Admin` y entradas efímeras. Consulta [docs/operations/direction-bootstrap.md](docs/operations/direction-bootstrap.md); no existe una cuenta predeterminada ni una ruta HTTP equivalente. El inicio de sesión hospedado, el primer acceso y la provisión sintética de los cuatro roles se documentan en [docs/operations/hosted-authentication-local.md](docs/operations/hosted-authentication-local.md).
 
 El workflow de pull request aplica estos gates, análisis estático, escaneo de secretos, vulnerabilidades directas/transitivas y protección de `Fuentes/` sin desplegar ni usar credenciales de otros entornos. Consulta [docs/operations/pull-request-pipeline.md](docs/operations/pull-request-pipeline.md) para sus versiones fijadas, evidencia y límites de verificación.
 

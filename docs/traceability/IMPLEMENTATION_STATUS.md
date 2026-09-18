@@ -4,6 +4,29 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
+## Implementada localmente — `TECH-AUTH-001`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `TECH-AUTH-001` — Autenticación hospedada y sesión del backend |
+| Estado | `Implementada localmente` en `codex/authentication-hosted`; no equivale a `Terminada`, `Publicada` o `Integrada` |
+| Contrato | `F07_ADENDA_40_CONTRATO_DE_AUTENTICACION_HOSPEDADA_Y_SESION.md`, aprobada íntegramente por el responsable el 2026-09-17 y acotada a endpoints funcionales, sin interfaz |
+| Superficie | API `/api/v1/auth`: token CSRF, login, cambio obligatorio de contraseña, enrolamiento y confirmación TOTP, desafío TOTP o recovery code, regeneración de recovery codes, estado de sesión y logout; además, reset administrativo de MFA en `/api/v1/users/{id}/mfa-reset` |
+| Sesión y seguridad | Cookie `__Host-SGOL-Session` segura, `HttpOnly`, `SameSite=Strict`, renovación deslizante con límite absoluto de ocho horas; cookie de preautenticación protegida; CSRF obligatorio en mutaciones; `NameIdentifier` conserva el UUID canónico de `AppUser`; el rol informativo no sustituye las consultas de autorización en PostgreSQL |
+| Identidad persistida | Reutiliza `AppUser`, `IdentityCredential`, `RoleAssignmentVersion`, `IPasswordHasher<AppUser>` y `SecurityStamp`; valida cuenta, persona, empleo vigente único en `LOR-001`, rol canónico vigente único, contraseña y MFA antes de construir el principal |
+| Primer acceso y recuperación | Contraseña temporal con `MustChangePassword`, enrolamiento TOTP RFC 6238, desafío con protección contra replay, diez recovery codes de consumo único almacenados por hash, regeneración autenticada y reset administrativo auditado |
+| Bloqueo e invalidación | Cinco intentos fallidos activan bloqueo progresivo de 15, 30 y 60 minutos; cada cookie se revalida contra cuenta, empleo, rol y security stamp; contraseña, estado de cuenta, rol, empleo o stamp obsoletos invalidan la sesión |
+| Persistencia | Migración expand-only `20260918001719_AddHostedAuthentication`: campos de bloqueo/concurrencia y tablas de desafíos, credencial TOTP y recovery codes; sin backfill inseguro, sin borrado y con `Down()` bloqueado |
+| Auditoría y observabilidad | Auditoría transaccional de los eventos de seguridad y contadores acotados para login, bloqueo, MFA, recovery, rechazo de sesión y rate limiting; no registra contraseñas, códigos, cookies ni secretos |
+| Datos sintéticos | Runbook local para crear personas, empleos, cuentas y roles `DIRECCION`, `ADMINISTRACION`, `SUBCOORDINACION` y `PISO_VENTAS` mediante APIs reales; contraseñas y secretos sólo por variables o archivos locales ignorados |
+| Validación enfocada | Build Release `23/23`, cero errores/advertencias; unitarias afectadas `11/11`; inventario de migraciones PostgreSQL `1/1`; smoke Testcontainers con host Web y PostgreSQL reales `1/1` en `26.4 s`, con login/cookie/MFA, cuatro roles, CSRF, logout, recovery, bloqueo e invalidaciones |
+| Autorización observada | Los cuatro roles acceden a un endpoint protegido propio; sólo `DIRECCION` accede a la administración de cuentas y crea una reconciliación mediante `POST /api/v1/continuity/reconciliations`; los otros tres reciben `403` por las reglas existentes |
+| Límites | Sin Razor, HTML, CSS, SPA, OAuth, SSO, JWT persistente, Redis, impersonación, proveedor externo, bypass ni administración general de sesiones |
+| Validación diferida | Suite completa, gate AMD64 integral de `HU-035`, S3/ClamAV y pipelines remotos; no son necesarios para acreditar esta implementación local enfocada |
+| Siguiente paso | El frontend puede consumir los contratos HTTP reales; cualquier interfaz requiere una tarea y contrato de diseño separados |
+
+Este estado local no autoriza push, apertura de pull request, despliegue externo ni merge.
+
 ## Implementada localmente — `HU-035`
 
 | Campo | Valor |
@@ -25,11 +48,11 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 | Pruebas enfocadas | Durante implementación: contrato/API/Operations `40/40` y arquitectura/idempotencia `5/5`; proyecto PostgreSQL real y proyecto externo HU-035 opt-in compilan con cero errores/advertencias, pero sus pruebas no se ejecutaron en sesión conforme a `AGENTS.md` |
 | Gates locales | Restore locked `23/23` después de sincronizar sólo lockfiles transitivos; build Release `23/23`, cero errores/advertencias; suite sin PostgreSQL/Docker: unitarias `589/589`, arquitectura `48/48`, OperationsIntegration local con salida `0` y conteos no disponibles por modo binlog, CV-02 `15/15` y CV-03 `19/19`; formato sin cambios; cero vulnerabilidades NuGet conocidas; espejo `29/29`, protección de `Fuentes/`, contrato TECH-OPS, validador HU-035 y `git diff --check` aprobados |
 | Validación local actual | El 2026-09-17 se ejecutó de nuevo `dotnet build SGOL.slnx --no-restore --configuration Release`: `23/23` proyectos, cero errores y cero advertencias. Web arrancó en Development con configuración sintética; `/health/live` respondió `200` y las tres rutas HU-035 respondieron `401 application/problem+json` sin sesión, confirmando enrutamiento y denegación por defecto. No se reutilizaron los tests históricos como evidencia de esta comprobación |
-| Dependencia transversal observada | El host Web no registra `AddAuthentication`, `UseAuthentication`, cookie, login ni MFA. Por ello no existe actualmente un camino HTTP hospedado para obtener un `ClaimsPrincipal` autenticado y el smoke real `2xx` de HU-035 no puede ejecutarse desde un cliente o frontend. No se añade un bypass dentro de HU-035; la autenticación local con cookie segura y MFA exige contrato e implementación separados conforme a F06 |
+| Dependencia transversal resuelta | `TECH-AUTH-001` registra autenticación por cookie, login, contraseña temporal y MFA sin bypass. El smoke PostgreSQL del host real obtuvo una sesión de `DIRECCION` y `POST /api/v1/continuity/reconciliations` respondió `201`; los otros tres roles recibieron `403` mediante la autorización existente |
 | Validación diferida | Linux AMD64 nativo, PostgreSQL real, dos S3-compatible, snapshot compartido con `pg_dump`, restore integral, reconciliación positiva, replay autenticado, consulta, aprobación y matriz de 18 casos. Esta evidencia no se presenta como aprobada y no bloquea conservar HU-035 como `Implementada localmente`; sí será necesaria para declararla `Terminada` |
 | Límites | Sin producción, cloud real, datos/secretos reales, reparación, compensación, fabricación, borrado, overwrite, purga, UI, plataforma general de DR, `CV-05` ni tareas posteriores |
-| Cierre local | La implementación contractual queda disponible para consumo y planificación del frontend. La integración HTTP autenticada permanece bloqueada por la dependencia transversal indicada; el cierre formal conserva el simulacro integral, publicación e integración como validaciones posteriores |
-| Siguiente paso | Definir e implementar la autenticación hospedada aprobada antes de conectar un frontend real; mientras tanto puede desarrollarse el cliente contra los contratos y estados estables de HU-035 sin inventar respuestas del backend |
+| Cierre local | La implementación contractual y la integración HTTP autenticada quedan disponibles para consumo y planificación del frontend. El cierre formal conserva el simulacro integral, publicación e integración como validaciones posteriores |
+| Siguiente paso | Consumir los contratos reales desde el frontend cuando exista una tarea de interfaz aprobada; completar por separado el gate integral pendiente de `HU-035` |
 
 Este estado local no autoriza push, apertura de pull request, despliegue externo ni merge.
 

@@ -50,6 +50,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string IdempotencyReplayMigrationId = "20260912120000_ExtendIdempotencyReplay";
     private const string PortableDataProtectionMigrationId = "20260912213000_AddPortableDataProtectionKeyRing";
     private const string RecoveryReconciliationMigrationId = "20260914210503_AddRecoveryReconciliation";
+    private const string HostedAuthenticationMigrationId = "20260918001719_AddHostedAuthentication";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -103,6 +104,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 IdempotencyReplayMigrationId,
                 PortableDataProtectionMigrationId,
                 RecoveryReconciliationMigrationId,
+                HostedAuthenticationMigrationId,
             ],
             appliedMigrations);
 
@@ -125,6 +127,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "app_user",
                 "assignment_version",
                 "audit_event",
+                "authentication_challenge",
                 "availability_day_version",
                 "branch",
                 "calendar_day_version",
@@ -147,6 +150,8 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "idempotency_record",
                 "identity_credential",
                 "internal_notice",
+                "mfa_recovery_code",
+                "mfa_totp_credential",
                 "outbox_event",
                 "person",
                 "plan_version",

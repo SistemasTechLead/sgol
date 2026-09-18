@@ -13,3 +13,5 @@ TestResults/
 
 # Local non-secret overrides. Never commit secrets.
 appsettings.Local.json
+.sgol-auth.local.ps1
+.sgol-auth-secrets.json
