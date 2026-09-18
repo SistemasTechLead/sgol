@@ -108,10 +108,75 @@ function Read-Hu035ServerLogs {
     return [Hu035LogCapture]::Run('docker', $arguments, 8000, 262144)
 }
 
+function Read-Hu035RuntimeState {
+    param([string]$Container, [string]$Network)
+    Initialize-Hu035LogCapture
+    # Raw Docker and SeaweedFS state remains private and is converted only to closed classifications.
+    return [pscustomobject]@{
+        Network = $Network
+        Networks = [Hu035LogCapture]::Run('docker',
+            @('inspect', '--format', '{{json .NetworkSettings.Networks}}', $Container), 5000, 65536)
+        Topology = [Hu035LogCapture]::Run('docker',
+            @('exec', $Container, '/usr/bin/wget', '-qO-', 'http://127.0.0.1:9333/dir/status?pretty=y'),
+            5000, 65536)
+    }
+}
+
+function New-Hu035RuntimeSummary {
+    return [ordered]@{
+        captureStatus = 'CAPTURE_FAILED'
+        networkState = 'UNKNOWN'
+        advertisedAddressScope = 'UNKNOWN'
+        dataNodeRegistration = 'UNKNOWN'
+        writableCapacity = 'UNKNOWN'
+    }
+}
+
+function ConvertTo-Hu035RuntimeSummary {
+    param([object]$Capture)
+    $summary = New-Hu035RuntimeSummary
+    if ($null -eq $Capture -or $Capture.Networks.Status -ne 'OK' -or
+        $Capture.Topology.Status -ne 'OK') { return $summary }
+    try {
+        $networks = ([string]$Capture.Networks.Stdout) | ConvertFrom-Json
+        $topology = ([string]$Capture.Topology.Stdout) | ConvertFrom-Json
+        $networkNames = @($networks.PSObject.Properties.Name)
+        $finalProperty = $networks.PSObject.Properties[[string]$Capture.Network]
+        if ($null -eq $finalProperty) { $summary.networkState = 'FINAL_MISSING' }
+        elseif ($networkNames -ccontains 'bridge') { $summary.networkState = 'TRANSIENT_PRESENT' }
+        else { $summary.networkState = 'FINAL_ONLY' }
+
+        $nodes = @($topology.Topology.DataCenters | ForEach-Object { $_.Racks } |
+            ForEach-Object { $_.DataNodes })
+        $summary.dataNodeRegistration = if ($nodes.Count -eq 0) { 'NONE' } else { 'PRESENT' }
+        $free = 0L
+        if ($null -ne $topology.Topology.Free -and
+            [long]::TryParse([string]$topology.Topology.Free, [ref]$free)) {
+            $summary.writableCapacity = if ($free -gt 0) { 'POSITIVE' } else { 'ZERO' }
+        }
+
+        $finalAddress = if ($null -eq $finalProperty) { '' } else { [string]$finalProperty.Value.IPAddress }
+        $advertised = @($nodes | ForEach-Object {
+            $value = [string]$_.Url
+            if ($value -match '^(?<host>[^:]+):\d+$') { $Matches['host'] }
+        })
+        if ([string]::IsNullOrWhiteSpace($finalAddress) -or $advertised.Count -eq 0) {
+            $summary.advertisedAddressScope = 'UNRESOLVED'
+        }
+        elseif (@($advertised | Where-Object { $_ -cne $finalAddress }).Count -eq 0) {
+            $summary.advertisedAddressScope = 'FINAL_NETWORK'
+        }
+        else { $summary.advertisedAddressScope = 'OUTSIDE_FINAL_NETWORK' }
+        $summary.captureStatus = 'OK'
+    }
+    catch { $summary.captureStatus = 'INVALID' }
+    return $summary
+}
+
 function New-Hu035ServerSummary {
     param([DateTimeOffset]$Since, [DateTimeOffset]$Until)
     return [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         captureStatus = 'CAPTURE_FAILED'
         captureExitCode = $null
         windowStartedAtUtc = $Since.ToUniversalTime().ToString('O')
@@ -127,7 +192,36 @@ function New-Hu035ServerSummary {
         eventLimitReached = $false
         parserLimitReached = $false
         events = @()
+        runtime = New-Hu035RuntimeSummary
     }
+}
+
+function Get-Hu035ServerEventCode {
+    param([string]$Body)
+    if ($Body.StartsWith('putToFiler: chunked upload failed:', [StringComparison]::Ordinal)) {
+        if ($Body.IndexOf('assign volume:', [StringComparison]::Ordinal) -ge 0) { return 'VOLUME_ASSIGNMENT_FAILED' }
+        if ($Body.IndexOf('upload chunk:', [StringComparison]::Ordinal) -ge 0) { return 'VOLUME_UPLOAD_FAILED' }
+        if ($Body.IndexOf('read chunk at offset', [StringComparison]::Ordinal) -ge 0 -or
+            $Body.IndexOf('failed to read small content:', [StringComparison]::Ordinal) -ge 0) {
+            return 'REQUEST_BODY_READ_FAILED'
+        }
+        return 'CHUNK_UPLOAD_FAILED'
+    }
+    $rules = [ordered]@{
+        'putToFiler: CreateEntry returned error:' = 'CREATE_ENTRY_FAILED'
+        'putToFiler: failed to create entry for ' = 'CREATE_ENTRY_FAILED'
+        'checkConditionalHeaders: error resolving object entry for ' = 'CONDITIONAL_LOOKUP_FAILED'
+        'PutObjectHandler: failed to check object lock for bucket ' = 'OBJECT_LOCK_LOOKUP_FAILED'
+        'Error checking Object Lock status for bucket ' = 'OBJECT_LOCK_LOOKUP_FAILED'
+        'Error checking versioning status for bucket ' = 'VERSIONING_LOOKUP_FAILED'
+        'Error re-checking versioning status for bucket ' = 'VERSIONING_LOOKUP_FAILED'
+        'Failed to apply bucket default encryption:' = 'ENCRYPTION_LOOKUP_FAILED'
+        'PutObjectHandler: putVersionedObject failed with errCode=' = 'VERSIONED_WRITE_FAILED'
+    }
+    foreach ($prefix in $rules.Keys) {
+        if ($Body.StartsWith($prefix, [StringComparison]::Ordinal)) { return $rules[$prefix] }
+    }
+    return $null
 }
 
 function ConvertTo-Hu035ServerSummary {
@@ -149,11 +243,6 @@ function ConvertTo-Hu035ServerSummary {
         's3api_object_handlers_put\.go:\d+\] (?<body>.*)$'
     $regex = [regex]::new($pattern, [Text.RegularExpressions.RegexOptions]::CultureInvariant,
         [TimeSpan]::FromMilliseconds(25))
-    $rules = [ordered]@{
-        'putToFiler: chunked upload failed:' = 'CHUNK_UPLOAD_FAILED'
-        'putToFiler: CreateEntry returned error:' = 'CREATE_ENTRY_FAILED'
-        'putToFiler: failed to create entry for ' = 'CREATE_ENTRY_FAILED'
-    }
     $events = [Collections.Generic.List[object]]::new()
     $stdoutEvents = @{}
     $watch = [Diagnostics.Stopwatch]::StartNew()
@@ -184,12 +273,7 @@ function ConvertTo-Hu035ServerSummary {
                 [string]::CompareOrdinal($stamp, $upper) -gt 0) {
                 $summary.outsideWindowLines++; continue
             }
-            $eventCode = $null
-            foreach ($prefix in $rules.Keys) {
-                if ($match.Groups['body'].Value.StartsWith($prefix, [StringComparison]::Ordinal)) {
-                    $eventCode = $rules[$prefix]; break
-                }
-            }
+            $eventCode = Get-Hu035ServerEventCode $match.Groups['body'].Value
             if ($null -eq $eventCode) { $summary.unrecognizedLines++; continue }
             $fingerprint = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
                 [Text.Encoding]::UTF8.GetBytes($line)))
@@ -254,6 +338,14 @@ function Invoke-Hu035Finalization {
         [scriptblock]$Writer = {
             param($path, $summary)
             Write-Hu035ServerSummary $path $summary
+        },
+        [scriptblock]$RuntimeReader = {
+            param($container, $network)
+            Read-Hu035RuntimeState $container $network
+        },
+        [scriptblock]$RuntimeParser = {
+            param($capture)
+            ConvertTo-Hu035RuntimeSummary $capture
         }
     )
     try {
@@ -269,6 +361,11 @@ function Invoke-Hu035Finalization {
                     $summary.captureStatus = 'PARSER_FAILED'
                 }
             }
+            try {
+                $runtimeCapture = & $RuntimeReader $State.Container $State.Network
+                $summary.runtime = & $RuntimeParser $runtimeCapture
+            }
+            catch { $summary.runtime = New-Hu035RuntimeSummary }
             try { & $Writer $State.Path $summary | Out-Null }
             catch { Write-Output 'HU035_SERVER_DIAGNOSTIC_WRITE_FAILED' }
         }
@@ -548,6 +645,7 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
     $stage = 'REFERENCE'
     . Invoke-Hu035Reference -State $referenceDiagnostic -Action {
     $referenceDiagnostic.Container = $containers[2]
+    $referenceDiagnostic.Network = $networkName
     $referenceDiagnostic.Path = Join-Path $publicDirectory 'hu-035-server-diagnostic.json'
     & dotnet test (Join-Path $repositoryRoot 'tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj') `
         --configuration Release --no-restore -p:SGOL_HU035_AMD64_TESTS=true --filter 'Category=Hu035Amd64' `

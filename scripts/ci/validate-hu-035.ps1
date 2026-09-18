@@ -7,6 +7,7 @@ $requiredFiles = @(
     'F07_ADENDA_33_CONTRATO_DE_RECONCILIACION_Y_SIMULACRO_DE_RECUPERACION_HU_035.md',
     'F07_ADENDA_34_CONTRATO_DE_GATE_AMD64_AUTOMATIZADO_HU_035.md',
     'F07_ADENDA_35_DIAGNOSTICO_SANITIZADO_DE_REPLICA_HU_035.md',
+    'F07_ADENDA_40_DIAGNOSTICO_CAUSAL_SANITIZADO_PUT_HU_035.md',
     'src/Modules/Continuity/Contracts/RecoveryReconciliation.cs',
     'src/Sgol.Operations/FunctionalSnapshotReader.cs',
     'src/Sgol.Operations/FunctionalRecoveryOperations.cs',
@@ -113,7 +114,9 @@ foreach ($required in @('AMD64_LINUX_HOST_REQUIRED', 'SGOL_HU035_AMD64_GATE',
     'FUNCTIONAL_RECOVERY_MATCHED', 'SGOL_TECHNICAL_RESTORE_EVIDENCE',
     'runtime-private', 'evidence-public', 'Remove-Item', 'Reset-RestoreDatabase',
     'Invoke-ConcurrentReconciliation', 'Get-PrivateContainerAddress',
-    'Set-RuntimeStorageEndpoints', 'sgol-hu035-$runIdentity-private')) {
+    'Set-RuntimeStorageEndpoints', 'sgol-hu035-$runIdentity-private',
+    'VOLUME_ASSIGNMENT_FAILED', 'VOLUME_UPLOAD_FAILED', 'CONDITIONAL_LOOKUP_FAILED',
+    'FINAL_ONLY', 'OUTSIDE_FINAL_NETWORK', 'dataNodeRegistration', 'writableCapacity')) {
     if ($amd64Gate.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 AMD64 gate token is missing: $required"
     }
