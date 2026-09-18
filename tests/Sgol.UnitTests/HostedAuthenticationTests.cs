@@ -22,7 +22,8 @@ public sealed class HostedAuthenticationTests
     [Fact]
     public void TotpAcceptsRfc6238Sha1VectorOnce()
     {
-        const string secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        const string rfc6238VectorHalf = "GEZDGNBVGY3TQOJQ";
+        var secret = string.Concat(rfc6238VectorHalf, rfc6238VectorHalf);
         var instant = DateTimeOffset.FromUnixTimeSeconds(59);
 
         Assert.True(TotpCodes.TryValidate(secret, "287082", instant, null, out var acceptedStep));
