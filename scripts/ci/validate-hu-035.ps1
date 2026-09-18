@@ -264,7 +264,12 @@ foreach ($required in @(
     'const int maximumAttempts = 3;',
     'exception.ErrorCode == "REPLICA_INFRASTRUCTURE_FAILED" && attempt < maximumAttempts',
     'S3CODE={s3ErrorCode}',
-    'Category", "Hu035ReplicaDiagnostics'
+    'Category", "Hu035ReplicaDiagnostics',
+    'HU035_REFERENCE_DISPATCH_FAILED',
+    'OUTBOX_RESULT={NormalizeOutboxResult(outboxResult)}',
+    'OUTBOX_ERROR={NormalizeReferenceOutboxError(outboxError)}',
+    'JOB_STATUS={NormalizeReferenceJobStatus(jobStatus)}',
+    'JOB_ERROR={NormalizeReferenceJobError(jobError)}'
 )) {
     if ($amd64Test.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 replica diagnostic gate contract is missing: $required"

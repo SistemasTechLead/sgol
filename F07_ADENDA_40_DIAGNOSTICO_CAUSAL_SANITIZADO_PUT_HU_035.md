@@ -12,6 +12,7 @@ La captura anterior registró 191 líneas no reconocidas y ningún evento recono
 - `scripts/operations/invoke-hu-035-amd64-gate.ps1`.
 - `scripts/ci/test-hu-035-server-diagnostics.ps1`.
 - `scripts/ci/validate-hu-035.ps1`.
+- `tests/Sgol.OperationsIntegrationTests/FunctionalRecoveryAmd64GateTests.cs`.
 - `docs/traceability/IMPLEMENTATION_STATUS.md`.
 
 ## Evidencia cerrada
@@ -31,9 +32,15 @@ El estado de runtime se obtiene mediante lecturas acotadas de `docker inspect` y
 
 No se publican nombres de contenedores o redes, direcciones, subredes, puertos, URLs, buckets, claves, credenciales, metadata, contenido, líneas crudas, fingerprints, mensajes ni excepciones originales. Fallos, timeouts, truncamiento o JSON inválido quedan visibles como captura incompleta; nunca sustituyen el fallo original ni impiden la limpieza.
 
+## Complemento aprobado para el despacho REFERENCE
+
+El responsable aprobó el 2026-09-18 ampliar esta misma adenda después de que el run diagnóstico `35383233043`, sobre el SHA exacto `e3a31ebdc2527ef4a720dd9447828f3c00b5b075`, no reprodujera el HTTP 500 original y fallara antes en el despacho `REFERENCE`. La ampliación sólo sustituye la aserción opaca del procesador por un error de gate sanitizado con el caso aprobado, resultado cerrado del outbox, error cerrado del outbox y estado/error cerrado de `scheduled_job_run`.
+
+Los valores no reconocidos se reducen a `UNKNOWN`; la ausencia comprobada se expresa como `ABSENT` o `NONE`. No se publican identificadores, checkpoints, timestamps, payloads, mensajes, excepciones, endpoints ni secretos. Si la consulta diagnóstica falla, prevalece una salida cerrada con `UNKNOWN`; el resultado original del procesador no se modifica ni se reintenta por esta captura.
+
 ## Invariantes conservadas
 
-No cambian producción, topología, ciclo de vida, imagen, configuración, permisos, credenciales, PUT/GET/HEAD, streams, objetos, sondas S3, timeouts, reintentos, limpieza, matriz de 18 casos, RPO/RTO, condiciones de aprobación ni workflow. La consulta local del estado sólo ocurre después de que REFERENCE ya falló.
+No cambian producción, topología, ciclo de vida, imagen, configuración, permisos, credenciales, PUT/GET/HEAD, streams, objetos, sondas S3, outbox, job, timeouts, reintentos, limpieza, matriz de 18 casos, RPO/RTO, condiciones de aprobación ni workflow. Las consultas diagnósticas sólo ocurren después de que REFERENCE ya falló.
 
 La validación exige sintaxis PowerShell, pruebas puras sobre funciones reales, categorías exactas, límites de proceso, ausencia de datos privados, conservación del fallo original y ejecución literal de la limpieza existente. Se ejecutan además el validador HU-035 y `git diff --check`.
 

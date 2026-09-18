@@ -196,6 +196,38 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
     [Fact]
     [Trait("Category", "Hu035Contract")]
+    public void ReferenceDispatchFailureExposesOnlyClosedSanitizedDiagnostics()
+    {
+        var diagnostic = FormatReferenceDispatchFailure(
+            "positive",
+            OutboxProcessResult.RetryScheduled,
+            "RECOVERY_REFERENCE_JOB_FAILED",
+            ScheduledJobStatuses.Failed,
+            "POSTGRES_CONCURRENCY_EXHAUSTED");
+
+        Assert.Equal(
+            "HU035_REFERENCE_DISPATCH_FAILED:CASE=positive:OUTBOX_RESULT=RETRY_SCHEDULED:" +
+            "OUTBOX_ERROR=RECOVERY_REFERENCE_JOB_FAILED:JOB_STATUS=FAILED:" +
+            "JOB_ERROR=POSTGRES_CONCURRENCY_EXHAUSTED",
+            diagnostic);
+
+        const string sentinel = "https://private.invalid/AccessKey=synthetic";
+        var sanitized = FormatReferenceDispatchFailure(
+            sentinel,
+            (OutboxProcessResult)999,
+            sentinel,
+            sentinel,
+            sentinel);
+        Assert.Equal(
+            "HU035_REFERENCE_DISPATCH_FAILED:CASE=UNKNOWN:OUTBOX_RESULT=UNKNOWN:" +
+            "OUTBOX_ERROR=UNKNOWN:JOB_STATUS=UNKNOWN:JOB_ERROR=UNKNOWN",
+            sanitized);
+        Assert.DoesNotContain("private.invalid", sanitized, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic", sanitized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
     public void SyntheticEvidenceMatchesPersistenceContract()
     {
         SyntheticEvidenceFixture.AssertContract();
@@ -340,7 +372,10 @@ public sealed class FunctionalRecoveryAmd64GateTests
                 provider.GetRequiredService<IServiceScopeFactory>(), uuid, clock);
             var processor = new OutboxProcessor(context, new OutboxHandlerRegistry([handler]), clock,
                 NullLogger<OutboxProcessor>.Instance);
-            Assert.Equal(OutboxProcessResult.Processed, await processor.ProcessNextAsync());
+            var outboxResult = await processor.ProcessNextAsync();
+            if (outboxResult != OutboxProcessResult.Processed)
+                throw new InvalidOperationException(await CaptureReferenceDispatchFailureAsync(
+                    context, created.ReconciliationId, testCase.Name, outboxResult));
             var latest = await context.RecoveryReconciliationEvents.AsNoTracking()
                 .Where(item => item.ReconciliationId == created.ReconciliationId)
                 .OrderByDescending(item => item.Sequence).FirstAsync();
@@ -777,6 +812,103 @@ public sealed class FunctionalRecoveryAmd64GateTests
             $"HU035_REPLICA_PREPARATION_FAILED:{exception.ErrorCode}:" +
             $"STAGE={stage}:OPERATION={operation}:TYPE={exceptionType}:HTTP={httpStatus}:S3CODE={s3ErrorCode}");
     }
+
+    private static async Task<string> CaptureReferenceDispatchFailureAsync(
+        SgolDbContext context,
+        Guid reconciliationId,
+        string caseName,
+        OutboxProcessResult outboxResult)
+    {
+        try
+        {
+            var outboxEvent = await context.OutboxEvents.AsNoTracking()
+                .Where(item => item.EventType == EfRecoveryReconciliationService.ReferenceRequestedEventType &&
+                    item.AggregateId == reconciliationId)
+                .OrderByDescending(item => item.CreatedAt)
+                .FirstOrDefaultAsync();
+            if (outboxEvent is null)
+                return FormatReferenceDispatchFailure(caseName, outboxResult, null, "ABSENT", null);
+
+            using var envelope = JsonDocument.Parse(outboxEvent.Payload);
+            var scheduledFor = envelope.RootElement.GetProperty("data").GetProperty("scheduledFor")
+                .GetDateTimeOffset();
+            var jobRun = await context.ScheduledJobRuns.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.JobName == CaptureRecoveryReferenceJob.JobName &&
+                    item.ScheduledFor == scheduledFor);
+            return FormatReferenceDispatchFailure(
+                caseName,
+                outboxResult,
+                outboxEvent.LastError,
+                jobRun?.Status ?? "ABSENT",
+                jobRun?.Error);
+        }
+        catch
+        {
+            return FormatReferenceDispatchFailure(caseName, outboxResult, null, null, null);
+        }
+    }
+
+    private static string FormatReferenceDispatchFailure(
+        string? caseName,
+        OutboxProcessResult outboxResult,
+        string? outboxError,
+        string? jobStatus,
+        string? jobError) =>
+        $"HU035_REFERENCE_DISPATCH_FAILED:CASE={NormalizeReferenceCase(caseName)}:" +
+        $"OUTBOX_RESULT={NormalizeOutboxResult(outboxResult)}:" +
+        $"OUTBOX_ERROR={NormalizeReferenceOutboxError(outboxError)}:" +
+        $"JOB_STATUS={NormalizeReferenceJobStatus(jobStatus)}:" +
+        $"JOB_ERROR={NormalizeReferenceJobError(jobError)}";
+
+    private static string NormalizeReferenceCase(string? value) => value switch
+    {
+        "positive" or "identity_missing" or "identity_additional" or "link_missing" or "link_altered" or
+        "version_changed" or "count_changed" or "evidence_missing" or "evidence_corrupt" or
+        "evidence_inaccessible" or "audit_missing" or "audit_altered" or "reference_corrupt" or
+        "rpo_exceeded" or "rto_exceeded" or "primary_target" or "replay_conflict" or "concurrency" => value,
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeOutboxResult(OutboxProcessResult value) => value switch
+    {
+        OutboxProcessResult.NoWork => "NO_WORK",
+        OutboxProcessResult.Processed => "PROCESSED",
+        OutboxProcessResult.RetryScheduled => "RETRY_SCHEDULED",
+        OutboxProcessResult.Exhausted => "EXHAUSTED",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceOutboxError(string? value) => value switch
+    {
+        null => "NONE",
+        "RECOVERY_REFERENCE_JOB_FAILED" => "RECOVERY_REFERENCE_JOB_FAILED",
+        "RECOVERY_REFERENCE_LOCK_BUSY" => "RECOVERY_REFERENCE_LOCK_BUSY",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceJobStatus(string? value) => value switch
+    {
+        null => "UNKNOWN",
+        "ABSENT" => "ABSENT",
+        ScheduledJobStatuses.Running => ScheduledJobStatuses.Running,
+        ScheduledJobStatuses.Succeeded => ScheduledJobStatuses.Succeeded,
+        ScheduledJobStatuses.Failed => ScheduledJobStatuses.Failed,
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceJobError(string? value) => value switch
+    {
+        null => "NONE",
+        "POSTGRES_UNIQUE_VIOLATION" => "POSTGRES_UNIQUE_VIOLATION",
+        "POSTGRES_CONCURRENCY_EXHAUSTED" => "POSTGRES_CONCURRENCY_EXHAUSTED",
+        "JOB_INFRASTRUCTURE_FAILURE" => "JOB_INFRASTRUCTURE_FAILURE",
+        "JOB_CHECKPOINT_CONFLICT" => "JOB_CHECKPOINT_CONFLICT",
+        "UNEXPECTED_JOB_FAILURE" => "UNEXPECTED_JOB_FAILURE",
+        "RECOVERY_RECONCILIATION_ID_INVALID" => "RECOVERY_RECONCILIATION_ID_INVALID",
+        "RECOVERY_RECONCILIATION_NOT_FOUND" => "RECOVERY_RECONCILIATION_NOT_FOUND",
+        "RECOVERY_STATE_INVALID" => "RECOVERY_STATE_INVALID",
+        _ => "UNKNOWN"
+    };
 
     private static string NormalizeReplicaStage(string? value) => value switch
     {
