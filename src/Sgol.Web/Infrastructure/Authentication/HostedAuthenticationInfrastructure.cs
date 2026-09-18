@@ -93,7 +93,6 @@ public sealed class PreAuthenticationCookieService(IDataProtectionProvider dataP
 }
 
 internal sealed class HostedCookieEvents(
-    IHostedAuthenticationService authenticationService,
     AuthenticationTelemetry telemetry)
     : CookieAuthenticationEvents
 {
@@ -110,6 +109,8 @@ internal sealed class HostedCookieEvents(
             return;
         }
 
+        var authenticationService = context.HttpContext.RequestServices
+            .GetRequiredService<IHostedAuthenticationService>();
         var session = await authenticationService.ValidateSessionAsync(
             userId,
             securityStamp,

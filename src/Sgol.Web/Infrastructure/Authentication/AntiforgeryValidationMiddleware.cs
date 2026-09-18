@@ -19,7 +19,7 @@ public sealed class AntiforgeryValidationMiddleware(RequestDelegate next)
             });
         }
 
-        if (RequiresValidation(context.Request))
+        if (RequiresValidation(context))
         {
             try
             {
@@ -68,12 +68,21 @@ public sealed class AntiforgeryValidationMiddleware(RequestDelegate next)
         await next(context);
     }
 
-    private static bool RequiresValidation(HttpRequest request) =>
-        request.Path.StartsWithSegments("/api/v1", StringComparison.OrdinalIgnoreCase) &&
-        !HttpMethods.IsGet(request.Method) &&
-        !HttpMethods.IsHead(request.Method) &&
-        !HttpMethods.IsOptions(request.Method) &&
-        !HttpMethods.IsTrace(request.Method);
+    private static bool RequiresValidation(HttpContext context)
+    {
+        var request = context.Request;
+        if (!request.Path.StartsWithSegments("/api/v1", StringComparison.OrdinalIgnoreCase) ||
+            HttpMethods.IsGet(request.Method) ||
+            HttpMethods.IsHead(request.Method) ||
+            HttpMethods.IsOptions(request.Method) ||
+            HttpMethods.IsTrace(request.Method))
+        {
+            return false;
+        }
+
+        return ExpectedProperties(request.Path) is not null ||
+            context.User.Identity?.IsAuthenticated == true;
+    }
 
     private static async Task<bool> HasApprovedJsonShapeAsync(HttpRequest request, CancellationToken cancellationToken)
     {
