@@ -93,6 +93,49 @@ public sealed class FunctionalRecoveryAmd64GateTests
     }
 
     [Fact]
+    [Trait("Category", "Hu035Contract")]
+    public async Task RestorePipelineAcceptsEarlyPipeClosureOnlyWhenBothProcessesSucceed()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        var directory = Path.Combine(Path.GetTempPath(), "sgol-hu035-pipe", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var producer = Path.Combine(directory, "producer.sh");
+        var consumer = Path.Combine(directory, "consumer.sh");
+        try
+        {
+            await File.WriteAllTextAsync(producer, "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo producer-1; exit 0; fi\nhead -c 16777216 /dev/zero\n");
+            await File.WriteAllTextAsync(consumer, "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo consumer-1; exit 0; fi\nexit 0\n");
+            File.SetUnixFileMode(producer, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.SetUnixFileMode(consumer, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+            var result = await new BackupProcessPipeline().VerifyAndRestoreAsync(
+                producer, consumer, "synthetic.dump.age", "synthetic.identity",
+                new NpgsqlConnectionStringBuilder(
+                    "Host=127.0.0.1;Port=5432;Database=synthetic;Username=synthetic;Password=synthetic"),
+                CancellationToken.None);
+
+            Assert.Equal("consumer-1", result.PgRestoreVersion);
+            Assert.Equal("producer-1", result.AgeVersion);
+
+            await File.WriteAllTextAsync(consumer,
+                "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo consumer-1; exit 0; fi\ncat >/dev/null\nexit 23\n");
+            File.SetUnixFileMode(consumer,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var failure = await Assert.ThrowsAsync<OperationsIntegrityException>(() =>
+                new BackupProcessPipeline().VerifyAndRestoreAsync(
+                    producer, consumer, "synthetic.dump.age", "synthetic.identity",
+                    new NpgsqlConnectionStringBuilder(
+                        "Host=127.0.0.1;Port=5432;Database=synthetic;Username=synthetic;Password=synthetic"),
+                    CancellationToken.None));
+            Assert.Equal("BACKUP_ARCHIVE_INVALID", failure.ErrorCode);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     [Trait("Category", "Hu035ReplicaDiagnostics")]
     public void ReplicaDiagnosticOperationsAreClosedAndNormalized()
     {

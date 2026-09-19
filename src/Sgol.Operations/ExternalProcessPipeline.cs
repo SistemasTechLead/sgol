@@ -170,8 +170,28 @@ public sealed class BackupProcessPipeline : IBackupProcessPipeline
         var restoreOutput = ReadBoundedAsync(restoreProcess.StandardOutput, cancellationToken);
         try
         {
-            await ageProcess.StandardOutput.BaseStream.CopyToAsync(restoreProcess.StandardInput.BaseStream, cancellationToken);
-            restoreProcess.StandardInput.Close();
+            try
+            {
+                await ageProcess.StandardOutput.BaseStream.CopyToAsync(
+                    restoreProcess.StandardInput.BaseStream, cancellationToken);
+            }
+            catch (IOException)
+            {
+                // The consumer may close stdin after consuming the complete archive. Its exit code and the
+                // caller's structural verification decide success; a non-zero process exit remains blocking.
+                await ageProcess.StandardOutput.BaseStream.CopyToAsync(Stream.Null, cancellationToken);
+            }
+            finally
+            {
+                try
+                {
+                    restoreProcess.StandardInput.Close();
+                }
+                catch (IOException)
+                {
+                    // The consumer already closed the pipe; its exit code is checked below.
+                }
+            }
             await Task.WhenAll(ageProcess.WaitForExitAsync(cancellationToken), restoreProcess.WaitForExitAsync(cancellationToken));
         }
         catch (OperationCanceledException)
@@ -221,8 +241,26 @@ public sealed class BackupProcessPipeline : IBackupProcessPipeline
         var listOutput = ReadBoundedAsync(listProcess.StandardOutput, cancellationToken);
         try
         {
-            await ageProcess.StandardOutput.BaseStream.CopyToAsync(listProcess.StandardInput.BaseStream, cancellationToken);
-            listProcess.StandardInput.Close();
+            try
+            {
+                await ageProcess.StandardOutput.BaseStream.CopyToAsync(listProcess.StandardInput.BaseStream, cancellationToken);
+            }
+            catch (IOException)
+            {
+                // pg_restore --list can close stdin once it has validated the archive. Exit codes remain authoritative.
+                await ageProcess.StandardOutput.BaseStream.CopyToAsync(Stream.Null, cancellationToken);
+            }
+            finally
+            {
+                try
+                {
+                    listProcess.StandardInput.Close();
+                }
+                catch (IOException)
+                {
+                    // The consumer already closed the pipe; its exit code is checked below.
+                }
+            }
             await Task.WhenAll(ageProcess.WaitForExitAsync(cancellationToken), listProcess.WaitForExitAsync(cancellationToken));
         }
         catch (OperationCanceledException)
