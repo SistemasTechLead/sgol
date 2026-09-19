@@ -24,6 +24,8 @@ La verificación externa afectada de `HU-030` incluye `PostgreSqlPersistenceTest
 
 En el corte final de la propuesta `HU-030`, el desarrollador ejecutó externamente las tres suites afectadas: `25/25` pruebas satisfactorias en `87.6 s`, sin advertencias.
 
+`TECH-AUTH-001` agrega la migración expand-only `20260918001719_AddHostedAuthentication`: columnas de bloqueo y concurrencia en `app_user`, y las tablas `authentication_challenge`, `mfa_totp_credential` y `mfa_recovery_code`. No hace backfill de secretos ni MFA; `Down()` está bloqueado. La prueba de inventario PostgreSQL debe incluir esta migración y las tres tablas antes de ejecutar el smoke HTTP hospedado.
+
 ## Ejecución del host contra PostgreSQL local
 
 El host obtiene la conexión mediante la clave estándar `ConnectionStrings:Sgol`. Debe inyectarse fuera de Git, por ejemplo con la variable de entorno `ConnectionStrings__Sgol`. El endpoint `/health/live` permanece independiente de PostgreSQL; resolver `SgolDbContext` sin configuración falla de forma explícita.

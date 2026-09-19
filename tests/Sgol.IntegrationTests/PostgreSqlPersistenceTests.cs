@@ -50,6 +50,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string IdempotencyReplayMigrationId = "20260912120000_ExtendIdempotencyReplay";
     private const string PortableDataProtectionMigrationId = "20260912213000_AddPortableDataProtectionKeyRing";
     private const string RecoveryReconciliationMigrationId = "20260914210503_AddRecoveryReconciliation";
+    private const string HostedAuthenticationMigrationId = "20260918001719_AddHostedAuthentication";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -103,6 +104,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 IdempotencyReplayMigrationId,
                 PortableDataProtectionMigrationId,
                 RecoveryReconciliationMigrationId,
+                HostedAuthenticationMigrationId,
             ],
             appliedMigrations);
 
@@ -125,6 +127,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "app_user",
                 "assignment_version",
                 "audit_event",
+                "authentication_challenge",
                 "availability_day_version",
                 "branch",
                 "calendar_day_version",
@@ -147,6 +150,8 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "idempotency_record",
                 "identity_credential",
                 "internal_notice",
+                "mfa_recovery_code",
+                "mfa_totp_credential",
                 "outbox_event",
                 "person",
                 "plan_version",
@@ -166,6 +171,45 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "work_plan",
             ],
             tables);
+
+        await reader.DisposeAsync();
+        command.CommandText = """
+            SELECT conname
+            FROM pg_constraint
+            WHERE conname IN (
+                'CK_app_user_access_failed_count',
+                'CK_app_user_authentication_row_version',
+                'CK_app_user_lockout_level',
+                'CK_authentication_challenge_failed_attempt_count',
+                'CK_authentication_challenge_interval',
+                'CK_authentication_challenge_purpose',
+                'CK_authentication_challenge_row_version',
+                'CK_authentication_challenge_status',
+                'CK_mfa_recovery_code_row_version',
+                'CK_mfa_totp_credential_protection_version',
+                'CK_mfa_totp_credential_row_version')
+            ORDER BY conname
+            """;
+        var authenticationConstraints = new List<string>();
+        await using (var constraintReader = await command.ExecuteReaderAsync())
+        {
+            while (await constraintReader.ReadAsync())
+            {
+                authenticationConstraints.Add(constraintReader.GetString(0));
+            }
+        }
+        Assert.Equal(11, authenticationConstraints.Count);
+
+        command.CommandText = """
+            SELECT indexdef
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND indexname = 'IX_mfa_totp_credential_user_id'
+            """;
+        var activeTotpIndex = (string?)await command.ExecuteScalarAsync();
+        Assert.NotNull(activeTotpIndex);
+        Assert.Contains("UNIQUE", activeTotpIndex, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("revoked_at IS NULL", activeTotpIndex, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

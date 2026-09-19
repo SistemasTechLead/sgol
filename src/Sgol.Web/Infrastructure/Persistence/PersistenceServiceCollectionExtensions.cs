@@ -29,6 +29,7 @@ using Sgol.Web.Infrastructure.Persistence.DataProtection;
 using Sgol.Continuity.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Continuity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Sgol.Web.Infrastructure.Authentication;
 
 namespace Sgol.Web.Infrastructure.Persistence;
 
@@ -89,6 +90,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IPersonAdministrationService, EfPersonAdministrationService>();
         services.AddScoped<IAvailabilityAdministrationService, EfAvailabilityAdministrationService>();
         services.AddScoped<IAccountAdministrationService, EfAccountAdministrationService>();
+        services.AddScoped<IHostedAuthenticationService, EfHostedAuthenticationService>();
+        services.AddSingleton<TotpSecretProtector>();
+        services.AddSingleton<AuthenticationTelemetry>();
         services.AddScoped<EfRoleAssignmentService>();
         services.AddScoped<IRoleAssignmentService>(provider => provider.GetRequiredService<EfRoleAssignmentService>());
         services.AddScoped<IRoleHierarchyResolver>(provider => provider.GetRequiredService<EfRoleAssignmentService>());

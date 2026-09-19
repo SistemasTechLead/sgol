@@ -40,6 +40,12 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<RoleAssignmentVersion> RoleAssignmentVersions => Set<RoleAssignmentVersion>();
 
+    public DbSet<AuthenticationChallenge> AuthenticationChallenges => Set<AuthenticationChallenge>();
+
+    public DbSet<MfaTotpCredential> MfaTotpCredentials => Set<MfaTotpCredential>();
+
+    public DbSet<MfaRecoveryCode> MfaRecoveryCodes => Set<MfaRecoveryCode>();
+
     public DbSet<DirectionBootstrapMarker> DirectionBootstrapMarkers => Set<DirectionBootstrapMarker>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
@@ -117,6 +123,9 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new AppUserConfiguration());
         modelBuilder.ApplyConfiguration(new IdentityCredentialConfiguration());
         modelBuilder.ApplyConfiguration(new RoleAssignmentVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new AuthenticationChallengeConfiguration());
+        modelBuilder.ApplyConfiguration(new MfaTotpCredentialConfiguration());
+        modelBuilder.ApplyConfiguration(new MfaRecoveryCodeConfiguration());
         modelBuilder.ApplyConfiguration(new DirectionBootstrapMarkerConfiguration());
         modelBuilder.ApplyConfiguration(new IdempotencyRecordConfiguration());
         modelBuilder.ApplyConfiguration(new ConfigurationReleaseConfiguration());

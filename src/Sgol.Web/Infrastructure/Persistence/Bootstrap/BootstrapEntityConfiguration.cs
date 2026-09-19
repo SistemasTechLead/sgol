@@ -188,9 +188,93 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(user => user.MustChangePassword).HasColumnName("must_change_password");
         builder.Property(user => user.MfaEnrolledAt).HasColumnName("mfa_enrolled_at").HasColumnType("timestamp with time zone");
         builder.Property(user => user.SecurityStamp).HasColumnName("security_stamp");
+        builder.Property(user => user.AccessFailedCount).HasColumnName("access_failed_count").HasDefaultValue(0);
+        builder.Property(user => user.LockoutLevel).HasColumnName("lockout_level").HasDefaultValue(0);
+        builder.Property(user => user.LockoutEndUtc).HasColumnName("lockout_end_utc").HasColumnType("timestamp with time zone");
+        builder.Property(user => user.AuthenticationRowVersion).HasColumnName("authentication_row_version").HasDefaultValue(1L).IsConcurrencyToken();
         builder.Ignore(user => user.RequiresFirstAccessSetup);
         builder.HasOne<Person>().WithMany().HasForeignKey(user => user.PersonId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(user => user.PersonId).IsUnique();
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_app_user_access_failed_count", "access_failed_count >= 0");
+            table.HasCheckConstraint("CK_app_user_lockout_level", "lockout_level >= 0");
+            table.HasCheckConstraint("CK_app_user_authentication_row_version", "authentication_row_version >= 1");
+        });
+    }
+}
+
+internal sealed class AuthenticationChallengeConfiguration : IEntityTypeConfiguration<AuthenticationChallenge>
+{
+    public void Configure(EntityTypeBuilder<AuthenticationChallenge> builder)
+    {
+        builder.ToTable("authentication_challenge");
+        builder.HasKey(challenge => challenge.Id);
+        builder.Property(challenge => challenge.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(challenge => challenge.UserId).HasColumnName("user_id");
+        builder.Property(challenge => challenge.Purpose).HasColumnName("purpose");
+        builder.Property(challenge => challenge.Status).HasColumnName("status");
+        builder.Property(challenge => challenge.SecurityStampSnapshot).HasColumnName("security_stamp_snapshot");
+        builder.Property(challenge => challenge.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
+        builder.Property(challenge => challenge.ExpiresAt).HasColumnName("expires_at").HasColumnType("timestamp with time zone");
+        builder.Property(challenge => challenge.ConsumedAt).HasColumnName("consumed_at").HasColumnType("timestamp with time zone");
+        builder.Property(challenge => challenge.FailedAttemptCount).HasColumnName("failed_attempt_count").HasDefaultValue(0);
+        builder.Property(challenge => challenge.ProtectedTotpSecret).HasColumnName("protected_totp_secret");
+        builder.Property(challenge => challenge.RowVersion).HasColumnName("row_version").HasDefaultValue(1L).IsConcurrencyToken();
+        builder.HasOne<AppUser>().WithMany().HasForeignKey(challenge => challenge.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(challenge => new { challenge.UserId, challenge.Status, challenge.ExpiresAt });
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_authentication_challenge_purpose", "purpose IN ('CHANGE_PASSWORD', 'ENROLL_MFA', 'VERIFY_MFA', 'REGENERATE_RECOVERY_CODES')");
+            table.HasCheckConstraint("CK_authentication_challenge_status", "status IN ('PENDING', 'CONSUMED', 'EXPIRED')");
+            table.HasCheckConstraint("CK_authentication_challenge_failed_attempt_count", "failed_attempt_count >= 0");
+            table.HasCheckConstraint("CK_authentication_challenge_interval", "expires_at > created_at");
+            table.HasCheckConstraint("CK_authentication_challenge_row_version", "row_version >= 1");
+        });
+    }
+}
+
+internal sealed class MfaTotpCredentialConfiguration : IEntityTypeConfiguration<MfaTotpCredential>
+{
+    public void Configure(EntityTypeBuilder<MfaTotpCredential> builder)
+    {
+        builder.ToTable("mfa_totp_credential");
+        builder.HasKey(credential => credential.Id);
+        builder.Property(credential => credential.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(credential => credential.UserId).HasColumnName("user_id");
+        builder.Property(credential => credential.ProtectedSecret).HasColumnName("protected_secret");
+        builder.Property(credential => credential.ProtectionVersion).HasColumnName("protection_version");
+        builder.Property(credential => credential.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
+        builder.Property(credential => credential.EnrolledAt).HasColumnName("enrolled_at").HasColumnType("timestamp with time zone");
+        builder.Property(credential => credential.RevokedAt).HasColumnName("revoked_at").HasColumnType("timestamp with time zone");
+        builder.Property(credential => credential.LastAcceptedTimeStep).HasColumnName("last_accepted_time_step");
+        builder.Property(credential => credential.RowVersion).HasColumnName("row_version").HasDefaultValue(1L).IsConcurrencyToken();
+        builder.HasOne<AppUser>().WithMany().HasForeignKey(credential => credential.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(credential => credential.UserId).IsUnique().HasFilter("revoked_at IS NULL");
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_mfa_totp_credential_protection_version", "protection_version = 1");
+            table.HasCheckConstraint("CK_mfa_totp_credential_row_version", "row_version >= 1");
+        });
+    }
+}
+
+internal sealed class MfaRecoveryCodeConfiguration : IEntityTypeConfiguration<MfaRecoveryCode>
+{
+    public void Configure(EntityTypeBuilder<MfaRecoveryCode> builder)
+    {
+        builder.ToTable("mfa_recovery_code");
+        builder.HasKey(code => code.Id);
+        builder.Property(code => code.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(code => code.UserId).HasColumnName("user_id");
+        builder.Property(code => code.CodeHash).HasColumnName("code_hash");
+        builder.Property(code => code.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
+        builder.Property(code => code.ConsumedAt).HasColumnName("consumed_at").HasColumnType("timestamp with time zone");
+        builder.Property(code => code.RevokedAt).HasColumnName("revoked_at").HasColumnType("timestamp with time zone");
+        builder.Property(code => code.RowVersion).HasColumnName("row_version").HasDefaultValue(1L).IsConcurrencyToken();
+        builder.HasOne<AppUser>().WithMany().HasForeignKey(code => code.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(code => new { code.UserId, code.ConsumedAt, code.RevokedAt });
+        builder.ToTable(table => table.HasCheckConstraint("CK_mfa_recovery_code_row_version", "row_version >= 1"));
     }
 }
 

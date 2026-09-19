@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public RFC 6238 SHA-1 test vector in the hosted authentication unit test"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''tests/Sgol\.UnitTests/HostedAuthenticationTests\.cs''']
+regexes = ['''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''']

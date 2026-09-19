@@ -13,6 +13,7 @@ public static class AccountApiEndpoints
         users.MapPost("", HandleCreateAsync);
         users.MapPost("/{userId:guid}/deactivate", HandleDeactivateAsync);
         users.MapPost("/{userId:guid}/reactivate", HandleReactivateAsync);
+        users.MapPost("/{userId:guid}/mfa-reset", HandleMfaResetAsync);
         users.MapPost("/{userId:guid}/role-assignments", RoleApiEndpoints.HandleChangeAsync);
         return endpoints;
     }
@@ -109,6 +110,44 @@ public static class AccountApiEndpoints
             context,
             service,
             cancellationToken);
+
+    public static async Task<IResult> HandleMfaResetAsync(
+        Guid userId,
+        ResetMfaRequest request,
+        HttpContext context,
+        IAccountAdministrationService service,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(context, out var actorUserId, out var denied))
+        {
+            return denied;
+        }
+
+        if (!TryGetIdempotencyKey(context, out var idempotencyKey, out var invalidKey))
+        {
+            return invalidKey;
+        }
+
+        try
+        {
+            var result = await service.ResetMfaAsync(
+                new ResetMfaCommand
+                {
+                    ActorUserId = actorUserId,
+                    IdempotencyKey = idempotencyKey,
+                    CorrelationId = GetCorrelationId(context),
+                    UserId = userId,
+                    Reason = request.Reason,
+                    TemporaryPassword = request.TemporaryPassword,
+                },
+                cancellationToken);
+            return Results.Ok(Envelope(context, result.Account));
+        }
+        catch (Exception exception)
+        {
+            return MapException(context, exception);
+        }
+    }
 
     private static async Task<IResult> HandleStatusChangeAsync(
         Guid userId,
@@ -254,4 +293,14 @@ public sealed class ReactivateAccountRequest
 
     public override string ToString() =>
         $"{nameof(ReactivateAccountRequest)} {{ Reason = {Reason}, TemporaryPassword = [REDACTED] }}";
+}
+
+public sealed class ResetMfaRequest
+{
+    public required string Reason { get; init; }
+
+    public required string TemporaryPassword { get; init; }
+
+    public override string ToString() =>
+        $"{nameof(ResetMfaRequest)} {{ Reason = {Reason}, TemporaryPassword = [REDACTED] }}";
 }

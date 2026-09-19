@@ -138,6 +138,35 @@ public static class RoleHierarchy
     };
 }
 
+public static class RolePermissionProjection
+{
+    public static IReadOnlyList<string> ForRole(string roleCode)
+    {
+        if (!CanonicalRole.IsDefined(roleCode))
+        {
+            return [];
+        }
+
+        var permissions = new List<string> { "PER-BANDEJA-PROPIA", "PER-OBLIGACION-PROPIA-VER" };
+        if (RoleHierarchy.GrantsSupervisionView(roleCode))
+        {
+            permissions.Add("PER-SUPERVISION-VER");
+        }
+
+        if (RoleHierarchy.GrantsValidationIssue(roleCode))
+        {
+            permissions.Add("PER-VALIDACION-EMITIR");
+        }
+
+        if (roleCode == CanonicalRole.Direction)
+        {
+            permissions.AddRange(["PER-USUARIO-ADMIN", "PER-ROL-ADMIN", "PER-CONTINUIDAD-VER"]);
+        }
+
+        return permissions;
+    }
+}
+
 public sealed record RoleAssignmentSnapshot(
     Guid Id,
     string RoleCode,

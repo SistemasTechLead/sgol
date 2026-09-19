@@ -32,10 +32,7 @@ public sealed class EfAccountAdministrationService(
     {
         await EnsureAuthorizedAsync(actorUserId, correlationId, cancellationToken);
 
-        var accounts = await LoadAccountsQuery()
-            .OrderBy(account => account.UserName)
-            .ThenBy(account => account.Id)
-            .ToListAsync(cancellationToken);
+        var accounts = await LoadAccountsQuery().ToListAsync(cancellationToken);
         dbContext.ChangeTracker.Clear();
         return accounts;
     }
@@ -176,6 +173,142 @@ public sealed class EfAccountAdministrationService(
         ChangeAccountStatusCommand command,
         CancellationToken cancellationToken = default) =>
         ChangeStatusAsync(command, AccountStatus.Active, requiresTemporaryPassword: true, cancellationToken);
+
+    public async Task<AccountMutationResult> ResetMfaAsync(
+        ResetMfaCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        await EnsureAuthorizedAsync(command.ActorUserId, command.CorrelationId, cancellationToken);
+
+        var reason = RequireValue(command.Reason, "Reason");
+        var temporaryPassword = RequireTemporaryPassword(command.TemporaryPassword);
+        const string operation = "ACCOUNT_MFA_RESET";
+        var resource = command.UserId.ToString("D");
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(
+            operation,
+            command.ActorUserId.ToString("D"),
+            resource,
+            new { command.UserId, reason, temporaryPassword });
+        var replay = await FindReplayAsync(
+            scope,
+            scope,
+            command.IdempotencyKey,
+            requestHash,
+            requestHash,
+            command.ActorUserId,
+            command.CorrelationId,
+            operation,
+            cancellationToken);
+        if (replay is not null)
+        {
+            return replay;
+        }
+
+        try
+        {
+            await auditTransaction.ExecuteAsync(
+                async criticalWriteCancellationToken =>
+                {
+                    var user = await dbContext.AppUsers
+                        .FromSqlInterpolated($"SELECT * FROM app_user WHERE id = {command.UserId} FOR UPDATE")
+                        .SingleOrDefaultAsync(criticalWriteCancellationToken)
+                        ?? throw new AccountNotFoundException();
+                    var credential = await dbContext.IdentityCredentials
+                        .SingleAsync(item => item.UserId == user.Id, criticalWriteCancellationToken);
+                    var now = clock.UtcNow;
+                    var beforeData = SafeAccountData(user, credential.UserName);
+
+                    var totpCredentials = await dbContext.MfaTotpCredentials
+                        .Where(item => item.UserId == user.Id && item.RevokedAt == null)
+                        .ToListAsync(criticalWriteCancellationToken);
+                    foreach (var item in totpCredentials)
+                    {
+                        item.RevokedAt = now;
+                        item.RowVersion++;
+                    }
+
+                    var recoveryCodes = await dbContext.MfaRecoveryCodes
+                        .Where(item => item.UserId == user.Id && item.ConsumedAt == null && item.RevokedAt == null)
+                        .ToListAsync(criticalWriteCancellationToken);
+                    foreach (var item in recoveryCodes)
+                    {
+                        item.RevokedAt = now;
+                        item.RowVersion++;
+                    }
+
+                    var challenges = await dbContext.AuthenticationChallenges
+                        .Where(item => item.UserId == user.Id && item.Status == AuthenticationChallengeStatus.Pending)
+                        .ToListAsync(criticalWriteCancellationToken);
+                    foreach (var item in challenges)
+                    {
+                        item.Status = AuthenticationChallengeStatus.Consumed;
+                        item.ConsumedAt = now;
+                        item.RowVersion++;
+                    }
+
+                    credential.PasswordHash = passwordHasher.HashPassword(user, temporaryPassword);
+                    user.MustChangePassword = true;
+                    user.MfaEnrolledAt = null;
+                    user.AccessFailedCount = 0;
+                    user.LockoutLevel = 0;
+                    user.LockoutEndUtc = null;
+                    user.AuthenticationRowVersion++;
+                    user.SecurityStamp = NewSecurityStamp();
+                    var afterData = SafeAccountData(user, credential.UserName);
+                    var response = new AccountSummary(
+                        user.Id,
+                        user.PersonId,
+                        credential.UserName,
+                        user.Status,
+                        user.MustChangePassword,
+                        user.MfaEnrolledAt);
+                    dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
+                        scope,
+                        command.IdempotencyKey,
+                        requestHash,
+                        user.Id,
+                        StatusCodes.Status200OK,
+                        response,
+                        null,
+                        now));
+
+                    return NewAuditEvent(
+                        command.ActorUserId,
+                        command.CorrelationId,
+                        user.Id,
+                        "AUTH_MFA_RESET",
+                        beforeData,
+                        afterData,
+                        reason);
+                },
+                cancellationToken);
+            dbContext.ChangeTracker.Clear();
+        }
+        catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
+        {
+            dbContext.ChangeTracker.Clear();
+            return await FindReplayAsync(
+                scope,
+                scope,
+                command.IdempotencyKey,
+                requestHash,
+                requestHash,
+                command.ActorUserId,
+                command.CorrelationId,
+                operation,
+                cancellationToken)
+                ?? throw new AccountIdempotencyConflictException();
+        }
+        catch
+        {
+            dbContext.ChangeTracker.Clear();
+            throw;
+        }
+
+        return new AccountMutationResult((await LoadAccountAsync(command.UserId, cancellationToken))!, Replayed: false);
+    }
 
     private async Task<AccountMutationResult> ChangeStatusAsync(
         ChangeAccountStatusCommand command,
@@ -405,6 +538,7 @@ public sealed class EfAccountAdministrationService(
         from user in dbContext.AppUsers.AsNoTracking()
         join credential in dbContext.IdentityCredentials.AsNoTracking()
             on user.Id equals credential.UserId
+        orderby credential.UserName, user.Id
         select new AccountSummary(
             user.Id,
             user.PersonId,
