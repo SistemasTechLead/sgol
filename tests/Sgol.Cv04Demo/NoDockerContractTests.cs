@@ -72,6 +72,15 @@ public sealed class NoDockerContractTests
         Assert.Equal(0, DemoSafety.CaptureExit(process));
     }
 
+    [Fact]
+    public void NextEffectiveFromIsStrictlyAfterCurrentAndWallClock()
+    {
+        var now = new DateTimeOffset(2026, 9, 19, 12, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal(now.AddSeconds(1), DemoContract.NextEffectiveFrom(now.AddSeconds(-1), now));
+        Assert.Equal(now.AddSeconds(3), DemoContract.NextEffectiveFrom(now.AddSeconds(2), now));
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);

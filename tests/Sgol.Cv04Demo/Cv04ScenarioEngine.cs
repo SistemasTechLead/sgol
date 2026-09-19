@@ -141,7 +141,7 @@ internal sealed class Cv04ScenarioEngine(Cv04Infrastructure infrastructure)
             cancellationToken,
             Guid.CreateVersion7()))
         {
-            RequireStatus(created, HttpStatusCode.Created);
+            RequirePolicyStatus(created, HttpStatusCode.Created, "CV04_POLICY_RELEASE_CREATE_REJECTED");
             releaseId = await HostedAuthenticationClient.DataGuidAsync(created, "id", cancellationToken);
             releaseEtag = RequireEtag(created);
         }
@@ -163,7 +163,18 @@ internal sealed class Cv04ScenarioEngine(Cv04Infrastructure infrastructure)
                 direction.Csrf,
                 cancellationToken,
                 Guid.CreateVersion7());
-            RequireStatus(response, HttpStatusCode.Created);
+            RequirePolicyStatus(response, HttpStatusCode.Created, "CV04_POLICY_DRAFT_REJECTED");
+        }
+
+        DateTimeOffset effectiveFrom;
+        await using (var preconditionContext = infrastructure.CreateContext())
+        {
+            var currentEffectiveFrom = await preconditionContext.ConfigurationReleases.AsNoTracking()
+                .Where(item => item.Status == Sgol.BuildingBlocks.Versioning.VersionStatuses.Current)
+                .Select(item => item.EffectiveFrom)
+                .SingleAsync(cancellationToken)
+                ?? throw new DemoFailureException("POLICY", "S01", "CV04_POLICY_PRECONDITION");
+            effectiveFrom = DemoContract.NextEffectiveFrom(currentEffectiveFrom, DateTimeOffset.UtcNow);
         }
 
         using (var published = await HostedAuthenticationClient.PostAsync(
@@ -171,7 +182,7 @@ internal sealed class Cv04ScenarioEngine(Cv04Infrastructure infrastructure)
             $"/api/v1/configuration/releases/{releaseId:D}/publish",
             new
             {
-                effectiveFrom = DateTimeOffset.UtcNow.AddSeconds(1),
+                effectiveFrom,
                 reason = "TECH-E2E-CV-04 política canónica",
             },
             direction.Csrf,
@@ -179,7 +190,7 @@ internal sealed class Cv04ScenarioEngine(Cv04Infrastructure infrastructure)
             Guid.CreateVersion7(),
             releaseEtag))
         {
-            RequireStatus(published, HttpStatusCode.OK);
+            await RequirePolicyPublicationStatusAsync(published, cancellationToken);
         }
 
         await using var context = infrastructure.CreateContext();
@@ -797,6 +808,43 @@ internal sealed class Cv04ScenarioEngine(Cv04Infrastructure infrastructure)
             throw new DemoFailureException(
                 "AUTHORIZATION", "NONE", $"CV04_HTTP_STATUS_{(int)response.StatusCode}");
         }
+    }
+
+    private static void RequirePolicyStatus(
+        HttpResponseMessage response,
+        HttpStatusCode expected,
+        string rejectionCode)
+    {
+        if (response.StatusCode != expected)
+        {
+            throw new DemoFailureException("POLICY", "S01", rejectionCode);
+        }
+    }
+
+    private static async Task RequirePolicyPublicationStatusAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            return;
+        }
+
+        if (response.StatusCode != HttpStatusCode.UnprocessableEntity)
+        {
+            throw new DemoFailureException("POLICY", "S01", "CV04_POLICY_UNKNOWN_REJECTION");
+        }
+
+        using var document = await HostedAuthenticationClient.ReadJsonAsync(response, cancellationToken);
+        var problemCode = document.RootElement.TryGetProperty("code", out var code) ? code.GetString() : null;
+        var closedCode = problemCode switch
+        {
+            "VIGENCIA_SOLAPADA" => "CV04_POLICY_OVERLAP",
+            "POLITICA_VALIDACION_INCOMPLETA" => "CV04_POLICY_COVERAGE",
+            "PUBLICACION_INVALIDA" => "CV04_POLICY_PUBLICATION_INVALID",
+            _ => "CV04_POLICY_UNKNOWN_REJECTION",
+        };
+        throw new DemoFailureException("POLICY", "S01", closedCode);
     }
 
     private static string RequireEtag(HttpResponseMessage response)

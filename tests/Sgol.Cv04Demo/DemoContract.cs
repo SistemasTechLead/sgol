@@ -52,6 +52,12 @@ internal static class DemoContract
         "/api/v1/supervision/obligations",
         "/api/v1/validations/pending",
     };
+
+    public static DateTimeOffset NextEffectiveFrom(DateTimeOffset currentEffectiveFrom, DateTimeOffset now)
+    {
+        var baseline = currentEffectiveFrom > now ? currentEffectiveFrom : now;
+        return baseline.AddSeconds(1);
+    }
 }
 
 internal enum DemoMode
@@ -95,6 +101,9 @@ internal static class DemoSafety
         "CV04_HTTP_STATUS_200", "CV04_HTTP_STATUS_201", "CV04_HTTP_STATUS_400", "CV04_HTTP_STATUS_401",
         "CV04_HTTP_STATUS_403", "CV04_HTTP_STATUS_404", "CV04_HTTP_STATUS_409", "CV04_HTTP_STATUS_412",
         "CV04_HTTP_STATUS_422", "CV04_HTTP_STATUS_500",
+        "CV04_POLICY_RELEASE_CREATE_REJECTED", "CV04_POLICY_DRAFT_REJECTED",
+        "CV04_POLICY_OVERLAP", "CV04_POLICY_COVERAGE", "CV04_POLICY_PRECONDITION",
+        "CV04_POLICY_PUBLICATION_INVALID", "CV04_POLICY_UNKNOWN_REJECTION",
         "CV04_REPORT_FAILED", "CV04_CLEANUP_FAILED", "CV04_UNEXPECTED_FAILURE", "CV04_EXECUTION_PASSED",
     };
 
