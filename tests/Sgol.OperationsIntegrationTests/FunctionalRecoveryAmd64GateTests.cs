@@ -75,6 +75,24 @@ public sealed class FunctionalRecoveryAmd64GateTests
     ];
 
     [Fact]
+    [Trait("Category", "Hu035Contract")]
+    public async Task ReplicaManifestTransportFailureBecomesEvidenceInaccessible()
+    {
+        using var client = new AmazonS3Client("synthetic", "synthetic", new AmazonS3Config
+        {
+            ServiceURL = "http://127.0.0.1:1",
+            ForcePathStyle = true,
+            MaxErrorRetry = 0,
+            Timeout = TimeSpan.FromSeconds(3)
+        });
+        var result = await FunctionalRecoveryOperations.TryReadReplicaManifestAsync(
+            new S3OperationStore(client), "synthetic", "synthetic", CancellationToken.None);
+
+        Assert.True(result.Inaccessible);
+        Assert.Null(result.Manifest);
+    }
+
+    [Fact]
     [Trait("Category", "Hu035ReplicaDiagnostics")]
     public void ReplicaDiagnosticOperationsAreClosedAndNormalized()
     {

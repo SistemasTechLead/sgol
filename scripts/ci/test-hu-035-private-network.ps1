@@ -43,6 +43,21 @@ Assert-Test ($unknownDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=UNKNOWN:EXIT=93
 $fallbackDiagnostic = Format-Hu035ReconcileFailure 'concurrency' 1 @('OPERATIONS_COMMAND_FAILED')
 Assert-Test ($fallbackDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=concurrency:EXIT=1:ERROR=OPERATIONS_COMMAND_FAILED') `
     'reconciliation diagnostic preserves closed command fallback'
+$restoreDiagnosticFunction = $gateAst.Find({ param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Format-Hu035RestoreVerifyFailure'
+}, $true)
+. ([scriptblock]::Create($restoreDiagnosticFunction.Extent.Text))
+$knownRestoreDiagnostic = Format-Hu035RestoreVerifyFailure 'identity_missing' 1 @(
+    'private exception text', 'PG_RESTORE_FAILED', 'Host=private')
+Assert-Test ($knownRestoreDiagnostic -eq 'HU035_RESTORE_VERIFY_FAILED:CASE=identity_missing:EXIT=1:ERROR=PG_RESTORE_FAILED') `
+    'restore diagnostic exposes only approved case, exit and error'
+Assert-Test (-not $knownRestoreDiagnostic.Contains('private', [StringComparison]::OrdinalIgnoreCase)) `
+    'restore diagnostic drops original output'
+$unknownRestoreDiagnostic = Format-Hu035RestoreVerifyFailure 'unapproved-case' 91 @(
+    'UNAPPROVED_ERROR', 'endpoint=http://private')
+Assert-Test ($unknownRestoreDiagnostic -eq 'HU035_RESTORE_VERIFY_FAILED:CASE=UNKNOWN:EXIT=91:ERROR=UNKNOWN') `
+    'restore diagnostic reduces unknown values'
 $provisionText = $provisionAst.Extent.Text
 Assert-Test ($provisionText.Contains("'GRANT SET ON PARAMETER session_replication_role TO sgol_restore'")) `
     'synthetic restore role can apply the approved negative matrix mutations'

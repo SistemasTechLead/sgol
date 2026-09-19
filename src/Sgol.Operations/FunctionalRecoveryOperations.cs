@@ -305,8 +305,18 @@ public sealed class FunctionalRecoveryOperations(
     {
         using var client = options.Destination.CreateClient();
         var store = new S3OperationStore(client);
-        var manifestObject = await store.TryReadAsync(options.ManifestBucket, reference.ReplicaManifestKey,
-            cancellationToken) ?? throw new OperationsIntegrityException("REPLICA_MANIFEST_INVALID");
+        var manifestRead = await TryReadReplicaManifestAsync(store, options.ManifestBucket,
+            reference.ReplicaManifestKey, cancellationToken);
+        if (manifestRead.Inaccessible)
+        {
+            return
+            [
+                new(1, "evidence", "file_object", FunctionalSnapshotContract.Hash(reference.ReplicaManifestKey),
+                    null, RecoveryDifferenceKinds.EvidenceInaccessible, reference.ReplicaManifestSha256, null)
+            ];
+        }
+        var manifestObject = manifestRead.Manifest
+            ?? throw new OperationsIntegrityException("REPLICA_MANIFEST_INVALID");
         EnsureArtifactSize(manifestObject.Content);
         if (manifestObject.Sha256 != reference.ReplicaManifestSha256)
             throw new OperationsIntegrityException("REPLICA_MANIFEST_INVALID");
@@ -372,6 +382,28 @@ public sealed class FunctionalRecoveryOperations(
             }
         }
         return differences;
+    }
+
+    internal static async Task<((byte[] Content, string Sha256)? Manifest, bool Inaccessible)>
+        TryReadReplicaManifestAsync(S3OperationStore store, string bucket, string key,
+            CancellationToken cancellationToken)
+    {
+        try
+        {
+            return (await store.TryReadAsync(bucket, key, cancellationToken), false);
+        }
+        catch (AmazonS3Exception exception) when (exception.StatusCode != HttpStatusCode.NotFound)
+        {
+            return (null, true);
+        }
+        catch (AmazonServiceException)
+        {
+            return (null, true);
+        }
+        catch (HttpRequestException)
+        {
+            return (null, true);
+        }
     }
 
     private static DateTimeOffset RequiredUtc(JsonElement root, string name)

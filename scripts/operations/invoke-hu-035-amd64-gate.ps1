@@ -464,6 +464,25 @@ function Format-Hu035ReconcileFailure([string]$CaseName, [int]$ExitCode, [object
     return "HU035_RECONCILE_FAILED:CASE=$safeCase`:EXIT=$ExitCode`:ERROR=$safeError"
 }
 
+function Format-Hu035RestoreVerifyFailure([string]$CaseName, [int]$ExitCode, [object[]]$Output) {
+    $approvedCases = @('positive','identity_missing','identity_additional','link_missing','link_altered',
+        'version_changed','count_changed','evidence_missing','evidence_corrupt','evidence_inaccessible',
+        'audit_missing','audit_altered','reference_corrupt','rpo_exceeded','rto_exceeded','primary_target',
+        'replay_conflict','concurrency')
+    $approvedErrors = @('BACKUP_MANIFEST_URI_INVALID','BACKUP_MANIFEST_INVALID','S3_URI_INVALID',
+        'RESTORE_PRIMARY_TARGET_REJECTED','RESTORE_TARGET_NOT_EMPTY','BACKUP_HASH_MISMATCH',
+        'BACKUP_DECRYPTION_FAILED','BACKUP_ARCHIVE_INVALID','PG_RESTORE_START_FAILED','PG_RESTORE_FAILED',
+        'AGE_START_FAILED','RESTORE_STRUCTURAL_VERIFICATION_FAILED','S3_OPERATION_FAILED',
+        'POSTGRESQL_OPERATION_FAILED','OPERATIONS_COMMAND_FAILED')
+    $safeCase = if ($approvedCases -contains $CaseName) { $CaseName } else { 'UNKNOWN' }
+    $safeError = 'UNKNOWN'
+    foreach ($line in $Output) {
+        $candidate = ([string]$line).Trim()
+        if ($approvedErrors -contains $candidate) { $safeError = $candidate }
+    }
+    return "HU035_RESTORE_VERIFY_FAILED:CASE=$safeCase`:EXIT=$ExitCode`:ERROR=$safeError"
+}
+
 function Invoke-ImageOperation([string[]]$Arguments, [string]$runtimePath, [string]$privatePath,
     [int[]]$ExpectedExitCodes = @(0), [hashtable]$EnvironmentOverrides = @{}) {
     $dockerArguments = @('run','--rm','--platform','linux/amd64','--network',$script:networkName,
@@ -488,6 +507,10 @@ function Invoke-ImageOperation([string[]]$Arguments, [string]$runtimePath, [stri
         if ($ExpectedExitCodes -notcontains $exitCode) {
             if ($Arguments[0] -eq 'reconcile-functional-restore') {
                 throw (Format-Hu035ReconcileFailure `
+                    ([Environment]::GetEnvironmentVariable('SGOL_HU035_CASE', 'Process')) $exitCode $output)
+            }
+            if ($Arguments[0] -eq 'verify-postgresql-backup') {
+                throw (Format-Hu035RestoreVerifyFailure `
                     ([Environment]::GetEnvironmentVariable('SGOL_HU035_CASE', 'Process')) $exitCode $output)
             }
             throw "HU-035 image operation failed: $($Arguments[0]); exit=$exitCode"
@@ -715,6 +738,7 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
 
     $stage = 'MATRIX'
     foreach ($caseDescriptor in $descriptor.cases) {
+        [Environment]::SetEnvironmentVariable('SGOL_HU035_CASE', [string]$caseDescriptor.name, 'Process')
         Reset-RestoreDatabase
         $caseEvidencePath = Join-Path $privateDirectory "$($caseDescriptor.name)-restore-evidence.json"
         $restore = Invoke-ImageOperation @('verify-postgresql-backup', '--manifest',

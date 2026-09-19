@@ -363,6 +363,11 @@ if ($gate.IndexOf('function Format-Hu035ReconcileFailure', [StringComparison]::O
     $gate.IndexOf("if (`$Arguments[0] -eq 'reconcile-functional-restore')", [StringComparison]::Ordinal) -lt 0) {
     throw 'HU-035 unexpected reconciliation failures must use the approved closed diagnostic.'
 }
+if ($gate.IndexOf('function Format-Hu035RestoreVerifyFailure', [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf('HU035_RESTORE_VERIFY_FAILED:CASE=', [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf("if (`$Arguments[0] -eq 'verify-postgresql-backup')", [StringComparison]::Ordinal) -lt 0) {
+    throw 'HU-035 unexpected restore verification failures must use the approved closed diagnostic.'
+}
 $workflow = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.github/workflows/pull-request.yml')
 if ($workflow.IndexOf('invoke-hu-035-amd64-gate.ps1', [StringComparison]::Ordinal) -lt 0 -or
     $workflow.IndexOf('sgol-hu-035-amd64/evidence-public/**', [StringComparison]::Ordinal) -lt 0) {
