@@ -3,13 +3,18 @@ using System.Net;
 using System.Reflection;
 using System.ComponentModel;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Xml.Linq;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using DotNet.Testcontainers.Builders;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -344,9 +349,28 @@ public sealed class FunctionalRecoveryAmd64GateTests
         await context.Database.MigrateAsync();
         await SeedFunctionalFixtureAsync(context, new DeterministicSeed(new string('a', 64)));
 
+        const string certificatePassword = "hu035-synthetic-certificate";
+        using var rsa = RSA.Create(2048);
+        var certificateRequest = new CertificateRequest(
+            "CN=SGOL HU-035 synthetic", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = certificateRequest.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var dataProtectionConfiguration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["DataProtection:ApplicationName"] = "SGOL-HU-035-SYNTHETIC",
+                ["DataProtection:WrappingCertificate"] = Convert.ToBase64String(
+                    certificate.Export(X509ContentType.Pfx, certificatePassword)),
+                ["DataProtection:WrappingCertificatePassword"] = certificatePassword
+            }).Build();
+        var protectedProbe = CreateProtectedAuthenticationProbe(dataProtectionConfiguration, connectionString);
+        VerifyProtectedAuthenticationProbe(connectionString, protectedProbe, dataProtectionConfiguration);
+
         Assert.Equal(2, await context.PlanVersions.CountAsync());
         Assert.Equal(2, await context.ValidationDecisionVersions.CountAsync());
         Assert.Single(await context.FileObjects.ToArrayAsync());
+        Assert.Equal(1, await context.Database.SqlQueryRaw<int>(
+            "SELECT count(*)::int AS \"Value\" FROM data_protection_key").SingleAsync());
 
         var snapshot = await FunctionalSnapshotReader.CaptureReferenceAsync(
             connectionString,
@@ -437,6 +461,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
         await using var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>()
             .UseNpgsql(connectionString).Options);
         await context.Database.MigrateAsync();
+        var protectedAuthenticationProbe = CreateProtectedAuthenticationProbe(configuration, connectionString);
         var actors = await SeedFunctionalFixtureAsync(context, seed);
         var direction = actors.DirectionUserId;
         context.AuditEvents.Add(new AuditEvent
@@ -540,6 +565,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
             kind = "SGOL_HU035_AMD64_DESCRIPTOR",
             directionUserId = direction,
             expectedMigration = "20260914210503_AddRecoveryReconciliation",
+            protectedAuthenticationProbe,
             cases = descriptors
         };
         await File.WriteAllTextAsync(outputPath, JsonSerializer.Serialize(descriptor),
@@ -665,6 +691,15 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
     private static async Task ApplySyntheticMutationAsync(string testCase)
     {
+        using (var descriptor = JsonDocument.Parse(
+                   await File.ReadAllBytesAsync(Required("SGOL_HU035_DESCRIPTOR_PATH"))))
+        {
+            VerifyProtectedAuthenticationProbe(
+                Required("Restore__PostgreSql__ConnectionString"),
+                descriptor.RootElement.GetProperty("protectedAuthenticationProbe").GetString()
+                    ?? throw new InvalidOperationException("Synthetic authentication probe is missing."));
+        }
+
         if (testCase is "evidence_missing" or "evidence_corrupt" or "restore_object")
         {
             await MutateReplicaObjectAsync(testCase);
@@ -1794,6 +1829,52 @@ public sealed class FunctionalRecoveryAmd64GateTests
         ? value
         : throw new InvalidOperationException($"Missing HU-035 AMD64 setting: {name}");
 
+    private static string CreateProtectedAuthenticationProbe(
+        IConfiguration configuration,
+        string connectionString)
+    {
+        using var provider = CreatePortableDataProtectionProvider(configuration, connectionString);
+        return provider.GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector("SGOL.HU035.AuthenticationCookie.v1")
+            .Protect("hu035-synthetic-authentication-probe");
+    }
+
+    private static void VerifyProtectedAuthenticationProbe(
+        string connectionString,
+        string protectedProbe,
+        IConfiguration? suppliedConfiguration = null)
+    {
+        var configuration = suppliedConfiguration ?? new ConfigurationBuilder().AddEnvironmentVariables().Build();
+        using var provider = CreatePortableDataProtectionProvider(configuration, connectionString);
+        var value = provider.GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector("SGOL.HU035.AuthenticationCookie.v1")
+            .Unprotect(protectedProbe);
+        Assert.Equal("hu035-synthetic-authentication-probe", value);
+    }
+
+    private static ServiceProvider CreatePortableDataProtectionProvider(
+        IConfiguration configuration,
+        string connectionString)
+    {
+        var certificateText = configuration["DataProtection:WrappingCertificate"]
+            ?? throw new InvalidOperationException("Synthetic wrapping certificate is missing.");
+        var certificatePassword = configuration["DataProtection:WrappingCertificatePassword"]
+            ?? throw new InvalidOperationException("Synthetic wrapping certificate password is missing.");
+        var applicationName = configuration["DataProtection:ApplicationName"]
+            ?? throw new InvalidOperationException("Synthetic Data Protection application name is missing.");
+        var certificate = X509CertificateLoader.LoadPkcs12(
+            Convert.FromBase64String(certificateText), certificatePassword,
+            X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+        var services = new ServiceCollection();
+        services.AddSingleton(certificate);
+        services.AddDataProtection()
+            .SetApplicationName(applicationName)
+            .ProtectKeysWithCertificate(certificate);
+        services.Configure<KeyManagementOptions>(options =>
+            options.XmlRepository = new PostgreSqlGateXmlRepository(connectionString));
+        return services.BuildServiceProvider();
+    }
+
     private sealed class FixedClock(DateTimeOffset value) : IClock
     {
         public DateTimeOffset UtcNow { get; } = value;
@@ -1811,6 +1892,34 @@ public sealed class FunctionalRecoveryAmd64GateTests
     private sealed record FixtureActors(Guid DirectionUserId, Guid DeniedUserId);
 
     private sealed record Amd64Case(string Name, string ExpectedStatus, string? ExpectedCode);
+
+    private sealed class PostgreSqlGateXmlRepository(string connectionString) : IXmlRepository
+    {
+        public IReadOnlyCollection<XElement> GetAllElements()
+        {
+            using var connection = new NpgsqlConnection(connectionString);
+            connection.Open();
+            using var command = new NpgsqlCommand(
+                "SELECT xml FROM data_protection_key ORDER BY created_at, name", connection);
+            using var reader = command.ExecuteReader();
+            var elements = new List<XElement>();
+            while (reader.Read())
+                elements.Add(XElement.Parse(reader.GetString(0), LoadOptions.PreserveWhitespace));
+            return elements;
+        }
+
+        public void StoreElement(XElement element, string friendlyName)
+        {
+            using var connection = new NpgsqlConnection(connectionString);
+            connection.Open();
+            using var command = new NpgsqlCommand(
+                "INSERT INTO data_protection_key (name, xml, created_at) VALUES ($1, $2, CURRENT_TIMESTAMP)",
+                connection);
+            command.Parameters.AddWithValue(friendlyName);
+            command.Parameters.AddWithValue(element.ToString(SaveOptions.DisableFormatting));
+            command.ExecuteNonQuery();
+        }
+    }
 
     private sealed class DeterministicUuidGenerator(DeterministicSeed seed, string scope) : IUuidGenerator
     {
