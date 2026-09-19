@@ -102,6 +102,16 @@ public interface IHostedAuthenticationService
         DateTimeOffset mfaAuthenticatedAt,
         DateTimeOffset absoluteExpiresAt,
         CancellationToken cancellationToken = default);
+
+    Task RecordSessionRejectedAsync(
+        Guid? userId,
+        Guid correlationId,
+        CancellationToken cancellationToken = default);
+
+    Task RecordLogoutAsync(
+        Guid? userId,
+        Guid correlationId,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class AuthenticationFailedException : Exception

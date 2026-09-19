@@ -138,3 +138,17 @@ Ejecute cada caso desde el host HTTPS real y PostgreSQL local. Conserve sólo es
 | Logs y respuestas | no contienen contraseña, TOTP, recovery code, cookie, secreto protegido ni cadena de conexión |
 
 El reset MFA ordinario requiere sesión Dirección vigente, `Idempotency-Key`, motivo y una contraseña temporal externa. Revoca TOTP y recovery codes, consume desafíos pendientes, pone en cero el bloqueo, rota `SecurityStamp` y obliga cambio de contraseña y enrolamiento nuevos en una sola transacción auditada.
+
+## Smoke Kestrel HTTPS y evidencia pública
+
+El smoke de aceptación levanta un proceso externo de `Sgol.Web` sobre Kestrel HTTPS, genera un certificado autofirmado efímero fuera del repositorio, valida su huella exacta y usa PostgreSQL Testcontainers. No usa `TestServer` ni fabrica `ClaimsPrincipal`.
+
+```powershell
+dotnet test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj `
+  --no-build --no-restore --configuration Release `
+  --filter "FullyQualifiedName~HostedAuthenticationKestrelSmokeTests"
+```
+
+La única evidencia pública del harness contiene `stage`, `scenario`, `exit`, `errorCode` y `state`. Las etapas permitidas son `CSRF`, `LOGIN`, `PASSWORD_CHANGE`, `MFA_ENROLL`, `MFA_CONFIRM`, `MFA_VERIFY`, `RECOVERY_REGENERATE`, `SESSION_VALIDATE`, `LOGOUT`, `MFA_RESET` y `CLEANUP`. No se publican mensajes originales, excepciones, cuerpos HTTP, cookies, tokens, contraseñas, secretos TOTP, recovery codes, hashes, sellos ni cadenas de conexión.
+
+La autorización de los cuatro roles se comprueba con `/api/v1/branches/LOR-001`, `/api/v1/users` y el reset MFA. La sonda histórica de `/api/v1/continuity/reconciliations` no forma parte de este smoke: `origin/master` no registra en Web el handler `RECOVERY_REFERENCE_REQUESTED`; reintroducir la versión antigua sería modificar HU-035 fuera del alcance de TECH-AUTH-001.

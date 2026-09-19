@@ -171,6 +171,45 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 "work_plan",
             ],
             tables);
+
+        await reader.DisposeAsync();
+        command.CommandText = """
+            SELECT conname
+            FROM pg_constraint
+            WHERE conname IN (
+                'CK_app_user_access_failed_count',
+                'CK_app_user_authentication_row_version',
+                'CK_app_user_lockout_level',
+                'CK_authentication_challenge_failed_attempt_count',
+                'CK_authentication_challenge_interval',
+                'CK_authentication_challenge_purpose',
+                'CK_authentication_challenge_row_version',
+                'CK_authentication_challenge_status',
+                'CK_mfa_recovery_code_row_version',
+                'CK_mfa_totp_credential_protection_version',
+                'CK_mfa_totp_credential_row_version')
+            ORDER BY conname
+            """;
+        var authenticationConstraints = new List<string>();
+        await using (var constraintReader = await command.ExecuteReaderAsync())
+        {
+            while (await constraintReader.ReadAsync())
+            {
+                authenticationConstraints.Add(constraintReader.GetString(0));
+            }
+        }
+        Assert.Equal(11, authenticationConstraints.Count);
+
+        command.CommandText = """
+            SELECT indexdef
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND indexname = 'IX_mfa_totp_credential_user_id'
+            """;
+        var activeTotpIndex = (string?)await command.ExecuteScalarAsync();
+        Assert.NotNull(activeTotpIndex);
+        Assert.Contains("UNIQUE", activeTotpIndex, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("revoked_at IS NULL", activeTotpIndex, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -244,6 +244,14 @@ public static class AuthenticationApiEndpoints
                 mfaAuthenticatedAt,
                 absoluteExpiresAt,
                 cancellationToken);
+            var authentication = await context.AuthenticateAsync(HostedAuthenticationDefaults.Scheme);
+            if (authentication.Properties?.ExpiresUtc is DateTimeOffset ticketExpiresAt)
+            {
+                session = session with
+                {
+                    IdleExpiresAt = Minimum(ticketExpiresAt, session.AbsoluteExpiresAt),
+                };
+            }
             return Results.Ok(Envelope(context, session));
         }
         catch (Exception exception)
@@ -252,9 +260,21 @@ public static class AuthenticationApiEndpoints
         }
     }
 
-    private static async Task<IResult> LogoutAsync(HttpContext context, CancellationToken cancellationToken)
+    private static async Task<IResult> LogoutAsync(
+        HttpContext context,
+        IHostedAuthenticationService service,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var userId = AuthenticationPrincipalFactory.TryReadSessionClaims(
+            context.User,
+            out var authenticatedUserId,
+            out _,
+            out _,
+            out _)
+            ? authenticatedUserId
+            : (Guid?)null;
+        await service.RecordLogoutAsync(userId, GetCorrelationId(context), cancellationToken);
         await context.SignOutAsync(HostedAuthenticationDefaults.Scheme);
         PreAuthenticationCookieService.Delete(context);
         return Results.NoContent();

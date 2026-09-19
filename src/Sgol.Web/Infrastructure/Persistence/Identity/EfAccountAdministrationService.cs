@@ -278,7 +278,7 @@ public sealed class EfAccountAdministrationService(
                         command.ActorUserId,
                         command.CorrelationId,
                         user.Id,
-                        "USER_MFA_RESET",
+                        "AUTH_MFA_RESET",
                         beforeData,
                         afterData,
                         reason);

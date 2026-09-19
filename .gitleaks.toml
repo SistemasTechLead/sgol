@@ -6,4 +6,4 @@ description = "Public RFC 6238 SHA-1 test vector in the hosted authentication un
 condition = "AND"
 regexTarget = "match"
 paths = ['''tests/Sgol\.UnitTests/HostedAuthenticationTests\.cs''']
-regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''']
+regexes = ['''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''']

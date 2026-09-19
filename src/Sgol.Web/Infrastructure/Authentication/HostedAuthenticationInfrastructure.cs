@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Sgol.BuildingBlocks.Time;
 using Sgol.Identity.Contracts;
 using Sgol.Web.Infrastructure.Http;
 
@@ -93,7 +94,8 @@ public sealed class PreAuthenticationCookieService(IDataProtectionProvider dataP
 }
 
 internal sealed class HostedCookieEvents(
-    AuthenticationTelemetry telemetry)
+    AuthenticationTelemetry telemetry,
+    IClock clock)
     : CookieAuthenticationEvents
 {
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
@@ -120,6 +122,18 @@ internal sealed class HostedCookieEvents(
         if (session is null)
         {
             await RejectAsync(context);
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var issuedAt = context.Properties.IssuedUtc;
+        context.ShouldRenew = issuedAt is not null && now - issuedAt.Value >= TimeSpan.FromMinutes(15);
+        if (context.ShouldRenew)
+        {
+            context.Properties.IssuedUtc = now;
+            context.Properties.ExpiresUtc = Minimum(
+                now.Add(HostedAuthenticationDefaults.IdleLifetime),
+                absoluteExpiresAt);
         }
     }
 
@@ -137,7 +151,21 @@ internal sealed class HostedCookieEvents(
         context.HttpContext.Items[HostedAuthenticationDefaults.RejectedSessionItem] = true;
         context.RejectPrincipal();
         await context.HttpContext.SignOutAsync(HostedAuthenticationDefaults.Scheme);
+        var authenticationService = context.HttpContext.RequestServices
+            .GetRequiredService<IHostedAuthenticationService>();
+        await authenticationService.RecordSessionRejectedAsync(
+            userId: null,
+            GetCorrelationId(context.HttpContext),
+            context.HttpContext.RequestAborted);
     }
+
+    private static DateTimeOffset Minimum(DateTimeOffset first, DateTimeOffset second) =>
+        first <= second ? first : second;
+
+    private static Guid GetCorrelationId(HttpContext context) =>
+        Guid.TryParse(context.GetCorrelationId(), out var correlationId)
+            ? correlationId
+            : Guid.CreateVersion7();
 
     private static Task WriteProblemAsync(HttpContext context, int status, string code, string title)
     {
@@ -228,7 +256,7 @@ public static class HostedAuthenticationServiceCollectionExtensions
                 options.Cookie.Path = "/";
                 options.Cookie.IsEssential = true;
                 options.ExpireTimeSpan = HostedAuthenticationDefaults.IdleLifetime;
-                options.SlidingExpiration = true;
+                options.SlidingExpiration = false;
                 options.EventsType = typeof(HostedCookieEvents);
             });
         services.AddAuthorization();

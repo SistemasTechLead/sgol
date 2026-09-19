@@ -33,7 +33,8 @@ public sealed class HostedAuthenticationTests
     [Fact]
     public async Task HostedFlowIssuesHardenedCookieAndMaintainsSession()
     {
-        await using var factory = CreateFactory(new RecordingAuthenticationService());
+        var service = new RecordingAuthenticationService();
+        await using var factory = CreateFactory(service);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -69,6 +70,7 @@ public sealed class HostedAuthenticationTests
         var authenticatedCsrf = await GetCsrfAsync(client);
         using var logout = await PostAsync(client, "/api/v1/auth/logout", new { }, authenticatedCsrf);
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        Assert.Equal(1, service.LogoutAudits);
 
         using var afterLogout = await client.GetAsync("/api/v1/auth/session");
         Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
@@ -155,6 +157,42 @@ public sealed class HostedAuthenticationTests
         Assert.Equal(10, service.LoginCalls);
     }
 
+    [Fact]
+    public async Task TamperedAndPersistentlyInvalidCookiesFailClosedWithSanitizedAudit()
+    {
+        var service = new RecordingAuthenticationService();
+        await using var factory = CreateFactory(service);
+        using var tampered = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost"),
+            HandleCookies = false,
+        });
+        tampered.DefaultRequestHeaders.Add("Cookie", $"{HostedAuthenticationDefaults.SessionCookie}=tampered");
+        using var tamperedResponse = await tampered.GetAsync("/api/v1/auth/session");
+        Assert.Equal(HttpStatusCode.Unauthorized, tamperedResponse.StatusCode);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost"),
+            HandleCookies = true,
+        });
+        var csrf = await GetCsrfAsync(client);
+        using var login = await PostAsync(client, "/api/v1/auth/login", new
+        {
+            userName = "direction.synthetic",
+            password = "Temporary-Password-01!",
+        }, csrf);
+        using var confirm = await PostAsync(client, "/api/v1/auth/mfa/confirm", new { totpCode = "287082" }, csrf);
+        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
+
+        service.RejectSessions = true;
+        using var invalid = await client.GetAsync("/api/v1/auth/session");
+        Assert.Equal(HttpStatusCode.Unauthorized, invalid.StatusCode);
+        Assert.Equal(1, service.SessionRejectionAudits);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory(IHostedAuthenticationService service) =>
         new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder => builder
@@ -199,6 +237,12 @@ public sealed class HostedAuthenticationTests
             ["PER-USUARIO-ADMIN"]);
 
         public int LoginCalls { get; private set; }
+
+        public int LogoutAudits { get; private set; }
+
+        public int SessionRejectionAudits { get; private set; }
+
+        public bool RejectSessions { get; set; }
 
         public Task<AuthenticationFlowResult> LoginAsync(
             string userName,
@@ -248,7 +292,25 @@ public sealed class HostedAuthenticationTests
             DateTimeOffset absoluteExpiresAt,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<AuthenticatedSession?>(
-                userId == session.UserId && securityStamp == session.SecurityStamp ? session : null);
+                !RejectSessions && userId == session.UserId && securityStamp == session.SecurityStamp ? session : null);
+
+        public Task RecordSessionRejectedAsync(
+            Guid? userId,
+            Guid correlationId,
+            CancellationToken cancellationToken = default)
+        {
+            SessionRejectionAudits++;
+            return Task.CompletedTask;
+        }
+
+        public Task RecordLogoutAsync(
+            Guid? userId,
+            Guid correlationId,
+            CancellationToken cancellationToken = default)
+        {
+            LogoutAudits++;
+            return Task.CompletedTask;
+        }
 
         public Task<AuthenticationFlowResult> ChangePasswordAsync(
             Guid? challengeId,

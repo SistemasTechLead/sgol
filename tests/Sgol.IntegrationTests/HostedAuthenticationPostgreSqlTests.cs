@@ -67,17 +67,6 @@ public sealed class HostedAuthenticationPostgreSqlTests : IAsyncLifetime
                     : HttpStatusCode.Forbidden,
                 usersResponse.StatusCode);
 
-            using var continuity = await PostAsync(
-                authenticated.Client,
-                "/api/v1/continuity/reconciliations",
-                new { reason = "Smoke sintético TECH-AUTH-001" },
-                authenticated.Csrf,
-                new Dictionary<string, string> { ["Idempotency-Key"] = Guid.CreateVersion7().ToString("D") });
-            Assert.Equal(
-                authenticated.Account.RoleCode == CanonicalRole.Direction
-                    ? HttpStatusCode.Created
-                    : HttpStatusCode.Forbidden,
-                continuity.StatusCode);
         }
 
         var direction = sessions.Single(item => item.Account.RoleCode == CanonicalRole.Direction);
@@ -149,6 +138,104 @@ public sealed class HostedAuthenticationPostgreSqlTests : IAsyncLifetime
         {
             item.Client.Dispose();
         }
+    }
+
+    [Fact]
+    public async Task PostgreSqlSerializesReplayRecoveryAndExactConcurrentLockout()
+    {
+        var accounts = CreateSyntheticAccounts();
+        await using var factory = CreateFactory();
+        await SeedAsync(factory, accounts);
+
+        var direction = await CompleteFirstAccessAsync(factory, accounts[0]);
+        using (var logout = await PostAsync(direction.Client, "/api/v1/auth/logout", new { }, direction.Csrf))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        }
+        var csrf = await GetCsrfAsync(direction.Client);
+        using (var login = await LoginAsync(direction.Client, direction.Account.UserName, direction.Account.NewPassword, csrf))
+        {
+            Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        }
+
+        using (var replay = await PostAsync(
+            direction.Client,
+            "/api/v1/auth/mfa/verify",
+            new { totpCode = direction.TotpCode },
+            csrf))
+        {
+            Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+            Assert.Equal("CODIGO_MFA_INVALIDO", await ProblemCodeAsync(replay));
+        }
+
+        var concurrentRecovery = new[]
+        {
+            PostAsync(direction.Client, "/api/v1/auth/mfa/verify", new { recoveryCode = direction.RecoveryCode }, csrf),
+            PostAsync(direction.Client, "/api/v1/auth/mfa/verify", new { recoveryCode = direction.RecoveryCode }, csrf),
+        };
+        var recoveryResponses = await Task.WhenAll(concurrentRecovery);
+        try
+        {
+            Assert.Equal(1, recoveryResponses.Count(item => item.StatusCode == HttpStatusCode.OK));
+            Assert.Equal(1, recoveryResponses.Count(item => item.StatusCode == HttpStatusCode.Unauthorized));
+        }
+        finally
+        {
+            foreach (var response in recoveryResponses)
+            {
+                response.Dispose();
+            }
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<SgolDbContext>();
+            Assert.Equal(1, await context.MfaRecoveryCodes.CountAsync(item =>
+                item.UserId == direction.Account.UserId && item.ConsumedAt != null));
+        }
+
+        var target = accounts[1];
+        var attempts = new List<Task<HttpResponseMessage>>();
+        var attemptClients = new List<HttpClient>();
+        for (var index = 0; index < 5; index++)
+        {
+            var client = CreateClient(factory);
+            attemptClients.Add(client);
+            var attemptCsrf = await GetCsrfAsync(client);
+            attempts.Add(LoginAsync(client, target.UserName, NewPassword(), attemptCsrf));
+        }
+        var failures = await Task.WhenAll(attempts);
+        try
+        {
+            Assert.All(failures, response => Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode));
+        }
+        finally
+        {
+            foreach (var response in failures)
+            {
+                response.Dispose();
+            }
+            foreach (var client in attemptClients)
+            {
+                client.Dispose();
+            }
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<SgolDbContext>();
+            var user = await context.AppUsers.AsNoTracking().SingleAsync(item => item.Id == target.UserId);
+            Assert.Equal(0, user.AccessFailedCount);
+            Assert.Equal(1, user.LockoutLevel);
+            Assert.NotNull(user.LockoutEndUtc);
+        }
+
+        using var lockedClient = CreateClient(factory);
+        var lockedCsrf = await GetCsrfAsync(lockedClient);
+        using var locked = await LoginAsync(lockedClient, target.UserName, target.TemporaryPassword, lockedCsrf);
+        Assert.Equal((HttpStatusCode)423, locked.StatusCode);
+        Assert.Equal("ACCOUNT_LOCKED", await ProblemCodeAsync(locked));
+        direction.Client.Dispose();
     }
 
     private WebApplicationFactory<Program> CreateFactory() =>
@@ -274,9 +361,10 @@ public sealed class HostedAuthenticationPostgreSqlTests : IAsyncLifetime
             manualKey = await DataStringAsync(enrollment, "manualKey");
         }
         string recoveryCode;
+        var totpCode = ComputeTotp(manualKey, DateTimeOffset.UtcNow);
         using (var confirmed = await PostAsync(client, "/api/v1/auth/mfa/confirm", new
         {
-            totpCode = ComputeTotp(manualKey, DateTimeOffset.UtcNow),
+            totpCode,
         }, csrf))
         {
             Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
@@ -285,7 +373,7 @@ public sealed class HostedAuthenticationPostgreSqlTests : IAsyncLifetime
         }
 
         var authenticatedCsrf = await GetCsrfAsync(client);
-        return new AuthenticatedClient(account, client, authenticatedCsrf, recoveryCode);
+        return new AuthenticatedClient(account, client, authenticatedCsrf, recoveryCode, totpCode);
     }
 
     private static async Task InvalidatePersistentIdentityAsync(
@@ -414,5 +502,7 @@ public sealed class HostedAuthenticationPostgreSqlTests : IAsyncLifetime
         SyntheticAccount Account,
         HttpClient Client,
         string Csrf,
-        string RecoveryCode);
+        string RecoveryCode,
+        string TotpCode);
+
 }

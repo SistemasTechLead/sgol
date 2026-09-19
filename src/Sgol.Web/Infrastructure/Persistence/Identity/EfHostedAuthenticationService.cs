@@ -472,6 +472,30 @@ internal sealed class EfHostedAuthenticationService(
             : ToSession(identity, user.SecurityStamp, mfaAuthenticatedAt, absoluteExpiresAt);
     }
 
+    public Task RecordSessionRejectedAsync(
+        Guid? userId,
+        Guid correlationId,
+        CancellationToken cancellationToken = default) =>
+        WriteAuditOnlyAsync(
+            userId,
+            correlationId,
+            "AUTH_SESSION_REJECTED",
+            "SESSION_INVALID",
+            "DENIED",
+            cancellationToken);
+
+    public Task RecordLogoutAsync(
+        Guid? userId,
+        Guid correlationId,
+        CancellationToken cancellationToken = default) =>
+        WriteAuditOnlyAsync(
+            userId,
+            correlationId,
+            "AUTH_LOGOUT",
+            reason: null,
+            outcome: "SUCCESS",
+            cancellationToken);
+
     private async Task<EligibleIdentity?> LoadEligibleIdentityAsync(Guid userId, CancellationToken cancellationToken)
     {
         var account = await (
