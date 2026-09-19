@@ -86,6 +86,7 @@ app.MapObligationConclusionApi();
 app.MapValidationDecisionApi();
 app.MapInboxApi();
 app.MapEvidenceApi();
+app.MapContinuityApi();
 
 app.Run();
 

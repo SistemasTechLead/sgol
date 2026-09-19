@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Recovery reconciliation contracts and deterministic comparison for SGOL.</Description>
+  </PropertyGroup>
+</Project>

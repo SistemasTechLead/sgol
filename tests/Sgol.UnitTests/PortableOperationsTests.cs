@@ -18,17 +18,23 @@ public sealed class PortableOperationsTests
     {
         var backup = new PostgreSqlPortableBackupJob(null!);
         var replica = new ReplicateEvidenceObjectsJob(null!);
+        var recovery = new CaptureRecoveryReferenceJob(null!, null!, TimeProvider.System);
 
         Assert.Equal("POSTGRESQL_PORTABLE_BACKUP", backup.Name);
         Assert.True(backup.PreventOverlappingSlots);
         Assert.Equal("REPLICATE_EVIDENCE_OBJECTS", replica.Name);
         Assert.True(replica.PreventOverlappingSlots);
+        Assert.Equal("CAPTURE_RECOVERY_REFERENCE", recovery.Name);
+        Assert.True(recovery.PreventOverlappingSlots);
         Assert.Equal(
             ScheduledJobRunner.ComputeLockKey(backup.Name),
             ScheduledJobRunner.ComputeLockKey(backup.Name));
         Assert.NotEqual(
             ScheduledJobRunner.ComputeLockKey(backup.Name),
             ScheduledJobRunner.ComputeLockKey(replica.Name));
+        Assert.NotEqual(
+            ScheduledJobRunner.ComputeLockKey(replica.Name),
+            ScheduledJobRunner.ComputeLockKey(recovery.Name));
     }
 
     [Fact]
@@ -158,6 +164,20 @@ public sealed class PortableOperationsTests
             Configuration([]));
 
         Assert.Equal(64, result);
+    }
+
+    [Fact]
+    public async Task FunctionalRecoveryCommandsRejectNonCanonicalIdentityBeforeEffects()
+    {
+        var complete = await OperationsProgram.RunAsync(
+            ["complete-functional-reference", "--reconciliation-id", "invalid", "--reference", "s3://a/r.json",
+                "--backup-manifest", "s3://a/b.json", "--replica-manifest", "s3://b/r.json"]);
+        var reconcile = await OperationsProgram.RunAsync(
+            ["reconcile-functional-restore", "--reconciliation-id", "invalid", "--reference-manifest",
+                "s3://a/r.json", "--restore-evidence", "missing.json"]);
+
+        Assert.Equal(64, complete);
+        Assert.Equal(64, reconcile);
     }
 
     [Fact]

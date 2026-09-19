@@ -37,6 +37,9 @@
           "Sgol.BuildingBlocks": "[1.0.0, )"
         }
       },
+      "sgol.continuity": {
+        "type": "Project"
+      },
       "sgol.evidence": {
         "type": "Project"
       },
@@ -55,6 +58,7 @@
       "sgol.operations": {
         "type": "Project",
         "dependencies": {
+          "Sgol.Continuity": "[1.0.0, )",
           "Sgol.Web": "[1.0.0, )"
         }
       },
@@ -75,6 +79,7 @@
           "Sgol.Assignment": "[1.0.0, )",
           "Sgol.BuildingBlocks": "[1.0.0, )",
           "Sgol.Configuration": "[1.0.0, )",
+          "Sgol.Continuity": "[1.0.0, )",
           "Sgol.Evidence": "[1.0.0, )",
           "Sgol.Execution": "[1.0.0, )",
           "Sgol.Generation": "[1.0.0, )",
