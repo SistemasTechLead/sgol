@@ -876,3 +876,4 @@ finally {
 
 if ($result -ne 'SUCCEEDED') { throw "HU-035 AMD64 gate failed at stage $stage." }
 Write-Output "PASS: native AMD64 HU-035 functional recovery gate. PublicEvidence=$publicDirectory"
+$global:LASTEXITCODE = 0

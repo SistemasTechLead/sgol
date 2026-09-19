@@ -16,6 +16,9 @@ function Assert-Keys($Value, [string[]]$Expected) {
     $actual = @($Value.PSObject.Properties.Name | Sort-Object)
     Assert-True (($actual -join '|') -ceq (($Expected | Sort-Object) -join '|')) 'PUBLIC_PROPERTIES_CHANGED'
 }
+$gateText = Get-Content -Raw -LiteralPath $gatePath
+Assert-True ($gateText.TrimEnd().EndsWith('$global:LASTEXITCODE = 0', [StringComparison]::Ordinal)) `
+    'SUCCESS_EXIT_CODE_NOT_RESET'
 $names = @('Initialize-Hu035LogCapture', 'Read-Hu035ServerLogs', 'Read-Hu035RuntimeState',
     'New-Hu035RuntimeSummary', 'ConvertTo-Hu035RuntimeSummary', 'New-Hu035ServerSummary',
     'Get-Hu035ServerEventCode', 'ConvertTo-Hu035ServerSummary', 'Write-Hu035ServerSummary',
