@@ -349,7 +349,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
         await context.Database.MigrateAsync();
         await SeedFunctionalFixtureAsync(context, new DeterministicSeed(new string('a', 64)));
 
-        const string certificatePassword = "hu035-synthetic-certificate";
+        var certificatePassword = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
         using var rsa = RSA.Create(2048);
         var certificateRequest = new CertificateRequest(
             "CN=SGOL HU-035 synthetic", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
