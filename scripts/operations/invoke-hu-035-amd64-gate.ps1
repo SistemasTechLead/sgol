@@ -441,6 +441,29 @@ function Set-RuntimeStorageEndpoints([string]$path, [string]$sourceAddress,
     [IO.File]::WriteAllLines($path, $lines, $script:utf8WithoutBom)
 }
 
+function Format-Hu035ReconcileFailure([string]$CaseName, [int]$ExitCode, [object[]]$Output) {
+    $approvedCases = @('positive','identity_missing','identity_additional','link_missing','link_altered',
+        'version_changed','count_changed','evidence_missing','evidence_corrupt','evidence_inaccessible',
+        'audit_missing','audit_altered','reference_corrupt','rpo_exceeded','rto_exceeded','primary_target',
+        'replay_conflict','concurrency')
+    $approvedErrors = @('BUILD_IDENTITY_INVALID','RECONCILIATION_ID_INVALID',
+        'REFERENCE_ARTIFACT_LOCATION_INVALID','REFERENCE_BACKUP_SNAPSHOT_MISMATCH',
+        'REFERENCE_MANIFEST_URI_INVALID','REPLICA_MANIFEST_URI_INVALID','RESTORE_EVIDENCE_INVALID',
+        'RESTORE_PRIMARY_TARGET_REJECTED','S3_URI_INVALID','BACKUP_EMPTY','BACKUP_HASH_MISMATCH',
+        'BACKUP_MANIFEST_INVALID','CARDINALITY_LIMIT_EXCEEDED','IMMUTABLE_OBJECT_CONFLICT',
+        'MANIFEST_INVALID','MANIFEST_VALUE_INVALID','RECONCILIATION_IMMUTABLE_CONFLICT',
+        'REFERENCE_CORRUPT','REFERENCE_MISSING','REFERENCE_VERSION_UNSUPPORTED','REPLICA_MANIFEST_INVALID',
+        'S3_OBJECT_VERIFICATION_FAILED','S3_WRITE_VERIFICATION_FAILED','S3_OPERATION_FAILED',
+        'POSTGRESQL_OPERATION_FAILED','OPERATIONS_COMMAND_FAILED','LOCK_BUSY')
+    $safeCase = if ($approvedCases -contains $CaseName) { $CaseName } else { 'UNKNOWN' }
+    $safeError = 'UNKNOWN'
+    foreach ($line in $Output) {
+        $candidate = ([string]$line).Trim()
+        if ($approvedErrors -contains $candidate) { $safeError = $candidate }
+    }
+    return "HU035_RECONCILE_FAILED:CASE=$safeCase`:EXIT=$ExitCode`:ERROR=$safeError"
+}
+
 function Invoke-ImageOperation([string[]]$Arguments, [string]$runtimePath, [string]$privatePath,
     [int[]]$ExpectedExitCodes = @(0), [hashtable]$EnvironmentOverrides = @{}) {
     $dockerArguments = @('run','--rm','--platform','linux/amd64','--network',$script:networkName,
@@ -463,6 +486,10 @@ function Invoke-ImageOperation([string[]]$Arguments, [string]$runtimePath, [stri
         $output = @(& docker @dockerArguments 2>&1)
         $exitCode = $LASTEXITCODE
         if ($ExpectedExitCodes -notcontains $exitCode) {
+            if ($Arguments[0] -eq 'reconcile-functional-restore') {
+                throw (Format-Hu035ReconcileFailure `
+                    ([Environment]::GetEnvironmentVariable('SGOL_HU035_CASE', 'Process')) $exitCode $output)
+            }
             throw "HU-035 image operation failed: $($Arguments[0]); exit=$exitCode"
         }
         return [pscustomobject]@{ ExitCode = $exitCode; Output = $output }

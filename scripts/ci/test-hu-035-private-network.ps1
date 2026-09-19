@@ -25,6 +25,24 @@ $gateText = $gateAst.Extent.Text
 Assert-Test ($gateText.Contains("`$ageContent = `$wrapperTemplate.Replace('docker run --rm --platform',")) 'age wrapper derived from approved template'
 Assert-Test ($gateText.Contains("'docker run --rm --interactive --platform'")) 'age wrapper keeps stdin attached'
 Assert-Test (([regex]::Matches($gateText, '--interactive')).Count -eq 1) 'interactive stdin limited to age wrapper'
+$diagnosticFunction = $gateAst.Find({ param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Format-Hu035ReconcileFailure'
+}, $true)
+. ([scriptblock]::Create($diagnosticFunction.Extent.Text))
+$knownDiagnostic = Format-Hu035ReconcileFailure 'positive' 1 @(
+    'private exception text', 'RESTORE_EVIDENCE_INVALID', 'Password=private')
+Assert-Test ($knownDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=positive:EXIT=1:ERROR=RESTORE_EVIDENCE_INVALID') `
+    'reconciliation diagnostic exposes only approved case, exit and error'
+Assert-Test (-not $knownDiagnostic.Contains('private', [StringComparison]::OrdinalIgnoreCase)) `
+    'reconciliation diagnostic drops original output'
+$unknownDiagnostic = Format-Hu035ReconcileFailure 'unapproved-case' 93 @(
+    'UNAPPROVED_ERROR', 'endpoint=http://private')
+Assert-Test ($unknownDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=UNKNOWN:EXIT=93:ERROR=UNKNOWN') `
+    'reconciliation diagnostic reduces unknown values'
+$fallbackDiagnostic = Format-Hu035ReconcileFailure 'concurrency' 1 @('OPERATIONS_COMMAND_FAILED')
+Assert-Test ($fallbackDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=concurrency:EXIT=1:ERROR=OPERATIONS_COMMAND_FAILED') `
+    'reconciliation diagnostic preserves closed command fallback'
 $provisionText = $provisionAst.Extent.Text
 foreach ($name in @('Assert-DockerSuccess','Get-PublishedPort','Get-ContainerAddress','Set-ProvisionEnvironment')) {
     $function = $provisionAst.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)

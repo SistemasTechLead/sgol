@@ -352,6 +352,12 @@ if ($gate.IndexOf("`$ageContent = `$wrapperTemplate.Replace('docker run --rm --p
     ([regex]::Matches($gate, '--interactive')).Count -ne 1) {
     throw 'HU-035 age wrapper must keep stdin attached without changing the pg_dump wrapper.'
 }
+if ($gate.IndexOf('function Format-Hu035ReconcileFailure', [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf('HU035_RECONCILE_FAILED:CASE=', [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf("if (`$approvedErrors -contains `$candidate)", [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf("if (`$Arguments[0] -eq 'reconcile-functional-restore')", [StringComparison]::Ordinal) -lt 0) {
+    throw 'HU-035 unexpected reconciliation failures must use the approved closed diagnostic.'
+}
 $workflow = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.github/workflows/pull-request.yml')
 if ($workflow.IndexOf('invoke-hu-035-amd64-gate.ps1', [StringComparison]::Ordinal) -lt 0 -or
     $workflow.IndexOf('sgol-hu-035-amd64/evidence-public/**', [StringComparison]::Ordinal) -lt 0) {
