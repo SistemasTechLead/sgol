@@ -18,6 +18,7 @@ using Sgol.Web.Infrastructure.Persistence.Execution;
 using Sgol.JobInfrastructure;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 using Sgol.Web.Infrastructure.Persistence.Validation;
+using Sgol.Web.Infrastructure.Persistence.Continuity;
 
 namespace Sgol.Web.Infrastructure.Persistence;
 
@@ -99,6 +100,12 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
 
     public DbSet<ScheduledJobRun> ScheduledJobRuns => Set<ScheduledJobRun>();
 
+    public DbSet<RecoveryReconciliation> RecoveryReconciliations => Set<RecoveryReconciliation>();
+
+    public DbSet<RecoveryReconciliationEvent> RecoveryReconciliationEvents => Set<RecoveryReconciliationEvent>();
+
+    public DbSet<RecoveryReconciliationDifference> RecoveryReconciliationDifferences => Set<RecoveryReconciliationDifference>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -141,5 +148,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options) : DbC
         modelBuilder.ApplyConfiguration(new AssignmentVersionConfiguration());
         modelBuilder.ApplyConfiguration(new OutboxEventConfiguration());
         modelBuilder.ApplyConfiguration(new ScheduledJobRunConfiguration());
+        modelBuilder.ApplyConfiguration(new RecoveryReconciliationConfiguration());
+        modelBuilder.ApplyConfiguration(new RecoveryReconciliationEventConfiguration());
+        modelBuilder.ApplyConfiguration(new RecoveryReconciliationDifferenceConfiguration());
     }
 }

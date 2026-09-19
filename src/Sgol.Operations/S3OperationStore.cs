@@ -6,6 +6,15 @@ namespace Sgol.Operations;
 
 public sealed class S3OperationStore(IAmazonS3 client)
 {
+    internal bool CaptureReplicaWriteOperation { get; init; }
+    internal string ReplicaWriteOperation { get; private set; } = "UNKNOWN";
+
+    private void MarkReplicaWriteOperation(string operation)
+    {
+        if (CaptureReplicaWriteOperation)
+            ReplicaWriteOperation = operation;
+    }
+
     public async Task PutFileVerifiedAsync(
         string bucket,
         string key,
@@ -115,10 +124,12 @@ public sealed class S3OperationStore(IAmazonS3 client)
         long expectedSize,
         CancellationToken cancellationToken)
     {
+        MarkReplicaWriteOperation("GET_DESTINATION_VERIFY");
         using var response = await client.GetObjectAsync(
             new GetObjectRequest { BucketName = bucket, Key = key }, cancellationToken);
         var (actualHash, actualSize) = await OperationManifestSerializer.HashAsync(
             response.ResponseStream, cancellationToken);
+        MarkReplicaWriteOperation("UNKNOWN");
         if (actualSize != expectedSize || !string.Equals(actualHash, expectedHash, StringComparison.Ordinal))
         {
             throw new OperationsIntegrityException("S3_OBJECT_VERIFICATION_FAILED");
@@ -134,13 +145,16 @@ public sealed class S3OperationStore(IAmazonS3 client)
     {
         try
         {
+            MarkReplicaWriteOperation("HEAD_DESTINATION_METADATA");
             var metadata = await client.GetObjectMetadataAsync(
                 new GetObjectMetadataRequest { BucketName = bucket, Key = key }, cancellationToken);
+            MarkReplicaWriteOperation("UNKNOWN");
             return metadata.ContentLength == expectedSize &&
                 string.Equals(metadata.Metadata["x-amz-meta-sha256"], expectedHash, StringComparison.Ordinal);
         }
         catch (AmazonS3Exception exception) when (exception.StatusCode == HttpStatusCode.NotFound)
         {
+            MarkReplicaWriteOperation("UNKNOWN");
             return false;
         }
     }
@@ -175,7 +189,9 @@ public sealed class S3OperationStore(IAmazonS3 client)
                 }
             }
             request.Headers.ContentLength = size;
+            MarkReplicaWriteOperation("PUT_DESTINATION");
             await client.PutObjectAsync(request, cancellationToken);
+            MarkReplicaWriteOperation("UNKNOWN");
         }
         catch (AmazonS3Exception exception) when (
             exception.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.PreconditionFailed)

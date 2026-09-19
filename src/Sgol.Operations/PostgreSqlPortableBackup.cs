@@ -10,7 +10,7 @@ public interface IPostgreSqlPortableBackup
     Task ExecuteAsync(DateTimeOffset scheduledFor, CancellationToken cancellationToken);
 }
 
-public sealed class PostgreSqlPortableBackup(
+public sealed partial class PostgreSqlPortableBackup(
     IConfiguration configuration,
     IBackupProcessPipeline processPipeline,
     TimeProvider timeProvider,
@@ -20,6 +20,7 @@ public sealed class PostgreSqlPortableBackup(
     {
         var started = Stopwatch.GetTimestamp();
         string? temporaryPath = null;
+        var storageStage = BackupStorageStage.PREVIOUS_MANIFEST_READ;
         try
         {
             var options = BackupOptions.FromConfiguration(configuration);
@@ -38,7 +39,12 @@ public sealed class PostgreSqlPortableBackup(
             var key = $"{options.Prefix}/{slot:yyyy/MM/dd}/sgol-{slot:yyyyMMdd'T'HHmmss'Z'}.dump.age";
             using var client = options.Storage.CreateClient();
             var store = new S3OperationStore(client);
-            if (await RecoverConfirmedBackupAsync(store, options.Bucket, key, operationToken))
+            if (await RecoverConfirmedBackupAsync(
+                    store,
+                    options.Bucket,
+                    key,
+                    stage => storageStage = stage,
+                    operationToken))
             {
                 OperationsTelemetry.Record(
                     "postgresql_backup", "recovered", Stopwatch.GetElapsedTime(started), 1, 0);
@@ -67,6 +73,7 @@ public sealed class PostgreSqlPortableBackup(
 
             var serverVersion = await ReadServerVersionAsync(options.ParseConnection(), operationToken);
             AssertClientCompatibility(serverVersion, process.PgDumpVersion);
+            storageStage = BackupStorageStage.DUMP_WRITE_AND_VERIFY;
             await store.PutFileVerifiedAsync(
                 options.Bucket, key, temporaryPath, hash, "application/octet-stream", operationToken);
 
@@ -89,6 +96,7 @@ public sealed class PostgreSqlPortableBackup(
                 key,
                 "COMPLETE");
             var bytes = OperationManifestSerializer.Serialize(manifest);
+            storageStage = BackupStorageStage.MANIFEST_WRITE_AND_VERIFY;
             await store.PutBytesVerifiedAsync(
                 options.Bucket,
                 key + ".manifest.json",
@@ -106,6 +114,25 @@ public sealed class PostgreSqlPortableBackup(
                 "postgresql_backup", "failed", Stopwatch.GetElapsedTime(started), 0, 0);
             OperationsLogs.Failed(logger, "postgresql_backup", "FAILED", "BACKUP_TIMEOUT");
             throw new Sgol.JobInfrastructure.JobExecutionException("BACKUP_TIMEOUT");
+        }
+        catch (Amazon.S3.AmazonS3Exception exception)
+        {
+            const string errorCode = "BACKUP_STORAGE_FAILED";
+            OperationsTelemetry.Record(
+                "postgresql_backup", "failed", Stopwatch.GetElapsedTime(started), 0, 0);
+            var numericStatus = (int)exception.StatusCode;
+            int? httpStatus = numericStatus is >= 100 and <= 599 ? numericStatus : null;
+            BackupStorageFailed(
+                logger,
+                "postgresql_backup",
+                "FAILED",
+                errorCode,
+                storageStage.ToString(),
+                SanitizeDiagnosticToken(exception.GetType().Name),
+                httpStatus,
+                SanitizeDiagnosticToken(exception.ErrorCode));
+            OperationsLogs.Failed(logger, "postgresql_backup", "FAILED", errorCode);
+            throw new Sgol.JobInfrastructure.JobExecutionException("BACKUP_STORAGE_FAILED");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -141,8 +168,10 @@ public sealed class PostgreSqlPortableBackup(
         S3OperationStore store,
         string bucket,
         string key,
+        Action<BackupStorageStage> setStorageStage,
         CancellationToken cancellationToken)
     {
+        setStorageStage(BackupStorageStage.PREVIOUS_MANIFEST_READ);
         var existing = await store.TryReadAsync(bucket, key + ".manifest.json", cancellationToken);
         if (existing is null)
         {
@@ -157,6 +186,7 @@ public sealed class PostgreSqlPortableBackup(
             throw new OperationsIntegrityException("BACKUP_MANIFEST_INVALID");
         }
 
+        setStorageStage(BackupStorageStage.PREVIOUS_DUMP_VERIFY);
         await store.VerifyObjectAsync(bucket, key, manifest.Sha256, manifest.ByteCount, cancellationToken);
 
         return true;
@@ -180,6 +210,39 @@ public sealed class PostgreSqlPortableBackup(
         NpgsqlException => "BACKUP_POSTGRESQL_FAILED",
         _ => "BACKUP_FAILED"
     };
+
+    private static string SanitizeDiagnosticToken(string? value)
+    {
+        const int maximumLength = 64;
+        if (string.IsNullOrEmpty(value) || value.Length > maximumLength ||
+            !value.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-'))
+        {
+            return "UNKNOWN";
+        }
+
+        return value;
+    }
+
+    [LoggerMessage(3102, LogLevel.Error,
+        "Operation {operation} result {result} error {errorClass} stage {stage} exceptionType {exceptionType} httpStatus {httpStatus} s3ErrorCode {s3ErrorCode}",
+        EventName = "BackupStorageFailed")]
+    private static partial void BackupStorageFailed(
+        ILogger logger,
+        string operation,
+        string result,
+        string errorClass,
+        string stage,
+        string exceptionType,
+        int? httpStatus,
+        string s3ErrorCode);
+
+    private enum BackupStorageStage
+    {
+        PREVIOUS_MANIFEST_READ,
+        PREVIOUS_DUMP_VERIFY,
+        DUMP_WRITE_AND_VERIFY,
+        MANIFEST_WRITE_AND_VERIFY
+    }
 
     private static void AssertClientCompatibility(string serverVersion, string pgDumpVersion)
     {

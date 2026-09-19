@@ -155,6 +155,45 @@ public sealed record ObjectReplicaManifestEntry(
     DateTimeOffset VerifiedAt,
     string Status);
 
+public sealed record FunctionalRecoveryReferenceManifest(
+    int SchemaVersion,
+    string Kind,
+    Guid ReconciliationId,
+    Guid BranchId,
+    DateTimeOffset TargetRecoveryAt,
+    DateTimeOffset ReferenceCapturedAt,
+    string Revision,
+    string ImageDigest,
+    string Migration,
+    string SnapshotKey,
+    string SnapshotSha256,
+    string SnapshotRootSha256,
+    string BackupManifestKey,
+    string BackupManifestSha256,
+    string ReplicaManifestKey,
+    string ReplicaManifestSha256,
+    DateTimeOffset ReplicaScheduledFor,
+    string Status);
+
+public sealed record FunctionalRecoveryReportManifest(
+    int SchemaVersion,
+    string Kind,
+    Guid ReconciliationId,
+    Guid BranchId,
+    DateTimeOffset CompletedAt,
+    string Status,
+    string ReferenceRootSha256,
+    string ActualRootSha256,
+    int DifferenceCount,
+    bool DifferencesTruncated,
+    long DatabaseRpoSeconds,
+    long ObjectRpoSeconds,
+    long ObservedRpoSeconds,
+    long ObservedRtoSeconds,
+    string ReferenceManifestSha256,
+    string RestoreEvidenceSha256,
+    IReadOnlyDictionary<string, int> DifferenceSummary);
+
 public sealed class OperationsIntegrityException(string errorCode) : Exception
 {
     public string ErrorCode { get; } = errorCode;

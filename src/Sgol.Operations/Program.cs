@@ -1,4 +1,6 @@
 using System.Net;
+using System.Buffers.Binary;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -7,8 +9,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using Sgol.Continuity.Contracts;
+using Sgol.JobInfrastructure;
 using Sgol.Operations;
 using Sgol.Web.Infrastructure.Persistence;
+using Sgol.Web.Infrastructure.Persistence.Auditing;
+using Sgol.Web.Infrastructure.Persistence.Continuity;
 
 namespace Sgol.Operations
 {
@@ -36,6 +42,15 @@ namespace Sgol.Operations
                         await VerifyBackupAsync(manifest, suppliedConfiguration, cancellationToken),
                     ["verify-object-replica", "--manifest", var replicaManifest] =>
                         await VerifyReplicaAsync(replicaManifest, suppliedConfiguration, cancellationToken),
+                    ["complete-functional-reference", "--reconciliation-id", var reconciliationId,
+                        "--reference", var reference, "--backup-manifest", var backupManifest,
+                        "--replica-manifest", var functionalReplicaManifest] =>
+                        await CompleteFunctionalReferenceAsync(reconciliationId, reference, backupManifest,
+                            functionalReplicaManifest, suppliedConfiguration, cancellationToken),
+                    ["reconcile-functional-restore", "--reconciliation-id", var restoreReconciliationId,
+                        "--reference-manifest", var referenceManifest, "--restore-evidence", var restoreEvidence] =>
+                        await ReconcileFunctionalRestoreAsync(restoreReconciliationId, referenceManifest,
+                            restoreEvidence, suppliedConfiguration, cancellationToken),
                     _ => 64
                 };
             }
@@ -171,6 +186,8 @@ namespace Sgol.Operations
                     imageDigest = manifest.ImageDigest,
                     backupSha256 = manifest.Sha256,
                     manifestSha256 = manifestObject.Sha256,
+                    migration = expectedMigration,
+                    isolatedTarget = true,
                     result = "BACKUP_RESTORE_VERIFIED"
                 }));
                 return 0;
@@ -235,6 +252,72 @@ namespace Sgol.Operations
             return 0;
         }
 
+        private static async Task<int> CompleteFunctionalReferenceAsync(string id, string referenceManifest,
+            string backupManifest, string replicaManifest, IConfiguration? suppliedConfiguration,
+            CancellationToken cancellationToken)
+        {
+            if (!Guid.TryParseExact(id, "D", out var reconciliationId)) return 64;
+            using var host = CreateContinuityHost(suppliedConfiguration);
+            await using var scope = host.Services.CreateAsyncScope();
+            var operations = scope.ServiceProvider.GetRequiredService<IFunctionalRecoveryOperations>();
+            var receipt = await operations.CompleteReferenceAsync(reconciliationId, referenceManifest,
+                backupManifest, replicaManifest, cancellationToken);
+            var correlationId = Guid.CreateVersion7();
+            await scope.ServiceProvider.GetRequiredService<IRecoveryTechnicalWriter>().MarkReferenceReadyAsync(
+                new(reconciliationId, correlationId, receipt.TargetRecoveryAt, receipt.ManifestSha256,
+                    receipt.RootSha256), cancellationToken);
+            Console.WriteLine("FUNCTIONAL_REFERENCE_READY");
+            return 0;
+        }
+
+        private static async Task<int> ReconcileFunctionalRestoreAsync(string id, string referenceManifest,
+            string restoreEvidencePath, IConfiguration? suppliedConfiguration, CancellationToken cancellationToken)
+        {
+            if (!Guid.TryParseExact(id, "D", out var reconciliationId) || !File.Exists(restoreEvidencePath)) return 64;
+            var configuration = suppliedConfiguration ?? BuildConfiguration();
+            await using var executionLock = await RecoveryExecutionLock.AcquireAsync(
+                BackupOptions.RequireSecret(configuration, "ConnectionStrings:Sgol"), reconciliationId,
+                cancellationToken);
+            using var host = CreateContinuityHost(configuration);
+            await using var scope = host.Services.CreateAsyncScope();
+            var writer = scope.ServiceProvider.GetRequiredService<IRecoveryTechnicalWriter>();
+            var evidenceBytes = await File.ReadAllBytesAsync(restoreEvidencePath, cancellationToken);
+            using var evidence = JsonDocument.Parse(evidenceBytes);
+            if (!evidence.RootElement.TryGetProperty("startedAt", out var startedValue) ||
+                !startedValue.TryGetDateTimeOffset(out var startedAt) || startedAt.Offset != TimeSpan.Zero)
+                throw new OperationsIntegrityException("RESTORE_EVIDENCE_INVALID");
+            var evidenceHash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(evidenceBytes));
+            var correlationId = Guid.CreateVersion7();
+            await writer.MarkRestoreStartedAsync(new(reconciliationId, correlationId, startedAt, evidenceHash),
+                cancellationToken);
+            try
+            {
+                var receipt = await scope.ServiceProvider.GetRequiredService<IFunctionalRecoveryOperations>()
+                    .ReconcileAsync(reconciliationId, referenceManifest, restoreEvidencePath, cancellationToken);
+                await writer.CompleteAsync(new(reconciliationId, correlationId, receipt.CompletedAt, receipt.Result,
+                    receipt.Objectives, receipt.ReportManifestSha256), cancellationToken);
+                Console.WriteLine(receipt.Result.Status == RecoveryReconciliationStatuses.Matched &&
+                    receipt.Objectives.MeetsRpo && receipt.Objectives.MeetsRto
+                    ? "FUNCTIONAL_RECOVERY_MATCHED" : "FUNCTIONAL_RECOVERY_NOT_MATCHED");
+                return receipt.Result.Status == RecoveryReconciliationStatuses.Matched &&
+                    receipt.Objectives.MeetsRpo && receipt.Objectives.MeetsRto ? 0 : 2;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                try
+                {
+                    await writer.FailAsync(new(reconciliationId, correlationId,
+                        scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                        RecoveryErrorCode(exception)), cancellationToken);
+                }
+                catch (RecoveryContractException failure) when (failure.ErrorCode == "RECOVERY_STATE_INVALID")
+                {
+                    // A prior terminal result remains immutable; preserve the original conflict/error.
+                }
+                throw;
+            }
+        }
+
         private static IHost CreateHost(IConfiguration? configuration)
         {
             var builder = Host.CreateApplicationBuilder();
@@ -247,6 +330,26 @@ namespace Sgol.Operations
             var connectionString = BackupOptions.RequireSecret(builder.Configuration, "ConnectionStrings:Sgol");
             _ = new NpgsqlConnectionStringBuilder(connectionString);
             builder.Services.AddDbContext<SgolDbContext>(options => options.UseNpgsql(connectionString));
+            return builder.Build();
+        }
+
+        private static IHost CreateContinuityHost(IConfiguration? configuration)
+        {
+            var builder = Host.CreateApplicationBuilder();
+            if (configuration is not null)
+            {
+                builder.Configuration.Sources.Clear();
+                builder.Configuration.AddConfiguration(configuration);
+            }
+            var connectionString = BackupOptions.RequireSecret(builder.Configuration, "ConnectionStrings:Sgol");
+            _ = new NpgsqlConnectionStringBuilder(connectionString);
+            builder.Services.AddDbContext<SgolDbContext>(options => options.UseNpgsql(connectionString));
+            builder.Services.AddSgolJobInfrastructure(builder.Configuration);
+            builder.Services.AddScoped<AuditTransaction>();
+            builder.Services.AddScoped<EfRecoveryReconciliationService>();
+            builder.Services.AddScoped<IRecoveryTechnicalWriter>(provider =>
+                provider.GetRequiredService<EfRecoveryReconciliationService>());
+            builder.Services.AddSgolPortableOperations();
             return builder.Build();
         }
 
@@ -324,10 +427,65 @@ namespace Sgol.Operations
         {
             OperationsConfigurationException configured => configured.ErrorCode,
             OperationsIntegrityException integrity => integrity.ErrorCode,
+            RecoveryContractException contract => contract.ErrorCode,
             AmazonS3Exception => "S3_OPERATION_FAILED",
             NpgsqlException => "POSTGRESQL_OPERATION_FAILED",
             _ => "OPERATIONS_COMMAND_FAILED"
         };
+
+        private static string RecoveryErrorCode(Exception exception) => exception switch
+        {
+            OperationsConfigurationException configured => configured.ErrorCode,
+            OperationsIntegrityException integrity => integrity.ErrorCode,
+            RecoveryContractException contract => contract.ErrorCode,
+            NpgsqlException => "ACTUAL_CAPTURE_FAILED",
+            _ => "UNEXPECTED_RECONCILIATION_FAILURE"
+        };
+
+        private sealed class RecoveryExecutionLock(NpgsqlConnection connection, int key) : IAsyncDisposable
+        {
+            private const int NamespaceKey = 35035;
+
+            public static async Task<RecoveryExecutionLock> AcquireAsync(string connectionString,
+                Guid reconciliationId, CancellationToken cancellationToken)
+            {
+                var hash = SHA256.HashData(reconciliationId.ToByteArray());
+                var key = BinaryPrimitives.ReadInt32BigEndian(hash);
+                var connection = new NpgsqlConnection(connectionString);
+                await connection.OpenAsync(cancellationToken);
+                try
+                {
+                    await using var command = new NpgsqlCommand(
+                        "SELECT pg_try_advisory_lock(@namespace_key, @run_key)", connection);
+                    command.Parameters.AddWithValue("namespace_key", NamespaceKey);
+                    command.Parameters.AddWithValue("run_key", key);
+                    if (await command.ExecuteScalarAsync(cancellationToken) is not true)
+                        throw new OperationsConfigurationException("LOCK_BUSY");
+                    return new RecoveryExecutionLock(connection, key);
+                }
+                catch
+                {
+                    await connection.DisposeAsync();
+                    throw;
+                }
+            }
+
+            public async ValueTask DisposeAsync()
+            {
+                try
+                {
+                    await using var command = new NpgsqlCommand(
+                        "SELECT pg_advisory_unlock(@namespace_key, @run_key)", connection);
+                    command.Parameters.AddWithValue("namespace_key", NamespaceKey);
+                    command.Parameters.AddWithValue("run_key", key);
+                    await command.ExecuteNonQueryAsync();
+                }
+                finally
+                {
+                    await connection.DisposeAsync();
+                }
+            }
+        }
 
         private static void DeleteRestoreTemporary(string directory, params string[] files)
         {

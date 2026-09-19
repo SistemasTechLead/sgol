@@ -220,6 +220,9 @@
           "Sgol.BuildingBlocks": "[1.0.0, )"
         }
       },
+      "sgol.continuity": {
+        "type": "Project"
+      },
       "sgol.evidence": {
         "type": "Project"
       },
