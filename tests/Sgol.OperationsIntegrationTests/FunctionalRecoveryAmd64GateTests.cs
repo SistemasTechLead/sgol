@@ -1,14 +1,20 @@
 using System.Globalization;
 using System.Net;
 using System.Reflection;
+using System.ComponentModel;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Xml.Linq;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using DotNet.Testcontainers.Builders;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -67,6 +73,67 @@ public sealed class FunctionalRecoveryAmd64GateTests
         new("replay_conflict", RecoveryReconciliationStatuses.Matched, "RECONCILIATION_IMMUTABLE_CONFLICT"),
         new("concurrency", RecoveryReconciliationStatuses.Matched, null)
     ];
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
+    public async Task ReplicaManifestTransportFailureBecomesEvidenceInaccessible()
+    {
+        using var client = new AmazonS3Client("synthetic", "synthetic", new AmazonS3Config
+        {
+            ServiceURL = "http://127.0.0.1:1",
+            ForcePathStyle = true,
+            MaxErrorRetry = 0,
+            Timeout = TimeSpan.FromSeconds(3)
+        });
+        var result = await FunctionalRecoveryOperations.TryReadReplicaManifestAsync(
+            new S3OperationStore(client), "synthetic", "synthetic", CancellationToken.None);
+
+        Assert.True(result.Inaccessible);
+        Assert.Null(result.Manifest);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
+    public async Task RestorePipelineAcceptsEarlyPipeClosureOnlyWhenBothProcessesSucceed()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        var directory = Path.Combine(Path.GetTempPath(), "sgol-hu035-pipe", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var producer = Path.Combine(directory, "producer.sh");
+        var consumer = Path.Combine(directory, "consumer.sh");
+        try
+        {
+            await File.WriteAllTextAsync(producer, "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo producer-1; exit 0; fi\nhead -c 16777216 /dev/zero\n");
+            await File.WriteAllTextAsync(consumer, "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo consumer-1; exit 0; fi\nexit 0\n");
+            File.SetUnixFileMode(producer, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.SetUnixFileMode(consumer, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+            var result = await new BackupProcessPipeline().VerifyAndRestoreAsync(
+                producer, consumer, "synthetic.dump.age", "synthetic.identity",
+                new NpgsqlConnectionStringBuilder(
+                    "Host=127.0.0.1;Port=5432;Database=synthetic;Username=synthetic;Password=synthetic"),
+                CancellationToken.None);
+
+            Assert.Equal("consumer-1", result.PgRestoreVersion);
+            Assert.Equal("producer-1", result.AgeVersion);
+
+            await File.WriteAllTextAsync(consumer,
+                "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo consumer-1; exit 0; fi\ncat >/dev/null\nexit 23\n");
+            File.SetUnixFileMode(consumer,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            var failure = await Assert.ThrowsAsync<OperationsIntegrityException>(() =>
+                new BackupProcessPipeline().VerifyAndRestoreAsync(
+                    producer, consumer, "synthetic.dump.age", "synthetic.identity",
+                    new NpgsqlConnectionStringBuilder(
+                        "Host=127.0.0.1;Port=5432;Database=synthetic;Username=synthetic;Password=synthetic"),
+                    CancellationToken.None));
+            Assert.Equal("BACKUP_ARCHIVE_INVALID", failure.ErrorCode);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
 
     [Fact]
     [Trait("Category", "Hu035ReplicaDiagnostics")]
@@ -196,6 +263,108 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
     [Fact]
     [Trait("Category", "Hu035Contract")]
+    public void ReferenceDispatchFailureExposesOnlyClosedSanitizedDiagnostics()
+    {
+        var diagnostic = FormatReferenceDispatchFailure(
+            "positive",
+            OutboxProcessResult.RetryScheduled,
+            "RECOVERY_REFERENCE_JOB_FAILED",
+            ScheduledJobStatuses.Failed,
+            "POSTGRES_CONCURRENCY_EXHAUSTED");
+
+        Assert.Equal(
+            "HU035_REFERENCE_DISPATCH_FAILED:CASE=positive:OUTBOX_RESULT=RETRY_SCHEDULED:" +
+            "OUTBOX_ERROR=RECOVERY_REFERENCE_JOB_FAILED:JOB_STATUS=FAILED:" +
+            "JOB_ERROR=POSTGRES_CONCURRENCY_EXHAUSTED",
+            diagnostic);
+
+        const string sentinel = "https://private.invalid/AccessKey=synthetic";
+        var sanitized = FormatReferenceDispatchFailure(
+            sentinel,
+            (OutboxProcessResult)999,
+            sentinel,
+            sentinel,
+            sentinel);
+        Assert.Equal(
+            "HU035_REFERENCE_DISPATCH_FAILED:CASE=UNKNOWN:OUTBOX_RESULT=UNKNOWN:" +
+            "OUTBOX_ERROR=UNKNOWN:JOB_STATUS=UNKNOWN:JOB_ERROR=UNKNOWN",
+            sanitized);
+        Assert.DoesNotContain("private.invalid", sanitized, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic", sanitized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
+    public void ReferenceCaptureFailureExposesOnlyClosedSanitizedDiagnostics()
+    {
+        var diagnostic = FormatReferenceCaptureFailure(
+            "positive",
+            ScheduledJobStatuses.Succeeded,
+            null,
+            RecoveryReconciliationStatuses.Failed,
+            "UNEXPECTED_RECONCILIATION_FAILURE");
+
+        Assert.Equal(
+            "HU035_REFERENCE_CAPTURE_FAILED:CASE=positive:JOB_STATUS=SUCCEEDED:JOB_ERROR=NONE:" +
+            "RECONCILIATION_STATUS=FAILED:RECONCILIATION_ERROR=UNEXPECTED_RECONCILIATION_FAILURE",
+            diagnostic);
+
+        const string sentinel = "https://private.invalid/AccessKey=synthetic";
+        var sanitized = FormatReferenceCaptureFailure(sentinel, sentinel, sentinel, sentinel, sentinel);
+        Assert.Equal(
+            "HU035_REFERENCE_CAPTURE_FAILED:CASE=UNKNOWN:JOB_STATUS=UNKNOWN:JOB_ERROR=UNKNOWN:" +
+            "RECONCILIATION_STATUS=UNKNOWN:RECONCILIATION_ERROR=UNKNOWN",
+            sanitized);
+        Assert.DoesNotContain("private.invalid", sanitized, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic", sanitized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
+    public void ReferenceCaptureFailuresExposeOnlyClosedStageAndClass()
+    {
+        var internalS3 = new AmazonS3Exception("endpoint=https://private.invalid AccessKey=synthetic")
+        {
+            StatusCode = HttpStatusCode.InternalServerError,
+            ErrorCode = "InternalError"
+        };
+        var otherS3 = new AmazonS3Exception("SecretKey=synthetic")
+        {
+            StatusCode = HttpStatusCode.ServiceUnavailable,
+            ErrorCode = "ServiceUnavailable"
+        };
+
+        AssertReferenceCaptureFailure("PUT_BACKUP", internalS3,
+            "REFERENCE_PUT_BACKUP_S3_INTERNAL_ERROR");
+        AssertReferenceCaptureFailure("READ_REPLICA_MANIFEST", otherS3,
+            "REFERENCE_READ_REPLICA_MANIFEST_S3_ERROR");
+        AssertReferenceCaptureFailure("CAPTURE_SNAPSHOT", new NpgsqlException("Password=synthetic"),
+            "REFERENCE_CAPTURE_SNAPSHOT_POSTGRESQL_ERROR");
+        AssertReferenceCaptureFailure("EXPORT_BACKUP", new Win32Exception(2, "private path"),
+            "REFERENCE_EXPORT_BACKUP_EXTERNAL_PROCESS_ERROR");
+        AssertReferenceCaptureFailure("PUT_REFERENCE_SNAPSHOT", new IOException("private path"),
+            "REFERENCE_PUT_REFERENCE_SNAPSHOT_IO_ERROR");
+        AssertReferenceCaptureFailure("PUT_REFERENCE_MANIFEST", new InvalidOperationException("private value"),
+            "REFERENCE_PUT_REFERENCE_MANIFEST_UNEXPECTED");
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
+    public void RecoveryReferenceCheckpointRequiresClosedJsonObject()
+    {
+        var reconciliationId = Guid.Parse("018f4f4c-2df3-7c10-8f20-102030405060");
+        Assert.True(TryReadRecoveryReferenceCheckpoint(
+            JsonSerializer.Serialize(new { reconciliationId }), out var parsed));
+        Assert.Equal(reconciliationId, parsed);
+
+        Assert.False(TryReadRecoveryReferenceCheckpoint(reconciliationId.ToString("D"), out _));
+        Assert.False(TryReadRecoveryReferenceCheckpoint(
+            JsonSerializer.Serialize(new { reconciliationId, unexpected = true }), out _));
+        Assert.False(TryReadRecoveryReferenceCheckpoint("{not-json", out _));
+    }
+
+    [Fact]
+    [Trait("Category", "Hu035Contract")]
     public void SyntheticEvidenceMatchesPersistenceContract()
     {
         SyntheticEvidenceFixture.AssertContract();
@@ -241,9 +410,87 @@ public sealed class FunctionalRecoveryAmd64GateTests
         await context.Database.MigrateAsync();
         await SeedFunctionalFixtureAsync(context, new DeterministicSeed(new string('a', 64)));
 
+        var certificatePassword = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+        using var rsa = RSA.Create(2048);
+        var certificateRequest = new CertificateRequest(
+            "CN=SGOL HU-035 synthetic", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = certificateRequest.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var dataProtectionConfiguration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["DataProtection:ApplicationName"] = "SGOL-HU-035-SYNTHETIC",
+                ["DataProtection:WrappingCertificate"] = Convert.ToBase64String(
+                    certificate.Export(X509ContentType.Pfx, certificatePassword)),
+                ["DataProtection:WrappingCertificatePassword"] = certificatePassword
+            }).Build();
+        var protectedProbe = CreateProtectedAuthenticationProbe(dataProtectionConfiguration, connectionString);
+        VerifyProtectedAuthenticationProbe(connectionString, protectedProbe, dataProtectionConfiguration);
+
         Assert.Equal(2, await context.PlanVersions.CountAsync());
         Assert.Equal(2, await context.ValidationDecisionVersions.CountAsync());
         Assert.Single(await context.FileObjects.ToArrayAsync());
+        Assert.Equal(1, await context.Database.SqlQueryRaw<int>(
+            "SELECT count(*)::int AS \"Value\" FROM data_protection_key").SingleAsync());
+
+        var snapshot = await FunctionalSnapshotReader.CaptureReferenceAsync(
+            connectionString,
+            Guid.Parse("018f4f4c-2df3-7c10-8f20-102030405060"),
+            BranchScope.LorettaId,
+            new string('a', 40),
+            "sha256:" + new string('b', 64),
+            (_, _) => Task.CompletedTask,
+            CancellationToken.None);
+        Assert.Equal(FunctionalSnapshotSchema.Tables.Length, snapshot.Snapshot.Tables.Count);
+
+        var failureConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Sgol"] = connectionString,
+            ["Backup:PostgreSql:ConnectionString"] = connectionString,
+            ["Backup:Storage:Endpoint"] = "http://127.0.0.1:8333",
+            ["Backup:Storage:Region"] = "synthetic",
+            ["Backup:Storage:AccessKey"] = "backup-access",
+            ["Backup:Storage:SecretKey"] = "backup-secret",
+            ["Backup:Storage:AllowInsecureTransport"] = "true",
+            ["Backup:MaximumAttempts"] = "3",
+            ["Backup:StorageTimeoutSeconds"] = "60",
+            ["Backup:Storage:Bucket"] = "backup-bucket",
+            ["Backup:Storage:Prefix"] = "backups/v1",
+            ["Backup:Encryption:Recipient"] = "age1" + new string('q', 32),
+            ["Backup:PgDumpPath"] = Path.Combine(Path.GetTempPath(), "pg_dump"),
+            ["Backup:AgePath"] = Path.Combine(Path.GetTempPath(), "age"),
+            ["Backup:ProcessTimeoutSeconds"] = "60",
+            ["Replica:MaximumAttempts"] = "3",
+            ["Replica:TimeoutSeconds"] = "60",
+            ["Replica:BatchSize"] = "500",
+            ["Replica:Source:Endpoint"] = "http://127.0.0.1:8333",
+            ["Replica:Source:Region"] = "synthetic",
+            ["Replica:Source:AccessKey"] = "source-access",
+            ["Replica:Source:SecretKey"] = "source-secret",
+            ["Replica:Source:AllowInsecureTransport"] = "true",
+            ["Replica:Destination:Endpoint"] = "http://127.0.0.1:9333",
+            ["Replica:Destination:Region"] = "synthetic",
+            ["Replica:Destination:AccessKey"] = "destination-access",
+            ["Replica:Destination:SecretKey"] = "destination-secret",
+            ["Replica:Destination:AllowInsecureTransport"] = "true",
+            ["Replica:Source:QuarantineBucket"] = "source-quarantine",
+            ["Replica:Source:CleanBucket"] = "source-clean",
+            ["Replica:Destination:QuarantineBucket"] = "destination-quarantine",
+            ["Replica:Destination:CleanBucket"] = "destination-clean",
+            ["Replica:Destination:ManifestBucket"] = "manifest-bucket",
+            ["Replica:Destination:ManifestPrefix"] = "objects/v1",
+            ["Continuity:ReplicaManifestUri"] = "s3://manifest-bucket/objects/v1/synthetic.json",
+            ["SGOL_REVISION"] = new string('a', 40),
+            ["SGOL_IMAGE_DIGEST"] = "sha256:" + new string('b', 64)
+        }).Build();
+        var operations = new FunctionalRecoveryOperations(
+            failureConfiguration, new IOExceptionBackupPipeline(), TimeProvider.System);
+        var failure = await Assert.ThrowsAnyAsync<Exception>(() => operations.CaptureReferenceAsync(
+            Guid.Parse("018f4f4c-2df3-7c10-8f20-102030405061"), CancellationToken.None));
+        Assert.Equal("OperationsReferenceCaptureException", failure.GetType().Name);
+        Assert.Equal("REFERENCE_EXPORT_BACKUP_IO_ERROR",
+            failure.GetType().GetProperty("ErrorCode")!.GetValue(failure));
+        Assert.Null(failure.InnerException);
     }
 
     [Fact]
@@ -275,6 +522,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
         await using var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>()
             .UseNpgsql(connectionString).Options);
         await context.Database.MigrateAsync();
+        var protectedAuthenticationProbe = CreateProtectedAuthenticationProbe(configuration, connectionString);
         var actors = await SeedFunctionalFixtureAsync(context, seed);
         var direction = actors.DirectionUserId;
         context.AuditEvents.Add(new AuditEvent
@@ -340,11 +588,25 @@ public sealed class FunctionalRecoveryAmd64GateTests
                 provider.GetRequiredService<IServiceScopeFactory>(), uuid, clock);
             var processor = new OutboxProcessor(context, new OutboxHandlerRegistry([handler]), clock,
                 NullLogger<OutboxProcessor>.Instance);
-            Assert.Equal(OutboxProcessResult.Processed, await processor.ProcessNextAsync());
+            var outboxResult = await processor.ProcessNextAsync();
+            if (outboxResult != OutboxProcessResult.Processed)
+                throw new InvalidOperationException(await CaptureReferenceDispatchFailureAsync(
+                    context, created.ReconciliationId, testCase.Name, outboxResult));
+            var scheduledRun = await context.ScheduledJobRuns.AsNoTracking()
+                .Where(item => item.JobName == CaptureRecoveryReferenceJob.JobName)
+                .OrderByDescending(item => item.ScheduledFor)
+                .FirstAsync();
+            using var checkpoint = JsonDocument.Parse(scheduledRun.Checkpoint!);
+            Assert.Equal(JsonValueKind.Object, checkpoint.RootElement.ValueKind);
+            Assert.Single(checkpoint.RootElement.EnumerateObject());
+            Assert.Equal(created.ReconciliationId,
+                checkpoint.RootElement.GetProperty("reconciliationId").GetGuid());
             var latest = await context.RecoveryReconciliationEvents.AsNoTracking()
                 .Where(item => item.ReconciliationId == created.ReconciliationId)
                 .OrderByDescending(item => item.Sequence).FirstAsync();
-            Assert.Equal(RecoveryReconciliationStatuses.ReferenceCapturing, latest.Status);
+            if (latest.Status != RecoveryReconciliationStatuses.ReferenceCapturing)
+                throw new InvalidOperationException(FormatReferenceCaptureFailure(
+                    testCase.Name, scheduledRun.Status, scheduledRun.Error, latest.Status, latest.ErrorCode));
             var prefix = $"{backupOptions.Prefix}/continuity/v1/{created.ReconciliationId:D}";
             descriptors.Add(new
             {
@@ -364,6 +626,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
             kind = "SGOL_HU035_AMD64_DESCRIPTOR",
             directionUserId = direction,
             expectedMigration = "20260914210503_AddRecoveryReconciliation",
+            protectedAuthenticationProbe,
             cases = descriptors
         };
         await File.WriteAllTextAsync(outputPath, JsonSerializer.Serialize(descriptor),
@@ -489,6 +752,15 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
     private static async Task ApplySyntheticMutationAsync(string testCase)
     {
+        using (var descriptor = JsonDocument.Parse(
+                   await File.ReadAllBytesAsync(Required("SGOL_HU035_DESCRIPTOR_PATH"))))
+        {
+            VerifyProtectedAuthenticationProbe(
+                Required("Restore__PostgreSql__ConnectionString"),
+                descriptor.RootElement.GetProperty("protectedAuthenticationProbe").GetString()
+                    ?? throw new InvalidOperationException("Synthetic authentication probe is missing."));
+        }
+
         if (testCase is "evidence_missing" or "evidence_corrupt" or "restore_object")
         {
             await MutateReplicaObjectAsync(testCase);
@@ -778,6 +1050,187 @@ public sealed class FunctionalRecoveryAmd64GateTests
             $"STAGE={stage}:OPERATION={operation}:TYPE={exceptionType}:HTTP={httpStatus}:S3CODE={s3ErrorCode}");
     }
 
+    private static async Task<string> CaptureReferenceDispatchFailureAsync(
+        SgolDbContext context,
+        Guid reconciliationId,
+        string caseName,
+        OutboxProcessResult outboxResult)
+    {
+        try
+        {
+            var outboxEvent = await context.OutboxEvents.AsNoTracking()
+                .Where(item => item.EventType == EfRecoveryReconciliationService.ReferenceRequestedEventType &&
+                    item.AggregateId == reconciliationId)
+                .OrderByDescending(item => item.CreatedAt)
+                .FirstOrDefaultAsync();
+            if (outboxEvent is null)
+                return FormatReferenceDispatchFailure(caseName, outboxResult, null, "ABSENT", null);
+
+            using var envelope = JsonDocument.Parse(outboxEvent.Payload);
+            var scheduledFor = envelope.RootElement.GetProperty("data").GetProperty("scheduledFor")
+                .GetDateTimeOffset();
+            var jobRun = await context.ScheduledJobRuns.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.JobName == CaptureRecoveryReferenceJob.JobName &&
+                    item.ScheduledFor == scheduledFor);
+            return FormatReferenceDispatchFailure(
+                caseName,
+                outboxResult,
+                outboxEvent.LastError,
+                jobRun?.Status ?? "ABSENT",
+                jobRun?.Error);
+        }
+        catch
+        {
+            return FormatReferenceDispatchFailure(caseName, outboxResult, null, null, null);
+        }
+    }
+
+    private static string FormatReferenceDispatchFailure(
+        string? caseName,
+        OutboxProcessResult outboxResult,
+        string? outboxError,
+        string? jobStatus,
+        string? jobError) =>
+        $"HU035_REFERENCE_DISPATCH_FAILED:CASE={NormalizeReferenceCase(caseName)}:" +
+        $"OUTBOX_RESULT={NormalizeOutboxResult(outboxResult)}:" +
+        $"OUTBOX_ERROR={NormalizeReferenceOutboxError(outboxError)}:" +
+        $"JOB_STATUS={NormalizeReferenceJobStatus(jobStatus)}:" +
+        $"JOB_ERROR={NormalizeReferenceJobError(jobError)}";
+
+    private static string FormatReferenceCaptureFailure(
+        string? caseName,
+        string? jobStatus,
+        string? jobError,
+        string? reconciliationStatus,
+        string? reconciliationError) =>
+        $"HU035_REFERENCE_CAPTURE_FAILED:CASE={NormalizeReferenceCase(caseName)}:" +
+        $"JOB_STATUS={NormalizeReferenceJobStatus(jobStatus)}:" +
+        $"JOB_ERROR={NormalizeReferenceJobError(jobError)}:" +
+        $"RECONCILIATION_STATUS={NormalizeReferenceReconciliationStatus(reconciliationStatus)}:" +
+        $"RECONCILIATION_ERROR={NormalizeReferenceReconciliationError(reconciliationError)}";
+
+    private static string NormalizeReferenceCase(string? value) => value switch
+    {
+        "positive" or "identity_missing" or "identity_additional" or "link_missing" or "link_altered" or
+        "version_changed" or "count_changed" or "evidence_missing" or "evidence_corrupt" or
+        "evidence_inaccessible" or "audit_missing" or "audit_altered" or "reference_corrupt" or
+        "rpo_exceeded" or "rto_exceeded" or "primary_target" or "replay_conflict" or "concurrency" => value,
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeOutboxResult(OutboxProcessResult value) => value switch
+    {
+        OutboxProcessResult.NoWork => "NO_WORK",
+        OutboxProcessResult.Processed => "PROCESSED",
+        OutboxProcessResult.RetryScheduled => "RETRY_SCHEDULED",
+        OutboxProcessResult.Exhausted => "EXHAUSTED",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceOutboxError(string? value) => value switch
+    {
+        null => "NONE",
+        "RECOVERY_REFERENCE_JOB_FAILED" => "RECOVERY_REFERENCE_JOB_FAILED",
+        "RECOVERY_REFERENCE_LOCK_BUSY" => "RECOVERY_REFERENCE_LOCK_BUSY",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceJobStatus(string? value) => value switch
+    {
+        null => "UNKNOWN",
+        "ABSENT" => "ABSENT",
+        ScheduledJobStatuses.Running => ScheduledJobStatuses.Running,
+        ScheduledJobStatuses.Succeeded => ScheduledJobStatuses.Succeeded,
+        ScheduledJobStatuses.Failed => ScheduledJobStatuses.Failed,
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceJobError(string? value) => value switch
+    {
+        null => "NONE",
+        "POSTGRES_UNIQUE_VIOLATION" => "POSTGRES_UNIQUE_VIOLATION",
+        "POSTGRES_CONCURRENCY_EXHAUSTED" => "POSTGRES_CONCURRENCY_EXHAUSTED",
+        "JOB_INFRASTRUCTURE_FAILURE" => "JOB_INFRASTRUCTURE_FAILURE",
+        "JOB_CHECKPOINT_CONFLICT" => "JOB_CHECKPOINT_CONFLICT",
+        "UNEXPECTED_JOB_FAILURE" => "UNEXPECTED_JOB_FAILURE",
+        "RECOVERY_RECONCILIATION_ID_INVALID" => "RECOVERY_RECONCILIATION_ID_INVALID",
+        "RECOVERY_RECONCILIATION_NOT_FOUND" => "RECOVERY_RECONCILIATION_NOT_FOUND",
+        "RECOVERY_STATE_INVALID" => "RECOVERY_STATE_INVALID",
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceReconciliationStatus(string? value) => value switch
+    {
+        RecoveryReconciliationStatuses.Requested => RecoveryReconciliationStatuses.Requested,
+        RecoveryReconciliationStatuses.ReferenceCapturing => RecoveryReconciliationStatuses.ReferenceCapturing,
+        RecoveryReconciliationStatuses.Failed => RecoveryReconciliationStatuses.Failed,
+        _ => "UNKNOWN"
+    };
+
+    private static string NormalizeReferenceReconciliationError(string? value)
+    {
+        if (value is null) return "NONE";
+        string[] existing =
+        [
+            "RECONCILIATION_ID_INVALID",
+            "REFERENCE_BACKUP_SNAPSHOT_MISMATCH",
+            "REPLICA_MANIFEST_URI_INVALID",
+            "BACKUP_EMPTY",
+            "REPLICA_MANIFEST_INVALID",
+            "RECONCILIATION_IMMUTABLE_CONFLICT",
+            "UNEXPECTED_RECONCILIATION_FAILURE"
+        ];
+        if (existing.Contains(value, StringComparer.Ordinal)) return value;
+        string[] stages =
+        [
+            "CAPTURE_SNAPSHOT",
+            "EXPORT_BACKUP",
+            "PUT_BACKUP",
+            "PUT_BACKUP_MANIFEST",
+            "READ_REPLICA_MANIFEST",
+            "PUT_REFERENCE_SNAPSHOT",
+            "PUT_REFERENCE_MANIFEST"
+        ];
+        string[] classifications =
+        [
+            "S3_INTERNAL_ERROR",
+            "S3_ERROR",
+            "POSTGRESQL_ERROR",
+            "EXTERNAL_PROCESS_ERROR",
+            "IO_ERROR",
+            "UNEXPECTED"
+        ];
+        return stages.Any(stage => classifications.Any(classification =>
+            value == $"REFERENCE_{stage}_{classification}")) ? value : "UNKNOWN";
+    }
+
+    private static bool TryReadRecoveryReferenceCheckpoint(string checkpoint, out Guid reconciliationId)
+    {
+        var method = typeof(CaptureRecoveryReferenceJob).GetMethod(
+            "TryReadReconciliationId",
+            BindingFlags.Static | BindingFlags.NonPublic) ??
+            throw new InvalidOperationException("Recovery reference checkpoint parser is missing.");
+        object?[] arguments = [checkpoint, Guid.Empty];
+        var result = (bool)method.Invoke(null, arguments)!;
+        reconciliationId = (Guid)arguments[1]!;
+        return result;
+    }
+
+    private static void AssertReferenceCaptureFailure(string stage, Exception source, string expected)
+    {
+        var method = typeof(FunctionalRecoveryOperations).GetMethod(
+            "CreateReferenceCaptureFailure",
+            BindingFlags.Static | BindingFlags.NonPublic) ??
+            throw new InvalidOperationException("Reference capture failure classifier is missing.");
+        var failure = Assert.IsAssignableFrom<Exception>(method.Invoke(null, [stage, source]));
+        Assert.Equal("OperationsReferenceCaptureException", failure.GetType().Name);
+        Assert.Equal(expected, failure.GetType().GetProperty("ErrorCode")!.GetValue(failure));
+        Assert.Equal(expected, failure.Message);
+        Assert.Null(failure.InnerException);
+        Assert.DoesNotContain("private", failure.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("synthetic", failure.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string NormalizeReplicaStage(string? value) => value switch
     {
         "CONFIGURATION" => "CONFIGURATION",
@@ -1046,6 +1499,23 @@ public sealed class FunctionalRecoveryAmd64GateTests
 
         public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
             FailLater<int>(error);
+    }
+
+    private sealed class IOExceptionBackupPipeline : IBackupProcessPipeline
+    {
+        public Task<BackupProcessResult> CreateEncryptedDumpAsync(
+            BackupOptions options, string outputPath, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<BackupProcessResult> CreateEncryptedDumpFromSnapshotAsync(
+            BackupOptions options, string outputPath, string postgreSqlSnapshotId,
+            CancellationToken cancellationToken) =>
+            throw new IOException("private path");
+
+        public Task<RestoreProcessResult> VerifyAndRestoreAsync(
+            string agePath, string pgRestorePath, string encryptedPath, string identity,
+            NpgsqlConnectionStringBuilder destination, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private static T InvokeObjectReplica<T>(string methodName, params object?[] arguments)
@@ -1420,6 +1890,52 @@ public sealed class FunctionalRecoveryAmd64GateTests
         ? value
         : throw new InvalidOperationException($"Missing HU-035 AMD64 setting: {name}");
 
+    private static string CreateProtectedAuthenticationProbe(
+        IConfiguration configuration,
+        string connectionString)
+    {
+        using var provider = CreatePortableDataProtectionProvider(configuration, connectionString);
+        return provider.GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector("SGOL.HU035.AuthenticationCookie.v1")
+            .Protect("hu035-synthetic-authentication-probe");
+    }
+
+    private static void VerifyProtectedAuthenticationProbe(
+        string connectionString,
+        string protectedProbe,
+        IConfiguration? suppliedConfiguration = null)
+    {
+        var configuration = suppliedConfiguration ?? new ConfigurationBuilder().AddEnvironmentVariables().Build();
+        using var provider = CreatePortableDataProtectionProvider(configuration, connectionString);
+        var value = provider.GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector("SGOL.HU035.AuthenticationCookie.v1")
+            .Unprotect(protectedProbe);
+        Assert.Equal("hu035-synthetic-authentication-probe", value);
+    }
+
+    private static ServiceProvider CreatePortableDataProtectionProvider(
+        IConfiguration configuration,
+        string connectionString)
+    {
+        var certificateText = configuration["DataProtection:WrappingCertificate"]
+            ?? throw new InvalidOperationException("Synthetic wrapping certificate is missing.");
+        var certificatePassword = configuration["DataProtection:WrappingCertificatePassword"]
+            ?? throw new InvalidOperationException("Synthetic wrapping certificate password is missing.");
+        var applicationName = configuration["DataProtection:ApplicationName"]
+            ?? throw new InvalidOperationException("Synthetic Data Protection application name is missing.");
+        var certificate = X509CertificateLoader.LoadPkcs12(
+            Convert.FromBase64String(certificateText), certificatePassword,
+            X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+        var services = new ServiceCollection();
+        services.AddSingleton(certificate);
+        services.AddDataProtection()
+            .SetApplicationName(applicationName)
+            .ProtectKeysWithCertificate(certificate);
+        services.Configure<KeyManagementOptions>(options =>
+            options.XmlRepository = new PostgreSqlGateXmlRepository(connectionString));
+        return services.BuildServiceProvider();
+    }
+
     private sealed class FixedClock(DateTimeOffset value) : IClock
     {
         public DateTimeOffset UtcNow { get; } = value;
@@ -1437,6 +1953,34 @@ public sealed class FunctionalRecoveryAmd64GateTests
     private sealed record FixtureActors(Guid DirectionUserId, Guid DeniedUserId);
 
     private sealed record Amd64Case(string Name, string ExpectedStatus, string? ExpectedCode);
+
+    private sealed class PostgreSqlGateXmlRepository(string connectionString) : IXmlRepository
+    {
+        public IReadOnlyCollection<XElement> GetAllElements()
+        {
+            using var connection = new NpgsqlConnection(connectionString);
+            connection.Open();
+            using var command = new NpgsqlCommand(
+                "SELECT xml FROM data_protection_key ORDER BY created_at, name", connection);
+            using var reader = command.ExecuteReader();
+            var elements = new List<XElement>();
+            while (reader.Read())
+                elements.Add(XElement.Parse(reader.GetString(0), LoadOptions.PreserveWhitespace));
+            return elements;
+        }
+
+        public void StoreElement(XElement element, string friendlyName)
+        {
+            using var connection = new NpgsqlConnection(connectionString);
+            connection.Open();
+            using var command = new NpgsqlCommand(
+                "INSERT INTO data_protection_key (name, xml, created_at) VALUES ($1, $2, CURRENT_TIMESTAMP)",
+                connection);
+            command.Parameters.AddWithValue(friendlyName);
+            command.Parameters.AddWithValue(element.ToString(SaveOptions.DisableFormatting));
+            command.ExecuteNonQuery();
+        }
+    }
 
     private sealed class DeterministicUuidGenerator(DeterministicSeed seed, string scope) : IUuidGenerator
     {

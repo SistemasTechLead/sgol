@@ -16,13 +16,13 @@ No use producción, la única copia, credenciales reales ni archivos dentro de `
 
 Prepare personas, cuentas, historia laboral y de roles, configuración versionada, semana/plan/obligaciones, asignaciones, ejecución, evidencia de archivo y estructurada, sustitución, validación, idempotencia, outbox, avisos y auditoría. Incluya por lo menos dos versiones y dos vínculos por agregado relevante. Los objetos deben estar en buckets S3-compatible privados sintéticos y tener tamaño y SHA-256 coherentes con `file_object`.
 
-Use los artefactos de `TECH-OPS-001`: imagen OCI inmutable `linux/amd64`, backup portable cifrado, manifiesto de réplica `COMPLETE`, dos almacenamientos S3-compatible y restore técnico sobre PostgreSQL nuevo/vacío. El restore debe producir `SGOL_TECHNICAL_RESTORE_EVIDENCE` con `startedAt`, `completedAt`, duración monotónica, digest de imagen y hashes de backup/manifiesto.
+Use los artefactos de `TECH-OPS-001`: imagen OCI inmutable `linux/amd64`, backup portable cifrado, manifiesto de réplica `COMPLETE`, dos almacenamientos S3-compatible y restore técnico sobre PostgreSQL nuevo/vacío. En el simulacro HU-035, ambos SeaweedFS arrancan y permanecen en la red privada final; anuncian su alias estable de esa red aunque durante el aprovisionamiento exista una conexión temporal adicional. El restore debe producir `SGOL_TECHNICAL_RESTORE_EVIDENCE` con `startedAt`, `completedAt`, duración monotónica, digest de imagen y hashes de backup/manifiesto.
 
 ## Camino positivo
 
 1. Dirección ejecuta `POST /api/v1/continuity/reconciliations` con `Idempotency-Key` UUID y motivo sintético. Conserve el `reconciliationId` y el ETag.
-2. Ejecute el Worker outbox. El evento `RECOVERY_REFERENCE_REQUESTED` invoca mediante `ScheduledJobRunner` el job `CAPTURE_RECOVERY_REFERENCE`, con advisory lock estable y checkpoint igual al ID. La captura usa `REPEATABLE READ, READ ONLY`, UTC, `pg_export_snapshot()` y `pg_dump --snapshot` dentro de la misma transacción.
-3. Verifique que el estado sea `REFERENCE_CAPTURING`. Un fallo de configuración, integridad o cardinalidad debe producir `FAILED`, nunca referencia lista.
+2. Ejecute el Worker outbox. El evento `RECOVERY_REFERENCE_REQUESTED` invoca mediante `ScheduledJobRunner` el job `CAPTURE_RECOVERY_REFERENCE`, con advisory lock estable y checkpoint JSON objeto que contiene únicamente `reconciliationId`. La captura usa `REPEATABLE READ, READ ONLY`, UTC, `pg_export_snapshot()` y `pg_dump --snapshot` dentro de la misma transacción; valida la migración vigente mediante la columna estándar `"MigrationId"` de `__EFMigrationsHistory`.
+3. Verifique que el estado sea `REFERENCE_CAPTURING`. Un fallo de configuración, integridad o cardinalidad debe producir `FAILED`, nunca referencia lista. Una excepción no contractual de la captura se registra sólo como `REFERENCE_<ETAPA>_<CLASE>` dentro de las etapas y clases cerradas de la Adenda 40; no use ese código para reintentar, omitir el caso ni sustituir la causa antes de corregirla.
 4. Tras disponer de los URI privados de referencia, backup y réplica, complete su asociación:
 
    ```powershell

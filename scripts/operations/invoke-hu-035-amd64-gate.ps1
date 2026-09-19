@@ -108,10 +108,80 @@ function Read-Hu035ServerLogs {
     return [Hu035LogCapture]::Run('docker', $arguments, 8000, 262144)
 }
 
+function Read-Hu035RuntimeState {
+    param([string]$Container, [string]$Network)
+    Initialize-Hu035LogCapture
+    # Raw Docker and SeaweedFS state remains private and is converted only to closed classifications.
+    return [pscustomobject]@{
+        Network = $Network
+        Networks = [Hu035LogCapture]::Run('docker',
+            @('inspect', '--format', '{{json .NetworkSettings.Networks}}', $Container), 5000, 65536)
+        Topology = [Hu035LogCapture]::Run('docker',
+            @('exec', $Container, '/usr/bin/wget', '-qO-', 'http://127.0.0.1:9333/dir/status?pretty=y'),
+            5000, 65536)
+    }
+}
+
+function New-Hu035RuntimeSummary {
+    return [ordered]@{
+        captureStatus = 'CAPTURE_FAILED'
+        networkState = 'UNKNOWN'
+        advertisedAddressScope = 'UNKNOWN'
+        dataNodeRegistration = 'UNKNOWN'
+        writableCapacity = 'UNKNOWN'
+    }
+}
+
+function ConvertTo-Hu035RuntimeSummary {
+    param([object]$Capture)
+    $summary = New-Hu035RuntimeSummary
+    if ($null -eq $Capture -or $Capture.Networks.Status -ne 'OK' -or
+        $Capture.Topology.Status -ne 'OK') { return $summary }
+    try {
+        $networks = ([string]$Capture.Networks.Stdout) | ConvertFrom-Json
+        $topology = ([string]$Capture.Topology.Stdout) | ConvertFrom-Json
+        $networkNames = @($networks.PSObject.Properties.Name)
+        $finalProperty = $networks.PSObject.Properties[[string]$Capture.Network]
+        if ($null -eq $finalProperty) { $summary.networkState = 'FINAL_MISSING' }
+        elseif ($networkNames -ccontains 'bridge') { $summary.networkState = 'TRANSIENT_PRESENT' }
+        else { $summary.networkState = 'FINAL_ONLY' }
+
+        $nodes = @($topology.Topology.DataCenters | ForEach-Object { $_.Racks } |
+            ForEach-Object { $_.DataNodes })
+        $summary.dataNodeRegistration = if ($nodes.Count -eq 0) { 'NONE' } else { 'PRESENT' }
+        $free = 0L
+        if ($null -ne $topology.Topology.Free -and
+            [long]::TryParse([string]$topology.Topology.Free, [ref]$free)) {
+            $summary.writableCapacity = if ($free -gt 0) { 'POSITIVE' } else { 'ZERO' }
+        }
+
+        $finalAddress = if ($null -eq $finalProperty) { '' } else { [string]$finalProperty.Value.IPAddress }
+        $finalAliases = if ($null -eq $finalProperty) { @() } else {
+            @($finalProperty.Value.Aliases | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        }
+        $advertised = @($nodes | ForEach-Object {
+            $value = [string]$_.Url
+            if ($value -match '^(?<host>[^:]+):\d+$') { $Matches['host'] }
+        })
+        if ([string]::IsNullOrWhiteSpace($finalAddress) -or $advertised.Count -eq 0) {
+            $summary.advertisedAddressScope = 'UNRESOLVED'
+        }
+        elseif (@($advertised | Where-Object {
+                $_ -cne $finalAddress -and $finalAliases -cnotcontains $_
+            }).Count -eq 0) {
+            $summary.advertisedAddressScope = 'FINAL_NETWORK'
+        }
+        else { $summary.advertisedAddressScope = 'OUTSIDE_FINAL_NETWORK' }
+        $summary.captureStatus = 'OK'
+    }
+    catch { $summary.captureStatus = 'INVALID' }
+    return $summary
+}
+
 function New-Hu035ServerSummary {
     param([DateTimeOffset]$Since, [DateTimeOffset]$Until)
     return [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         captureStatus = 'CAPTURE_FAILED'
         captureExitCode = $null
         windowStartedAtUtc = $Since.ToUniversalTime().ToString('O')
@@ -127,7 +197,36 @@ function New-Hu035ServerSummary {
         eventLimitReached = $false
         parserLimitReached = $false
         events = @()
+        runtime = New-Hu035RuntimeSummary
     }
+}
+
+function Get-Hu035ServerEventCode {
+    param([string]$Body)
+    if ($Body.StartsWith('putToFiler: chunked upload failed:', [StringComparison]::Ordinal)) {
+        if ($Body.IndexOf('assign volume:', [StringComparison]::Ordinal) -ge 0) { return 'VOLUME_ASSIGNMENT_FAILED' }
+        if ($Body.IndexOf('upload chunk:', [StringComparison]::Ordinal) -ge 0) { return 'VOLUME_UPLOAD_FAILED' }
+        if ($Body.IndexOf('read chunk at offset', [StringComparison]::Ordinal) -ge 0 -or
+            $Body.IndexOf('failed to read small content:', [StringComparison]::Ordinal) -ge 0) {
+            return 'REQUEST_BODY_READ_FAILED'
+        }
+        return 'CHUNK_UPLOAD_FAILED'
+    }
+    $rules = [ordered]@{
+        'putToFiler: CreateEntry returned error:' = 'CREATE_ENTRY_FAILED'
+        'putToFiler: failed to create entry for ' = 'CREATE_ENTRY_FAILED'
+        'checkConditionalHeaders: error resolving object entry for ' = 'CONDITIONAL_LOOKUP_FAILED'
+        'PutObjectHandler: failed to check object lock for bucket ' = 'OBJECT_LOCK_LOOKUP_FAILED'
+        'Error checking Object Lock status for bucket ' = 'OBJECT_LOCK_LOOKUP_FAILED'
+        'Error checking versioning status for bucket ' = 'VERSIONING_LOOKUP_FAILED'
+        'Error re-checking versioning status for bucket ' = 'VERSIONING_LOOKUP_FAILED'
+        'Failed to apply bucket default encryption:' = 'ENCRYPTION_LOOKUP_FAILED'
+        'PutObjectHandler: putVersionedObject failed with errCode=' = 'VERSIONED_WRITE_FAILED'
+    }
+    foreach ($prefix in $rules.Keys) {
+        if ($Body.StartsWith($prefix, [StringComparison]::Ordinal)) { return $rules[$prefix] }
+    }
+    return $null
 }
 
 function ConvertTo-Hu035ServerSummary {
@@ -149,11 +248,6 @@ function ConvertTo-Hu035ServerSummary {
         's3api_object_handlers_put\.go:\d+\] (?<body>.*)$'
     $regex = [regex]::new($pattern, [Text.RegularExpressions.RegexOptions]::CultureInvariant,
         [TimeSpan]::FromMilliseconds(25))
-    $rules = [ordered]@{
-        'putToFiler: chunked upload failed:' = 'CHUNK_UPLOAD_FAILED'
-        'putToFiler: CreateEntry returned error:' = 'CREATE_ENTRY_FAILED'
-        'putToFiler: failed to create entry for ' = 'CREATE_ENTRY_FAILED'
-    }
     $events = [Collections.Generic.List[object]]::new()
     $stdoutEvents = @{}
     $watch = [Diagnostics.Stopwatch]::StartNew()
@@ -184,12 +278,7 @@ function ConvertTo-Hu035ServerSummary {
                 [string]::CompareOrdinal($stamp, $upper) -gt 0) {
                 $summary.outsideWindowLines++; continue
             }
-            $eventCode = $null
-            foreach ($prefix in $rules.Keys) {
-                if ($match.Groups['body'].Value.StartsWith($prefix, [StringComparison]::Ordinal)) {
-                    $eventCode = $rules[$prefix]; break
-                }
-            }
+            $eventCode = Get-Hu035ServerEventCode $match.Groups['body'].Value
             if ($null -eq $eventCode) { $summary.unrecognizedLines++; continue }
             $fingerprint = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
                 [Text.Encoding]::UTF8.GetBytes($line)))
@@ -254,6 +343,14 @@ function Invoke-Hu035Finalization {
         [scriptblock]$Writer = {
             param($path, $summary)
             Write-Hu035ServerSummary $path $summary
+        },
+        [scriptblock]$RuntimeReader = {
+            param($container, $network)
+            Read-Hu035RuntimeState $container $network
+        },
+        [scriptblock]$RuntimeParser = {
+            param($capture)
+            ConvertTo-Hu035RuntimeSummary $capture
         }
     )
     try {
@@ -269,6 +366,11 @@ function Invoke-Hu035Finalization {
                     $summary.captureStatus = 'PARSER_FAILED'
                 }
             }
+            try {
+                $runtimeCapture = & $RuntimeReader $State.Container $State.Network
+                $summary.runtime = & $RuntimeParser $runtimeCapture
+            }
+            catch { $summary.runtime = New-Hu035RuntimeSummary }
             try { & $Writer $State.Path $summary | Out-Null }
             catch { Write-Output 'HU035_SERVER_DIAGNOSTIC_WRITE_FAILED' }
         }
@@ -339,6 +441,48 @@ function Set-RuntimeStorageEndpoints([string]$path, [string]$sourceAddress,
     [IO.File]::WriteAllLines($path, $lines, $script:utf8WithoutBom)
 }
 
+function Format-Hu035ReconcileFailure([string]$CaseName, [int]$ExitCode, [object[]]$Output) {
+    $approvedCases = @('positive','identity_missing','identity_additional','link_missing','link_altered',
+        'version_changed','count_changed','evidence_missing','evidence_corrupt','evidence_inaccessible',
+        'audit_missing','audit_altered','reference_corrupt','rpo_exceeded','rto_exceeded','primary_target',
+        'replay_conflict','concurrency')
+    $approvedErrors = @('BUILD_IDENTITY_INVALID','RECONCILIATION_ID_INVALID',
+        'REFERENCE_ARTIFACT_LOCATION_INVALID','REFERENCE_BACKUP_SNAPSHOT_MISMATCH',
+        'REFERENCE_MANIFEST_URI_INVALID','REPLICA_MANIFEST_URI_INVALID','RESTORE_EVIDENCE_INVALID',
+        'RESTORE_PRIMARY_TARGET_REJECTED','S3_URI_INVALID','BACKUP_EMPTY','BACKUP_HASH_MISMATCH',
+        'BACKUP_MANIFEST_INVALID','CARDINALITY_LIMIT_EXCEEDED','IMMUTABLE_OBJECT_CONFLICT',
+        'MANIFEST_INVALID','MANIFEST_VALUE_INVALID','RECONCILIATION_IMMUTABLE_CONFLICT',
+        'REFERENCE_CORRUPT','REFERENCE_MISSING','REFERENCE_VERSION_UNSUPPORTED','REPLICA_MANIFEST_INVALID',
+        'S3_OBJECT_VERIFICATION_FAILED','S3_WRITE_VERIFICATION_FAILED','S3_OPERATION_FAILED',
+        'POSTGRESQL_OPERATION_FAILED','OPERATIONS_COMMAND_FAILED','LOCK_BUSY')
+    $safeCase = if ($approvedCases -contains $CaseName) { $CaseName } else { 'UNKNOWN' }
+    $safeError = 'UNKNOWN'
+    foreach ($line in $Output) {
+        $candidate = ([string]$line).Trim()
+        if ($approvedErrors -contains $candidate) { $safeError = $candidate }
+    }
+    return "HU035_RECONCILE_FAILED:CASE=$safeCase`:EXIT=$ExitCode`:ERROR=$safeError"
+}
+
+function Format-Hu035RestoreVerifyFailure([string]$CaseName, [int]$ExitCode, [object[]]$Output) {
+    $approvedCases = @('positive','identity_missing','identity_additional','link_missing','link_altered',
+        'version_changed','count_changed','evidence_missing','evidence_corrupt','evidence_inaccessible',
+        'audit_missing','audit_altered','reference_corrupt','rpo_exceeded','rto_exceeded','primary_target',
+        'replay_conflict','concurrency')
+    $approvedErrors = @('BACKUP_MANIFEST_URI_INVALID','BACKUP_MANIFEST_INVALID','S3_URI_INVALID',
+        'RESTORE_PRIMARY_TARGET_REJECTED','RESTORE_TARGET_NOT_EMPTY','BACKUP_HASH_MISMATCH',
+        'BACKUP_DECRYPTION_FAILED','BACKUP_ARCHIVE_INVALID','PG_RESTORE_START_FAILED','PG_RESTORE_FAILED',
+        'AGE_START_FAILED','RESTORE_STRUCTURAL_VERIFICATION_FAILED','S3_OPERATION_FAILED',
+        'POSTGRESQL_OPERATION_FAILED','OPERATIONS_COMMAND_FAILED')
+    $safeCase = if ($approvedCases -contains $CaseName) { $CaseName } else { 'UNKNOWN' }
+    $safeError = 'UNKNOWN'
+    foreach ($line in $Output) {
+        $candidate = ([string]$line).Trim()
+        if ($approvedErrors -contains $candidate) { $safeError = $candidate }
+    }
+    return "HU035_RESTORE_VERIFY_FAILED:CASE=$safeCase`:EXIT=$ExitCode`:ERROR=$safeError"
+}
+
 function Invoke-ImageOperation([string[]]$Arguments, [string]$runtimePath, [string]$privatePath,
     [int[]]$ExpectedExitCodes = @(0), [hashtable]$EnvironmentOverrides = @{}) {
     $dockerArguments = @('run','--rm','--platform','linux/amd64','--network',$script:networkName,
@@ -361,6 +505,14 @@ function Invoke-ImageOperation([string[]]$Arguments, [string]$runtimePath, [stri
         $output = @(& docker @dockerArguments 2>&1)
         $exitCode = $LASTEXITCODE
         if ($ExpectedExitCodes -notcontains $exitCode) {
+            if ($Arguments[0] -eq 'reconcile-functional-restore') {
+                throw (Format-Hu035ReconcileFailure `
+                    ([Environment]::GetEnvironmentVariable('SGOL_HU035_CASE', 'Process')) $exitCode $output)
+            }
+            if ($Arguments[0] -eq 'verify-postgresql-backup') {
+                throw (Format-Hu035RestoreVerifyFailure `
+                    ([Environment]::GetEnvironmentVariable('SGOL_HU035_CASE', 'Process')) $exitCode $output)
+            }
             throw "HU-035 image operation failed: $($Arguments[0]); exit=$exitCode"
         }
         return [pscustomobject]@{ ExitCode = $exitCode; Output = $output }
@@ -531,7 +683,8 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
     $pgDumpContent = $wrapperTemplate.Replace('__NETWORK__', $networkName).Replace(
         '__RUNTIME__', $runtimePath).Replace('__IMAGE__', $ImageRef).Replace(
         '__COMMAND__', '/usr/bin/pg_dump')
-    $ageContent = $wrapperTemplate.Replace('__NETWORK__', $networkName).Replace(
+    $ageContent = $wrapperTemplate.Replace('docker run --rm --platform',
+        'docker run --rm --interactive --platform').Replace('__NETWORK__', $networkName).Replace(
         '__RUNTIME__', $runtimePath).Replace('__IMAGE__', $ImageRef).Replace(
         '__COMMAND__', '/usr/bin/age')
     [IO.File]::WriteAllText($pgDumpWrapper, $pgDumpContent, $utf8WithoutBom)
@@ -548,6 +701,7 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
     $stage = 'REFERENCE'
     . Invoke-Hu035Reference -State $referenceDiagnostic -Action {
     $referenceDiagnostic.Container = $containers[2]
+    $referenceDiagnostic.Network = $networkName
     $referenceDiagnostic.Path = Join-Path $publicDirectory 'hu-035-server-diagnostic.json'
     & dotnet test (Join-Path $repositoryRoot 'tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj') `
         --configuration Release --no-restore -p:SGOL_HU035_AMD64_TESTS=true --filter 'Category=Hu035Amd64' `
@@ -584,6 +738,7 @@ exec docker run --rm --platform linux/amd64 --network __NETWORK__ --env-file '__
 
     $stage = 'MATRIX'
     foreach ($caseDescriptor in $descriptor.cases) {
+        [Environment]::SetEnvironmentVariable('SGOL_HU035_CASE', [string]$caseDescriptor.name, 'Process')
         Reset-RestoreDatabase
         $caseEvidencePath = Join-Path $privateDirectory "$($caseDescriptor.name)-restore-evidence.json"
         $restore = Invoke-ImageOperation @('verify-postgresql-backup', '--manifest',
@@ -721,3 +876,4 @@ finally {
 
 if ($result -ne 'SUCCEEDED') { throw "HU-035 AMD64 gate failed at stage $stage." }
 Write-Output "PASS: native AMD64 HU-035 functional recovery gate. PublicEvidence=$publicDirectory"
+$global:LASTEXITCODE = 0

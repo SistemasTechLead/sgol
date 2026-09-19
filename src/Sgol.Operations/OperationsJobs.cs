@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using Sgol.Continuity.Contracts;
 using Sgol.BuildingBlocks.Identifiers;
 using Sgol.Organization.Contracts;
@@ -43,7 +44,7 @@ public sealed class CaptureRecoveryReferenceJob(
 
     public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken cancellationToken)
     {
-        if (!Guid.TryParseExact(context.Checkpoint, "D", out var reconciliationId) || reconciliationId == Guid.Empty)
+        if (!TryReadReconciliationId(context.Checkpoint, out var reconciliationId))
             throw new JobExecutionException("RECOVERY_RECONCILIATION_ID_INVALID");
         var dbContext = context.DbContext;
         var latest = await dbContext.RecoveryReconciliationEvents.Where(item =>
@@ -80,6 +81,7 @@ public sealed class CaptureRecoveryReferenceJob(
             {
                 OperationsConfigurationException configured => configured.ErrorCode,
                 OperationsIntegrityException integrity => integrity.ErrorCode,
+                OperationsReferenceCaptureException reference => reference.ErrorCode,
                 RecoveryContractException contract => contract.ErrorCode,
                 _ => "UNEXPECTED_RECONCILIATION_FAILURE"
             };
@@ -98,6 +100,28 @@ public sealed class CaptureRecoveryReferenceJob(
             dbContext.AuditEvents.Add(Audit(uuidGenerator.NewUuid(), reconciliationId, context.CorrelationId,
                 timeProvider.GetUtcNow(), RecoveryReconciliationEvents.Failed,
                 RecoveryReconciliationStatuses.Failed, errorCode));
+        }
+    }
+
+    private static bool TryReadReconciliationId(string? checkpoint, out Guid reconciliationId)
+    {
+        reconciliationId = Guid.Empty;
+        if (string.IsNullOrWhiteSpace(checkpoint)) return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(checkpoint);
+            var root = document.RootElement;
+            return root.ValueKind == JsonValueKind.Object &&
+                root.EnumerateObject().Count() == 1 &&
+                root.TryGetProperty("reconciliationId", out var value) &&
+                value.ValueKind == JsonValueKind.String &&
+                value.TryGetGuid(out reconciliationId) &&
+                reconciliationId != Guid.Empty;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

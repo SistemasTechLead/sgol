@@ -205,20 +205,27 @@ public sealed class EfRecoveryReconciliationService(
     public async Task MarkRestoreStartedAsync(RecoveryRestoreStartedCommand command, CancellationToken cancellationToken = default)
     {
         ValidateHash(command.RestoreEvidenceSha256);
+        var startedAt = ToPostgreSqlPrecision(command.StartedAt);
         var prior = await dbContext.RecoveryReconciliationEvents.AsNoTracking().SingleOrDefaultAsync(item =>
             item.ReconciliationId == command.ReconciliationId &&
             item.EventType == RecoveryReconciliationEvents.RestoreStarted, cancellationToken);
         if (prior is not null)
         {
-            if (prior.OccurredAt == command.StartedAt && prior.RestoreEvidenceSha256 == command.RestoreEvidenceSha256)
+            if (prior.OccurredAt == startedAt && prior.RestoreEvidenceSha256 == command.RestoreEvidenceSha256)
                 return;
             throw new RecoveryContractException("RECONCILIATION_IMMUTABLE_CONFLICT");
         }
         var latest = await LatestAsync(command.ReconciliationId, cancellationToken);
         await AppendTechnicalAsync(command.ReconciliationId, RecoveryReconciliationStatuses.ReferenceReady,
             Event(command.ReconciliationId, 0, RecoveryReconciliationEvents.RestoreStarted,
-                RecoveryReconciliationStatuses.RestoreStarted, command.StartedAt, command.CorrelationId,
+                RecoveryReconciliationStatuses.RestoreStarted, startedAt, command.CorrelationId,
                 restoreEvidenceSha256: command.RestoreEvidenceSha256), cancellationToken);
+    }
+
+    private static DateTimeOffset ToPostgreSqlPrecision(DateTimeOffset value)
+    {
+        var utc = value.ToUniversalTime();
+        return new DateTimeOffset(utc.Ticks - utc.Ticks % 10, TimeSpan.Zero);
     }
 
     public async Task CompleteAsync(RecoveryCompletedCommand command, CancellationToken cancellationToken = default)
@@ -521,9 +528,10 @@ public sealed class RecoveryReferenceRequestedOutboxHandler(
     {
         var id = context.Data.GetProperty("reconciliationId").GetGuid();
         var scheduledFor = context.Data.GetProperty("scheduledFor").GetDateTimeOffset();
+        var checkpoint = JsonSerializer.Serialize(new { reconciliationId = id });
         await using var scope = scopeFactory.CreateAsyncScope();
         var result = await scope.ServiceProvider.GetRequiredService<ScheduledJobRunner>().RunAsync(
-            "CAPTURE_RECOVERY_REFERENCE", scheduledFor, context.CorrelationId, id.ToString("D"),
+            "CAPTURE_RECOVERY_REFERENCE", scheduledFor, context.CorrelationId, checkpoint,
             cancellationToken);
         if (result is ScheduledJobResult.Failed or ScheduledJobResult.LockBusy)
         {

@@ -99,8 +99,6 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<EfRecoveryReconciliationService>();
         services.AddScoped<IRecoveryReconciliationService>(provider => provider.GetRequiredService<EfRecoveryReconciliationService>());
         services.AddScoped<IRecoveryTechnicalWriter>(provider => provider.GetRequiredService<EfRecoveryReconciliationService>());
-        services.TryAddEnumerable(
-            ServiceDescriptor.Scoped<IOutboxHandler, RecoveryReferenceRequestedOutboxHandler>());
         return services;
     }
 }

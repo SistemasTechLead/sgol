@@ -1,4 +1,4 @@
-# F07 Adenda 40 — Contrato de autenticación hospedada y sesión
+# F07 Adenda 41 — Contrato de autenticación hospedada y sesión
 
 ## 1. Control de la propuesta
 

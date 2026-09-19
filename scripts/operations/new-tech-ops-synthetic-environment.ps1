@@ -299,6 +299,7 @@ foreach ($sql in @(
     "CREATE ROLE sgol_app LOGIN PASSWORD '$appPassword'",
     "CREATE ROLE sgol_backup LOGIN PASSWORD '$backupDatabasePassword'",
     "CREATE ROLE sgol_restore LOGIN PASSWORD '$restorePassword'",
+    'GRANT SET ON PARAMETER session_replication_role TO sgol_restore',
     'CREATE DATABASE sgol_primary OWNER sgol_app',
     'CREATE DATABASE sgol_restore OWNER sgol_restore',
     'GRANT CONNECT ON DATABASE sgol_primary TO sgol_backup'
@@ -320,11 +321,11 @@ $destinationHostPort = New-FreeLoopbackPort
 if ($sourceHostPort -eq $destinationHostPort) { $destinationHostPort = New-FreeLoopbackPort }
 & docker run --detach --name $sourceContainer --network $storageNetwork @sourceNetworkArguments --publish "127.0.0.1:$sourceHostPort`:8333" `
     --mount "type=bind,source=$sourceConfigPath,target=/run/sgol/s3.json,readonly" `
-    $seaweedImage mini '-dir=/data' '-s3.config=/run/sgol/s3.json' | Out-Null
+    $seaweedImage mini "-ip=$sourceContainer" '-ip.bind=0.0.0.0' '-dir=/data' '-s3.config=/run/sgol/s3.json' | Out-Null
 Assert-DockerSuccess 'Could not create source S3-compatible storage.'
 & docker run --detach --name $destinationContainer --network $storageNetwork @destinationNetworkArguments --publish "127.0.0.1:$destinationHostPort`:8333" `
     --mount "type=bind,source=$destinationConfigPath,target=/run/sgol/s3.json,readonly" `
-    $seaweedImage mini '-dir=/data' '-s3.config=/run/sgol/s3.json' | Out-Null
+    $seaweedImage mini "-ip=$destinationContainer" '-ip.bind=0.0.0.0' '-dir=/data' '-s3.config=/run/sgol/s3.json' | Out-Null
 Assert-DockerSuccess 'Could not create destination S3-compatible storage.'
 & docker network connect bridge $sourceContainer
 Assert-DockerSuccess 'Could not attach source S3 temporarily to the local provisioning bridge.'

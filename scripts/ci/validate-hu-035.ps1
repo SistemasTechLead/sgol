@@ -7,6 +7,7 @@ $requiredFiles = @(
     'F07_ADENDA_33_CONTRATO_DE_RECONCILIACION_Y_SIMULACRO_DE_RECUPERACION_HU_035.md',
     'F07_ADENDA_34_CONTRATO_DE_GATE_AMD64_AUTOMATIZADO_HU_035.md',
     'F07_ADENDA_35_DIAGNOSTICO_SANITIZADO_DE_REPLICA_HU_035.md',
+    'F07_ADENDA_40_DIAGNOSTICO_CAUSAL_SANITIZADO_PUT_HU_035.md',
     'src/Modules/Continuity/Contracts/RecoveryReconciliation.cs',
     'src/Sgol.Operations/FunctionalSnapshotReader.cs',
     'src/Sgol.Operations/FunctionalRecoveryOperations.cs',
@@ -113,13 +114,27 @@ foreach ($required in @('AMD64_LINUX_HOST_REQUIRED', 'SGOL_HU035_AMD64_GATE',
     'FUNCTIONAL_RECOVERY_MATCHED', 'SGOL_TECHNICAL_RESTORE_EVIDENCE',
     'runtime-private', 'evidence-public', 'Remove-Item', 'Reset-RestoreDatabase',
     'Invoke-ConcurrentReconciliation', 'Get-PrivateContainerAddress',
-    'Set-RuntimeStorageEndpoints', 'sgol-hu035-$runIdentity-private')) {
+    'Set-RuntimeStorageEndpoints', 'sgol-hu035-$runIdentity-private',
+    'VOLUME_ASSIGNMENT_FAILED', 'VOLUME_UPLOAD_FAILED', 'CONDITIONAL_LOOKUP_FAILED',
+    'FINAL_ONLY', 'OUTSIDE_FINAL_NETWORK', 'dataNodeRegistration', 'writableCapacity')) {
     if ($amd64Gate.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 AMD64 gate token is missing: $required"
     }
 }
 if ($amd64Gate.IndexOf('docker port', [StringComparison]::Ordinal) -ge 0) {
     throw 'HU-035 AMD64 gate must not depend on a published S3 port after private-network isolation.'
+}
+$syntheticEnvironment = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'scripts/operations/new-tech-ops-synthetic-environment.ps1')
+foreach ($required in @('"-ip=$sourceContainer"', '"-ip=$destinationContainer"', "'-ip.bind=0.0.0.0'")) {
+    if ($syntheticEnvironment.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "HU-035 storage advertised-address invariant is missing: $required"
+    }
+}
+if ($syntheticEnvironment.IndexOf("'GRANT SET ON PARAMETER session_replication_role TO sgol_restore'",
+        [StringComparison]::Ordinal) -lt 0 -or
+    $syntheticEnvironment.IndexOf('SUPERUSER', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    throw 'HU-035 negative matrix requires only the exact synthetic mutation parameter grant.'
 }
 $amd64Test = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'tests/Sgol.OperationsIntegrationTests/FunctionalRecoveryAmd64GateTests.cs')
@@ -129,6 +144,21 @@ foreach ($required in @('positive','identity_missing','identity_additional','lin
     'replay_conflict','concurrency')) {
     if ($amd64Test.IndexOf('"' + $required + '"', [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 AMD64 approved case is missing: $required"
+    }
+}
+
+$continuityPersistence = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'src/Sgol.Web/Infrastructure/Persistence/Continuity/EfRecoveryReconciliationService.cs')
+$operationsJobs = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/OperationsJobs.cs')
+foreach ($required in @(
+    'JsonSerializer.Serialize(new { reconciliationId = id })',
+    'TryReadReconciliationId(context.Checkpoint, out var reconciliationId)',
+    'root.EnumerateObject().Count() == 1',
+    'root.TryGetProperty("reconciliationId", out var value)'
+)) {
+    if ($continuityPersistence.IndexOf($required, [StringComparison]::Ordinal) -lt 0 -and
+        $operationsJobs.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "HU-035 recovery reference checkpoint contract is missing: $required"
     }
 }
 
@@ -261,7 +291,15 @@ foreach ($required in @(
     'const int maximumAttempts = 3;',
     'exception.ErrorCode == "REPLICA_INFRASTRUCTURE_FAILED" && attempt < maximumAttempts',
     'S3CODE={s3ErrorCode}',
-    'Category", "Hu035ReplicaDiagnostics'
+    'Category", "Hu035ReplicaDiagnostics',
+    'HU035_REFERENCE_DISPATCH_FAILED',
+    'OUTBOX_RESULT={NormalizeOutboxResult(outboxResult)}',
+    'OUTBOX_ERROR={NormalizeReferenceOutboxError(outboxError)}',
+    'JOB_STATUS={NormalizeReferenceJobStatus(jobStatus)}',
+    'JOB_ERROR={NormalizeReferenceJobError(jobError)}',
+    'HU035_REFERENCE_CAPTURE_FAILED',
+    'RECONCILIATION_STATUS={NormalizeReferenceReconciliationStatus(reconciliationStatus)}',
+    'RECONCILIATION_ERROR={NormalizeReferenceReconciliationError(reconciliationError)}'
 )) {
     if ($amd64Test.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "HU-035 replica diagnostic gate contract is missing: $required"
@@ -269,6 +307,66 @@ foreach ($required in @(
 }
 if ($amd64Test.IndexOf('HTTP={httpStatus}", exception', [StringComparison]::Ordinal) -ge 0) {
     throw 'HU-035 replica diagnostic gate must not attach the original exception.'
+}
+$functionalRecovery = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/FunctionalRecoveryOperations.cs')
+$operationsJobs = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/OperationsJobs.cs')
+foreach ($required in @(
+    'CAPTURE_SNAPSHOT',
+    'EXPORT_BACKUP',
+    'PUT_BACKUP',
+    'PUT_BACKUP_MANIFEST',
+    'READ_REPLICA_MANIFEST',
+    'PUT_REFERENCE_SNAPSHOT',
+    'PUT_REFERENCE_MANIFEST',
+    'S3_INTERNAL_ERROR',
+    'S3_ERROR',
+    'POSTGRESQL_ERROR',
+    'EXTERNAL_PROCESS_ERROR',
+    'IO_ERROR',
+    'UNEXPECTED',
+    'OperationsReferenceCaptureException')) {
+    if ($functionalRecovery.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "HU-035 reference capture classifier token is missing: $required"
+    }
+}
+if ($functionalRecovery.IndexOf('new OperationsReferenceCaptureException($"REFERENCE_{stage}_{classification}")',
+        [StringComparison]::Ordinal) -lt 0 -or
+    $operationsJobs.IndexOf('OperationsReferenceCaptureException reference => reference.ErrorCode',
+        [StringComparison]::Ordinal) -lt 0) {
+    throw 'HU-035 reference capture failure is not persisted with its closed stage and class.'
+}
+if ($functionalRecovery.IndexOf('internal sealed class OperationsReferenceCaptureException(string errorCode) : Exception(errorCode)',
+        [StringComparison]::Ordinal) -lt 0 -or
+    $functionalRecovery.IndexOf('OperationsReferenceCaptureException(string errorCode) : Exception(errorCode,',
+        [StringComparison]::Ordinal) -ge 0) {
+    throw 'HU-035 reference capture classifier must not retain an original exception.'
+}
+$snapshotReader = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/FunctionalSnapshotReader.cs')
+if ($snapshotReader.IndexOf('SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\" DESC LIMIT 1',
+        [StringComparison]::Ordinal) -lt 0 -or
+    $snapshotReader.IndexOf('SELECT migration_id FROM', [StringComparison]::Ordinal) -ge 0) {
+    throw 'HU-035 snapshot reader must query the exact EF migrations history identifier.'
+}
+if ($amd64Test.IndexOf('FunctionalSnapshotReader.CaptureReferenceAsync(', [StringComparison]::Ordinal) -lt 0 -or
+    $amd64Test.IndexOf('FunctionalSnapshotSchema.Tables.Length', [StringComparison]::Ordinal) -lt 0) {
+    throw 'HU-035 PostgreSQL fixture must execute the real functional snapshot reader.'
+}
+$gate = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'scripts/operations/invoke-hu-035-amd64-gate.ps1')
+if ($gate.IndexOf("`$ageContent = `$wrapperTemplate.Replace('docker run --rm --platform',", [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf("'docker run --rm --interactive --platform'", [StringComparison]::Ordinal) -lt 0 -or
+    ([regex]::Matches($gate, '--interactive')).Count -ne 1) {
+    throw 'HU-035 age wrapper must keep stdin attached without changing the pg_dump wrapper.'
+}
+if ($gate.IndexOf('function Format-Hu035ReconcileFailure', [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf('HU035_RECONCILE_FAILED:CASE=', [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf("if (`$approvedErrors -contains `$candidate)", [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf("if (`$Arguments[0] -eq 'reconcile-functional-restore')", [StringComparison]::Ordinal) -lt 0) {
+    throw 'HU-035 unexpected reconciliation failures must use the approved closed diagnostic.'
+}
+if ($gate.IndexOf('function Format-Hu035RestoreVerifyFailure', [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf('HU035_RESTORE_VERIFY_FAILED:CASE=', [StringComparison]::Ordinal) -lt 0 -or
+    $gate.IndexOf("if (`$Arguments[0] -eq 'verify-postgresql-backup')", [StringComparison]::Ordinal) -lt 0) {
+    throw 'HU-035 unexpected restore verification failures must use the approved closed diagnostic.'
 }
 $workflow = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot '.github/workflows/pull-request.yml')
 if ($workflow.IndexOf('invoke-hu-035-amd64-gate.ps1', [StringComparison]::Ordinal) -lt 0 -or

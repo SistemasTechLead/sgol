@@ -21,7 +21,48 @@ function Slice([string]$text, [string]$start, [string]$end) {
 }
 $provisionAst = Read-Ast (Join-Path $root 'scripts/operations/new-tech-ops-synthetic-environment.ps1')
 $gateAst = Read-Ast (Join-Path $root 'scripts/operations/invoke-hu-035-amd64-gate.ps1')
+$gateText = $gateAst.Extent.Text
+Assert-Test ($gateText.Contains("`$ageContent = `$wrapperTemplate.Replace('docker run --rm --platform',")) 'age wrapper derived from approved template'
+Assert-Test ($gateText.Contains("'docker run --rm --interactive --platform'")) 'age wrapper keeps stdin attached'
+Assert-Test (([regex]::Matches($gateText, '--interactive')).Count -eq 1) 'interactive stdin limited to age wrapper'
+$diagnosticFunction = $gateAst.Find({ param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Format-Hu035ReconcileFailure'
+}, $true)
+. ([scriptblock]::Create($diagnosticFunction.Extent.Text))
+$knownDiagnostic = Format-Hu035ReconcileFailure 'positive' 1 @(
+    'private exception text', 'RESTORE_EVIDENCE_INVALID', 'Password=private')
+Assert-Test ($knownDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=positive:EXIT=1:ERROR=RESTORE_EVIDENCE_INVALID') `
+    'reconciliation diagnostic exposes only approved case, exit and error'
+Assert-Test (-not $knownDiagnostic.Contains('private', [StringComparison]::OrdinalIgnoreCase)) `
+    'reconciliation diagnostic drops original output'
+$unknownDiagnostic = Format-Hu035ReconcileFailure 'unapproved-case' 93 @(
+    'UNAPPROVED_ERROR', 'endpoint=http://private')
+Assert-Test ($unknownDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=UNKNOWN:EXIT=93:ERROR=UNKNOWN') `
+    'reconciliation diagnostic reduces unknown values'
+$fallbackDiagnostic = Format-Hu035ReconcileFailure 'concurrency' 1 @('OPERATIONS_COMMAND_FAILED')
+Assert-Test ($fallbackDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=concurrency:EXIT=1:ERROR=OPERATIONS_COMMAND_FAILED') `
+    'reconciliation diagnostic preserves closed command fallback'
+$restoreDiagnosticFunction = $gateAst.Find({ param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Format-Hu035RestoreVerifyFailure'
+}, $true)
+. ([scriptblock]::Create($restoreDiagnosticFunction.Extent.Text))
+$knownRestoreDiagnostic = Format-Hu035RestoreVerifyFailure 'identity_missing' 1 @(
+    'private exception text', 'PG_RESTORE_FAILED', 'Host=private')
+Assert-Test ($knownRestoreDiagnostic -eq 'HU035_RESTORE_VERIFY_FAILED:CASE=identity_missing:EXIT=1:ERROR=PG_RESTORE_FAILED') `
+    'restore diagnostic exposes only approved case, exit and error'
+Assert-Test (-not $knownRestoreDiagnostic.Contains('private', [StringComparison]::OrdinalIgnoreCase)) `
+    'restore diagnostic drops original output'
+$unknownRestoreDiagnostic = Format-Hu035RestoreVerifyFailure 'unapproved-case' 91 @(
+    'UNAPPROVED_ERROR', 'endpoint=http://private')
+Assert-Test ($unknownRestoreDiagnostic -eq 'HU035_RESTORE_VERIFY_FAILED:CASE=UNKNOWN:EXIT=91:ERROR=UNKNOWN') `
+    'restore diagnostic reduces unknown values'
 $provisionText = $provisionAst.Extent.Text
+Assert-Test ($provisionText.Contains("'GRANT SET ON PARAMETER session_replication_role TO sgol_restore'")) `
+    'synthetic restore role can apply the approved negative matrix mutations'
+Assert-Test (-not $provisionText.Contains('SUPERUSER', [StringComparison]::OrdinalIgnoreCase)) `
+    'synthetic mutation permission does not promote any role to superuser'
 foreach ($name in @('Assert-DockerSuccess','Get-PublishedPort','Get-ContainerAddress','Set-ProvisionEnvironment')) {
     $function = $provisionAst.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
     . ([scriptblock]::Create($function.Extent.Text))
@@ -124,6 +165,7 @@ try {
         Assert-Test ($runs.Count -eq 2) 'two storage starts'
         foreach ($pair in @(@($runs[0], $sourceContainer), @($runs[1], $destinationContainer))) {
             Assert-Test ($pair[0].Contains("--network|$expectedNetwork|")) 'primary network from startup'
+            Assert-Test ($pair[0].Contains("|mini|-ip=$($pair[1])|-ip.bind=0.0.0.0|")) 'stable advertised alias with unrestricted bind'
             if ($StorageNetworkName) { Assert-Test ($pair[0].Contains("--network-alias|$($pair[1])|")) 'exact consumer alias' }
             else { Assert-Test (-not $pair[0].Contains('--network-alias')) 'default has no new aliases' }
         }

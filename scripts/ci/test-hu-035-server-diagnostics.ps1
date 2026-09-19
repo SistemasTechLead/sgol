@@ -16,8 +16,13 @@ function Assert-Keys($Value, [string[]]$Expected) {
     $actual = @($Value.PSObject.Properties.Name | Sort-Object)
     Assert-True (($actual -join '|') -ceq (($Expected | Sort-Object) -join '|')) 'PUBLIC_PROPERTIES_CHANGED'
 }
-$names = @('Initialize-Hu035LogCapture', 'Read-Hu035ServerLogs', 'New-Hu035ServerSummary',
-    'ConvertTo-Hu035ServerSummary', 'Write-Hu035ServerSummary', 'Invoke-Hu035Reference', 'Invoke-Hu035Finalization')
+$gateText = Get-Content -Raw -LiteralPath $gatePath
+Assert-True ($gateText.TrimEnd().EndsWith('$global:LASTEXITCODE = 0', [StringComparison]::Ordinal)) `
+    'SUCCESS_EXIT_CODE_NOT_RESET'
+$names = @('Initialize-Hu035LogCapture', 'Read-Hu035ServerLogs', 'Read-Hu035RuntimeState',
+    'New-Hu035RuntimeSummary', 'ConvertTo-Hu035RuntimeSummary', 'New-Hu035ServerSummary',
+    'Get-Hu035ServerEventCode', 'ConvertTo-Hu035ServerSummary', 'Write-Hu035ServerSummary',
+    'Invoke-Hu035Reference', 'Invoke-Hu035Finalization')
 foreach ($name in $names) {
     $definition = @($ast.FindAll({ param($node)
         $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
@@ -77,6 +82,7 @@ $result = ConvertTo-Hu035ServerSummary (New-Capture -Stdout "$line`r`n" -Stderr 
 Assert-True ($result.events.Count -eq 1) 'CROSS_CHANNEL_DUPLICATE'
 Assert-True ($result.events[0].channel -eq 'BOTH' -and $result.duplicateEvents -eq 1) 'DUPLICATE_CHANNEL_LOST'
 Assert-True ($result.events[0].correlation -eq 'TIME_WINDOW_ONLY') 'EXACT_CORRELATION_INVENTED'
+Assert-True ($result.events[0].eventCode -eq 'VOLUME_UPLOAD_FAILED') 'UPLOAD_FAILURE_NOT_CLASSIFIED'
 $secondLine = New-Line '2026-09-17T19:43:12.000000001Z' $entry
 $thirdLine = New-Line '2026-09-17T19:43:13.000000001Z' $entryOuter
 $result = ConvertTo-Hu035ServerSummary (New-Capture -Stdout "$line`n" -Stderr "$secondLine`n$thirdLine`n") $since $until
@@ -89,11 +95,62 @@ foreach ($private in @($sentinel, 'http://', 'AccessKey', 's3api_object_handlers
 }
 $summaryKeys = @('schemaVersion', 'captureStatus', 'captureExitCode', 'windowStartedAtUtc', 'windowEndedAtUtc',
     'observation', 'emptyCapture', 'truncated', 'oversizedLines', 'unrecognizedLines', 'outsideWindowLines',
-    'discardedPartialLines', 'duplicateEvents', 'eventLimitReached', 'parserLimitReached', 'events')
+    'discardedPartialLines', 'duplicateEvents', 'eventLimitReached', 'parserLimitReached', 'events', 'runtime')
 $eventKeys = @('occurredAtUtc', 'channel', 'component', 'eventCode', 'correlation')
+$runtimeKeys = @('captureStatus', 'networkState', 'advertisedAddressScope', 'dataNodeRegistration', 'writableCapacity')
 $public = $json | ConvertFrom-Json
 Assert-Keys $public $summaryKeys
+Assert-Keys $public.runtime $runtimeKeys
 foreach ($event in $public.events) { Assert-Keys $event $eventKeys }
+$classificationCases = [ordered]@{
+    'putToFiler: chunked upload failed: assign volume: PRIVATE_SENTINEL' = 'VOLUME_ASSIGNMENT_FAILED'
+    'putToFiler: chunked upload failed: upload chunk: PRIVATE_SENTINEL' = 'VOLUME_UPLOAD_FAILED'
+    'putToFiler: chunked upload failed: read chunk at offset 0: PRIVATE_SENTINEL' = 'REQUEST_BODY_READ_FAILED'
+    'putToFiler: chunked upload failed: PRIVATE_SENTINEL' = 'CHUNK_UPLOAD_FAILED'
+    'checkConditionalHeaders: error resolving object entry for PRIVATE_SENTINEL' = 'CONDITIONAL_LOOKUP_FAILED'
+    'PutObjectHandler: failed to check object lock for bucket PRIVATE_SENTINEL' = 'OBJECT_LOCK_LOOKUP_FAILED'
+    'Error checking versioning status for bucket PRIVATE_SENTINEL' = 'VERSIONING_LOOKUP_FAILED'
+    'Failed to apply bucket default encryption: PRIVATE_SENTINEL' = 'ENCRYPTION_LOOKUP_FAILED'
+    'PutObjectHandler: putVersionedObject failed with errCode=PRIVATE_SENTINEL' = 'VERSIONED_WRITE_FAILED'
+}
+foreach ($case in $classificationCases.GetEnumerator()) {
+    Assert-True ((Get-Hu035ServerEventCode $case.Key) -ceq $case.Value) 'FAILURE_CLASSIFICATION_MISSING'
+}
+Assert-True ($null -eq (Get-Hu035ServerEventCode 'PRIVATE_SENTINEL')) 'UNKNOWN_FAILURE_CLASSIFIED'
+
+function New-RuntimeCapture([string]$Networks, [string]$Topology,
+    [string]$NetworkStatus = 'OK', [string]$TopologyStatus = 'OK') {
+    return [pscustomobject]@{
+        Network = 'sgol-hu035-0123456789ab-private'
+        Networks = New-Capture -Stdout $Networks -Status $NetworkStatus
+        Topology = New-Capture -Stdout $Topology -Status $TopologyStatus
+    }
+}
+$networksFinal = '{"sgol-hu035-0123456789ab-private":{"IPAddress":"10.23.0.3"}}'
+$topologyFinal = '{"Topology":{"Free":944,"DataCenters":[{"Racks":[{"DataNodes":[{"Url":"10.23.0.3:9340"}]}]}]}}'
+$runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture $networksFinal $topologyFinal)
+Assert-True ($runtime.captureStatus -eq 'OK' -and $runtime.networkState -eq 'FINAL_ONLY' -and
+    $runtime.advertisedAddressScope -eq 'FINAL_NETWORK' -and $runtime.dataNodeRegistration -eq 'PRESENT' -and
+    $runtime.writableCapacity -eq 'POSITIVE') 'FINAL_RUNTIME_STATE_MISCLASSIFIED'
+$networksFinalAlias = '{"sgol-hu035-0123456789ab-private":{"IPAddress":"10.23.0.3","Aliases":["sgol-tech-ops-s3-destination"]}}'
+$topologyFinalAlias = '{"Topology":{"Free":944,"DataCenters":[{"Racks":[{"DataNodes":[{"Url":"sgol-tech-ops-s3-destination:9340"}]}]}]}}'
+$runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture $networksFinalAlias $topologyFinalAlias)
+Assert-True ($runtime.networkState -eq 'FINAL_ONLY' -and
+    $runtime.advertisedAddressScope -eq 'FINAL_NETWORK') 'FINAL_ALIAS_RUNTIME_STATE_MISCLASSIFIED'
+$networksTransient = '{"sgol-hu035-0123456789ab-private":{"IPAddress":"10.23.0.3"},"bridge":{"IPAddress":"172.17.0.4"}}'
+$topologyOutside = '{"Topology":{"Free":0,"DataCenters":[{"Racks":[{"DataNodes":[{"Url":"172.17.0.4:9340"}]}]}]}}'
+$runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture $networksTransient $topologyOutside)
+Assert-True ($runtime.networkState -eq 'TRANSIENT_PRESENT' -and
+    $runtime.advertisedAddressScope -eq 'OUTSIDE_FINAL_NETWORK' -and
+    $runtime.writableCapacity -eq 'ZERO') 'TRANSIENT_RUNTIME_STATE_MISCLASSIFIED'
+$runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture '{}' '{"Topology":{"Free":0,"DataCenters":[]}}')
+Assert-True ($runtime.networkState -eq 'FINAL_MISSING' -and $runtime.dataNodeRegistration -eq 'NONE' -and
+    $runtime.advertisedAddressScope -eq 'UNRESOLVED') 'MISSING_RUNTIME_STATE_MISCLASSIFIED'
+$runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture 'PRIVATE_SENTINEL' 'PRIVATE_SENTINEL')
+Assert-True ($runtime.captureStatus -eq 'INVALID') 'INVALID_RUNTIME_CAPTURE_ACCEPTED'
+$runtime = ConvertTo-Hu035RuntimeSummary (New-RuntimeCapture '{}' '{}' -NetworkStatus 'TIMEOUT')
+Assert-True ($runtime.captureStatus -eq 'CAPTURE_FAILED') 'FAILED_RUNTIME_CAPTURE_ACCEPTED'
+Assert-True (-not (($runtime | ConvertTo-Json).Contains($sentinel))) 'RUNTIME_PRIVATE_DATA_PUBLISHED'
 $result = ConvertTo-Hu035ServerSummary (New-Capture) $since $until
 Assert-True ($result.observation -eq 'EMPTY') 'EMPTY_NOT_DISTINCT'
 $result = ConvertTo-Hu035ServerSummary (New-Capture -Stderr "PRIVATE_SENTINEL`n") $since $until
@@ -131,10 +188,11 @@ Assert-True ($result.events.Count -eq 32 -and $result.eventLimitReached) 'EVENT_
 $testDirectory = Join-Path ([IO.Path]::GetTempPath()) ('sgol-hu035-diagnostic-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($testDirectory) | Out-Null
 try {
-    foreach ($fault in @('NONE', 'READER', 'PARSER', 'WRITER', 'BEFORE_REFERENCE', 'AFTER_REFERENCE', 'CLEANUP_EXIT', 'SUCCESS')) {
+    foreach ($fault in @('NONE', 'READER', 'PARSER', 'RUNTIME_READER', 'RUNTIME_PARSER', 'WRITER',
+        'BEFORE_REFERENCE', 'AFTER_REFERENCE', 'CLEANUP_EXIT', 'SUCCESS')) {
         & {
             $referenceDiagnostic = @{ Failed = $false; StartedAt = $null; EndedAt = $null }
-            $observed = @{ Reads = 0; Summary = $null; Calls = [Collections.Generic.List[string]]::new() }
+            $observed = @{ Reads = 0; RuntimeReads = 0; Summary = $null; Calls = [Collections.Generic.List[string]]::new() }
             $original = [InvalidOperationException]::new('ORIGINAL_FAILURE')
             $reader = { param($container, $start, $end)
                 $observed.Reads++
@@ -145,6 +203,16 @@ try {
             $parser = { param($capture, $start, $end)
                 if ($fault -eq 'PARSER') { throw 'PRIVATE_SENTINEL' }
                 ConvertTo-Hu035ServerSummary $capture $start $end
+            }
+            $runtimeReader = { param($container, $network)
+                $observed.RuntimeReads++
+                $observed.Calls.Add('RUNTIME_CAPTURE')
+                if ($fault -eq 'RUNTIME_READER') { throw 'PRIVATE_SENTINEL' }
+                New-RuntimeCapture $networksFinal $topologyFinal
+            }
+            $runtimeParser = { param($capture)
+                if ($fault -eq 'RUNTIME_PARSER') { throw 'PRIVATE_SENTINEL' }
+                ConvertTo-Hu035RuntimeSummary $capture
             }
             $writer = { param($path, $summary)
                 if ($fault -eq 'WRITER') { throw 'PRIVATE_SENTINEL' }
@@ -189,7 +257,8 @@ try {
                         }
                         finally {
                             . Invoke-Hu035Finalization -State $referenceDiagnostic -Cleanup $existingCleanup `
-                                -Reader $reader -Parser $parser -Writer $writer
+                                -Reader $reader -Parser $parser -Writer $writer `
+                                -RuntimeReader $runtimeReader -RuntimeParser $runtimeParser
                             # These are scalar variables written by the original cleanup.
                             $observed.Stage = $stage
                             $observed.Result = $result
@@ -203,11 +272,12 @@ try {
                 Assert-True (-not (($console | Out-String).Contains($sentinel))) 'CAPTURE_FAILURE_LEAKED'
                 $expectCapture = $fault -notin @('BEFORE_REFERENCE', 'AFTER_REFERENCE', 'SUCCESS')
                 Assert-True ($observed.Reads -eq [int]$expectCapture) 'WRONG_REFERENCE_CORRELATION'
+                Assert-True ($observed.RuntimeReads -eq [int]$expectCapture) 'WRONG_RUNTIME_CORRELATION'
                 $expectedCalls = @('container inspect synthetic-source', 'container rm --force synthetic-source',
                     'container inspect synthetic-destination', 'container rm --force synthetic-destination',
                     'network inspect synthetic-current', 'network rm synthetic-current',
                     'network inspect synthetic-old', 'network rm synthetic-old')
-                if ($expectCapture) { $expectedCalls = @('CAPTURE') + $expectedCalls }
+                if ($expectCapture) { $expectedCalls = @('CAPTURE', 'RUNTIME_CAPTURE') + $expectedCalls }
                 Assert-True (($observed.Calls -join '|') -eq ($expectedCalls -join '|')) 'EXISTING_CLEANUP_CHANGED'
                 $expectedResult = if ($fault -eq 'SUCCESS') { 'SUCCEEDED' } else { 'FAILED' }
                 Assert-True ($observed.Result -eq $expectedResult) 'CLEANUP_RESULT_SCOPE_LOST'
@@ -221,9 +291,13 @@ try {
                 Assert-True ($persisted.stage -eq $expectedStage -and $persisted.result -eq $expectedResult) 'CLEANUP_SUMMARY_CHANGED'
                 if ($null -ne $observed.Summary) {
                     Assert-Keys (($observed.Summary | ConvertTo-Json -Depth 5) | ConvertFrom-Json) $summaryKeys
+                    Assert-Keys ((($observed.Summary | ConvertTo-Json -Depth 5) | ConvertFrom-Json).runtime) $runtimeKeys
                 }
                 if ($fault -eq 'READER') { Assert-True ($observed.Summary.captureStatus -eq 'CAPTURE_FAILED') 'READER_FAILURE_NOT_REPORTED' }
                 if ($fault -eq 'PARSER') { Assert-True ($observed.Summary.captureStatus -eq 'PARSER_FAILED') 'PARSER_FAILURE_NOT_REPORTED' }
+                if ($fault -in @('RUNTIME_READER', 'RUNTIME_PARSER')) {
+                    Assert-True ($observed.Summary.runtime.captureStatus -eq 'CAPTURE_FAILED') 'RUNTIME_FAILURE_NOT_REPORTED'
+                }
             }
             finally {
                 foreach ($envName in $envNames) { [Environment]::SetEnvironmentVariable($envName, $saved[$envName], 'Process') }
@@ -262,6 +336,7 @@ try {
     Assert-True (-not $published.Contains($sentinel)) 'PUBLISHED_SECRET'
     $document = $published | ConvertFrom-Json
     Assert-Keys $document $summaryKeys
+    Assert-Keys $document.runtime $runtimeKeys
     foreach ($event in $document.events) { Assert-Keys $event $eventKeys }
 }
 finally {

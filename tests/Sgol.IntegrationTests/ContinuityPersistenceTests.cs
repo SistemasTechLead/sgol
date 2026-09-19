@@ -153,6 +153,52 @@ public sealed class ContinuityPersistenceTests : IAsyncLifetime
         Assert.Equal(before, await CountContinuityEffectsAsync(context));
     }
 
+    [Fact]
+    public async Task RestoreStartReplayUsesPostgreSqlTimestampPrecisionWithoutRelaxingImmutability()
+    {
+        await using var context = CreateContext();
+        await context.Database.EnsureDeletedAsync();
+        await context.Database.MigrateAsync();
+        var reconciliationId = Guid.CreateVersion7();
+        context.RecoveryReconciliations.Add(new RecoveryReconciliation
+        {
+            Id = reconciliationId,
+            BranchId = BranchScope.LorettaId,
+            RequestedBy = Guid.CreateVersion7(),
+            Reason = "Simulacro sintético",
+            RequestedAt = Now
+        });
+        context.RecoveryReconciliationEvents.Add(new RecoveryReconciliationEvent
+        {
+            Id = Guid.CreateVersion7(),
+            ReconciliationId = reconciliationId,
+            Sequence = 1,
+            EventType = RecoveryReconciliationEvents.ReferenceReady,
+            Status = RecoveryReconciliationStatuses.ReferenceReady,
+            OccurredAt = Now,
+            CorrelationId = Guid.CreateVersion7(),
+            TechnicalActor = "SGOL_OPERATIONS"
+        });
+        await context.SaveChangesAsync();
+        var clock = new FixedClock(Now);
+        var generator = new Uuid7Generator(clock);
+        var service = new EfRecoveryReconciliationService(context, new AuditTransaction(context),
+            new TestOutboxWriter(context, generator), clock, generator);
+        var startedAt = Now.AddTicks(9);
+        var evidenceHash = new string('a', 64);
+
+        await service.MarkRestoreStartedAsync(new(reconciliationId, Guid.CreateVersion7(), startedAt, evidenceHash));
+        context.ChangeTracker.Clear();
+        await service.MarkRestoreStartedAsync(new(reconciliationId, Guid.CreateVersion7(), startedAt, evidenceHash));
+
+        Assert.Single(await context.RecoveryReconciliationEvents.AsNoTracking().Where(item =>
+            item.ReconciliationId == reconciliationId &&
+            item.EventType == RecoveryReconciliationEvents.RestoreStarted).ToListAsync());
+        var conflict = await Assert.ThrowsAsync<RecoveryContractException>(() => service.MarkRestoreStartedAsync(
+            new(reconciliationId, Guid.CreateVersion7(), startedAt.AddTicks(10), evidenceHash)));
+        Assert.Equal("RECONCILIATION_IMMUTABLE_CONFLICT", conflict.ErrorCode);
+    }
+
     private SgolDbContext CreateContext() => new(new DbContextOptionsBuilder<SgolDbContext>()
         .UseNpgsql(postgres.GetConnectionString()).Options);
 
