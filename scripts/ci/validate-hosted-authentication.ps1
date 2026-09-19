@@ -73,6 +73,7 @@ if ($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $byte
 }
 
 Require-Contains $gitleaks '^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$' 'AUTH_VALIDATION_GITLEAKS_SCOPE'
+Require-Contains $gitleaks 'regexTarget = "secret"' 'AUTH_VALIDATION_GITLEAKS_TARGET'
 if ([regex]::Matches($gitleaks, '(?m)^\[\[allowlists\]\]\r?$').Count -ne 1) {
     throw 'AUTH_VALIDATION_GITLEAKS_ALLOWLIST_COUNT'
 }
