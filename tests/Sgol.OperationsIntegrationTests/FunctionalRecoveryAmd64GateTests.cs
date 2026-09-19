@@ -625,7 +625,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
             schemaVersion = 1,
             kind = "SGOL_HU035_AMD64_DESCRIPTOR",
             directionUserId = direction,
-            expectedMigration = "20260914210503_AddRecoveryReconciliation",
+            expectedMigration = "20260918001719_AddHostedAuthentication",
             protectedAuthenticationProbe,
             cases = descriptors
         };
@@ -736,7 +736,7 @@ public sealed class FunctionalRecoveryAmd64GateTests
             kind = "SGOL_HU035_AMD64_RESULT",
             status = RecoveryReconciliationStatuses.Approved,
             tableCount = FunctionalSnapshotSchema.Tables.Length,
-            expectedMigration = "20260914210503_AddRecoveryReconciliation",
+            expectedMigration = "20260918001719_AddHostedAuthentication",
             manifestHashes,
             observedObjectives,
             caseCount = results.Count,

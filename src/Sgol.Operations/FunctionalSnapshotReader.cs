@@ -10,7 +10,7 @@ public sealed record ExportedFunctionalSnapshot(FunctionalSnapshot Snapshot, str
 public sealed class FunctionalSnapshotReader
 {
     private const string ContractBaselineMigration = "20260912213000_AddPortableDataProtectionKeyRing";
-    private const string ExpectedLatestMigration = "20260914210503_AddRecoveryReconciliation";
+    private const string ExpectedLatestMigration = "20260918001719_AddHostedAuthentication";
     private static readonly Dictionary<string, Projection> Projections = BuildProjections();
 
     public static async Task<ExportedFunctionalSnapshot> CaptureReferenceAsync(

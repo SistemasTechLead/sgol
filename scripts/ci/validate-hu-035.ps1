@@ -50,7 +50,7 @@ if ([regex]::Matches($contract, '"[a-z_]+"').Value |
 
 $reader = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Sgol.Operations/FunctionalSnapshotReader.cs')
 foreach ($required in @('SET TRANSACTION READ ONLY', "SET LOCAL TIME ZONE 'UTC'", 'pg_export_snapshot()',
-    '20260912213000_AddPortableDataProtectionKeyRing', '20260914210503_AddRecoveryReconciliation')) {
+    '20260912213000_AddPortableDataProtectionKeyRing', '20260918001719_AddHostedAuthentication')) {
     if ($reader.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "Snapshot reader contract is missing: $required"
     }

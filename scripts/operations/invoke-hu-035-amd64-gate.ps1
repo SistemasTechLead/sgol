@@ -11,7 +11,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$expectedMigration = '20260914210503_AddRecoveryReconciliation'
+$expectedMigration = '20260918001719_AddHostedAuthentication'
 $bootstrapNetworkName = 'sgol-staging_private'
 $bootstrapContainers = @('sgol-tech-ops-postgres', 'sgol-tech-ops-s3-source', 'sgol-tech-ops-s3-destination')
 $utf8WithoutBom = [Text.UTF8Encoding]::new($false)
