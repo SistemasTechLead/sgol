@@ -44,6 +44,10 @@ $fallbackDiagnostic = Format-Hu035ReconcileFailure 'concurrency' 1 @('OPERATIONS
 Assert-Test ($fallbackDiagnostic -eq 'HU035_RECONCILE_FAILED:CASE=concurrency:EXIT=1:ERROR=OPERATIONS_COMMAND_FAILED') `
     'reconciliation diagnostic preserves closed command fallback'
 $provisionText = $provisionAst.Extent.Text
+Assert-Test ($provisionText.Contains("'GRANT SET ON PARAMETER session_replication_role TO sgol_restore'")) `
+    'synthetic restore role can apply the approved negative matrix mutations'
+Assert-Test (-not $provisionText.Contains('SUPERUSER', [StringComparison]::OrdinalIgnoreCase)) `
+    'synthetic mutation permission does not promote any role to superuser'
 foreach ($name in @('Assert-DockerSuccess','Get-PublishedPort','Get-ContainerAddress','Set-ProvisionEnvironment')) {
     $function = $provisionAst.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
     . ([scriptblock]::Create($function.Extent.Text))

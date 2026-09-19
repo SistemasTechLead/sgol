@@ -131,6 +131,11 @@ foreach ($required in @('"-ip=$sourceContainer"', '"-ip=$destinationContainer"',
         throw "HU-035 storage advertised-address invariant is missing: $required"
     }
 }
+if ($syntheticEnvironment.IndexOf("'GRANT SET ON PARAMETER session_replication_role TO sgol_restore'",
+        [StringComparison]::Ordinal) -lt 0 -or
+    $syntheticEnvironment.IndexOf('SUPERUSER', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    throw 'HU-035 negative matrix requires only the exact synthetic mutation parameter grant.'
+}
 $amd64Test = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'tests/Sgol.OperationsIntegrationTests/FunctionalRecoveryAmd64GateTests.cs')
 foreach ($required in @('positive','identity_missing','identity_additional','link_missing','link_altered',

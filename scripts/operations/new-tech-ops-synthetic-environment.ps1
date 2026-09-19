@@ -299,6 +299,7 @@ foreach ($sql in @(
     "CREATE ROLE sgol_app LOGIN PASSWORD '$appPassword'",
     "CREATE ROLE sgol_backup LOGIN PASSWORD '$backupDatabasePassword'",
     "CREATE ROLE sgol_restore LOGIN PASSWORD '$restorePassword'",
+    'GRANT SET ON PARAMETER session_replication_role TO sgol_restore',
     'CREATE DATABASE sgol_primary OWNER sgol_app',
     'CREATE DATABASE sgol_restore OWNER sgol_restore',
     'GRANT CONNECT ON DATABASE sgol_primary TO sgol_backup'
