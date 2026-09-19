@@ -4,12 +4,29 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Implementada localmente — `TECH-AUTH-001`
+## Implementada localmente — `TECH-E2E-CV-04`
+
+| Campo | Valor |
+|---|---|
+| Tarea | `TECH-E2E-CV-04` — Demo automatizada y cierre del corte `CV-04` |
+| Estado | `Implementada localmente` en `codex/tech-e2e-cv-04`; no equivale todavía a `Integrada` ni `Terminada` y no declara `CV-04` cerrado antes del merge autorizado |
+| Contrato | `F07_ADENDA_42_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_04_TECH_E2E_CV_04.md`, aprobada íntegramente por el responsable el 2026-09-19 antes de modificar código |
+| Dependencias aceptadas | `HU-027` PR `#47`, `HU-028` PR `#48`, `HU-031` PR `#49`, `TECH-E2E-CV-03` PR `#46` y `TECH-AUTH-001` PR `#56` están incorporadas en la ascendencia de `origin/master` `10309937f596e5f6702181183b0cbaaa1b52f4c4` |
+| Harness | Proyecto aislado `tests/Sgol.Cv04Demo`; dos ciclos finitos con PostgreSQL `postgres:18.6-alpine3.23`, Kestrel HTTPS, certificado efímero, cuentas reales de los cuatro roles, login, cambio obligatorio de contraseña, MFA TOTP, cookie y CSRF reales |
+| Matriz | `S01-S24`: ocho TAR, autoridad canónica y rechazos, tres resultados, permanencia `CONCLUIDA`, sustitución e historia, autovalidación, jerarquía, filtros, anti-IDOR, pendientes, auditoría, concurrencia, seguridad de sesión, reproducibilidad y cleanup |
+| Evidencia | Reportes JSON y Markdown sanitizados bajo `.artifacts/cv04/latest/`; sólo fase, escenario, exit, código cerrado, conteos, duración y estado. Navegador y accesibilidad son `NO_APLICA` |
+| Superficie productiva | Sin cambios en `src/**`, endpoints, migraciones, paquetes, contratos funcionales, frontend o comportamiento de autenticación; reutiliza las capacidades productivas ya aceptadas |
+| Validación local | Pruebas puras `5/5`; arquitectura enfocada `2/2` y consolidada `50/50`; unitarias/componentes de política, decisión, jerarquía y autenticación `64/64`; PostgreSQL/Testcontainers enfocado `15/15`; smoke Kestrel HTTPS hospedado `1/1`; gate final con dos ciclos, una huella, `65` evidencias `PASSED`, cero fallos y cleanup `PASSED`; build Release `24/24`, cero errores/advertencias; formato, autenticación hospedada, vulnerabilidades NuGet, `git diff --check` y ausencia de cambios Git en `Fuentes/` aprobados |
+| Diagnóstico previo al gate final | Los intentos fallidos conservaron cleanup verde y localizaron: reloj de fixture anterior al empleo, release/regla de activación incorrecta o duplicada, forma recurrente y referencia canónica faltantes de `TAR-0005`, payload `ACCION_O_CONFORMIDAD` no canónico, expectativas HTTP demasiado estrechas para anti-IDOR/CSRF y conjunto incompleto de pendientes. Se corrigió el harness sin cambiar contratos productivos, aumentar límites ni añadir reintentos. El espejo byte-a-byte local queda diferido al runner Linux por `core.autocrlf=true`; Gitleaks no está instalado localmente y permanece requerido en CI |
+| Publicación e integración | Pendientes el commit, push exclusivo, PR, pipeline verde del SHA exacto, revisión humana y autorización explícita de merge |
+| Límites | Sin `CV-05`, `HU-029`, `HU-032`, `HU-033`, `HU-034`, `HU-035` salvo regresión automática, sin UI, cloud, datos o secretos reales |
+
+## Integrada — `TECH-AUTH-001`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `TECH-AUTH-001` — Autenticación hospedada y sesión del backend |
-| Estado | `Implementada localmente` en `codex/authentication-hosted`; no equivale a `Terminada`, `Publicada` o `Integrada` |
+| Estado | `Integrada` y `Terminada`; PR `#56`, commit implementado `8cb881f3192a534e9a101d169fc38fcb0f749fc2`, pipeline `SUCCESS` run `35469361269` y merge commit `10309937f596e5f6702181183b0cbaaa1b52f4c4` |
 | Contrato | `F07_ADENDA_41_CONTRATO_DE_AUTENTICACION_HOSPEDADA_Y_SESION.md`, aprobada íntegramente por el responsable el 2026-09-17 y renumerada con aprobación explícita el 2026-09-19; acotada a endpoints funcionales, sin interfaz |
 | Superficie | API `/api/v1/auth`: token CSRF, login, cambio obligatorio de contraseña, enrolamiento y confirmación TOTP, desafío TOTP o recovery code, regeneración de recovery codes, estado de sesión y logout; además, reset administrativo de MFA en `/api/v1/users/{id}/mfa-reset` |
 | Sesión y seguridad | Cookie `__Host-SGOL-Session` segura, `HttpOnly`, `SameSite=Strict`, renovación deslizante con límite absoluto de ocho horas; cookie de preautenticación protegida; CSRF obligatorio en mutaciones; `NameIdentifier` conserva el UUID canónico de `AppUser`; el rol informativo no sustituye las consultas de autorización en PostgreSQL |
@@ -23,10 +40,10 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 | Diagnóstico sanitizado | El smoke sólo publica `stage`, `scenario`, `exit`, `errorCode` y `state`, todos cerrados. El primer intento Kestrel falló en `LOGIN/LOCKOUT` porque el fixture agotó correctamente el límite de diez solicitudes desde `127.0.0.1`; se corrigió verificando el estado PostgreSQL sin aumentar límites ni reintentar requests. Un intento previo del componente detectó que la sonda de continuidad de la rama antigua dependía de un handler Web ausente en `origin/master`; no se reintrodujo código HU-035 histórico ni se usó ese endpoint para aceptar autenticación. El run remoto `35468064873` falló sólo en el escaneo histórico de Gitleaks: el vector RFC exacto estaba anclado contra `match` completo; la corrección conserva las anclas y aplica la excepción únicamente al `secret` extraído. El run `35468138503` aprobó autenticación, PostgreSQL, formato, seguridad, imagen y TECH-OPS, pero la regresión HU-035 rechazó correctamente que su inventario siguiera declarando `20260914210503_AddRecoveryReconciliation` como última migración después de aplicar `20260918001719_AddHostedAuthentication`; se actualizaron únicamente las cuatro referencias ejecutables de compatibilidad derivadas de la migración, partiendo de las versiones aceptadas en `origin/master` |
 | Autorización observada | Los cuatro roles acceden con sesión real a `/api/v1/branches/LOR-001`; sólo `DIRECCION` accede a `/api/v1/users` y puede ejecutar reset MFA, mientras `ADMINISTRACION`, `SUBCOORDINACION` y `PISO_VENTAS` reciben `403` por las reglas existentes |
 | Límites | Sin Razor, HTML, CSS, SPA, OAuth, SSO, JWT persistente, Redis, impersonación, proveedor externo, bypass ni administración general de sesiones |
-| Validación diferida | Pipeline remoto del SHA final. El gate integral HU-035, S3 y ClamAV no se repiten como aceptación de TECH-AUTH-001; si el workflow requerido los ejecuta automáticamente, su resultado sí debe permanecer verde |
+| Validación remota | Pipeline requerido `SUCCESS`, run `35469361269`, para el commit implementado exacto `8cb881f3192a534e9a101d169fc38fcb0f749fc2` |
 | Siguiente paso | El frontend puede consumir los contratos HTTP reales; cualquier interfaz requiere una tarea y contrato de diseño separados |
 
-Este estado local no autoriza push, apertura de pull request, despliegue externo ni merge.
+La integración de `TECH-AUTH-001` no autoriza cambios funcionales adicionales de autenticación dentro de `TECH-E2E-CV-04`.
 
 ## Implementada localmente — `HU-035`
 

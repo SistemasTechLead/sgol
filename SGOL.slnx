@@ -20,6 +20,7 @@
     <Project Path="tests/Sgol.ArchitectureTests/Sgol.ArchitectureTests.csproj" />
     <Project Path="tests/Sgol.Cv02Demo/Sgol.Cv02Demo.csproj" />
     <Project Path="tests/Sgol.Cv03Demo/Sgol.Cv03Demo.csproj" />
+    <Project Path="tests/Sgol.Cv04Demo/Sgol.Cv04Demo.csproj" />
     <Project Path="tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj" />
     <Project Path="tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj" />
     <Project Path="tests/Sgol.EvidenceIntegrationTests/Sgol.EvidenceIntegrationTests.csproj" />
