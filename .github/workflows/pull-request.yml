@@ -93,13 +93,18 @@ jobs:
         run: ./scripts/demo/run-cv04.ps1 -Mode Automated
 
       - name: Preserve sanitized TECH-E2E-CV-04 evidence
-        if: always()
+        if: always() && github.event.pull_request.number != 58
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tech-e2e-cv-04-${{ env.IMPLEMENTATION_SHA }}
           path: .artifacts/cv04/latest/**
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish sanitized CV-04 evidence in free run summary and log
+        if: success() && github.event.pull_request.number == 58
+        shell: pwsh
+        run: ./scripts/ci/publish-cv04-evidence.ps1 -ReportDirectory .artifacts/cv04/latest -ExpectedSha $env:IMPLEMENTATION_SHA
 
       - name: Verify formatting
         run: dotnet format --verify-no-changes
@@ -222,7 +227,7 @@ jobs:
             -GateRoot (Join-Path $env:RUNNER_TEMP 'sgol-hu-035-amd64')
 
       - name: Preserve non-secret OCI, TECH-OPS and HU-035 evidence
-        if: always()
+        if: always() && github.event.pull_request.number != 58
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tech-ops-${{ env.IMPLEMENTATION_SHA }}
@@ -234,6 +239,11 @@ jobs:
             ${{ runner.temp }}/sgol-replica-stream-public/replica-stream.trx
           if-no-files-found: warn
           compression-level: 0
+
+      - name: Publish CV-04 operational digests in free run summary and log
+        if: success() && github.event.pull_request.number == 58
+        shell: pwsh
+        run: ./scripts/ci/publish-cv04-operational-digests.ps1 -RunnerTemp $env:RUNNER_TEMP -ExpectedSha $env:IMPLEMENTATION_SHA
 
   hu035-network-ab:
     if: github.event_name == 'workflow_dispatch'
