@@ -7,12 +7,27 @@ using Npgsql;
 using Sgol.JobInfrastructure;
 using Sgol.Operations;
 using Sgol.Web.Infrastructure.Persistence;
+using Sgol.Web.Infrastructure.Persistence.Continuity;
 using Xunit;
 
 namespace Sgol.UnitTests;
 
 public sealed class PortableOperationsTests
 {
+    [Fact]
+    public void WebCompositionRegistersRecoveryReferenceOutboxHandlerOnce()
+    {
+        var services = new ServiceCollection();
+        services.AddSgolPersistence(Configuration(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Sgol"] = "Host=localhost;Database=sgol_cv05_synthetic;Username=test",
+            ["ASPNETCORE_ENVIRONMENT"] = "CI",
+        }));
+
+        Assert.Single(services, item => item.ServiceType == typeof(IOutboxHandler) &&
+            item.ImplementationType == typeof(RecoveryReferenceRequestedOutboxHandler));
+    }
+
     [Fact]
     public void OperationalJobsUseStableNamesAndPreventOverlappingSlots()
     {

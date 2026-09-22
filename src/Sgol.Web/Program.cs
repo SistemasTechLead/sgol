@@ -37,6 +37,7 @@ app.UseSgolHttpPrimitives();
 app.UseStaticFiles();
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<AuditDeleteAttemptMiddleware>();
 app.UseMiddleware<AntiforgeryValidationMiddleware>();
 app.UseAuthorization();
 

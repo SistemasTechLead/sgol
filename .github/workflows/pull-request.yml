@@ -24,6 +24,9 @@ jobs:
     name: TECH-BASE-003 / PR gates
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
 
     steps:
       - name: Checkout without persistent credentials
@@ -39,6 +42,20 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: ./scripts/ci/verify-fuentes-protection.ps1 -BaseSha $env:BASE_SHA -HeadSha $env:HEAD_SHA
+
+      - name: Require public repository for CV-05 artifact strategy
+        if: github.head_ref == 'codex/tech-e2e-cv-05'
+        shell: pwsh
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if ($env:REPOSITORY_PRIVATE -ne 'false') { throw 'CV05_PUBLIC_REPOSITORY_REQUIRED' }
+          if ($env:IMPLEMENTATION_SHA -cnotmatch '^[0-9a-f]{40}$') { throw 'CV05_EXACT_SHA_REQUIRED' }
+
+      - name: Test CV-05 required and optional inventory cases
+        if: github.head_ref == 'codex/tech-e2e-cv-05'
+        shell: pwsh
+        run: ./scripts/ci/test-cv05-evidence-inventory.ps1
 
       - name: Scan secrets with pinned Gitleaks
         shell: bash
@@ -86,14 +103,14 @@ jobs:
       - name: Run unit, architecture and PostgreSQL integration tests
         env:
           SGOL_EVIDENCE_EICAR_TESTS: "true"
-        run: dotnet test --no-build --configuration Release
+        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED'
 
       - name: TECH-E2E-CV-04 / integral hosted demo
         shell: pwsh
         run: ./scripts/demo/run-cv04.ps1 -Mode Automated
 
       - name: Preserve sanitized TECH-E2E-CV-04 evidence
-        if: always() && github.event.pull_request.number != 58
+        if: always() && github.event.pull_request.number != 58 && github.head_ref != 'codex/tech-e2e-cv-05'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tech-e2e-cv-04-${{ env.IMPLEMENTATION_SHA }}
@@ -227,7 +244,7 @@ jobs:
             -GateRoot (Join-Path $env:RUNNER_TEMP 'sgol-hu-035-amd64')
 
       - name: Preserve non-secret OCI, TECH-OPS and HU-035 evidence
-        if: always() && github.event.pull_request.number != 58
+        if: always() && github.event.pull_request.number != 58 && github.head_ref != 'codex/tech-e2e-cv-05'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tech-ops-${{ env.IMPLEMENTATION_SHA }}
@@ -239,6 +256,77 @@ jobs:
             ${{ runner.temp }}/sgol-replica-stream-public/replica-stream.trx
           if-no-files-found: warn
           compression-level: 0
+
+      - name: TECH-E2E-CV-05 / integral hosted demo
+        if: github.head_ref == 'codex/tech-e2e-cv-05'
+        shell: pwsh
+        run: |
+          $imageId = (docker image inspect --format '{{.Id}}' "sgol:$env:IMPLEMENTATION_SHA").Trim()
+          if ($LASTEXITCODE -ne 0 -or $imageId -cnotmatch '^sha256:[0-9a-f]{64}$') {
+            throw 'CV05_OCI_IMAGE_MISSING'
+          }
+          $env:CV05_CI_IMAGE_ID = $imageId
+          ./scripts/demo/run-cv05.ps1 -Mode Automated
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validate CV-05 original evidence and optional diagnostic inventory
+        if: github.head_ref == 'codex/tech-e2e-cv-05'
+        shell: pwsh
+        run: ./scripts/ci/validate-cv05-evidence.ps1 -RunnerTemp $env:RUNNER_TEMP -ReportDirectory '.artifacts/cv05/latest' -ExpectedSha $env:IMPLEMENTATION_SHA
+
+      - name: Preserve original CV-04 reports for CV-05
+        if: success() && github.head_ref == 'codex/tech-e2e-cv-05'
+        id: cv05_cv04_artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tech-e2e-cv-04-${{ env.IMPLEMENTATION_SHA }}
+          path: .artifacts/cv04/latest/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve original OCI and operations evidence for CV-05
+        if: success() && github.head_ref == 'codex/tech-e2e-cv-05'
+        id: cv05_tech_ops_artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tech-ops-${{ env.IMPLEMENTATION_SHA }}
+          path: |
+            ${{ runner.temp }}/sgol-oci-metadata.json
+            ${{ runner.temp }}/sgol-${{ env.IMPLEMENTATION_SHA }}.oci.tar
+            ${{ runner.temp }}/sgol-tech-ops-amd64/evidence-public/**
+            ${{ runner.temp }}/sgol-hu-035-amd64/evidence-public/**
+            ${{ runner.temp }}/sgol-replica-stream-public/replica-stream.trx
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Preserve original CV-05 reports and inventory
+        if: success() && github.head_ref == 'codex/tech-e2e-cv-05'
+        id: cv05_report_artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tech-e2e-cv-05-${{ env.IMPLEMENTATION_SHA }}
+          path: .artifacts/cv05/latest/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Verify exact SHA, digest and 14-day retention of CV-05 artifacts
+        if: success() && github.head_ref == 'codex/tech-e2e-cv-05'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CV04_ID: ${{ steps.cv05_cv04_artifact.outputs.artifact-id }}
+          CV04_DIGEST: ${{ steps.cv05_cv04_artifact.outputs.artifact-digest }}
+          TECH_OPS_ID: ${{ steps.cv05_tech_ops_artifact.outputs.artifact-id }}
+          TECH_OPS_DIGEST: ${{ steps.cv05_tech_ops_artifact.outputs.artifact-digest }}
+          CV05_ID: ${{ steps.cv05_report_artifact.outputs.artifact-id }}
+          CV05_DIGEST: ${{ steps.cv05_report_artifact.outputs.artifact-digest }}
+        run: |
+          ./scripts/ci/verify-cv05-artifacts.ps1 -Repository $env:GITHUB_REPOSITORY `
+            -RunId ([long]$env:GITHUB_RUN_ID) -HeadSha $env:IMPLEMENTATION_SHA `
+            -Cv04Id $env:CV04_ID -Cv04Digest $env:CV04_DIGEST `
+            -TechOpsId $env:TECH_OPS_ID -TechOpsDigest $env:TECH_OPS_DIGEST `
+            -Cv05Id $env:CV05_ID -Cv05Digest $env:CV05_DIGEST
 
       - name: Publish CV-04 operational digests in free run summary and log
         if: success() && github.event.pull_request.number == 58
