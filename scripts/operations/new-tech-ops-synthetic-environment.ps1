@@ -286,7 +286,7 @@ if ($StorageNetworkName) {
 
 & docker run --detach --name $postgresContainer --network $composeNetwork `
     --env "POSTGRES_PASSWORD=$postgresAdminPassword" --env 'POSTGRES_USER=postgres' --env 'POSTGRES_DB=postgres' `
-    --health-cmd 'pg_isready -U postgres -d postgres' --health-interval 1s --health-timeout 3s --health-retries 30 `
+    --health-cmd 'pg_isready -h 127.0.0.1 -U postgres -d postgres' --health-interval 1s --health-timeout 3s --health-retries 30 `
     $postgresImage | Out-Null
 Assert-DockerSuccess 'Could not create synthetic PostgreSQL.'
 foreach ($attempt in 1..30) {

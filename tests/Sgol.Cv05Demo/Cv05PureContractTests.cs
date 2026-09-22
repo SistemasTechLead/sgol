@@ -67,6 +67,20 @@ public sealed class Cv05PureContractTests
         }
     }
 
+    [Fact]
+    public void Hu035BootstrapWaitsForFinalPostgreSqlTcpServer()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "SGOL.slnx")))
+            directory = directory.Parent;
+        Assert.NotNull(directory);
+
+        var script = File.ReadAllText(Path.Combine(directory.FullName, "scripts", "operations",
+            "new-tech-ops-synthetic-environment.ps1"));
+        Assert.Contains("--health-cmd 'pg_isready -h 127.0.0.1 -U postgres -d postgres'", script,
+            StringComparison.Ordinal);
+    }
+
     private static DemoReport ValidReport()
     {
         var first = ScenarioCatalog.All.Where(item => item.Id is not ("S21" or "S22"))
