@@ -350,7 +350,7 @@ public sealed class AuditQueryPersistenceTests : IAsyncLifetime
             Audit(Guid.CreateVersion7(), sales.UserId, "EVIDENCE_CONTRIBUTED",
                 "EVIDENCE_ITEM", evidence.Id, Now.AddHours(-5)),
             Audit(Guid.CreateVersion7(), administration.UserId, "VALIDATION_DECISION_ISSUED",
-                "VALIDATION_DECISION_VERSION", decision.Id, validationAt));
+                "VALIDATION_REQUIREMENT", validation.Id, validationAt));
         await context.SaveChangesAsync();
         return new(direction, administration, administrationPeer, subcoordination, sales, obligation.Id);
     }

@@ -97,6 +97,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IRoleAssignmentService>(provider => provider.GetRequiredService<EfRoleAssignmentService>());
         services.AddScoped<IRoleHierarchyResolver>(provider => provider.GetRequiredService<EfRoleAssignmentService>());
         services.AddScoped<EfRecoveryReconciliationService>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOutboxHandler, RecoveryReferenceRequestedOutboxHandler>());
         services.AddScoped<IRecoveryReconciliationService>(provider => provider.GetRequiredService<EfRecoveryReconciliationService>());
         services.AddScoped<IRecoveryTechnicalWriter>(provider => provider.GetRequiredService<EfRecoveryReconciliationService>());
         return services;

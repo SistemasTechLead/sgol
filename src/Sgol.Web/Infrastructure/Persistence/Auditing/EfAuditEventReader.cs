@@ -251,7 +251,7 @@ public sealed class EfAuditEventReader(
         resourceIds.UnionWith(decisionIds);
         return new(obligationId, resourceIds, configurationIds,
             assignmentIds.ToHashSet(), evidenceItems.Concat(evidenceVersions).Concat(reviewIds).ToHashSet(),
-            decisionIds.ToHashSet());
+            requirementIds.Concat(decisionIds).ToHashSet());
     }
 
     private IQueryable<AuditEvent> ApplyHierarchyFilter(
