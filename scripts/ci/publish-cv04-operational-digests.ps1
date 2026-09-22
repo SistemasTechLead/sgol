@@ -13,7 +13,6 @@ $files = [ordered]@{
     'tech-ops-inspect' = Join-Path $RunnerTemp 'sgol-tech-ops-amd64/evidence-public/image-inspect.json'
     'hu-035-result' = Join-Path $RunnerTemp 'sgol-hu-035-amd64/evidence-public/hu-035-result.json'
     'hu-035-summary' = Join-Path $RunnerTemp 'sgol-hu-035-amd64/evidence-public/hu-035-summary.json'
-    'hu-035-diagnostic' = Join-Path $RunnerTemp 'sgol-hu-035-amd64/evidence-public/hu-035-server-diagnostic.json'
     'replica-stream-trx' = Join-Path $RunnerTemp 'sgol-replica-stream-public/replica-stream.trx'
 }
 $lines = [Collections.Generic.List[string]]::new()
@@ -32,6 +31,13 @@ foreach ($entry in $files.GetEnumerator()) {
     if ($file.Length -le 0) { throw "CV04_OPERATIONS_EVIDENCE_EMPTY:$($entry.Key)" }
     $digest = (Get-FileHash -LiteralPath $entry.Value -Algorithm SHA256).Hash.ToLowerInvariant()
     $lines.Add("| $($entry.Key) | $($file.Length) | ``$digest`` |")
+}
+$optionalDiagnostic = Join-Path $RunnerTemp 'sgol-hu-035-amd64/evidence-public/hu-035-server-diagnostic.json'
+if (Test-Path -LiteralPath $optionalDiagnostic -PathType Leaf) {
+    $file = Get-Item -LiteralPath $optionalDiagnostic
+    if ($file.Length -le 0) { throw 'CV04_OPERATIONS_EVIDENCE_EMPTY:hu-035-diagnostic' }
+    $digest = (Get-FileHash -LiteralPath $optionalDiagnostic -Algorithm SHA256).Hash.ToLowerInvariant()
+    $lines.Add("| hu-035-diagnostic | $($file.Length) | ``$digest`` |")
 }
 $summary = $lines -join "`n"
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
