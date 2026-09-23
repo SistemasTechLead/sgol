@@ -1,0 +1,8 @@
+@model SuccessAlertViewModel
+<div class="alerta alerta--exito" role="status" aria-live="polite">
+    <span class="alerta__icono" aria-hidden="true">✓</span>
+    <div class="alerta__contenido">
+        <p class="alerta__titulo">@Model.Title</p>
+        <p class="alerta__texto">@Model.Message</p>
+    </div>
+</div>

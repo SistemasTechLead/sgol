@@ -147,3 +147,30 @@ Nunca un solo "¿Estás seguro?" — el texto dice qué se pierde exactamente y 
 > [Cancelar] [Sustituir configuración]
 
 El botón de confirmación nunca dice "Aceptar" o "Sí" — repite el verbo de la acción ("Rechazar solicitud", no "Sí"), para que un usuario que solo lee botones por costumbre no confirme algo que no leyó. Ver `componentes.md`, Modal de confirmación, para el foco inicial en "Cancelar" y no en la acción destructiva.
+
+## Confirmación de éxito
+
+Un éxito usa título y consecuencia concreta, no sólo “Operación exitosa”. Se anuncia con `role="status"` y no mueve el foco si el usuario continúa en el mismo contexto.
+
+Ejemplo:
+
+> Se guardaron los cambios
+> La versión visible corresponde a la actualización más reciente.
+
+`RECUPERADA`, `PENDIENTE` y una carga aún no analizada no se presentan como éxito nuevo. Cada pantalla consumidora usa el estado contractual exacto y no promete una consecuencia que el servidor todavía no confirmó.
+
+## Resumen de errores
+
+Cuando hay más de un error, se muestra un resumen con título y lista antes del formulario. El resumen usa `role="alert"`, puede recibir foco programático y no sustituye el mensaje enlazado a cada campo. Nunca incluye stack, SQL, ruta privada, cookie, TOTP, recovery code, cadena de conexión, URL firmada ni contenido de evidencia.
+
+## Estados seguros de subida
+
+| Estado | Mensaje visible mínimo |
+|---|---|
+| `PENDIENTE` | “Esperando análisis antimalware.” |
+| `LIMPIO` | “El archivo terminó el análisis y puede vincularse como evidencia.” |
+| `INFECTADO` | “El archivo fue rechazado por seguridad y no se vinculó.” |
+| `INVALIDO` | “El archivo no cumple el tipo o formato permitido y no se vinculó.” |
+| `ERROR_ESCANEO` | “No se pudo completar el análisis. El archivo permanece sin vincular.” |
+
+Los mensajes no muestran la URL firmada, detalles del motor antimalware ni recomiendan reintento automático. La pantalla consumidora decide si ofrece un nuevo intento conforme a su contrato.

@@ -24,6 +24,7 @@ Se usan para elementos de identidad — encabezados de sección, portadas intern
 | `--color-texto-primario` | `#2B2521` | Texto de lectura estándar: etiquetas, contenido de tabla, cuerpo. |
 | `--color-texto-secundario` | `#6B6055` | Texto de apoyo: metadatos, fechas, ayudas, subtítulos. |
 | `--color-texto-deshabilitado` | `#A99E92` | Texto de campos y controles deshabilitados. |
+| `--color-overlay` | `rgba(43, 37, 33, 0.18)` | Fondo detrás de un diálogo modal; no se usa para texto ni controles. |
 
 ## Acento operativo
 
@@ -99,6 +100,8 @@ Poppins es la tipografía base de toda la interfaz operativa: formularios, tabla
 | `--ancho-formulario` | `640px` | Formularios de una columna, diálogos medianos. |
 | `--ancho-modal` | `480px` | Modales de confirmación, diálogos pequeños. |
 
+El viewport estrecho comienza en `48rem`. Este umbral se declara literalmente sólo en la condición `@media`, porque las variables CSS no son válidas como límite de una media query; no autoriza otros valores visuales literales en hojas consumidoras.
+
 ## Bloque `:root` completo
 
 ```css
@@ -117,6 +120,7 @@ Poppins es la tipografía base de toda la interfaz operativa: formularios, tabla
   --color-texto-primario: #2B2521;
   --color-texto-secundario: #6B6055;
   --color-texto-deshabilitado: #A99E92;
+  --color-overlay: rgba(43, 37, 33, 0.18);
 
   /* Acento operativo */
   --color-acento: #B64120;

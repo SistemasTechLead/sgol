@@ -311,3 +311,71 @@ El sistema tiene tres perfiles con accesos distintos (Dirección, superiores/sub
   </a>
 </nav>
 ```
+
+## Extensiones de base aprobadas en TECH-FRONT-001
+
+Estas extensiones completan la base compartida sin crear pantallas funcionales ni reglas de negocio. Conservan HTML nativo y mejora progresiva.
+
+### Campo de credencial
+
+Se usa exclusivamente para contraseña, TOTP y recovery code. Nunca recibe un valor inicial ni vuelve a renderizar el secreto. Desactiva autocorrección, capitalización y spellcheck. TOTP usa `inputmode="numeric"` y `autocomplete="one-time-code"`; contraseña usa el valor de `autocomplete` correspondiente al recorrido consumidor; recovery code usa `autocomplete="off"`.
+
+El botón mostrar/ocultar es opcional, tiene área mínima de 44×44, referencia al input mediante `aria-controls` y anuncia el estado mediante `aria-pressed`. El control vuelve a ocultarse al renderizar; ningún valor se escribe en almacenamiento del navegador ni en logs.
+
+Estados: normal, foco, deshabilitado y error como campo de texto. Cargando no aplica al campo; durante el envío se deshabilita desde el formulario consumidor.
+
+### Textarea y grupo de radio
+
+`textarea` comparte etiqueta, ayuda, error asociado, foco y estado deshabilitado con el campo de texto. Puede crecer verticalmente y el motivo obligatorio usa `required` además de validación de servidor.
+
+El grupo de radio usa `fieldset` y `legend`; todas las opciones comparten `name`, mantienen área interactiva mínima y tienen foco visible individual. Una opción deshabilitada conserva texto legible y cursor no interactivo. El error pertenece al grupo completo y se enlaza con `aria-describedby`.
+
+### Fecha local y rango
+
+La primitiva usa `input type="date"` o `datetime-local`, muestra siempre la zona operativa `America/Mexico_City` y transmite valores ISO sin convertir reglas de negocio con la zona del navegador. Un rango son dos campos etiquetados, inicio y fin; el servidor valida orden, límites y días aplicables.
+
+Estados: normal, foco, deshabilitado y error. La carga de datos deshabilita el formulario o usa el patrón de esqueleto del contenedor; no se sustituye el valor por un spinner dentro del campo.
+
+### Resumen de errores y aviso de éxito
+
+El resumen de errores usa `role="alert"`, título descriptivo y lista textual. Al fallar un envío, el consumidor puede mover el foco programáticamente al resumen con `tabindex="-1"`; los campos conservan además su error asociado.
+
+El aviso de éxito usa `role="status"` y `aria-live="polite"`. No sustituye la respuesta persistida ni implica que una operación pendiente, recuperada o en escaneo haya terminado.
+
+### Confirmación motivada
+
+La base usa el elemento nativo `dialog` abierto mediante `showModal()`. Contiene título, resumen inequívoco del recurso, textarea de motivo y botones cuyos textos repiten la acción. El foco inicial está en Cancelar; el modal atrapa el foco, Escape lo cierra y al cerrar devuelve el foco al control que lo abrió. En carga se deshabilitan ambos botones y la acción confirma `aria-busy`.
+
+La variante destructiva usa el botón destructivo. Una acción crítica no destructiva usa el botón primario. El parcial no ejecuta la mutación: la pantalla consumidora aporta formulario, CSRF, ETag e idempotencia según su contrato.
+
+### Subida y análisis de evidencia
+
+El componente de presentación distingue con texto e icono:
+
+- lista para seleccionar;
+- cargando, con progreso y cancelación;
+- esperando análisis antimalware (`PENDIENTE`);
+- archivo limpio (`LIMPIO`);
+- malware detectado (`INFECTADO`);
+- archivo inválido (`INVALIDO`);
+- error de escaneo (`ERROR_ESCANEO`).
+
+El nombre del archivo se muestra como texto, nunca como HTML. La URL firmada, headers de autorización, SHA-256 completo y detalles internos del escáner no se renderizan. `LIMPIO` es el único estado que puede habilitar el vínculo posterior de evidencia; el componente base no implementa S3, hash ni escaneo.
+
+### Tabla con cursor, filtros y responsive
+
+La paginación muestra sólo Anterior/Siguiente. El cursor permanece dentro del `href` generado por servidor y nunca se presenta como número de página ni se interpreta en JavaScript. Un extremo ausente se muestra como texto deshabilitado con `aria-disabled="true"`.
+
+Los filtros usan un formulario GET con etiquetas y orden DOM; limpiar filtros es una acción explícita. Las acciones por fila conservan 44×44 y nombres visibles o accesibles. En viewport estrecho la tabla permanece semánticamente como tabla y usa desplazamiento horizontal; no convierte filas en tarjetas ni duplica encabezados. La navegación pasa a una columna y ningún control queda oculto o fuera del orden de tabulación.
+
+## Matriz de cobertura de componentes base
+
+| Componente | Normal | Foco | Deshabilitado | Error | Cargando | Vacío |
+|---|---:|---:|---:|---:|---:|---:|
+| Campo/select/credencial/textarea/fecha | Sí | Sí | Sí | Sí | Contenedor o select | No aplica |
+| Checkbox/radio | Sí | Sí | Sí | Sí | Contenedor | No aplica |
+| Botón | Sí | Sí | Sí | No aplica | Sí | No aplica |
+| Tabla/cursor | Sí | Sí en controles | Sí en cursor | Mensaje/alerta | Esqueleto | `_EmptyState` |
+| Modal motivado | Sí | Sí y retorno | Sí durante envío | Motivo asociado | `aria-busy` | No aplica |
+| Upload | Sí | Sí | Sí | Sí | Progreso/PENDIENTE | Lista para seleccionar |
+| Alertas | Sí | Foco programático en resumen | No aplica | Sí | No aplica | No aplica |

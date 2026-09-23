@@ -1,0 +1,44 @@
+@model UploadPresentationViewModel
+@{
+    var stateClass = Model.State switch
+    {
+        UploadPresentationState.Clean => "subida--exito",
+        UploadPresentationState.Infected or UploadPresentationState.Invalid or UploadPresentationState.ScanError => "subida--error",
+        _ => string.Empty,
+    };
+    var isBusy = Model.State is UploadPresentationState.Uploading or UploadPresentationState.PendingScan;
+    var statusText = Model.State switch
+    {
+        UploadPresentationState.Ready => "Lista para seleccionar",
+        UploadPresentationState.Uploading => "Cargando archivo",
+        UploadPresentationState.PendingScan => "Esperando análisis antimalware",
+        UploadPresentationState.Clean => "Archivo limpio",
+        UploadPresentationState.Infected => "Archivo rechazado por malware",
+        UploadPresentationState.Invalid => "Archivo inválido",
+        _ => "No se pudo completar el análisis antimalware",
+    };
+}
+<div class="subida @stateClass" role="group" aria-labelledby="@($"{Model.Id}-title")" aria-busy="@isBusy.ToString().ToLowerInvariant()">
+    <span id="@($"{Model.Id}-title")" class="subida__titulo">@Model.Label</span>
+    <label class="subida__zona">
+        <input id="@Model.Id" name="@Model.Id" type="file" class="subida__input" disabled="@Model.IsDisabled" />
+        <span class="subida__instruccion">Arrastra un archivo o haz clic para seleccionar</span>
+    </label>
+    @if (!string.IsNullOrWhiteSpace(Model.FileName))
+    {
+        <span class="subida__archivo">@Model.FileName</span>
+    }
+    @if (Model.ProgressPercent is not null)
+    {
+        <progress class="subida__progreso" max="100" value="@Model.ProgressPercent">@Model.ProgressPercent%</progress>
+    }
+    <p class="subida__estado" role="status" aria-live="polite"><span aria-hidden="true">●</span> @statusText</p>
+    @if (!string.IsNullOrWhiteSpace(Model.Message))
+    {
+        <p class="subida__mensaje">@Model.Message</p>
+    }
+    @if (Model.State == UploadPresentationState.Uploading)
+    {
+        <button class="boton boton--secundario" type="button" data-upload-cancel>Cancelar carga</button>
+    }
+</div>

@@ -77,6 +77,129 @@ public sealed partial class InterfaceDesignRulesTests
         Assert.Contains("href=\"#contenido-principal\"", layout, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Navegación principal\"", layout, StringComparison.Ordinal);
         Assert.Contains("<main id=\"contenido-principal\"", layout, StringComparison.Ordinal);
+        Assert.Contains("~/js/components.js", layout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SharedComponents_ImplementTheApprovedTechFront001Contracts()
+    {
+        var repositoryRoot = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
+        var sharedPath = Path.Combine(repositoryRoot, "src", "Sgol.Web", "Pages", "Shared");
+        var requiredContracts = new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["_CredentialField.cshtml"] = ["autocomplete=", "inputmode=", "data-credential-toggle"],
+            ["_TextArea.cshtml"] = ["<textarea", "aria-describedby="],
+            ["_RadioGroup.cshtml"] = ["<fieldset", "<legend", "type=\"radio\""],
+            ["_LocalDateField.cshtml"] = ["datetime-local", "Zona operativa:"],
+            ["_MotivatedConfirmation.cshtml"] = ["<dialog", "data-dialog-cancel", "autofocus"],
+            ["_UploadPresentation.cshtml"] = ["<progress", "aria-live=\"polite\"", "data-upload-cancel"],
+            ["_ValidationSummary.cshtml"] = ["role=\"alert\"", "data-validation-summary"],
+            ["_SuccessAlert.cshtml"] = ["role=\"status\"", "aria-live=\"polite\""],
+        };
+
+        foreach (var (file, fragments) in requiredContracts)
+        {
+            var content = File.ReadAllText(Path.Combine(sharedPath, file));
+            foreach (var fragment in fragments)
+            {
+                Assert.Contains(fragment, content, StringComparison.Ordinal);
+            }
+        }
+
+        var models = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Sgol.Web",
+            "Presentation",
+            "Components",
+            "ComponentModels.cs"));
+        Assert.Contains("America/Mexico_City", models, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SharedComponentScript_DoesNotPersistCredentialsOrInspectCookies()
+    {
+        var repositoryRoot = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
+        var script = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Sgol.Web",
+            "wwwroot",
+            "js",
+            "components.js"));
+
+        Assert.DoesNotContain("localStorage", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("sessionStorage", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("document.cookie", script, StringComparison.Ordinal);
+        Assert.Contains("showModal()", script, StringComparison.Ordinal);
+        Assert.Contains(".focus()", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AccessibilityContract_UsesWcag22AaAndResponsiveComponents()
+    {
+        var repositoryRoot = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
+        var accessibility = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "design", "accesibilidad.md"));
+        var components = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Sgol.Web", "wwwroot", "css", "components.css"));
+
+        Assert.Contains("WCAG 2.2", accessibility, StringComparison.Ordinal);
+        Assert.Contains("nivel AA", accessibility, StringComparison.Ordinal);
+        Assert.Contains("@media (max-width: 48rem)", components, StringComparison.Ordinal);
+        Assert.Contains("overflow-x: auto", components, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OperationalColorPairs_MeetDocumentedWcag22ContrastThresholds()
+    {
+        var repositoryRoot = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
+        var variables = HexVariableRegex()
+            .Matches(File.ReadAllText(Path.Combine(repositoryRoot, CssVariablesFile)))
+            .ToDictionary(
+                match => match.Groups[1].Value,
+                match => match.Groups[2].Value,
+                StringComparer.Ordinal);
+        var pairs = new (string Foreground, string Background, double Minimum)[]
+        {
+            ("--color-texto-primario", "--color-superficie", 4.5),
+            ("--color-texto-primario", "--color-superficie-elevada", 4.5),
+            ("--color-texto-secundario", "--color-superficie", 4.5),
+            ("--color-texto-secundario", "--color-superficie-elevada", 4.5),
+            ("--color-acento", "--color-superficie", 4.5),
+            ("--color-acento-hover", "--color-superficie", 4.5),
+            ("--color-acento-texto", "--color-acento", 4.5),
+            ("--color-acento-texto", "--color-acento-hover", 4.5),
+            ("--color-borde-fuerte", "--color-superficie", 3.0),
+            ("--color-exito", "--color-exito-fondo", 4.5),
+            ("--color-advertencia", "--color-advertencia-fondo", 4.5),
+            ("--color-peligro", "--color-peligro-fondo", 4.5),
+            ("--color-info", "--color-info-fondo", 4.5),
+        };
+
+        foreach (var pair in pairs)
+        {
+            var ratio = ContrastRatio(variables[pair.Foreground], variables[pair.Background]);
+            Assert.True(
+                ratio >= pair.Minimum,
+                $"{pair.Foreground}/{pair.Background} has contrast {ratio:F2}:1; expected at least {pair.Minimum:F1}:1.");
+        }
+    }
+
+    private static double ContrastRatio(string foreground, string background)
+    {
+        var first = RelativeLuminance(foreground);
+        var second = RelativeLuminance(background);
+        return (Math.Max(first, second) + 0.05) / (Math.Min(first, second) + 0.05);
+    }
+
+    private static double RelativeLuminance(string hex)
+    {
+        var channels = Enumerable.Range(0, 3)
+            .Select(index => Convert.ToInt32(hex.Substring(index * 2, 2), 16) / 255d)
+            .Select(channel => channel <= 0.04045
+                ? channel / 12.92
+                : Math.Pow((channel + 0.055) / 1.055, 2.4))
+            .ToArray();
+        return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
     }
 
     private static IEnumerable<string> EnumerateInterfaceFiles(string root)
@@ -146,6 +269,9 @@ public sealed partial class InterfaceDesignRulesTests
 
     [GeneratedRegex(@"(?<=var\()--[a-z0-9-]+", RegexOptions.CultureInvariant)]
     private static partial Regex CssVariableRegex();
+
+    [GeneratedRegex(@"^\s*(--[a-z0-9-]+)\s*:\s*#([0-9a-f]{6})\s*;", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex HexVariableRegex();
 
     [GeneratedRegex(@"^\s*(--[a-z0-9-]+)\s*:", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
     private static partial Regex CssVariableDeclarationRegex();

@@ -1,0 +1,25 @@
+@model RadioGroupViewModel
+@{
+    var hasError = !string.IsNullOrWhiteSpace(Model.ErrorMessage);
+    var errorId = $"{Model.Id}-error";
+}
+<fieldset class="grupo-radio" disabled="@Model.IsDisabled" aria-describedby="@(hasError ? errorId : null)">
+    <legend class="grupo-radio__leyenda">@Model.Legend</legend>
+    @foreach (var option in Model.Options)
+    {
+        var optionId = $"{Model.Id}-{option.Value}";
+        <label class="grupo-radio__opcion" for="@optionId">
+            <input id="@optionId"
+                   name="@Model.Id"
+                   value="@option.Value"
+                   type="radio"
+                   checked="@option.IsSelected"
+                   disabled="@option.IsDisabled" />
+            <span>@option.Label</span>
+        </label>
+    }
+    @if (hasError)
+    {
+        <span id="@errorId" class="campo__mensaje-error"><span aria-hidden="true">!</span> @Model.ErrorMessage</span>
+    }
+</fieldset>

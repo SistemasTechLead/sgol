@@ -1,0 +1,16 @@
+@model ValidationSummaryViewModel
+@if (Model.Errors.Count > 0)
+{
+    <div class="alerta alerta--peligro" role="alert" tabindex="-1" data-validation-summary>
+        <span class="alerta__icono" aria-hidden="true">!</span>
+        <div class="alerta__contenido">
+            <p class="alerta__titulo">@Model.Title</p>
+            <ul class="alerta__lista">
+                @foreach (var error in Model.Errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    </div>
+}

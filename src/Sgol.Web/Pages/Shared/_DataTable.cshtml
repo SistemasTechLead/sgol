@@ -1,5 +1,23 @@
 @model DataTableViewModel
+@{
+    var hasActions = Model.RowActions is not null && Model.RowActions.Any(actions => actions.Count > 0);
+    var columnCount = Model.Headers.Count + (hasActions ? 1 : 0);
+}
 <div class="tabla-contenedor">
+    @if (Model.Filters is not null && Model.Filters.Count > 0 && Model.FilterAction is not null)
+    {
+        <form class="tabla-filtros" method="get" action="@Model.FilterAction">
+            @foreach (var filter in Model.Filters)
+            {
+                <partial name="_FormField" model="@(new FormFieldViewModel(filter.Id, filter.Label, filter.Value, filter.Options))" />
+            }
+            <button class="boton boton--secundario" type="submit">Aplicar filtros</button>
+            @if (Model.ClearFiltersHref is not null)
+            {
+                <a class="boton boton--secundario" href="@Model.ClearFiltersHref">Quitar filtros</a>
+            }
+        </form>
+    }
     <table class="tabla">
         <caption>@Model.Caption</caption>
         <thead class="tabla__encabezado">
@@ -7,6 +25,10 @@
                 @foreach (var header in Model.Headers)
                 {
                     <th scope="col">@header</th>
+                }
+                @if (hasActions)
+                {
+                    <th scope="col">Acciones</th>
                 }
             </tr>
         </thead>
@@ -16,7 +38,7 @@
                 @for (var row = 0; row < 3; row++)
                 {
                     <tr class="tabla__fila-esqueleto">
-                        <td colspan="@Model.Headers.Count"><span class="esqueleto"></span></td>
+                        <td colspan="@columnCount"><span class="esqueleto"></span></td>
                     </tr>
                 }
             </tbody>
@@ -24,12 +46,27 @@
         else
         {
             <tbody class="tabla__cuerpo">
-                @foreach (var row in Model.Rows)
+                @for (var rowIndex = 0; rowIndex < Model.Rows.Count; rowIndex++)
                 {
+                    var row = Model.Rows[rowIndex];
                     <tr class="tabla__fila">
-                        @foreach (var cell in row)
+                        @for (var cellIndex = 0; cellIndex < row.Count; cellIndex++)
                         {
-                            <td>@cell</td>
+                            <td data-label="@(cellIndex < Model.Headers.Count ? Model.Headers[cellIndex] : null)">@row[cellIndex]</td>
+                        }
+                        @if (hasActions)
+                        {
+                            <td data-label="Acciones">
+                                <div class="tabla__acciones">
+                                    @if (Model.RowActions is not null && rowIndex < Model.RowActions.Count)
+                                    {
+                                        @foreach (var action in Model.RowActions[rowIndex])
+                                        {
+                                            <a class="boton boton--secundario tabla__accion" href="@action.Href">@action.Label</a>
+                                        }
+                                    }
+                                </div>
+                            </td>
                         }
                     </tr>
                 }
@@ -39,5 +76,26 @@
     @if (!Model.IsLoading && Model.Rows.Count == 0 && Model.EmptyState is not null)
     {
         <partial name="_EmptyState" model="Model.EmptyState" />
+    }
+    @if (!Model.IsLoading && Model.Pagination is not null)
+    {
+        <nav class="paginacion" aria-label="Paginación de tabla">
+            @if (Model.Pagination.PreviousHref is null)
+            {
+                <span class="paginacion__boton paginacion__boton--deshabilitado" aria-disabled="true">Anterior</span>
+            }
+            else
+            {
+                <a class="paginacion__boton" rel="prev" href="@Model.Pagination.PreviousHref">Anterior</a>
+            }
+            @if (Model.Pagination.NextHref is null)
+            {
+                <span class="paginacion__boton paginacion__boton--deshabilitado" aria-disabled="true">Siguiente</span>
+            }
+            else
+            {
+                <a class="paginacion__boton" rel="next" href="@Model.Pagination.NextHref">Siguiente</a>
+            }
+        </nav>
     }
 </div>

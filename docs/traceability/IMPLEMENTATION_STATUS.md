@@ -4,18 +4,18 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## Incorporación documental local — planificación y backlog frontend
+## Integración documental — planificación y backlog frontend
 
 | Campo | Valor |
 |---|---|
-| Base | `origin/master` `32c3961ff67f79670d0824da71d4f70a06d1dc01`, igual al `master` remoto verificado antes de editar |
+| Base integrada | PR `#60`, cabeza `28a1ec531e910d7ce6e1e1fd51c17a4010b3bcbe`, pipeline `35808190514` `SUCCESS`, merge `d311d967e925f4b9c1d1161bb86914d587d809af`; ascendencia verificada en `origin/master` |
 | Aprobación | El responsable aprobó íntegramente los dos borradores y ordenó incorporarlos el 2026-09-22 |
 | Contratos incorporados | Adenda 44, que inserta `TECH-UI-PLAN-001`; Adenda 45, que inserta `TECH-FRONT-001..005` y `FRONT-001..020` |
-| `TECH-UI-PLAN-001` | `Implementada localmente`: inventario de 48 unidades, brechas, trazabilidad y backlog fueron preparados, reconciliados y aprobados; no equivale todavía a `Integrada/Terminada` |
+| `TECH-UI-PLAN-001` | `Terminada`: inventario de 48 unidades, brechas, trazabilidad y backlog preparados, reconciliados, aprobados e integrados mediante PR `#60` |
 | Backend de entrada | `TECH-E2E-CV-04` y `TECH-E2E-CV-05` integradas/terminadas; CV-04 y CV-05 cerrados; dependencias exactas verificadas como ancestros |
 | Brechas vigentes | BR-API01..13, BR-D01..17, BR-M01..14 y BR-N01..08 bloquean sólo su historia consumidora; `TECH-FRONT-001` debe resolver primero la auditoría de base/diseño aplicable |
-| Estado de implementación | Ninguna tarea `TECH-FRONT-*` o `FRONT-*` iniciada; no se creó Razor, CSS, JavaScript, prueba de navegador, endpoint, DTO, migración ni paquete |
-| Punto de parada | Se requiere orden futura explícita y nueva verificación antes de comenzar `TECH-FRONT-001`; esta incorporación no autoriza publicación, merge ni despliegue |
+| Estado de implementación | `TECH-FRONT-001` `Implementada localmente` en worktree limpio desde `d311d967e925f4b9c1d1161bb86914d587d809af`; las demás tareas `TECH-FRONT-*` y `FRONT-*` no están iniciadas |
+| Punto de parada | `TECH-FRONT-001` está implementada localmente; requiere primera autorización antes de commit, push y PR. No existe autorización de merge ni despliegue |
 
 ## Integrada — `TECH-E2E-CV-05`
 
@@ -889,8 +889,9 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | `TECH-AUTH-001` | `F07_ADENDA_41_CONTRATO_DE_AUTENTICACION_HOSPEDADA_Y_SESION.md` | `TECH-E2E-CV-04` y frontend | `Terminada`; PR `#56`, cabeza `8cb881f3192a534e9a101d169fc38fcb0f749fc2`, pipeline `SUCCESS` run `35469361269`, merge `10309937f596e5f6702181183b0cbaaa1b52f4c4` y ascendencia verificada |
 | `TECH-E2E-CV-04` | `F07_ADENDA_42_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_04_TECH_E2E_CV_04.md` | Cierre de `CV-04` y entrada a `CV-05` | `Terminada`; PR `#58`, cabeza `945c966edbc84552bab5abd91a9866e128f18ead`, pipeline `SUCCESS` run `35772495865`, merge `00da83ca26f67e523d0d6067af737f38315e62b0`; `CV-04` cerrado |
 | `TECH-E2E-CV-05` | `F07_ADENDA_43_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_05_TECH_E2E_CV_05.md` | Cierre de `CV-05` y planificación frontend | `Terminada`; PR `#59`, cabeza `5f92fbc4c38acdc711513d447dac615bd8a2aed8`, pipeline `SUCCESS` run `35797088036`, merge `32c3961ff67f79670d0824da71d4f70a06d1dc01`; `CV-05` cerrado |
-| `TECH-UI-PLAN-001` | `F07_ADENDA_44_PLANIFICACION_CONTRACTUAL_DEFINITIVA_DEL_FRONTEND.md` | `TECH-FRONT-001` | `Implementada localmente`; entregables externos reconciliados y aprobados el 2026-09-22; pendiente integración del cambio documental |
-| `TECH-FRONT-001..005` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | Según orden y dependencias de la Adenda 45 | `No iniciadas`; requieren integración documental y orden futura explícita |
+| `TECH-UI-PLAN-001` | `F07_ADENDA_44_PLANIFICACION_CONTRACTUAL_DEFINITIVA_DEL_FRONTEND.md` | `TECH-FRONT-001` | `Terminada`; entregables aprobados e integrados mediante PR `#60`, pipeline `35808190514` `SUCCESS`, merge `d311d967e925f4b9c1d1161bb86914d587d809af` |
+| `TECH-FRONT-001` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | `TECH-FRONT-002` | `Implementada localmente`; auditoría y paquete aprobado en `docs/traceability/TECH_FRONT_001_AUDITORIA_BASE_UI.md`; BR-D17 corregida; render/componentes 12/12, arquitectura/accesibilidad 8/8 y compilaciones enfocadas correctas; pendiente autorización de commit/push/PR |
+| `TECH-FRONT-002..005` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | Según orden y dependencias de la Adenda 45 | `No iniciadas`; cada tarea requiere que su dependencia anterior esté integrada en `origin/master` |
 | `FRONT-001..020` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | Según orden y dependencias de la Adenda 45 | `No iniciadas`; cada brecha bloquea sólo su historia consumidora |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`
