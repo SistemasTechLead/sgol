@@ -33,6 +33,20 @@ El backend ya emite RFC 7807. La interfaz no debe mostrar el JSON crudo ni el `t
 </div>
 ```
 
+## Catálogo común aprobado para `TECH-FRONT-002`
+
+La presentación común selecciona el mensaje por la combinación de HTTP y `code`. Nunca muestra `title`, `detail`, `instance` ni `errors` sin una decisión de la pantalla consumidora. Una combinación desconocida usa un mensaje seguro y no convierte el error en éxito. La aprobación de BR-API11/12 se recibió en el chat de `TECH-FRONT-002` el 2026-09-23.
+
+| HTTP | `code` | Título | Mensaje |
+|---:|---|---|---|
+| 400 | `CSRF_INVALID`, `CSRF_INVALIDO` (alias de compatibilidad) | No se pudo verificar la solicitud | Recarga la página antes de volver a enviarla. |
+| 400 | `IF_MATCH_REQUERIDO` | Falta la versión del registro | Recarga el registro antes de guardar los cambios. |
+| 400 | `IF_MATCH_INVALIDO` | La versión del registro no es válida | Recárgalo antes de guardar. |
+| 428 | `IF_MATCH_REQUERIDO` | Falta la versión de la reconciliación | Recarga la reconciliación antes de aprobarla. |
+| 412 | `VERSION_CONFLICT` | Este registro cambió mientras lo editabas | Probablemente alguien más lo actualizó. Recarga para ver la versión más reciente antes de guardar, o tus cambios podrían sobrescribir los de la otra persona. |
+
+`CSRF_INVALID` es el código canónico de la Adenda 41; `CSRF_INVALIDO` permanece como alias sólo para leer respuestas integradas. En la aprobación de reconciliación, el backend devuelve `428 IF_MATCH_REQUERIDO` tanto si falta `If-Match` como si su formato es inválido: la interfaz no distingue causas que la respuesta no permite distinguir. Para rol y corrección de disponibilidad, `400 IF_MATCH_INVALIDO` también puede indicar ausencia. Un `412` conserva el conflicto visible y jamás dispara reintento automático.
+
 ## 403 — autorización denegada
 
 Nunca "Acceso denegado" a secas. El mensaje nombra el recurso y, cuando ayuda a que el usuario entienda que no es un bug sino una regla de su rol, lo dice.
