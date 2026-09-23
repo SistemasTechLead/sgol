@@ -4,7 +4,20 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
-## En implementación — `TECH-E2E-CV-05`
+## Incorporación documental local — planificación y backlog frontend
+
+| Campo | Valor |
+|---|---|
+| Base | `origin/master` `32c3961ff67f79670d0824da71d4f70a06d1dc01`, igual al `master` remoto verificado antes de editar |
+| Aprobación | El responsable aprobó íntegramente los dos borradores y ordenó incorporarlos el 2026-09-22 |
+| Contratos incorporados | Adenda 44, que inserta `TECH-UI-PLAN-001`; Adenda 45, que inserta `TECH-FRONT-001..005` y `FRONT-001..020` |
+| `TECH-UI-PLAN-001` | `Implementada localmente`: inventario de 48 unidades, brechas, trazabilidad y backlog fueron preparados, reconciliados y aprobados; no equivale todavía a `Integrada/Terminada` |
+| Backend de entrada | `TECH-E2E-CV-04` y `TECH-E2E-CV-05` integradas/terminadas; CV-04 y CV-05 cerrados; dependencias exactas verificadas como ancestros |
+| Brechas vigentes | BR-API01..13, BR-D01..17, BR-M01..14 y BR-N01..08 bloquean sólo su historia consumidora; `TECH-FRONT-001` debe resolver primero la auditoría de base/diseño aplicable |
+| Estado de implementación | Ninguna tarea `TECH-FRONT-*` o `FRONT-*` iniciada; no se creó Razor, CSS, JavaScript, prueba de navegador, endpoint, DTO, migración ni paquete |
+| Punto de parada | Se requiere orden futura explícita y nueva verificación antes de comenzar `TECH-FRONT-001`; esta incorporación no autoriza publicación, merge ni despliegue |
+
+## Integrada — `TECH-E2E-CV-05`
 
 | Campo | Valor |
 |---|---|
@@ -14,11 +27,12 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 | Dependencias | `HU-029` PR `#50`, `HU-032` PR `#51`, `HU-033` PR `#52`, `HU-034` PR `#53`, `TECH-OPS-001` PR `#54`, `TECH-AUTH-001` PR `#56`, `HU-035` efectiva PR `#57` y `TECH-E2E-CV-04` PR `#58`, integradas en la base; `#55` es histórico y no fue el merge efectivo de `HU-035` |
 | Alcance | Proyecto aislado `tests/Sgol.Cv05Demo`; matriz cerrada `S01-S22`, dos ciclos, PostgreSQL, almacenes S3 compatibles, ClamAV, Kestrel HTTPS, autenticación hospedada y recuperación real. Navegador y accesibilidad `NO_APLICA` |
 | Evidencia CI | Primero artifacts originales descargables durante 14 días mientras el repositorio sea público y GitHub Free conserve costo `$0`. Sólo ante fallo demostrado de cuota: nuevo SHA, resumen/log sanitizados y excepción de retención visible según sección 12 de la Adenda 43 |
-| Estado | Implementada localmente y publicada en PR `#59`; gate integral `./scripts/demo/run-cv05.ps1 -Mode Automated` con exit `0`, dos ciclos, 22 escenarios, huellas funcionales iguales, cero evidencias fallidas, reporte y cleanup `PASSED`. Pendientes check remoto exacto verde, aprobación de merge e integración; aún no `Integrada` ni `Terminada` |
+| Estado | `Integrada` y `Terminada`; PR `#59` merged, cabeza `5f92fbc4c38acdc711513d447dac615bd8a2aed8`, check requerido `SUCCESS` en run `35797088036`, merge commit `32c3961ff67f79670d0824da71d4f70a06d1dc01` y ascendencia verificada en `origin/master`; `CV-05` cerrado |
 | Correcciones productivas autorizadas durante CV-05 | Tras comprobar fallos hospedados, el responsable autorizó expresamente tres correcciones mínimas sin migración ni cambio contractual: el lector de auditoría reconoce IDs de requisito y decisión en la completitud de validación; `AuditDeleteAttemptMiddleware` corre después de autenticación para registrar el rechazo de borrado; Web registra `RecoveryReferenceRequestedOutboxHandler` para aceptar la solicitud de conciliación. Regresiones enfocadas: traza PostgreSQL `1/1`, middleware `3/3` y composición `1/1`; S01–S12 hospedados `1/1` y S13–S19 reales `1/1` |
 | Diagnóstico y validación local | La semilla sintética corrigió la vigencia cronológica y añadió la política canónica de elegibilidad de TAR-0008 como precondición; la restauración invalida el pool PostgreSQL al recrear la base. La prueba pura del harness `5/5`, arquitectura `2/2`, contratos unitarios/componentes `71/71`, PostgreSQL enfocado `20/20` y smoke HTTPS `1/1` pasaron. Navegador y accesibilidad `NO_APLICA`. La evidencia local permanece fuera de Git en `.artifacts/cv05/latest/` |
 | Primer pipeline remoto | PR `#59`, run `35795581552` sobre `d2165f9f30619afdfd0d5a1aa651060d92d2cb4d`: build, suite general, CV-04, formato, escaneo OCI, TECH-OPS y probe de réplica aprobaron; HU-035 falló antes de CV-05 y antes de subir artifacts porque el healthcheck PostgreSQL por socket aceptó el servidor temporal durante init y el primer `psql` encontró el apagado. No hay resultado de cuota para este run |
 | Corrección de bootstrap autorizada | El responsable autorizó exigir `pg_isready -h 127.0.0.1` en `new-tech-ops-synthetic-environment.ps1`, sin aumentar intentos, intervalos ni timeouts. La regresión enfocada `Hu035BootstrapWaitsForFinalPostgreSqlTcpServer` falló antes del cambio y pasó después; el servidor temporal oficial sólo escucha socket y se apaga antes del servidor TCP final |
+| Publicación e integración | El run final `35797088036` aprobó `TECH-BASE-003 / PR gates` sobre la cabeza exacta `5f92fbc4c38acdc711513d447dac615bd8a2aed8`; PR `#59` merged mediante `32c3961ff67f79670d0824da71d4f70a06d1dc01`; cabeza y merge son ancestros de `origin/master` |
 
 ## Integrada — `TECH-E2E-CV-04`
 
@@ -61,12 +75,13 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 
 La integración de `TECH-AUTH-001` no autoriza cambios funcionales adicionales de autenticación dentro de `TECH-E2E-CV-04`.
 
-## Implementada localmente — `HU-035`
+## Integrada — `HU-035`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-035` — Dirección verifica recuperación con identidades e historia |
-| Estado | `Implementada localmente` en `codex/hu-035`; el código, la migración y la trazabilidad existen y compilan. No equivale a `Terminada`, `Publicada` o `Integrada` ni acredita todavía el simulacro integral |
+| Estado | `Integrada` y `Terminada`; PR efectivo `#57`, cabeza `191c9f8925f417642825975f8c0a75e508daf467`, pipeline requerido `SUCCESS` run `35464203236`, merge `424744bdca7bdbf32ac8b9e8bd108191c2504867` y ascendencia verificada en `origin/master` |
+| Vigencia de filas históricas | Las filas diagnósticas siguientes conservan la secuencia pre-merge y sus límites en el momento de cada evidencia; cualquier frase “pendiente”, “continúa no terminada” o equivalente quedó superada por el estado final de integración de esta fila y no describe el estado vigente |
 | Contrato | Adendas `F07_ADENDA_33_CONTRATO_DE_RECONCILIACION_Y_SIMULACRO_DE_RECUPERACION_HU_035.md` y `F07_ADENDA_34_CONTRATO_DE_GATE_AMD64_AUTOMATIZADO_HU_035.md`, aprobadas íntegramente por el responsable el 2026-09-14; `F07_ADENDA_35_DIAGNOSTICO_SANITIZADO_DE_REPLICA_HU_035.md`, aprobada íntegramente el 2026-09-15 exclusivamente para diagnóstico sanitizado, implementación local y gates enfocados; la historia continúa sin estado `Terminada` |
 | Commit implementado | Commit que contiene esta actualización |
 | Contrato diagnóstico complementario | `F07_ADENDA_36_PRUEBA_ENFOCADA_DE_STREAM_DE_REPLICA_HU_035.md`, aprobada el 2026-09-15: prueba sintética enfocada del stream de réplica y pruebas puras, sin cambio productivo ni aceptación AMD64; HU-035 continúa no terminada |
@@ -86,13 +101,13 @@ La integración de `TECH-AUTH-001` no autoriza cambios funcionales adicionales d
 | Pruebas enfocadas | Durante implementación: contrato/API/Operations `40/40` y arquitectura/idempotencia `5/5`; proyecto PostgreSQL real y proyecto externo HU-035 opt-in compilan con cero errores/advertencias, pero sus pruebas no se ejecutaron en sesión conforme a `AGENTS.md` |
 | Gates locales | Restore locked `23/23` después de sincronizar sólo lockfiles transitivos; build Release `23/23`, cero errores/advertencias; suite sin PostgreSQL/Docker: unitarias `589/589`, arquitectura `48/48`, OperationsIntegration local con salida `0` y conteos no disponibles por modo binlog, CV-02 `15/15` y CV-03 `19/19`; formato sin cambios; cero vulnerabilidades NuGet conocidas; espejo `29/29`, protección de `Fuentes/`, contrato TECH-OPS, validador HU-035 y `git diff --check` aprobados |
 | Validación local actual | El 2026-09-17 se ejecutó de nuevo `dotnet build SGOL.slnx --no-restore --configuration Release`: `23/23` proyectos, cero errores y cero advertencias. Web arrancó en Development con configuración sintética; `/health/live` respondió `200` y las tres rutas HU-035 respondieron `401 application/problem+json` sin sesión, confirmando enrutamiento y denegación por defecto. No se reutilizaron los tests históricos como evidencia de esta comprobación |
-| Dependencia transversal observada | El host Web no registra `AddAuthentication`, `UseAuthentication`, cookie, login ni MFA. Por ello no existe actualmente un camino HTTP hospedado para obtener un `ClaimsPrincipal` autenticado y el smoke real `2xx` de HU-035 no puede ejecutarse desde un cliente o frontend. No se añade un bypass dentro de HU-035; la autenticación local con cookie segura y MFA exige contrato e implementación separados conforme a F06 |
-| Validación diferida | Linux AMD64 nativo, PostgreSQL real, dos S3-compatible, snapshot compartido con `pg_dump`, restore integral, reconciliación positiva, replay autenticado, consulta, aprobación y matriz de 18 casos. Esta evidencia no se presenta como aprobada y no bloquea conservar HU-035 como `Implementada localmente`; sí será necesaria para declararla `Terminada` |
+| Dependencia transversal resuelta | La ausencia histórica de autenticación hospedada fue resuelta por `TECH-AUTH-001`, PR `#56`; el gate efectivo de HU-035 y CV-05 consumió autenticación real sin bypass |
+| Validación final | Linux AMD64 nativo, PostgreSQL real, dos S3-compatible, snapshot compartido con `pg_dump`, restore integral, reconciliación positiva, replay autenticado, consulta, aprobación y matriz contractual aprobaron en el pipeline requerido del PR efectivo `#57`, run `35464203236` |
 | Límites | Sin producción, cloud real, datos/secretos reales, reparación, compensación, fabricación, borrado, overwrite, purga, UI, plataforma general de DR, `CV-05` ni tareas posteriores |
-| Cierre local | La implementación contractual queda disponible para consumo y planificación del frontend. La integración HTTP autenticada permanece bloqueada por la dependencia transversal indicada; el cierre formal conserva el simulacro integral, publicación e integración como validaciones posteriores |
-| Siguiente paso | Definir e implementar la autenticación hospedada aprobada antes de conectar un frontend real; mientras tanto puede desarrollarse el cliente contra los contratos y estados estables de HU-035 sin inventar respuestas del backend |
+| Cierre | Implementación, simulacro integral, publicación, check requerido, aprobación, merge y ascendencia satisfechos mediante PR `#57`; disponible para consumo contractual del frontend sin ampliar rutas ni semántica |
+| Siguiente paso | Consumir el contrato integrado sólo desde una tarea frontend aprobada; no inventar rutas, respuestas ni operaciones de reparación |
 
-Este estado local no autoriza push, apertura de pull request, despliegue externo ni merge.
+Este cierre integrado no autoriza frontend, despliegue externo ni operaciones de reparación.
 
 ## Base aceptada — `TECH-OPS-001`
 
@@ -144,12 +159,12 @@ Esta base aceptada no amplía el contrato de `HU-035` ni autoriza operaciones Gi
 
 Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
 
-## Base aceptada — `HU-033`
+## Integrada — `HU-033`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-033` — Actor autorizado reconstruye auditoría sin borrado |
-| Estado | Propuesta implementada en `codex/hu-033`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Estado | `Integrada` y `Terminada`; PR `#52`, cabeza `3d38d5efb4df0a98b0e482bb806b7a76ea39509c`, pipeline requerido `SUCCESS` run `34705323809`, merge `17af655729f1595ede510d13a06911f9ec3aed62` y ascendencia verificada |
 | Contrato | `F07_ADENDA_29_CONTRATO_DE_CONSULTA_GENERAL_DE_AUDITORIA_HU_033.md`, aprobada íntegramente por el responsable el 2026-09-11 antes de continuar la implementación |
 | Commit implementado | Commit que contiene esta actualización |
 | Base aceptada | `HU-032`: PR `#51`, commit `d3c8362d712fe67161a0b99c7abe1f43918fb2eb`, pipeline requerido `SUCCESS` run `34658630103`, aprobación humana, merge `46a8fdb42d9d38973e4979980ab9456ae63016cf`, PostgreSQL externo `204/204`, `origin/master` verificado exactamente y ascendencia confirmada |
@@ -165,17 +180,17 @@ Esta propuesta no autoriza commit, publicación de rama, apertura de pull reques
 | Gates locales | Restore locked `20/20`; build Release `20/20`, cero errores y advertencias; suite local sin PostgreSQL `530/530` unitarias, `36/36` arquitectura y contratos CV sin Docker `34/34`; formato limpio; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` y archivos nuevos sin errores |
 | PostgreSQL externo | Suite consolidada final aportada por el desarrollador: `214/214` pruebas aprobadas, cero advertencias, `541.4 s`. Cinco intentos anteriores permitieron corregir exclusivamente invariantes de la semilla sintética y proyecciones auxiliares no traducibles; el resultado final verifica los diez casos de `HU-033` y los `204` casos no afectados |
 | Límites | Sin consulta de conflictos idempotentes de `HU-034`; sin continuidad, restauración o reconciliación de `HU-035`; sin UI, exportación, purga, retención física o reconstrucción retroactiva |
-| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Cierre | Condiciones satisfechas por PR `#52`, run `34705323809` y merge `17af655729f1595ede510d13a06911f9ec3aed62` |
 | Siguiente tarea | Ninguna habilitada desde esta rama |
 
 Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
 
-## Base aceptada — `HU-032`
+## Integrada — `HU-032`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-032` — Dirección consulta toda `LOR-001` |
-| Estado | Propuesta implementada en `codex/hu-032`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Estado | `Integrada` y `Terminada`; PR `#51`, cabeza `d3c8362d712fe67161a0b99c7abe1f43918fb2eb`, pipeline requerido `SUCCESS` run `34658630103`, merge `46a8fdb42d9d38973e4979980ab9456ae63016cf` y ascendencia verificada |
 | Contrato | `F07_ADENDA_28_CONTRATO_DE_VISTA_INTEGRAL_DE_DIRECCION_HU_032.md`, aprobada íntegramente por el responsable el 2026-09-11 antes de producir código |
 | Commit implementado | Commit que contiene esta actualización |
 | Base aceptada | `HU-029`: PR `#50`, commit `0d669d3f17245ee796d01885637cfac7536ea702`, pipeline requerido `SUCCESS` run `34644972538`, aprobación humana, merge `f3d078b27dc665ea0851b9545e99f0f59b5750fc`, PostgreSQL externo `203/203`, `origin/master` verificado exactamente y ascendencia confirmada |
@@ -190,17 +205,17 @@ Esta propuesta no autoriza commit, publicación de rama, apertura de pull reques
 | Gates locales | Restore locked `20/20`; build Release `20/20`, cero errores y advertencias; formato limpio; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` sin errores |
 | PostgreSQL externo | Suite consolidada final `204/204`, cero advertencias, `558.1 s`; ejecutada excepcionalmente fuera del aislamiento en esta sesión por solicitud expresa del desarrollador |
 | Límites | Sin colecciones de supervisión, validaciones pendientes, auditoría general de `HU-033`, idempotencia integral de `HU-034`, continuidad de `HU-035`, exportaciones ni UI |
-| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Cierre | Condiciones satisfechas por PR `#51`, run `34658630103` y merge `46a8fdb42d9d38973e4979980ab9456ae63016cf` |
 | Siguiente tarea | Ninguna habilitada desde esta rama |
 
 Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
 
-## Propuesta actual en rama — `HU-029`
+## Integrada — `HU-029`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-029` — Superior consulta cinco indicadores objetivos |
-| Estado | Propuesta implementada en `codex/hu-029`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Estado | `Integrada` y `Terminada`; PR `#50`, cabeza `0d669d3f17245ee796d01885637cfac7536ea702`, pipeline requerido `SUCCESS` run `34644972538`, merge `f3d078b27dc665ea0851b9545e99f0f59b5750fc` y ascendencia verificada |
 | Contrato | `F07_ADENDA_27_CONTRATO_DE_CINCO_INDICADORES_OPERATIVOS_HU_029.md`, aprobada íntegramente por el responsable el 2026-09-11 antes de producir código |
 | Commit implementado | Commit que contiene esta actualización |
 | Base aceptada | `HU-031`: PR `#49`, commit `9b75e1c2bf1d1719f960fa1ed310a1ef40eb3275`, pipeline requerido `SUCCESS` run `34550189196`, aprobación humana, merge `e47b6de6daa433ec0a62027c4e523931219086e5`, PostgreSQL externo `202/202`, `origin/master` verificado exactamente y ascendencia confirmada |
@@ -214,17 +229,17 @@ Esta propuesta no autoriza commit, publicación de rama, apertura de pull reques
 | Gates locales | Restore locked `20/20`; build Release `20/20`, cero errores y advertencias; suite local sin PostgreSQL `487/487` unitarias, `33/33` arquitectura y contratos CV sin Docker `34/34`; formato limpio; cero vulnerabilidades NuGet conocidas; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` sin errores |
 | PostgreSQL externo | Suite consolidada ejecutada por el desarrollador fuera de la sesión: `203/203` pruebas aprobadas, `0` advertencias, en `623.1 s` |
 | Límites | Sin `/api/v1/direction/overview`, vista integral de `HU-032`, auditoría general de `HU-033`, UI, monto, incentivo, nómina, porcentaje financiero ni sexto indicador |
-| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Cierre | Condiciones satisfechas por PR `#50`, run `34644972538` y merge `f3d078b27dc665ea0851b9545e99f0f59b5750fc` |
 | Siguiente tarea | Ninguna habilitada desde esta rama |
 
 Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
 
-## Base aceptada — `HU-031`
+## Integrada — `HU-031`
 
 | Campo | Valor |
 |---|---|
 | Tarea | `HU-031` — Superior consulta y supervisa sólo inferiores |
-| Estado | Propuesta implementada en `codex/hu-031`; no declara la historia `Terminada` ni habilita historias posteriores |
+| Estado | `Integrada` y `Terminada`; PR `#49`, cabeza `9b75e1c2bf1d1719f960fa1ed310a1ef40eb3275`, pipeline requerido `SUCCESS` run `34550189196`, merge `e47b6de6daa433ec0a62027c4e523931219086e5` y ascendencia verificada |
 | Contrato | `F07_ADENDA_26_CONTRATO_DE_SUPERVISION_JERARQUICA_Y_VALIDACIONES_PENDIENTES_HU_031.md`, aprobada íntegramente por el responsable el 2026-09-10 antes de continuar la implementación |
 | Commit implementado | Commit que contiene esta actualización |
 | Base aceptada | `HU-028`: PR `#48`, commit `6fdc187c6430624f134ddfecf1592f7ccb167df8`, pipeline requerido `SUCCESS` run `34541989487`, aprobación humana, merge `c87e6c94c5cd00eb3829d27619e16a2e4e6a3012`, PostgreSQL externo `198/198`, `origin/master` verificado exactamente y ascendencia confirmada |
@@ -238,7 +253,7 @@ Esta propuesta no autoriza commit, publicación de rama, apertura de pull reques
 | Límites | Sin indicadores, conteos, porcentajes o KPI de `HU-029`; sin vista integral de Dirección de `HU-032`; sin auditoría general de `HU-033`; sin segunda mutación de escalamiento |
 | Gates locales | Restore locked `20/20`; build Release final `20/20`, cero errores y advertencias; suite local sin PostgreSQL `468/468` unitarias, `31/31` arquitectura y contratos CV sin Docker `34/34`; formato limpio; cero vulnerabilidades NuGet conocidas en `19/19` proyectos; espejo `29/29` y protección de `Fuentes/` aprobados; `git diff --check` y archivos nuevos sin errores de espacios |
 | PostgreSQL externo | Ejecución consolidada final aportada por el desarrollador: `202/202`, cero advertencias, `521.8 s`. Tres intentos anteriores terminaron `200/202` y permitieron eliminar sucesivamente las tres composiciones no traducibles por EF; el resultado final verifica las dos pruebas HU-031 y los `200` casos no afectados |
-| Cierre | Requiere commit exacto, pipeline requerido verde, PostgreSQL externo satisfactorio, aprobación humana, merge, ascendencia en `origin/master`, protección de `Fuentes/` y cero defectos bloqueantes |
+| Cierre | Condiciones satisfechas por PR `#49`, run `34550189196` y merge `e47b6de6daa433ec0a62027c4e523931219086e5` |
 | Siguiente tarea | Ninguna habilitada desde esta rama |
 
 Esta propuesta no autoriza commit, publicación de rama, apertura de pull request ni merge.
@@ -871,6 +886,12 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | `TECH-EVID-001` | `F07_ADENDA_17_CONTRATO_DE_INFRAESTRUCTURA_SEGURA_DE_EVIDENCIA_TECH_EVID_001.md` | `HU-025` | `Terminada`; PR `#40`, commit `eb29656f7d2ced765924115520119f36529fc0fc`, pipeline `SUCCESS` run `34153966707`, aprobación humana, SeaweedFS/ClamAV `1/1`, merge `c0c07fff5dd0a05be41d6993eb1abf10b0e74706` y ascendencia verificada en `origin/master` |
 | `TECH-EVID-002` | `F07_ADENDA_20_CONTRATO_DE_EVIDENCIA_ESTRUCTURADA_TECH_EVID_002.md` | `HU-026` | `Terminada`; PR `#42`, commit `66248692f2577a95384db62882e8081dec6fdd9e`, pipeline `SUCCESS` run `34264672922`, aprobación humana, PostgreSQL `7/7`, merge `bd12592660121762cdf315fb5cfc497540b6892c` y ascendencia verificada en `origin/master` |
 | `TECH-E2E-CV-03` | `F07_ADENDA_23_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_03_TECH_E2E_CV_03.md` | Cierre de `CV-03` y `HU-027` | `Terminada`; PR `#46`, commit `157bc43886b58a2e1a0c036dbda437114cf9f283`, pipeline `SUCCESS` run `34514719087`, aprobación humana, merge `437f1d875491097d208ca7fc3ad11d4094b26b81` y ascendencia verificada en `origin/master`; `HU-027` habilitada |
+| `TECH-AUTH-001` | `F07_ADENDA_41_CONTRATO_DE_AUTENTICACION_HOSPEDADA_Y_SESION.md` | `TECH-E2E-CV-04` y frontend | `Terminada`; PR `#56`, cabeza `8cb881f3192a534e9a101d169fc38fcb0f749fc2`, pipeline `SUCCESS` run `35469361269`, merge `10309937f596e5f6702181183b0cbaaa1b52f4c4` y ascendencia verificada |
+| `TECH-E2E-CV-04` | `F07_ADENDA_42_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_04_TECH_E2E_CV_04.md` | Cierre de `CV-04` y entrada a `CV-05` | `Terminada`; PR `#58`, cabeza `945c966edbc84552bab5abd91a9866e128f18ead`, pipeline `SUCCESS` run `35772495865`, merge `00da83ca26f67e523d0d6067af737f38315e62b0`; `CV-04` cerrado |
+| `TECH-E2E-CV-05` | `F07_ADENDA_43_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_05_TECH_E2E_CV_05.md` | Cierre de `CV-05` y planificación frontend | `Terminada`; PR `#59`, cabeza `5f92fbc4c38acdc711513d447dac615bd8a2aed8`, pipeline `SUCCESS` run `35797088036`, merge `32c3961ff67f79670d0824da71d4f70a06d1dc01`; `CV-05` cerrado |
+| `TECH-UI-PLAN-001` | `F07_ADENDA_44_PLANIFICACION_CONTRACTUAL_DEFINITIVA_DEL_FRONTEND.md` | `TECH-FRONT-001` | `Implementada localmente`; entregables externos reconciliados y aprobados el 2026-09-22; pendiente integración del cambio documental |
+| `TECH-FRONT-001..005` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | Según orden y dependencias de la Adenda 45 | `No iniciadas`; requieren integración documental y orden futura explícita |
+| `FRONT-001..020` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | Según orden y dependencias de la Adenda 45 | `No iniciadas`; cada brecha bloquea sólo su historia consumidora |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`
 

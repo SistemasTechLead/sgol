@@ -1,18 +1,18 @@
 # F07 Adenda 41 — Contrato de autenticación hospedada y sesión
 
-## 1. Control de la propuesta
+## 1. Control del contrato
 
 | Campo | Valor |
 |---|---|
-| Identificador propuesto | `TECH-AUTH-001` — Autenticación hospedada, primer acceso, MFA TOTP y sesión segura |
-| Estado | PROPUESTA INDIVISIBLE; `TECH-AUTH-001` no existe como tarea formal ni está vigente mientras no exista aprobación humana íntegra de esta adenda |
+| Identificador | `TECH-AUTH-001` — Autenticación hospedada, primer acceso, MFA TOTP y sesión segura |
+| Estado | `APROBADA; TECH-AUTH-001 INTEGRADA/TERMINADA` |
 | Fecha | 2026-09-17 |
 | Base local | Rama `codex/hu-035`, commit `84bfecf2d57723990303431108f21efee58aeaf5` |
 | Trazabilidad principal | `CAP-006`, `HU-006`, `HU-007`, `RN-002`, `RN-006`, `CA-006`, `CA-007`, `TECH-ID-BOOT-001`, `ADR-004`, `ADR-012`, `NFR-001`, `NFR-004`, `NFR-010` |
 | Alcance | Endpoints funcionales de autenticación local hospedada en `Sgol.Web`: cookie de mismo origen, contraseña temporal, MFA TOTP, recovery codes, bloqueo, sesión y logout |
 | Exclusiones | Razor Pages, HTML, CSS, componentes o decisiones de diseño; OAuth/OIDC externo, SSO, JWT persistente, Redis, SPA separada, impersonación, administración general de sesiones y ampliación de permisos |
 
-Esta adenda no modifica los documentos F00–F07 congelados ni `Fuentes/`. Su aprobación íntegra insertaría `TECH-AUTH-001` como tarea técnica local y autorizaría su implementación y validación local proporcional. No autoriza push, PR, merge, publicación ni despliegue.
+Esta adenda no modifica los documentos F00–F07 congelados ni `Fuentes/`. Fue aprobada íntegramente por el responsable el 2026-09-17 y renumerada como Adenda 41 con aprobación explícita el 2026-09-19. `TECH-AUTH-001` quedó integrada mediante PR `#56`, cabeza `8cb881f3192a534e9a101d169fc38fcb0f749fc2`, pipeline `SUCCESS` run `35469361269` y merge `10309937f596e5f6702181183b0cbaaa1b52f4c4`. Este cierre no autoriza frontend, despliegue ni ampliación funcional.
 
 ## 2. Hechos documentados y observados
 
@@ -25,13 +25,13 @@ Esta adenda no modifica los documentos F00–F07 congelados ni `Fuentes/`. Su ap
 7. La persistencia actual no contiene secreto TOTP, recovery codes, desafíos, contador de fallos, bloqueo ni prevención de reutilización de un paso TOTP. `MfaEnrolledAt` por sí solo no demuestra un enrolamiento real.
 8. Los tests históricos que fabrican `ClaimsPrincipal` o asignan `MfaEnrolledAt` no demuestran login hospedado, MFA real ni emisión de cookie.
 
-## 3. Ambigüedades y contradicciones que resuelve la propuesta
+## 3. Ambigüedades y contradicciones resueltas por el contrato
 
 F06 enumera rutas generales y políticas, pero no fija DTO cerrados, estados del primer acceso, vida de desafíos, nombre y renovación de cookies, claims, validación de `SecurityStamp`, persistencia TOTP, consumo concurrente de recovery codes, semántica exacta del bloqueo, invalidación por empleo, códigos de error, auditoría, telemetría ni procedimiento sintético.
 
 Además, existe una tensión que no puede resolverse silenciosamente: el enrolamiento TOTP requiere entregar al cliente un secreto u `otpauth://` y los recovery codes deben entregarse una vez, mientras la regla general prohíbe secretos en respuestas. Esta propuesta establece la única excepción: el secreto TOTP pendiente y los recovery codes nuevos pueden aparecer exclusivamente en la respuesta API autorizada y `no-store` que los crea, una sola vez y antes de persistirlos como credenciales activas o hashes. Nunca vuelven a aparecer en respuestas posteriores, logs, auditoría, métricas, excepciones, fixtures ni Git.
 
-Las secciones siguientes son una decisión propuesta indivisible. Nada adquiere vigencia por estar redactado aquí.
+Las secciones siguientes forman una decisión contractual indivisible y vigente conforme a la aprobación e integración registradas en la sección 1.
 
 ## 4. Resultado exacto de `TECH-AUTH-001`
 
@@ -271,6 +271,6 @@ Quedan fuera:
 - credenciales predeterminadas, bypass, header de autenticación, usuario mágico o secretos versionados;
 - ampliación de permisos, cambio de jerarquía o modificación semántica de endpoints de negocio.
 
-## 19. Criterio de aprobación y eficacia
+## 19. Aprobación y eficacia
 
-La aprobación debe ser íntegra. Una aprobación parcial, condicionada o con cambios pendientes no crea `TECH-AUTH-001` y no autoriza código funcional. Después de la aprobación íntegra se podrá implementar localmente este contrato en el mismo chat, con los límites y validaciones aquí definidos.
+La aprobación fue íntegra. `TECH-AUTH-001` sólo adquirió estado `Integrada/Terminada` después de implementación, validación, check requerido verde, merge y ascendencia exacta indicados en la sección 1. Su integración no autoriza una interfaz ni modifica las exclusiones de este contrato.

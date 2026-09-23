@@ -4,7 +4,7 @@
 
 | Campo | Valor |
 |---|---|
-| Estado | `APROBADA ÍNTEGRAMENTE POR EL RESPONSABLE EL 2026-09-22; IMPLEMENTACIÓN PENDIENTE` |
+| Estado | `APROBADA; TECH-E2E-CV-05 INTEGRADA/TERMINADA Y CV-05 CERRADO EL 2026-09-22` |
 | Fecha de preparación | 2026-09-22 |
 | Base verificada | `origin/master = 00da83ca26f67e523d0d6067af737f38315e62b0` |
 | Corte | `CV-05 — Control y aceptación` |
@@ -16,9 +16,9 @@ El responsable aprobó íntegra y explícitamente esta adenda, incluida la excep
 
 ## 2. Hechos de precedencia y eficacia
 
-El remoto `refs/heads/master` y la referencia local `origin/master` resuelven al SHA de la tabla. Los PR efectivos `#50` (`HU-029`), `#51` (`HU-032`), `#52` (`HU-033`), `#53` (`HU-034`), `#54` (`TECH-OPS-001`), `#57` (`HU-035`), `#56` (`TECH-AUTH-001`) y `#58` (`TECH-E2E-CV-04`) están `MERGED` hacia `master`; sus cabezas y merges son ancestros de esa base y sus checks `TECH-BASE-003 / PR gates` terminaron `SUCCESS` sobre la cabeza exacta. Para `#58`: cabeza `945c966edbc84552bab5abd91a9866e128f18ead`, run `35772495865`, merge `00da83ca26f67e523d0d6067af737f38315e62b0`. `#55` no fue el merge efectivo de `HU-035`.
+Al preparar y aprobar esta adenda, el remoto `refs/heads/master` y la referencia local `origin/master` resolvían al SHA de la tabla. Los PR efectivos `#50` (`HU-029`), `#51` (`HU-032`), `#52` (`HU-033`), `#53` (`HU-034`), `#54` (`TECH-OPS-001`), `#57` (`HU-035`), `#56` (`TECH-AUTH-001`) y `#58` (`TECH-E2E-CV-04`) estaban `MERGED` hacia `master`; sus cabezas y merges eran ancestros de esa base y sus checks `TECH-BASE-003 / PR gates` terminaron `SUCCESS` sobre la cabeza exacta. Para `#58`: cabeza `945c966edbc84552bab5abd91a9866e128f18ead`, run `35772495865`, merge `00da83ca26f67e523d0d6067af737f38315e62b0`. `#55` no fue el merge efectivo de `HU-035`.
 
-En `origin/master` no existe `F07_ADENDA_43_*` ni contrato aprobado `TECH-E2E-CV-05`; tampoco existe rama local/remota ni PR de cierre CV-05. El texto de `docs/traceability/IMPLEMENTATION_STATUS.md` para CV-04 fue escrito antes del merge y se corregirá en el hito con la evidencia anterior.
+Al preparar esta adenda todavía no existían en `origin/master` el contrato ni la tarea. Después de su aprobación se implementó y publicó el PR `#59`; la cabeza `5f92fbc4c38acdc711513d447dac615bd8a2aed8` obtuvo `TECH-BASE-003 / PR gates = SUCCESS` en run `35797088036` y fue incorporada mediante merge `32c3961ff67f79670d0824da71d4f70a06d1dc01`. Cabeza y merge son ancestros de `origin/master`; por ello `TECH-E2E-CV-05` está `Integrada/Terminada` y `CV-05` está cerrado.
 
 Al aprobarse, la adenda inserta `TECH-E2E-CV-05` **después** de las ocho dependencias verificadas y **antes** del cierre formal de `CV-05`. Aprobación documental no significa tarea implementada. `Implementada localmente` exige código, matriz y gates locales; `Publicada` exige PR y check exacto; `Integrada/Terminada` y `CV-05 Cerrado` exigen autorización posterior de merge, merge commit sin squash y ascendencia en `origin/master`. Ningún hito administrativo de otro corte se sustituye por esta demo.
 
@@ -146,4 +146,4 @@ Una necesidad de `src/**`, migración, `Directory.Packages.props`, lockfiles his
 
 ## 15. Decisión de aprobación íntegra
 
-El responsable aprobó **íntegramente y sin cambios contractuales** esta adenda, incluido el orden obligatorio de la sección 12: primero artifacts descargables en repositorio público; sólo ante fallo demostrado de cuota, nuevo SHA y contingencia sanitizada con excepción de retención visible. Quedó autorizada la implementación, validación y publicación del PR exclusivo de `TECH-E2E-CV-05`. El merge requiere autorización posterior explícita.
+El responsable aprobó **íntegramente y sin cambios contractuales** esta adenda, incluido el orden obligatorio de la sección 12: primero artifacts descargables en repositorio público; sólo ante fallo demostrado de cuota, nuevo SHA y contingencia sanitizada con excepción de retención visible. La implementación, validación, publicación y merge autorizado quedaron materializados en el PR `#59`, run requerido `35797088036` y merge `32c3961ff67f79670d0824da71d4f70a06d1dc01`. Este cierre no autoriza frontend, despliegue ni otra tarea posterior.
