@@ -6,7 +6,9 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -14,11 +16,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Authentication;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Presentation.ApiClient;
+using Sgol.Web.Presentation.Navigation;
 using Testcontainers.PostgreSql;
 using Xunit;
 using Xunit.Sdk;
@@ -106,13 +111,40 @@ public sealed class HostedAuthenticationKestrelSmokeTests
             {
                 using var state = await session.Client.GetAsync("/api/v1/auth/session");
                 Require(state.StatusCode == HttpStatusCode.OK);
+                var razorSnapshot = await ReadRazorSessionAsync(baseAddress, certificate, session.SessionCookie);
+                Require(razorSnapshot?.RoleCode == session.Account.RoleCode);
                 using var branch = await session.Client.GetAsync("/api/v1/branches/LOR-001");
                 Require(branch.StatusCode == HttpStatusCode.OK);
                 using var users = await session.Client.GetAsync("/api/v1/users");
                 Require(users.StatusCode == (session.Account.RoleCode == CanonicalRole.Direction
                     ? HttpStatusCode.OK
                     : HttpStatusCode.Forbidden));
+                if (users.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    Assert.Equal("application/problem+json", users.Content.Headers.ContentType?.MediaType);
+                    using var problem = JsonDocument.Parse(await users.Content.ReadAsStringAsync());
+                    Assert.Equal("ACCESO_DENEGADO", problem.RootElement.GetProperty("code").GetString());
+                    Assert.True(Guid.TryParse(problem.RootElement.GetProperty("correlationId").GetString(), out _));
+                }
             }
+            var ticketFormat = seedFactory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+                .Get(HostedAuthenticationDefaults.Scheme).TicketDataFormat;
+            var directionCookie = sessions.Single(item => item.Account.RoleCode == CanonicalRole.Direction).SessionCookie;
+            var ticket = ticketFormat.Unprotect(directionCookie.Split('=', 2)[1]);
+            Assert.NotNull(ticket);
+            ticket.Properties.IssuedUtc = DateTimeOffset.UtcNow.AddHours(-2);
+            ticket.Properties.ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(-1);
+            var expiredCookie = "__Host-SGOL-Session=" + ticketFormat.Protect(ticket);
+            using (var expired = await GetWithCookieAsync(baseAddress, certificate, expiredCookie))
+            {
+                Assert.Equal(HttpStatusCode.Unauthorized, expired.StatusCode);
+                Assert.Equal("application/problem+json", expired.Content.Headers.ContentType?.MediaType);
+                using var problem = JsonDocument.Parse(await expired.Content.ReadAsStringAsync());
+                Assert.Equal("AUTENTICACION_REQUERIDA", problem.RootElement.GetProperty("code").GetString());
+                Assert.True(Guid.TryParse(problem.RootElement.GetProperty("correlationId").GetString(), out _));
+            }
+            Require(await ReadRazorSessionAsync(baseAddress, certificate, "__Host-SGOL-Session=tampered") is null);
+            Require(await ReadRazorSessionAsync(baseAddress, certificate, string.Empty) is null);
 
             scenario = HostedAuthenticationSmokeScenario.ADMINISTRATIVE_RESET;
             stage = HostedAuthenticationSmokeStage.MFA_RESET;
@@ -228,6 +260,21 @@ public sealed class HostedAuthenticationKestrelSmokeTests
             {
                 using var invalidated = await session.Client.GetAsync("/api/v1/auth/session");
                 Require(invalidated.StatusCode == HttpStatusCode.Unauthorized);
+                Assert.Equal("application/problem+json", invalidated.Content.Headers.ContentType?.MediaType);
+                using var problem = JsonDocument.Parse(await invalidated.Content.ReadAsStringAsync());
+                var code = problem.RootElement.GetProperty("code").GetString();
+                Assert.True(code is "SESSION_INVALID" or "AUTENTICACION_REQUERIDA");
+                Assert.True(Guid.TryParse(problem.RootElement.GetProperty("correlationId").GetString(), out _));
+                var razorSnapshot = await ReadRazorSessionAsync(baseAddress, certificate, session.SessionCookie);
+                Require(razorSnapshot is null);
+            }
+            using (var response = await GetWithCookieAsync(baseAddress, certificate, direction.SessionCookie))
+            {
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+                Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+                using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                Assert.Equal("SESSION_INVALID", problem.RootElement.GetProperty("code").GetString());
+                Assert.True(Guid.TryParse(problem.RootElement.GetProperty("correlationId").GetString(), out _));
             }
 
             error = HostedAuthenticationSmokeError.NONE;
@@ -238,6 +285,10 @@ public sealed class HostedAuthenticationKestrelSmokeTests
             error = error == HostedAuthenticationSmokeError.UNEXPECTED_FAILURE
                 ? HostedAuthenticationSmokeError.HTTP_CONTRACT_FAILED
                 : error;
+        }
+        catch (XunitException)
+        {
+            throw;
         }
         catch
         {
@@ -328,13 +379,14 @@ public sealed class HostedAuthenticationKestrelSmokeTests
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("IntegrationTests");
+            builder.UseContentRoot(FindRepositoryRoot());
             builder.ConfigureAppConfiguration((_, configuration) =>
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:Sgol"] = connectionString,
                 }));
             builder.ConfigureLogging(logging => logging.ClearProviders());
-            builder.ConfigureServices(services => services.AddDataProtection().UseEphemeralDataProtectionProvider());
+            builder.ConfigureServices(services => services.AddDataProtection());
         });
 
     private static IReadOnlyList<SmokeAccount> CreateAccounts() =>
@@ -378,6 +430,11 @@ public sealed class HostedAuthenticationKestrelSmokeTests
         {
             Require(login.StatusCode == HttpStatusCode.OK && await NextStepAsync(login) == AuthenticationNextStep.ChangePassword);
         }
+        using (var business = await client.GetAsync("/api/v1/branches/LOR-001"))
+        {
+            Require(business.StatusCode == HttpStatusCode.Unauthorized);
+            Assert.Equal("application/problem+json", business.Content.Headers.ContentType?.MediaType);
+        }
         setStage(HostedAuthenticationSmokeStage.PASSWORD_CHANGE);
         using (var changed = await PostAsync(client, "/api/v1/auth/password/change", new { currentPassword = account.TemporaryPassword, newPassword = account.NewPassword }, csrf))
         {
@@ -392,13 +449,45 @@ public sealed class HostedAuthenticationKestrelSmokeTests
         }
         setStage(HostedAuthenticationSmokeStage.MFA_CONFIRM);
         string recoveryCode;
+        string sessionCookie;
         using (var confirmed = await PostAsync(client, "/api/v1/auth/mfa/confirm", new { totpCode = ComputeTotp(manualKey, DateTimeOffset.UtcNow) }, csrf))
         {
             Require(confirmed.StatusCode == HttpStatusCode.OK);
+            Require(confirmed.Headers.TryGetValues("Set-Cookie", out var cookies));
+            sessionCookie = cookies!.Single(value => value.StartsWith("__Host-SGOL-Session=", StringComparison.Ordinal)).Split(';')[0];
             using var document = JsonDocument.Parse(await confirmed.Content.ReadAsStringAsync());
             recoveryCode = document.RootElement.GetProperty("data").GetProperty("recoveryCodes")[0].GetString()!;
         }
-        return new SmokeSession(account, client, await GetCsrfAsync(client), recoveryCode);
+        return new SmokeSession(account, client, await GetCsrfAsync(client), recoveryCode, sessionCookie);
+    }
+
+    private static async Task<SessionSnapshot?> ReadRazorSessionAsync(
+        Uri baseAddress, X509Certificate2 certificate, string sessionCookie)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Scheme = "https";
+        context.Request.Host = new HostString(baseAddress.Host, baseAddress.Port);
+        context.Request.Headers.Cookie = sessionCookie;
+        using var handler = new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false };
+        var expected = certificate.GetCertHashString(HashAlgorithmName.SHA256);
+        handler.ServerCertificateCustomValidationCallback = (_, presented, _, _) =>
+            presented is not null && string.Equals(presented.GetCertHashString(HashAlgorithmName.SHA256), expected, StringComparison.Ordinal);
+        using var client = new HttpClient(handler);
+        var state = new RazorSessionState(new SgolApiClient(client, new HttpContextAccessor { HttpContext = context }));
+        return await state.GetAsync();
+    }
+
+    private static async Task<HttpResponseMessage> GetWithCookieAsync(
+        Uri baseAddress, X509Certificate2 certificate, string cookie)
+    {
+        using var handler = new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false };
+        var expected = certificate.GetCertHashString(HashAlgorithmName.SHA256);
+        handler.ServerCertificateCustomValidationCallback = (_, presented, _, _) =>
+            presented is not null && string.Equals(presented.GetCertHashString(HashAlgorithmName.SHA256), expected, StringComparison.Ordinal);
+        using var client = new HttpClient(handler) { BaseAddress = baseAddress };
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/session");
+        request.Headers.TryAddWithoutValidation("Cookie", cookie);
+        return await client.SendAsync(request);
     }
 
     private static async Task InvalidateAsync(WebApplicationFactory<Program> factory, IReadOnlyList<SmokeSession> sessions)
@@ -559,5 +648,5 @@ public sealed class HostedAuthenticationKestrelSmokeTests
 
     private sealed class SmokeFailureException : Exception;
     private sealed record SmokeAccount(Guid UserId, Guid PersonId, string UserName, string RoleCode, string TemporaryPassword, string NewPassword);
-    private sealed record SmokeSession(SmokeAccount Account, HttpClient Client, string Csrf, string RecoveryCode);
+    private sealed record SmokeSession(SmokeAccount Account, HttpClient Client, string Csrf, string RecoveryCode, string SessionCookie);
 }

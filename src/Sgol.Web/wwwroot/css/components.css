@@ -87,6 +87,16 @@ summary:focus-visible {
     font: var(--tipografia-grande);
 }
 
+.navegacion-movil__abrir,
+.navegacion-movil {
+    display: none;
+}
+
+.navegacion-lateral__vacio {
+    color: var(--color-texto-secundario);
+    font: var(--tipografia-pequena);
+}
+
 .barra-lateral {
     grid-area: navegacion;
     padding: var(--espacio-16);
@@ -656,6 +666,30 @@ summary:focus-visible {
 }
 
 @media (max-width: 48rem) {
+    .navegacion-movil__abrir {
+        display: inline-flex;
+    }
+
+    .navegacion-lateral--escritorio {
+        display: none;
+    }
+
+    .navegacion-movil[open] {
+        display: block;
+        width: min(var(--ancho-modal), 100%);
+        max-height: 100%;
+        padding: var(--espacio-16);
+        color: var(--color-texto-primario);
+        background: var(--color-superficie);
+        border: none;
+        border-radius: var(--radio-tarjeta);
+        box-shadow: var(--sombra-alta);
+    }
+
+    .navegacion-movil::backdrop {
+        background: var(--color-overlay);
+    }
+
     .aplicacion {
         grid-template-areas:
             "encabezado"

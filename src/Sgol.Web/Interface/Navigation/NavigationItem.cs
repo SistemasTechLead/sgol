@@ -1,28 +1,35 @@
-using System.Security.Claims;
+using Sgol.Identity.Contracts;
 
 namespace Sgol.Web.Presentation.Navigation;
 
 public sealed record NavigationItem(
     string Label,
     string Href,
-    IReadOnlySet<string> AllowedRoles);
+    IReadOnlySet<string> AllowedRoles,
+    IReadOnlySet<string>? RequiredPermissions = null);
 
 public static class RoleAwareNavigation
 {
     public static IReadOnlyList<NavigationItem> VisibleTo(
-        ClaimsPrincipal principal,
-        IEnumerable<NavigationItem> items)
+        SessionSnapshot? session,
+        IEnumerable<NavigationItem> items,
+        IReadOnlySet<string>? implementedRoutes = null)
     {
-        ArgumentNullException.ThrowIfNull(principal);
         ArgumentNullException.ThrowIfNull(items);
-
-        if (principal.Identity?.IsAuthenticated != true)
+        if (session is null)
         {
             return [];
         }
 
+        implementedRoutes ??= ImplementedNavigationRoutes;
         return items
-            .Where(item => item.AllowedRoles.Count > 0 && item.AllowedRoles.Any(principal.IsInRole))
+            .Where(item => implementedRoutes.Contains(item.Href) &&
+                item.AllowedRoles.Contains(session.RoleCode) &&
+                item.RequiredPermissions is not null && item.RequiredPermissions.Count > 0 &&
+                item.RequiredPermissions.All(session.Permissions.Contains))
             .ToArray();
     }
+
+    // This set grows only when a NAV route is actually implemented by its own story.
+    private static readonly HashSet<string> ImplementedNavigationRoutes = new(StringComparer.Ordinal);
 }

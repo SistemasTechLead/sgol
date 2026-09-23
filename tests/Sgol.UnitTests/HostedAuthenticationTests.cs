@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -10,6 +13,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Sgol.Identity.Contracts;
 using Sgol.Web.Infrastructure.Authentication;
 using Sgol.Web.Infrastructure.Persistence.Identity;
+using Sgol.Web.Presentation.ApiClient;
+using Sgol.Web.Presentation.Authentication;
 using Xunit;
 
 namespace Sgol.UnitTests;
@@ -73,7 +78,7 @@ public sealed class HostedAuthenticationTests
         Assert.Equal(1, service.LogoutAudits);
 
         using var afterLogout = await client.GetAsync("/api/v1/auth/session");
-        Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
+        await AssertProblemAsync(afterLogout, HttpStatusCode.Unauthorized, "AUTENTICACION_REQUERIDA");
     }
 
     [Fact]
@@ -93,10 +98,51 @@ public sealed class HostedAuthenticationTests
             password = "Temporary-Password-01!",
         });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertProblemAsync(response, HttpStatusCode.BadRequest, "CSRF_INVALID");
         Assert.Equal(0, service.LoginCalls);
-        var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("CSRF_INVALID", problem.RootElement.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task RazorValidatedCsrfPairReachesApiAndMixedPairHasNoEffect()
+    {
+        var service = new RecordingAuthenticationService();
+        await using var factory = CreateFactory(service);
+        var get = new DefaultHttpContext { RequestServices = factory.Services };
+        get.Request.Scheme = "https";
+        get.Request.Host = new HostString("localhost");
+        var antiforgery = factory.Services.GetRequiredService<IAntiforgery>();
+        var token = antiforgery.GetAndStoreTokens(get).RequestToken!;
+        var cookie = get.Response.Headers.SetCookie.ToString().Split(';')[0];
+        using var internalClient = new HttpClient(factory.Server.CreateHandler());
+        var post = new DefaultHttpContext { RequestServices = factory.Services };
+        post.Request.Scheme = "https";
+        post.Request.Host = new HostString("localhost");
+        post.Request.Headers.Cookie = cookie;
+        post.Request.Method = "POST";
+        post.Request.ContentType = "application/x-www-form-urlencoded";
+        var body = Encoding.UTF8.GetBytes("__RequestVerificationToken=" + Uri.EscapeDataString(token));
+        post.Request.ContentLength = body.Length;
+        post.Request.Body = new MemoryStream(body);
+        var api = new SgolApiClient(internalClient, new HttpContextAccessor { HttpContext = post });
+        var bridge = new RazorAntiforgeryBridge(antiforgery, api);
+        var result = await bridge.SendValidatedAsync<object>(post,
+            new ApiRequest(HttpMethod.Post, "/api/v1/auth/logout", ApiResponseShape.NoContent, Body: new { }));
+        Assert.NotNull(result);
+        Assert.Equal(204, result.Status);
+        Assert.Equal(1, service.LogoutAudits);
+
+        var invalid = new DefaultHttpContext { RequestServices = factory.Services };
+        invalid.Request.Scheme = "https";
+        invalid.Request.Host = new HostString("localhost");
+        invalid.Request.Headers.Cookie = cookie;
+        invalid.Request.Method = "POST";
+        invalid.Request.ContentType = "application/x-www-form-urlencoded";
+        var mixedBody = Encoding.UTF8.GetBytes("__RequestVerificationToken=" + Uri.EscapeDataString(token + "mixed"));
+        invalid.Request.ContentLength = mixedBody.Length;
+        invalid.Request.Body = new MemoryStream(mixedBody);
+        Assert.Null(await bridge.SendValidatedAsync<object>(invalid,
+            new ApiRequest(HttpMethod.Post, "/api/v1/auth/logout", ApiResponseShape.NoContent, Body: new { })));
+        Assert.Equal(1, service.LogoutAudits);
     }
 
     [Fact]
@@ -117,7 +163,7 @@ public sealed class HostedAuthenticationTests
             password = "not-logged",
             unexpected = true,
         }, csrf);
-        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        await AssertProblemAsync(invalid, HttpStatusCode.BadRequest, "DATOS_AUTENTICACION_INVALIDOS");
         Assert.Equal(0, service.LoginCalls);
 
         using var logout = await PostAsync(client, "/api/v1/auth/logout", new { }, csrf);
@@ -152,8 +198,9 @@ public sealed class HostedAuthenticationTests
             userName = "direction.synthetic",
             password = "not-logged",
         }, csrf);
-        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+        await AssertProblemAsync(rejected, HttpStatusCode.TooManyRequests, "RATE_LIMITED");
         Assert.True(rejected.Headers.Contains("Retry-After"));
+        Assert.Equal("no-store", rejected.Headers.CacheControl?.ToString());
         Assert.Equal(10, service.LoginCalls);
     }
 
@@ -189,8 +236,18 @@ public sealed class HostedAuthenticationTests
 
         service.RejectSessions = true;
         using var invalid = await client.GetAsync("/api/v1/auth/session");
-        Assert.Equal(HttpStatusCode.Unauthorized, invalid.StatusCode);
+        await AssertProblemAsync(invalid, HttpStatusCode.Unauthorized, "SESSION_INVALID");
         Assert.Equal(1, service.SessionRejectionAudits);
+    }
+
+    private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode status, string code)
+    {
+        Assert.Equal(status, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal((int)status, problem.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal(code, problem.RootElement.GetProperty("code").GetString());
+        Assert.True(Guid.TryParse(problem.RootElement.GetProperty("correlationId").GetString(), out _));
     }
 
     private static WebApplicationFactory<Program> CreateFactory(IHostedAuthenticationService service) =>

@@ -78,6 +78,26 @@ public sealed partial class InterfaceDesignRulesTests
         Assert.Contains("aria-label=\"Navegación principal\"", layout, StringComparison.Ordinal);
         Assert.Contains("<main id=\"contenido-principal\"", layout, StringComparison.Ordinal);
         Assert.Contains("~/js/components.js", layout, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open", layout, StringComparison.Ordinal);
+        Assert.Contains("<dialog id=\"navegacion-movil\"", layout, StringComparison.Ordinal);
+        Assert.Contains("method=\"dialog\"", layout, StringComparison.Ordinal);
+        Assert.Contains("Aún no hay secciones disponibles", layout, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsInRole", layout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FrontendSessionAndNavigationDoNotUseRoleClaimsOrPersistIdentity()
+    {
+        var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
+        var navigation = File.ReadAllText(Path.Combine(root, "src", "Sgol.Web", "Interface", "Navigation", "NavigationItem.cs"));
+        var session = File.ReadAllText(Path.Combine(root, "src", "Sgol.Web", "Interface", "Navigation", "RazorSessionState.cs"));
+        var layout = File.ReadAllText(Path.Combine(root, "src", "Sgol.Web", "Pages", "Shared", "_Layout.cshtml"));
+        Assert.DoesNotContain("IsInRole", navigation, StringComparison.Ordinal);
+        Assert.Contains("session.RoleCode", navigation, StringComparison.Ordinal);
+        Assert.Contains("session.Permissions", navigation, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/auth/session", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("localStorage", layout + session, StringComparison.Ordinal);
+        Assert.DoesNotContain("/mi-trabajo\"", layout, StringComparison.Ordinal);
     }
 
     [Fact]

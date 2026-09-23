@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
@@ -32,15 +31,16 @@ public sealed class BranchPageTests
     [Theory]
     [InlineData("TODAS")]
     [InlineData("LOR-002")]
-    public async Task UnsupportedBranch_ShowsUsefulErrorWithoutReadingCatalog(string branchCode)
+    public async Task UnsupportedBranch_ConvergesOnTheSameNotFoundAsMissingCanonicalSeed(string branchCode)
     {
         var reader = new RecordingReader(CreateLoretta());
         var page = CreatePage(reader);
 
         await page.OnGetAsync(branchCode, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status422UnprocessableEntity, page.Response.StatusCode);
-        Assert.Contains("LOR-001", page.Error?.Message, StringComparison.Ordinal);
+        Assert.Equal(StatusCodes.Status404NotFound, page.Response.StatusCode);
+        Assert.Equal("No se encontró la sucursal Loretta", page.EmptyState?.Title);
+        Assert.Null(page.Error);
         Assert.Null(page.Branch);
         Assert.False(page.IsLoading);
         Assert.Equal(0, reader.CallCount);
@@ -63,15 +63,7 @@ public sealed class BranchPageTests
 
     private static DetailsModel CreatePage(IBranchCatalogReader reader)
     {
-        var context = new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(
-            [
-                new Claim(ClaimTypes.NameIdentifier, "synthetic-direction"),
-                new Claim(ClaimTypes.Role, "DIRECCION"),
-            ],
-            "synthetic")),
-        };
+        var context = new DefaultHttpContext();
         context.TraceIdentifier = Guid.CreateVersion7().ToString("D");
 
         return new DetailsModel(reader)

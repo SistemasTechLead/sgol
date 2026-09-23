@@ -182,7 +182,7 @@ internal sealed class HostedCookieEvents(
                     ["code"] = code,
                     ["correlationId"] = context.GetCorrelationId(),
                 },
-            });
+            }, options: null, contentType: "application/problem+json");
     }
 }
 
@@ -296,7 +296,9 @@ public static class HostedAuthenticationServiceCollectionExtensions
                             ["correlationId"] = context.HttpContext.GetCorrelationId(),
                         },
                     },
-                    cancellationToken);
+                    options: null,
+                    contentType: "application/problem+json",
+                    cancellationToken: cancellationToken);
             };
         });
         return services;

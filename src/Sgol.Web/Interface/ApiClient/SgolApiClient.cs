@@ -45,14 +45,29 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
         if (request.IfMatch is not null) outbound.Headers.TryAddWithoutValidation("If-Match", request.IfMatch);
         if (request.Intent is not null) outbound.Headers.TryAddWithoutValidation("Idempotency-Key", request.Intent.Key.ToString("D"));
         if (mutation) outbound.Headers.TryAddWithoutValidation("X-CSRF-TOKEN", request.CsrfToken);
-        var sessionCookie = SessionCookie(context.Request.Headers.Cookie.ToString());
-        if (sessionCookie is not null) outbound.Headers.TryAddWithoutValidation("Cookie", sessionCookie);
+        var requestCookie = ApiCookieBridge.RequestCookie(context, request.Method, request.Path.Split('?', 2)[0], mutation);
+        if (requestCookie is not null) outbound.Headers.TryAddWithoutValidation("Cookie", requestCookie);
 
         HttpResponseMessage received;
         try { received = await httpClient.SendAsync(outbound, HttpCompletionOption.ResponseHeadersRead, cancellationToken); }
         catch (HttpRequestException) { throw new ApiProtocolException(); }
         using var response = received;
         var status = (int)response.StatusCode;
+        IReadOnlyList<string> responseCookies;
+        try
+        {
+            responseCookies = ApiCookieBridge.ValidateResponseCookies(response, request.Method, request.Path.Split('?', 2)[0]);
+        }
+        catch (ApiProtocolException)
+        {
+            if (status == 401) ApiCookieBridge.Clear(context);
+            throw;
+        }
+        if (status == 401)
+        {
+            ApiCookieBridge.Clear(context);
+            responseCookies = [];
+        }
         var correlations = response.Headers.TryGetValues("X-Correlation-ID", out var headers)
             ? headers.Take(2).ToArray() : [];
         if (correlations.Length > 1) throw new ApiProtocolException();
@@ -63,6 +78,7 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
         if (status == 204 && request.Shape == ApiResponseShape.NoContent)
         {
             if (!ValidCorrelation(headerCorrelation) || response.Content.Headers.ContentLength is > 0) throw new ApiProtocolException();
+            ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
             return new(status, default, null, headerCorrelation!, null, null, etag, false, null, null);
         }
         if (status is >= 200 and < 300 && request.Shape == ApiResponseShape.NoContent) throw new ApiProtocolException();
@@ -93,6 +109,7 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
                     // Several integrated endpoints report recovery in data.result, not meta.replayed.
                     replayed |= data.ValueKind == JsonValueKind.Object && data.TryGetProperty("result", out var result) &&
                         result.ValueKind == JsonValueKind.String && result.GetString() == "RECUPERADA";
+                    ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
                     return new(status, value, null, correlation!, null, null, etag, replayed, null, null);
                 }
                 if (data.ValueKind != JsonValueKind.Array || !meta.TryGetProperty("count", out var countElement) ||
@@ -105,6 +122,7 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
                     cursor = cursorElement.GetString();
                 }
                 var items = Deserialize<List<T>>(data);
+                ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
                 return new(status, default, items, correlation!, cursor, count, etag, replayed, null, null);
             }
             if (!ErrorStatuses.Contains(status) || !root.TryGetProperty("status", out var problemStatus) ||
@@ -119,6 +137,7 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
             }
             if ((code is null && status != 500) || code is not null && !ValidCode(code)) throw new ApiProtocolException();
             var presentation = ProblemDetailsPresenter.Present(status, code, problemCorrelation);
+            ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
             return new(status, default, null, problemCorrelation!, null, null, null, false, code, presentation);
         }
     }
@@ -134,14 +153,6 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
 
     private static bool StrongEtag(string value) => value.Length >= 3 && value[0] == '"' && value[^1] == '"' &&
         !value.AsSpan(1, value.Length - 2).Contains('"') && !value.Contains('\r') && !value.Contains('\n');
-
-    private static string? SessionCookie(string raw)
-    {
-        var matches = raw.Split(';', StringSplitOptions.TrimEntries)
-            .Where(part => part.StartsWith("__Host-SGOL-Session=", StringComparison.Ordinal)).Take(2).ToArray();
-        if (matches.Length > 1) throw new ApiProtocolException();
-        return matches.SingleOrDefault();
-    }
 
     private static bool ValidCorrelation(string? text) => Guid.TryParseExact(text, "D", out var id) &&
         id != Guid.Empty && id.Version == 7 && text == id.ToString("D");
