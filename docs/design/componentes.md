@@ -291,7 +291,7 @@ Ver `estados-de-dominio.md` para la tabla completa de qué color/ícono/texto us
 
 ## Navegación lateral por rol
 
-El sistema tiene tres perfiles con accesos distintos (Dirección, superiores/subcoordinación, responsables). La navegación lateral muestra solo lo que corresponde al rol activo — no ítems deshabilitados que el usuario no puede usar, per la nota de `estados-y-mensajes.md` sobre 403: si no tiene acceso, no se muestra, no se muestra atenuado.
+El sistema tiene cuatro roles canónicos: Dirección, Administración, Subcoordinación y Piso de ventas. La navegación lateral muestra sólo los grupos y páginas implementados que corresponden a la sesión activa; una opción no autorizada no se muestra atenuada. El registro de rutas, agrupación, destino inicial y separación entre visibilidad y autorización se define en [`navegacion.md`](navegacion.md). El menú es presentación y nunca sustituye la autorización efectiva del servidor.
 
 | Estado | Descripción visual | Tokens |
 |---|---|---|
