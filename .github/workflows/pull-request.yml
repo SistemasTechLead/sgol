@@ -100,6 +100,10 @@ jobs:
       - name: Build Release with static analysis
         run: dotnet build --no-restore --configuration Release
 
+      - name: Install browsers and Linux dependencies for TECH-FRONT-004 smoke
+        shell: pwsh
+        run: ./tests/Sgol.FrontendBrowserTests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium webkit
+
       - name: Run unit, architecture and PostgreSQL integration tests
         env:
           SGOL_EVIDENCE_EICAR_TESTS: "true"

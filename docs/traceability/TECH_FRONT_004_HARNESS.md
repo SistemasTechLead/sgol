@@ -21,6 +21,8 @@ git diff --check
 
 El comando `playwright.ps1` es el que genera `Microsoft.Playwright` 1.62.0; se comprobó al ejecutar el proyecto. El paquete ya estaba fijado centralmente y presente en TECH-E2E-CV-02, por lo que TECH-FRONT-004 no incorpora una dependencia ni versión nueva. El nuevo proyecto posee su propio `packages.lock.json`. Chromium de escritorio usa 1440×900; WebKit móvil, 390×844. La ejecución local verificó Chromium 151.0.7922.34 y WebKit 26.5.
 
+En GitHub Actions, después del build Release y antes de `dotnet test`, el workflow ejecuta `./tests/Sgol.FrontendBrowserTests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium webkit`. El primer pipeline del PR `#66` (run `35934604798`, cabeza `51e64a81b449bb4aed10442ec96855f0208d6375`) falló porque el runner Linux carecía de los binarios de Playwright; la preservación de evidencia CV-04 falló de forma derivada al quedar omitida su demo. Esta corrección instala los navegadores y sus dependencias del sistema antes del gate. Su resultado remoto se registra sólo después de ejecutarse para el nuevo SHA.
+
 ## Mapa de pruebas y límites
 
 | Criterio | Comprobación | Resultado local |
