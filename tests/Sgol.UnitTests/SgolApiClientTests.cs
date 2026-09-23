@@ -273,7 +273,7 @@ public sealed class SgolApiClientTests
         var context = new DefaultHttpContext();
         context.Request.Scheme = "https";
         context.Request.Host = new HostString("sgol.example");
-        context.Request.Headers.Cookie = "__Host-SGOL-Session=opaque; unrelated=private";
+        context.Request.Headers.Cookie = "__Host-SGOL-Session=opaque; __Host-SGOL-CSRF=synthetic";
         return new(new HttpClient(handler), new HttpContextAccessor { HttpContext = context });
     }
 

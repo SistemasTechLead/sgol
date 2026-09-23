@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Pages.Branches;
+using Sgol.Web.Presentation.Navigation;
+using Sgol.Identity.Contracts;
 using Xunit;
 
 namespace Sgol.UnitTests;
@@ -32,15 +34,16 @@ public sealed class BranchPageTests
     [Theory]
     [InlineData("TODAS")]
     [InlineData("LOR-002")]
-    public async Task UnsupportedBranch_ShowsUsefulErrorWithoutReadingCatalog(string branchCode)
+    public async Task UnsupportedBranch_ConvergesOnTheSameNotFoundAsMissingCanonicalSeed(string branchCode)
     {
         var reader = new RecordingReader(CreateLoretta());
         var page = CreatePage(reader);
 
         await page.OnGetAsync(branchCode, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status422UnprocessableEntity, page.Response.StatusCode);
-        Assert.Contains("LOR-001", page.Error?.Message, StringComparison.Ordinal);
+        Assert.Equal(StatusCodes.Status404NotFound, page.Response.StatusCode);
+        Assert.Equal("No se encontró la sucursal Loretta", page.EmptyState?.Title);
+        Assert.Null(page.Error);
         Assert.Null(page.Branch);
         Assert.False(page.IsLoading);
         Assert.Equal(0, reader.CallCount);
@@ -74,7 +77,7 @@ public sealed class BranchPageTests
         };
         context.TraceIdentifier = Guid.CreateVersion7().ToString("D");
 
-        return new DetailsModel(reader)
+        return new DetailsModel(reader, new StaticSessionState())
         {
             PageContext = new PageContext
             {
@@ -84,6 +87,16 @@ public sealed class BranchPageTests
                     new ModelStateDictionary()),
             },
         };
+    }
+
+    private sealed class StaticSessionState : IRazorSessionState
+    {
+        public bool IsInvalid => false;
+        public void Invalidate() { }
+        public Task<SessionSnapshot?> GetAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SessionSnapshot?>(new SessionSnapshot(Guid.NewGuid(), Guid.NewGuid(), "synthetic", "Synthetic",
+                "LOR-001", "DIRECCION", [], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(30),
+                DateTimeOffset.UtcNow.AddHours(8)));
     }
 
     private static BranchCatalogItem CreateLoretta() => new(

@@ -94,6 +94,7 @@ Razor recibe cookies `HttpOnly` desde el navegador y el cliente común reenvía 
 - Deshabilitado: sólo para una acción visible temporalmente no disponible, nunca para anunciar una sección no autorizada.
 - Cargando: `aria-busy` en la región afectada, sin presumir rol ni acciones.
 - Vacío: mensaje y siguiente acción autorizada; un grupo vacío no se muestra.
+- Cuando no exista ninguna página `NAV-*` implementada y visible, el shell muestra «Aún no hay secciones disponibles» sin enlace de acción. Texto aprobado expresamente por el responsable durante `TECH-FRONT-003`; no habilita rutas futuras.
 - Error: mensaje funcional aprobado, `correlationId` cuando exista y foco en el resumen; nunca JSON crudo ni secretos.
 
 En teléfono, la apertura y cierre del panel conservan foco, bloqueo modal y `Escape`; en escritorio, el orden y los nombres accesibles son equivalentes. Todo comportamiento cumple `accesibilidad.md`, `componentes.md` y `estados-y-mensajes.md`.

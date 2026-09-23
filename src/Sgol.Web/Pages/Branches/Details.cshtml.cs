@@ -8,7 +8,7 @@ using Sgol.Web.Presentation.ProblemDetails;
 
 namespace Sgol.Web.Pages.Branches;
 
-public sealed class DetailsModel(IBranchCatalogReader reader) : PageModel
+public sealed class DetailsModel(IBranchCatalogReader reader, IRazorSessionState sessionState) : PageModel
 {
     public BranchCatalogItem? Branch { get; private set; }
 
@@ -31,7 +31,7 @@ public sealed class DetailsModel(IBranchCatalogReader reader) : PageModel
                 new HashSet<string>(["DIRECCION"], StringComparer.Ordinal)),
         };
 
-        if (User.Identity?.IsAuthenticated != true)
+        if (await sessionState.GetAsync(cancellationToken) is null)
         {
             Response.StatusCode = StatusCodes.Status401Unauthorized;
             Error = new ProblemDetailsPresentation(
@@ -58,11 +58,12 @@ public sealed class DetailsModel(IBranchCatalogReader reader) : PageModel
         }
         catch (UnsupportedBranchCodeException)
         {
-            Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
-            Error = new ProblemDetailsPresentation(
-                "La sucursal solicitada está fuera del alcance MVP",
-                "SGOL sólo reconoce LOR-001. TODAS es un alcance de consulta, no una sucursal.",
-                HttpContext.GetCorrelationId());
+            Response.StatusCode = StatusCodes.Status404NotFound;
+            EmptyState = new EmptyStateViewModel(
+                "No se encontró la sucursal Loretta",
+                "La semilla canónica LOR-001 no está disponible.",
+                "Volver a consultar",
+                $"/branches/{BranchScope.LorettaCode}");
         }
         finally
         {

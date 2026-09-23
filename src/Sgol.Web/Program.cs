@@ -6,6 +6,8 @@ using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Authentication;
 using Sgol.Web.Presentation.ApiClient;
 using Sgol.Web.Presentation.Endpoints;
+using Sgol.Web.Presentation.Navigation;
+using Sgol.Web.Presentation.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +21,9 @@ builder.Logging.AddJsonConsole(options =>
 
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IRazorSessionState, RazorSessionState>();
+builder.Services.AddScoped<RazorAntiforgeryBridge>();
+builder.Services.AddSingleton<SafeReturnDestination>();
 builder.Services.AddHttpClient<ISgolApiClient, SgolApiClient>()
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
     {

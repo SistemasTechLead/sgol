@@ -40,7 +40,7 @@ public sealed class AntiforgeryValidationMiddleware(RequestDelegate next)
                             ["code"] = "CSRF_INVALID",
                             ["correlationId"] = context.GetCorrelationId(),
                         },
-                    });
+                    }, options: null, contentType: "application/problem+json");
                 return;
             }
 
@@ -60,7 +60,9 @@ public sealed class AntiforgeryValidationMiddleware(RequestDelegate next)
                             ["correlationId"] = context.GetCorrelationId(),
                         },
                     },
-                    context.RequestAborted);
+                    options: null,
+                    contentType: "application/problem+json",
+                    cancellationToken: context.RequestAborted);
                 return;
             }
         }
