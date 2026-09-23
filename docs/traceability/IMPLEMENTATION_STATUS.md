@@ -13,9 +13,9 @@ Una sección preparada en una rama de pull request es una propuesta de base acep
 | Contratos incorporados | Adenda 44, que inserta `TECH-UI-PLAN-001`; Adenda 45, que inserta `TECH-FRONT-001..005` y `FRONT-001..020` |
 | `TECH-UI-PLAN-001` | `Terminada`: inventario de 48 unidades, brechas, trazabilidad y backlog preparados, reconciliados, aprobados e integrados mediante PR `#60` |
 | Backend de entrada | `TECH-E2E-CV-04` y `TECH-E2E-CV-05` integradas/terminadas; CV-04 y CV-05 cerrados; dependencias exactas verificadas como ancestros |
-| Brechas vigentes | BR-API01..13, BR-D01..17, BR-M01..14 y BR-N01..08 bloquean sólo su historia consumidora; `TECH-FRONT-001` debe resolver primero la auditoría de base/diseño aplicable |
-| Estado de implementación | `TECH-FRONT-001` `Implementada localmente` en worktree limpio desde `d311d967e925f4b9c1d1161bb86914d587d809af`; las demás tareas `TECH-FRONT-*` y `FRONT-*` no están iniciadas |
-| Punto de parada | `TECH-FRONT-001` está implementada localmente; requiere primera autorización antes de commit, push y PR. No existe autorización de merge ni despliegue |
+| Brechas vigentes | BR-D17 quedó resuelta por `TECH-FRONT-001`; BR-API11/12 quedaron resueltas para presentación por `TECH-FRONT-002`. Las demás brechas BR-API, BR-D, BR-M y BR-N conservan sólo su tarea consumidora; este registro no las declara resueltas |
+| Estado de implementación | `TECH-FRONT-001` `Integrada` mediante PR `#62`, cabeza `7a0d8540dbfd211fc0f5156a02d834c5832bbabf`, check requerido `SUCCESS` run `35906130681`, merge `8c76c094da653903cd72acce9373dd2b0e4a2914`; cabeza y merge son ancestros de `origin/master`. `TECH-FRONT-002` `Implementada localmente` en `codex/tech-front-002`; las tareas posteriores no están iniciadas |
+| Punto de parada | `TECH-FRONT-002` tiene implementación local verificada y autorización para commit, push y PR. La publicación debe acreditarse con el PR y su SHA exacto; no existe autorización de merge ni despliegue y no se inicia `TECH-FRONT-003` aquí |
 
 ## Integrada — `TECH-E2E-CV-05`
 
@@ -890,8 +890,9 @@ Esta tabla forma parte de la comprobación de precedencia obligatoria antes de i
 | `TECH-E2E-CV-04` | `F07_ADENDA_42_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_04_TECH_E2E_CV_04.md` | Cierre de `CV-04` y entrada a `CV-05` | `Terminada`; PR `#58`, cabeza `945c966edbc84552bab5abd91a9866e128f18ead`, pipeline `SUCCESS` run `35772495865`, merge `00da83ca26f67e523d0d6067af737f38315e62b0`; `CV-04` cerrado |
 | `TECH-E2E-CV-05` | `F07_ADENDA_43_CONTRATO_DE_DEMO_AUTOMATIZADA_Y_CIERRE_CV_05_TECH_E2E_CV_05.md` | Cierre de `CV-05` y planificación frontend | `Terminada`; PR `#59`, cabeza `5f92fbc4c38acdc711513d447dac615bd8a2aed8`, pipeline `SUCCESS` run `35797088036`, merge `32c3961ff67f79670d0824da71d4f70a06d1dc01`; `CV-05` cerrado |
 | `TECH-UI-PLAN-001` | `F07_ADENDA_44_PLANIFICACION_CONTRACTUAL_DEFINITIVA_DEL_FRONTEND.md` | `TECH-FRONT-001` | `Terminada`; entregables aprobados e integrados mediante PR `#60`, pipeline `35808190514` `SUCCESS`, merge `d311d967e925f4b9c1d1161bb86914d587d809af` |
-| `TECH-FRONT-001` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | `TECH-FRONT-002` | `Implementada localmente`; auditoría y paquete aprobado en `docs/traceability/TECH_FRONT_001_AUDITORIA_BASE_UI.md`; BR-D17 corregida; render/componentes 12/12, arquitectura/accesibilidad 8/8 y compilaciones enfocadas correctas; pendiente autorización de commit/push/PR |
-| `TECH-FRONT-002..005` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | Según orden y dependencias de la Adenda 45 | `No iniciadas`; cada tarea requiere que su dependencia anterior esté integrada en `origin/master` |
+| `TECH-FRONT-001` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | `TECH-FRONT-002` | `Integrada`; auditoría y paquete aprobado en `docs/traceability/TECH_FRONT_001_AUDITORIA_BASE_UI.md`; BR-D17 corregida; render/componentes 12/12 y arquitectura/accesibilidad 8/8; PR `#62`, cabeza `7a0d8540dbfd211fc0f5156a02d834c5832bbabf`, check requerido `SUCCESS` run `35906130681`, merge `8c76c094da653903cd72acce9373dd2b0e4a2914`; ambos ancestros de `origin/master` |
+| `TECH-FRONT-002` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | `TECH-FRONT-003` | `Implementada localmente` en el corte de validación; BR-API11/12 aprobadas y documentadas en `docs/traceability/TECH_FRONT_002_CLIENTE_API.md`; cliente HTTP común, build Release y pruebas enfocadas `41/41` aprobadas. Publicación e integración se acreditan por separado |
+| `TECH-FRONT-003..005` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | Según orden y dependencias de la Adenda 45 | `No iniciadas`; cada tarea requiere que su dependencia anterior esté integrada en `origin/master` |
 | `FRONT-001..020` | `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md` | Según orden y dependencias de la Adenda 45 | `No iniciadas`; cada brecha bloquea sólo su historia consumidora |
 
 ## Base aceptada anterior — `TOOL-PLAN-004`

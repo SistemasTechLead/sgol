@@ -4,6 +4,7 @@ using Sgol.Web.Infrastructure.Http;
 using Sgol.Web.Infrastructure.Evidence;
 using Sgol.Web.Infrastructure.Persistence;
 using Sgol.Web.Infrastructure.Authentication;
+using Sgol.Web.Presentation.ApiClient;
 using Sgol.Web.Presentation.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,13 @@ builder.Logging.AddJsonConsole(options =>
 });
 
 builder.Services.AddRazorPages();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient<ISgolApiClient, SgolApiClient>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        UseCookies = false,
+        AllowAutoRedirect = false,
+    });
 builder.Services.AddSgolHttpPrimitives();
 builder.Services.AddSgolHostedAuthentication();
 builder.Services.AddSgolEvidenceInfrastructure(builder.Configuration, builder.Environment);
