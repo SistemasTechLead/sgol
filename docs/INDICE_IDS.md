@@ -1,6 +1,6 @@
 # Índice de identificadores
 
-Fecha de generación: 2026-09-22
+Fecha de generación: 2026-09-23
 
 Comando de regeneración: `pwsh -NoProfile -File scripts/ci/generate-id-index.ps1`
 
@@ -23,6 +23,14 @@ El índice apunta a la definición canónica de cada identificador, no a sus men
 | `ADR-013` | `F06_REGISTRO_ADR.md` | 162 | 169 |
 | `ADR-014` | `F06_REGISTRO_ADR.md` | 171 | 178 |
 | `ADR-015` | `F06_REGISTRO_ADR.md` | 180 | 187 |
+| `BR-N01` | `F07_ADENDA_46_MAPA_DE_NAVEGACION_Y_SESION_FRONTEND.md` | 42 | 48 |
+| `BR-N02` | `F07_ADENDA_46_MAPA_DE_NAVEGACION_Y_SESION_FRONTEND.md` | 50 | 55 |
+| `BR-N03` | `F07_ADENDA_46_MAPA_DE_NAVEGACION_Y_SESION_FRONTEND.md` | 57 | 61 |
+| `BR-N04` | `F07_ADENDA_46_MAPA_DE_NAVEGACION_Y_SESION_FRONTEND.md` | 63 | 69 |
+| `BR-N05` | `F07_ADENDA_46_MAPA_DE_NAVEGACION_Y_SESION_FRONTEND.md` | 71 | 76 |
+| `BR-N06` | `F07_ADENDA_46_MAPA_DE_NAVEGACION_Y_SESION_FRONTEND.md` | 78 | 82 |
+| `BR-N07` | `F07_ADENDA_46_MAPA_DE_NAVEGACION_Y_SESION_FRONTEND.md` | 84 | 89 |
+| `BR-N08` | `F07_ADENDA_46_MAPA_DE_NAVEGACION_Y_SESION_FRONTEND.md` | 91 | 96 |
 | `CA-001` | `F05_CRITERIOS_DE_ACEPTACION.md` | 31 | 31 |
 | `CA-002` | `F05_CRITERIOS_DE_ACEPTACION.md` | 32 | 32 |
 | `CA-003` | `F05_CRITERIOS_DE_ACEPTACION.md` | 33 | 33 |
@@ -273,6 +281,20 @@ El índice apunta a la definición canónica de cada identificador, no a sus men
 | `F05-JP-008` | `F05_ESPECIFICACION_FUNCIONAL_MVP.md` | 39 | 39 |
 | `F05-JP-009` | `F05_ESPECIFICACION_FUNCIONAL_MVP.md` | 40 | 40 |
 | `F07-JP-001` | `F07_BACKLOG_DE_IMPLEMENTACION.md` | 66 | 66 |
+| `NAV-AUDIT` | `docs/design/navegacion.md` | 23 | 23 |
+| `NAV-AUTH-LOGIN` | `docs/design/navegacion.md` | 12 | 12 |
+| `NAV-AUTH-MFA-ENROLL` | `docs/design/navegacion.md` | 14 | 14 |
+| `NAV-AUTH-MFA-VERIFY` | `docs/design/navegacion.md` | 15 | 15 |
+| `NAV-AUTH-PASSWORD` | `docs/design/navegacion.md` | 13 | 13 |
+| `NAV-AUTH-RECOVERY` | `docs/design/navegacion.md` | 16 | 16 |
+| `NAV-CONFIGURATION` | `docs/design/navegacion.md` | 21 | 21 |
+| `NAV-CONTINUITY` | `docs/design/navegacion.md` | 24 | 24 |
+| `NAV-ENTRY` | `docs/design/navegacion.md` | 11 | 11 |
+| `NAV-IDENTITY` | `docs/design/navegacion.md` | 20 | 20 |
+| `NAV-INDICATORS` | `docs/design/navegacion.md` | 22 | 22 |
+| `NAV-MY-WORK` | `docs/design/navegacion.md` | 17 | 17 |
+| `NAV-PLANNING` | `docs/design/navegacion.md` | 19 | 19 |
+| `NAV-VALIDATION` | `docs/design/navegacion.md` | 18 | 18 |
 | `NFR-001` | `F06_ARQUITECTURA.md` | 235 | 235 |
 | `NFR-002` | `F06_ARQUITECTURA.md` | 236 | 236 |
 | `NFR-003` | `F06_ARQUITECTURA.md` | 237 | 237 |
