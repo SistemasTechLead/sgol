@@ -72,6 +72,7 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
     [Theory]
     [InlineData("/css/tokens.css", "--color-acento")]
     [InlineData("/css/components.css", ".navegacion-lateral__item")]
+    [InlineData("/js/components.js", "data-credential-toggle")]
     public async Task SharedInterfaceStyles_AreServed(string path, string expectedContract)
     {
         var response = await _client.GetAsync(path);

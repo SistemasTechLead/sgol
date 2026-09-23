@@ -1,6 +1,10 @@
 # accesibilidad.md — SGOL / Loretta Zapatería
 
-Reglas de accesibilidad del sistema, calculadas sobre los valores de `tokens.md` con la fórmula de luminancia relativa de WCAG 2.1.
+Reglas de accesibilidad del sistema. La norma de aceptación de SGOL es WCAG 2.2 nivel AA, conforme a `F06_ESTRATEGIA_DE_PRUEBAS.md`.
+
+## Norma de aceptación y verificación
+
+Las relaciones de contraste de este documento se calculan sobre los valores de `tokens.md` con la fórmula de luminancia relativa conservada por WCAG 2.2. La tabla existente no basta por sí sola para declarar conformidad: cada cambio de token o componente debe volver a verificar contraste, foco visible, operación por teclado, área mínima, etiquetas y asociación de errores contra WCAG 2.2 AA.
 
 ## Uso de color por capa
 
@@ -51,6 +55,12 @@ El anillo nunca se suprime con `outline: none` sin reemplazo. Si un componente n
 ## Orden de tabulación en formularios
 
 Sigue el orden visual de lectura (arriba a abajo, izquierda a derecha); no se usa `tabindex` positivo para reordenarlo manualmente. Dentro de un modal, el foco queda atrapado (focus trap) mientras esté abierto y regresa al elemento que lo abrió al cerrarse, tal como se documenta en `componentes.md`. El botón de acción destructiva de un modal de confirmación nunca es el primer elemento enfocable — ver `estados-y-mensajes.md`, confirmación destructiva.
+
+## Viewport estrecho y reflow
+
+En teléfono, el layout cambia a una columna sin exigir desplazamiento horizontal de página. La tabla de datos conserva su semántica y puede desplazarse dentro de su propio contenedor; la navegación precede al contenido en el DOM y ningún control desaparece por el ancho. Zoom, texto ampliado y orientación no bloquean botones, errores, títulos ni el foco visible.
+
+Los controles que muestran u ocultan credenciales anuncian su estado, los grupos de radio usan `fieldset`/`legend`, los errores se asocian al control y el resumen puede recibir foco programático. El `dialog` nativo se abre modalmente, acepta Escape y devuelve el foco al disparador.
 
 ## Regla de color
 
