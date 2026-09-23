@@ -14,6 +14,7 @@ Infraestructura de sesión y CSRF de Razor, puente de cookies al cliente común 
 | Destino local, protegido, registrado y todavía autorizado | `TechFront003Tests.ReturnDestinationRejectsExternalApiMutationAndTampering` |
 | Navegación por `roleCode`, permisos y páginas implementadas; teclado y foco | `TechFront003Tests.NavigationRequiresCanonicalRolePermissionAndImplementedRazorRoute`, `InterfaceDesignRulesTests`; el diálogo nativo usa `showModal`, `Escape` y devuelve foco al disparador mediante `components.js` |
 | 401, 403, 404 y Problem Details seguros | `SgolApiClientTests.ContractedErrorStatuses_RemainErrorsWithSafePresentation`, `UnauthorizedForbiddenAndHiddenResource_HaveDistinctSafeTitles`, `BranchPageTests.UnsupportedBranch_ConvergesOnTheSameNotFoundAsMissingCanonicalSeed` |
+| Conservación de la página técnica pública existente | `BranchCatalogTests.CanonicalSeed_IsReturnedByApiAndAccessibleUi`: PostgreSQL real y página Razor anónima 200; regresión detectada por el primer pipeline del PR y corregida sin convertirla en página NAV protegida |
 | Tipos de contenido de autenticación y no efecto | `HostedAuthenticationTests` y `HostedAuthenticationKestrelSmokeTests`; causa y corrección en `TECH_FRONT_003_BLOQUEO_401.md` |
 
 ## Límite de esta tarea

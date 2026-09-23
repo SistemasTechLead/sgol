@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
@@ -6,8 +5,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Pages.Branches;
-using Sgol.Web.Presentation.Navigation;
-using Sgol.Identity.Contracts;
 using Xunit;
 
 namespace Sgol.UnitTests;
@@ -66,18 +63,10 @@ public sealed class BranchPageTests
 
     private static DetailsModel CreatePage(IBranchCatalogReader reader)
     {
-        var context = new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(
-            [
-                new Claim(ClaimTypes.NameIdentifier, "synthetic-direction"),
-                new Claim(ClaimTypes.Role, "DIRECCION"),
-            ],
-            "synthetic")),
-        };
+        var context = new DefaultHttpContext();
         context.TraceIdentifier = Guid.CreateVersion7().ToString("D");
 
-        return new DetailsModel(reader, new StaticSessionState())
+        return new DetailsModel(reader)
         {
             PageContext = new PageContext
             {
@@ -87,16 +76,6 @@ public sealed class BranchPageTests
                     new ModelStateDictionary()),
             },
         };
-    }
-
-    private sealed class StaticSessionState : IRazorSessionState
-    {
-        public bool IsInvalid => false;
-        public void Invalidate() { }
-        public Task<SessionSnapshot?> GetAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<SessionSnapshot?>(new SessionSnapshot(Guid.NewGuid(), Guid.NewGuid(), "synthetic", "Synthetic",
-                "LOR-001", "DIRECCION", [], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(30),
-                DateTimeOffset.UtcNow.AddHours(8)));
     }
 
     private static BranchCatalogItem CreateLoretta() => new(

@@ -1,14 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Sgol.Organization.Contracts;
-using Sgol.Web.Infrastructure.Http;
 using Sgol.Web.Presentation.Components;
 using Sgol.Web.Presentation.Navigation;
 using Sgol.Web.Presentation.ProblemDetails;
 
 namespace Sgol.Web.Pages.Branches;
 
-public sealed class DetailsModel(IBranchCatalogReader reader, IRazorSessionState sessionState) : PageModel
+public sealed class DetailsModel(IBranchCatalogReader reader) : PageModel
 {
     public BranchCatalogItem? Branch { get; private set; }
 
@@ -30,17 +29,6 @@ public sealed class DetailsModel(IBranchCatalogReader reader, IRazorSessionState
                 $"/branches/{BranchScope.LorettaCode}",
                 new HashSet<string>(["DIRECCION"], StringComparer.Ordinal)),
         };
-
-        if (await sessionState.GetAsync(cancellationToken) is null)
-        {
-            Response.StatusCode = StatusCodes.Status401Unauthorized;
-            Error = new ProblemDetailsPresentation(
-                "Se requiere una sesión activa",
-                "Inicia sesión para consultar la sucursal Loretta.",
-                HttpContext.GetCorrelationId());
-            IsLoading = false;
-            return;
-        }
 
         try
         {
