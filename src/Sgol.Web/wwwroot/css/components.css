@@ -545,6 +545,32 @@ summary:focus-visible {
     margin-top: var(--espacio-32);
 }
 
+.seccion-cuentas {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--espacio-16);
+    margin-top: var(--espacio-32);
+}
+
+.seccion-cuentas [data-sensitive-activation] code {
+    overflow-wrap: anywhere;
+}
+
+.seccion-cuentas .formulario-persona,
+.seccion-cuentas .formulario-persona form {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+}
+
+.seccion-cuentas .campo,
+.seccion-cuentas .campo__control--select {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .formulario-persona form {
     display: grid;
     gap: var(--espacio-16);

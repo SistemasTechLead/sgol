@@ -9,7 +9,7 @@ using Sgol.Web.Presentation.ProblemDetails;
 namespace Sgol.Web.Pages.People;
 
 [IgnoreAntiforgeryToken] // The shared bridge validates the Razor token before forwarding the same pair to the API.
-public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
+public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
     RazorAntiforgeryBridge antiforgery) : PageModel
 {
     public IReadOnlyList<PersonSummary> People { get; private set; } = [];
@@ -108,6 +108,7 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
             }
             People = response.Items ?? [];
             CanShowPeople = true;
+            await LoadAccountsAsync(cancellationToken);
             return Page();
         }
         catch (ApiProtocolException)
