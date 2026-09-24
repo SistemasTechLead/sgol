@@ -1,0 +1,11 @@
+@page "/"
+@model Sgol.Web.Pages.EntryModel
+@{
+    ViewData["SkipSession"] = true;
+}
+<section aria-labelledby="entrada-titulo">
+    <h1 id="entrada-titulo" class="encabezado-pagina__titulo">Sesión no disponible</h1>
+    <div id="session-error" class="alerta alerta--peligro" role="alert" tabindex="-1">
+        No se pudo consultar tu sesión. Vuelve a intentarlo.
+    </div>
+</section>

@@ -1,11 +1,15 @@
 @inject Sgol.Web.Presentation.Navigation.IRazorSessionState SessionState
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
 @{
     var title = ViewData["Title"] as string ?? "SGOL";
     var navigationItems = ViewData["NavigationItems"] as IEnumerable<NavigationItem> ?? [];
-    var access = ViewData["SkipSession"] is true;
-    var session = access ? null : await SessionState.GetAsync(Context.RequestAborted);
+    var shell = Context.Request.Path.Equals("/mi-trabajo", StringComparison.OrdinalIgnoreCase);
+    var session = shell ? await SessionState.GetAsync(Context.RequestAborted) : null;
+    var roleName = session is null ? null : SessionPresentation.RoleName(session.RoleCode);
+    if (roleName is null) session = null;
     var visibleItems = RoleAwareNavigation.VisibleTo(session, navigationItems);
     var hasNavigation = visibleItems.Count > 0;
+    var expiration = session is null ? (DateTimeOffset?)null : SessionPresentation.EffectiveExpiration(session);
 }
 <!DOCTYPE html>
 <html lang="es-MX">
@@ -18,12 +22,23 @@
 </head>
 <body>
     <a class="salto-contenido" href="#contenido-principal">Saltar al contenido principal</a>
-    <div class="aplicacion @(access ? "aplicacion--acceso" : null)">
+    <div class="aplicacion @(!shell ? "aplicacion--acceso" : !hasNavigation ? "aplicacion--sin-navegacion" : null)">
         <header class="encabezado-aplicacion">
             <span class="encabezado-aplicacion__marca" aria-label="Sistema de Gestión Operativa Loretta">SGOL</span>
             @if (session is not null)
             {
-                <span class="encabezado-aplicacion__sesion">@session.DisplayName</span>
+                <div class="encabezado-aplicacion__identidad">
+                    <span class="encabezado-aplicacion__sesion">@session.DisplayName</span>
+                    <span class="encabezado-aplicacion__rol">@roleName</span>
+                    <span class="encabezado-aplicacion__expiracion">Sesión hasta
+                        <time datetime="@expiration!.Value.ToString("O")">@SessionPresentation.ExpirationText(session, DateTimeOffset.UtcNow)</time>
+                        (hora de Ciudad de México)
+                    </span>
+                </div>
+                <form method="post" action="/mi-trabajo" asp-antiforgery="false" class="encabezado-aplicacion__logout" data-logout-form>
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                    <button class="boton boton--secundario" type="submit">Cerrar sesión</button>
+                </form>
                 @if (hasNavigation)
                 {
                     <button class="boton boton--secundario navegacion-movil__abrir" type="button"
@@ -31,7 +46,7 @@
                 }
             }
         </header>
-        @if (!access)
+        @if (hasNavigation)
         {
         <aside class="barra-lateral">
             <nav class="navegacion-lateral navegacion-lateral--escritorio" aria-label="Navegación principal">
@@ -48,12 +63,6 @@
                     }
                 </ul>
             </nav>
-            @if (session is not null && !hasNavigation)
-            {
-                <p class="navegacion-lateral__vacio">Aún no hay secciones disponibles</p>
-            }
-            @if (hasNavigation)
-            {
                 <dialog id="navegacion-movil" class="navegacion-movil" aria-label="Navegación principal">
                     <form method="dialog"><button class="boton boton--secundario" type="submit">Cerrar navegación</button></form>
                     <nav aria-label="Navegación principal móvil">
@@ -66,7 +75,6 @@
                         </ul>
                     </nav>
                 </dialog>
-            }
         </aside>
         }
         <main id="contenido-principal" class="contenido-principal" tabindex="-1">

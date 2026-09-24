@@ -26,6 +26,7 @@ internal sealed class BrowserFixture : IAsyncDisposable
     private readonly string databaseName = $"sgol_front004_{Guid.CreateVersion7():N}";
     private readonly List<HttpClient> clients = [];
     private PostgreSqlContainer? database;
+    private string? connectionString;
     private Process? web;
     private Task? stdoutDrain;
     private Task? stderrDrain;
@@ -65,6 +66,7 @@ internal sealed class BrowserFixture : IAsyncDisposable
             .Build();
         await database.StartAsync();
         var connection = database.GetConnectionString();
+        connectionString = connection;
         var parsed = new Npgsql.NpgsqlConnectionStringBuilder(connection);
         if (parsed.Host is not ("localhost" or "127.0.0.1") || parsed.Database != databaseName || parsed.Port <= 0)
             throw new InvalidOperationException("Disposable database contract failed.");
@@ -167,6 +169,16 @@ internal sealed class BrowserFixture : IAsyncDisposable
         var client = new HttpClient(handler) { BaseAddress = BaseAddress, Timeout = TimeSpan.FromSeconds(30) };
         clients.Add(client);
         return client;
+    }
+
+    public async Task InvalidateAsync(BrowserAccount account)
+    {
+        if (connectionString is null) throw new InvalidOperationException("Disposable database is unavailable.");
+        await using var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>()
+            .UseNpgsql(connectionString).Options);
+        var user = await context.AppUsers.SingleAsync(item => item.Id == account.UserId);
+        user.SecurityStamp = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+        await context.SaveChangesAsync();
     }
 
     public async Task<string> AuthenticateAsync(BrowserAccount account)

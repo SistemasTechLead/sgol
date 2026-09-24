@@ -25,6 +25,13 @@
         </div>
     }
 
+    @if (Model.NoticeMessage is not null)
+    {
+        <div class="alerta @(Model.NoticeConfirmed ? "alerta--exito" : "alerta--peligro")" role="status" tabindex="-1" id="access-notice">
+            <strong>@Model.NoticeMessage</strong>
+        </div>
+    }
+
     @switch (Model.Stage)
     {
         case "login":
@@ -120,9 +127,11 @@
                 }
             </ol>
             <p role="status">Sesión iniciada.</p>
+            <a class="boton boton--secundario" href="/mi-trabajo">Ir a Mi trabajo</a>
             break;
         case "complete":
             <p role="status">Sesión iniciada.</p>
+            <a class="boton boton--secundario" href="/mi-trabajo">Ir a Mi trabajo</a>
             break;
         case "expired":
             <p>El paso de acceso venció. Vuelve a iniciar sesión para continuar.</p>

@@ -206,3 +206,16 @@ Cuando hay más de un error, se muestra un resumen con título y lista antes del
 | `ERROR_ESCANEO` | “No se pudo completar el análisis. El archivo permanece sin vincular.” |
 
 Los mensajes no muestran la URL firmada, detalles del motor antimalware ni recomiendan reintento automático. La pantalla consumidora decide si ofrece un nuevo intento conforme a su contrato.
+
+## BR-D15 — sesión y cierre de UI-A06/A07
+
+| Situación | Mensaje visible | Efecto |
+|---|---|---|
+| Acción normal | «Cerrar sesión» | Formulario POST con antiforgery, nunca GET. |
+| En curso | «Cerrando sesión…» | Control deshabilitado y región ocupada accesible; no hay segundo envío ni reintento automático. |
+| Logout confirmado por `204` | «Sesión cerrada.» | Descartar snapshot, antiforgery y cookies permitidas; redirigir a `/acceso`. |
+| Sesión expirada o invalidada | «Tu sesión terminó. Inicia sesión nuevamente.» | Descartar estado y cookies permitidas; volver a `/acceso`. |
+| CSRF inválido | «No se pudo verificar la solicitud. Recarga la página antes de volver a enviarla.» | Conservar el mensaje común de `CSRF_INVALID`; no repetir POST ni afirmar cierre remoto. |
+| Logout remoto sin confirmación o excepción | «La sesión se cerró en este dispositivo, pero no se pudo confirmar el cierre en el servidor.» | Contención local mediante eliminación de cookies permitidas; volver a `/acceso` sin afirmar auditoría remota. |
+
+Los avisos de acceso después de redirección reciben foco programático y no contienen cookies, tokens, cuerpo técnico, JSON crudo ni detalles internos. La acción de logout sigue disponible cuando no haya secciones funcionales visibles. El servidor conserva la autoridad y vuelve a validar cada recurso.

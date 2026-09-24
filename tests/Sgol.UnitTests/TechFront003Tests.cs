@@ -60,10 +60,38 @@ public sealed class TechFront003Tests
         }));
         Assert.Null(await expired.GetAsync());
         Assert.True(expired.IsInvalid);
+        var unknown = new RazorSessionState(new RecordingApi(Success("UNKNOWN")));
+        Assert.Null(await unknown.GetAsync());
+        Assert.True(unknown.IsInvalid);
         var changed = new RazorSessionState(new RecordingApi(Success("DIRECCION")));
         Assert.NotNull(await changed.GetAsync());
         changed.Invalidate();
         Assert.Null(await changed.GetAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InvalidOrExpiredSessionClearsOnlyAllowedBrowserCookiesAndSnapshot(bool expired)
+    {
+        var context = Context("__Host-SGOL-Session=synthetic; __Host-SGOL-CSRF=synthetic; unrelated=synthetic");
+        var accessor = new HttpContextAccessor { HttpContext = context };
+        var response = expired
+            ? Success("DIRECCION") with
+            {
+                Data = Snapshot("DIRECCION") with { IdleExpiresAt = DateTimeOffset.UtcNow.AddSeconds(-1) }
+            }
+            : Error(401);
+        var state = new RazorSessionState(new RecordingApi(response), accessor);
+
+        Assert.Null(await state.GetAsync());
+        Assert.True(state.IsInvalid);
+        Assert.Null(await state.GetAsync());
+        var deletions = context.Response.Headers.SetCookie.ToString();
+        Assert.Contains("__Host-SGOL-Session=", deletions, StringComparison.Ordinal);
+        Assert.Contains("__Host-SGOL-PreAuth=", deletions, StringComparison.Ordinal);
+        Assert.Contains("__Host-SGOL-CSRF=", deletions, StringComparison.Ordinal);
+        Assert.DoesNotContain("unrelated=", deletions, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -174,6 +202,10 @@ public sealed class TechFront003Tests
         Assert.Null(protector.Read(token, implemented, _ => false));
         Assert.Null(protector.Read(token, new HashSet<string>(), _ => true));
         Assert.Null(protector.Protect("/synthetic-protected"));
+        var host = protector.Protect("/mi-trabajo");
+        Assert.NotNull(host);
+        Assert.Equal("/mi-trabajo", protector.Read(host, authorizedForCurrentPrincipal: _ => true));
+        Assert.Null(protector.Protect("/mi-trabajo/obligaciones"));
     }
 
     [Fact]

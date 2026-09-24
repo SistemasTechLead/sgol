@@ -43,5 +43,19 @@
         });
     });
 
+    document.querySelectorAll("[data-logout-form]").forEach(form => {
+        form.addEventListener("submit", () => {
+            form.setAttribute("aria-busy", "true");
+            const button = form.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = true;
+                button.setAttribute("aria-busy", "true");
+                button.textContent = "Cerrando sesión…";
+            }
+        });
+    });
+
     document.getElementById("acceso-error")?.focus();
+    document.getElementById("access-notice")?.focus();
+    document.getElementById("session-error")?.focus();
 })();

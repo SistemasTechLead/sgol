@@ -46,7 +46,8 @@ public sealed class RazorAntiforgeryBridge(IAntiforgery antiforgery, ISgolApiCli
         if (response.IsSuccess && request.Path.StartsWith("/api/v1/auth/", StringComparison.Ordinal) &&
             request.Path != "/api/v1/auth/mfa/enroll")
             ApiCookieBridge.ClearCsrf(context);
-        if (request.Path == "/api/v1/auth/logout" && !response.IsSuccess)
+        if (request.Path == "/api/v1/auth/logout" && !response.IsSuccess &&
+            response.ErrorCode is not ("CSRF_INVALID" or "CSRF_INVALIDO"))
         {
             ApiCookieBridge.Clear(context);
             sessionState?.Invalidate();

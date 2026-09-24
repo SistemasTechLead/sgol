@@ -8,8 +8,8 @@ public sealed class SafeReturnDestination(IDataProtectionProvider provider)
         .CreateProtector("SGOL.Frontend.ReturnDestination.v1")
         .ToTimeLimitedDataProtector();
 
-    // No protected NAV route has been implemented yet. Each story adds its own exact route.
-    private static readonly IReadOnlySet<string> ImplementedRoutes = new HashSet<string>(StringComparer.Ordinal);
+    // FRONT-002 implements only the shell host, without any UI-E child route.
+    private static readonly IReadOnlySet<string> ImplementedRoutes = new HashSet<string>(["/mi-trabajo"], StringComparer.Ordinal);
 
     public string? Protect(string? destination, IReadOnlySet<string>? implementedRoutes = null)
     {
