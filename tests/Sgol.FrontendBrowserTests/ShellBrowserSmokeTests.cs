@@ -87,9 +87,16 @@ public sealed class ShellBrowserSmokeTests
                         FullPage = true,
                         Mask = [page.Locator(".encabezado-aplicacion__sesion")],
                     });
-                    results.Add(new { role = account.Role, browser = viewport.Name, viewport =
-                        $"{viewport.Width}x{viewport.Height}", shell = "PASSED", accessibility = "PASSED",
-                        screenshot = imageName });
+                    results.Add(new
+                    {
+                        role = account.Role,
+                        browser = viewport.Name,
+                        viewport =
+                        $"{viewport.Width}x{viewport.Height}",
+                        shell = "PASSED",
+                        accessibility = "PASSED",
+                        screenshot = imageName
+                    });
                     await context.ClearCookiesAsync();
                     Assert.Empty(await context.CookiesAsync());
                 }
@@ -105,8 +112,12 @@ public sealed class ShellBrowserSmokeTests
         // trace, video, console log, or response body is serialized.
         var report = JsonSerializer.Serialize(new
         {
-            task = "TECH-FRONT-004", status = "PASSED", browsers = browserVersions,
-            cases = results, cleanup = "PASSED", evidence = "masked screenshots; no traces or logs",
+            task = "TECH-FRONT-004",
+            status = "PASSED",
+            browsers = browserVersions,
+            cases = results,
+            cleanup = "PASSED",
+            evidence = "masked screenshots; no traces or logs",
         }, ReportOptions);
         Assert.DoesNotContain("__Host-SGOL", report, StringComparison.Ordinal);
         foreach (var account in fixture.Accounts)
@@ -155,7 +166,9 @@ public sealed class ShellBrowserSmokeTests
         (string Name, int Width, int Height, bool Mobile) viewport) => browser.NewContextAsync(new()
         {
             ViewportSize = new() { Width = viewport.Width, Height = viewport.Height },
-            Locale = "es-MX", IsMobile = viewport.Mobile, HasTouch = viewport.Mobile,
+            Locale = "es-MX",
+            IsMobile = viewport.Mobile,
+            HasTouch = viewport.Mobile,
             IgnoreHTTPSErrors = true,
             ServiceWorkers = ServiceWorkerPolicy.Block,
         });

@@ -76,20 +76,40 @@ internal sealed class BrowserFixture : IAsyncDisposable
             var now = DateTimeOffset.UtcNow.AddMinutes(-1);
             foreach (var account in Accounts)
             {
-                context.People.Add(new Person { Id = account.PersonId, StableCode = $"FRONT004-{account.PersonId:N}",
-                    DisplayName = $"Persona sintética {account.Role}", CreatedAt = now });
+                context.People.Add(new Person
+                {
+                    Id = account.PersonId,
+                    StableCode = $"FRONT004-{account.PersonId:N}",
+                    DisplayName = $"Persona sintética {account.Role}",
+                    CreatedAt = now
+                });
                 context.EmploymentVersions.Add(new EmploymentVersion(Guid.CreateVersion7(), account.PersonId,
                     BranchScope.LorettaId, EmploymentStatus.Active, now));
-                var user = new AppUser { Id = account.UserId, PersonId = account.PersonId,
-                    Status = AccountStatus.Active, MustChangePassword = true,
-                    SecurityStamp = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)) };
+                var user = new AppUser
+                {
+                    Id = account.UserId,
+                    PersonId = account.PersonId,
+                    Status = AccountStatus.Active,
+                    MustChangePassword = true,
+                    SecurityStamp = Convert.ToHexString(RandomNumberGenerator.GetBytes(16))
+                };
                 context.AppUsers.Add(user);
-                context.IdentityCredentials.Add(new IdentityCredential { UserId = user.Id,
-                    UserName = account.UserName, NormalizedUserName = account.UserName.ToUpperInvariant(),
-                    PasswordHash = hasher.HashPassword(user, account.TemporaryPassword) });
-                context.RoleAssignmentVersions.Add(new RoleAssignmentVersion { Id = Guid.CreateVersion7(),
-                    UserId = user.Id, BranchId = BranchScope.LorettaId, RoleCode = account.Role,
-                    Status = RoleAssignmentStatus.Active, ValidFrom = now });
+                context.IdentityCredentials.Add(new IdentityCredential
+                {
+                    UserId = user.Id,
+                    UserName = account.UserName,
+                    NormalizedUserName = account.UserName.ToUpperInvariant(),
+                    PasswordHash = hasher.HashPassword(user, account.TemporaryPassword)
+                });
+                context.RoleAssignmentVersions.Add(new RoleAssignmentVersion
+                {
+                    Id = Guid.CreateVersion7(),
+                    UserId = user.Id,
+                    BranchId = BranchScope.LorettaId,
+                    RoleCode = account.Role,
+                    Status = RoleAssignmentStatus.Active,
+                    ValidFrom = now
+                });
             }
             await context.SaveChangesAsync();
         }
@@ -110,9 +130,14 @@ internal sealed class BrowserFixture : IAsyncDisposable
         await File.WriteAllBytesAsync(certificatePath, certificate.Export(X509ContentType.Pfx, password));
         var assembly = Path.Combine(RepositoryRoot(), "src", "Sgol.Web", "bin", "Release", "net10.0", "Sgol.Web.dll");
         if (!File.Exists(assembly)) throw new InvalidOperationException("Build Release before browser smoke.");
-        var start = new ProcessStartInfo("dotnet") { UseShellExecute = false,
-            RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
-            WorkingDirectory = Path.Combine(RepositoryRoot(), "src", "Sgol.Web") };
+        var start = new ProcessStartInfo("dotnet")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            WorkingDirectory = Path.Combine(RepositoryRoot(), "src", "Sgol.Web")
+        };
         start.ArgumentList.Add(assembly);
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "IntegrationTests";
         start.Environment["ASPNETCORE_URLS"] = BaseAddress.AbsoluteUri;
@@ -131,10 +156,14 @@ internal sealed class BrowserFixture : IAsyncDisposable
         if (certificate is null) throw new InvalidOperationException("HTTPS fixture is not ready.");
         cookies = new CookieContainer();
         var expected = certificate.GetCertHashString(HashAlgorithmName.SHA256);
-        var handler = new HttpClientHandler { CookieContainer = cookies, UseCookies = true,
+        var handler = new HttpClientHandler
+        {
+            CookieContainer = cookies,
+            UseCookies = true,
             AllowAutoRedirect = false,
             ServerCertificateCustomValidationCallback = (_, presented, _, _) => presented is not null &&
-                string.Equals(presented.GetCertHashString(HashAlgorithmName.SHA256), expected, StringComparison.Ordinal) };
+                string.Equals(presented.GetCertHashString(HashAlgorithmName.SHA256), expected, StringComparison.Ordinal)
+        };
         var client = new HttpClient(handler) { BaseAddress = BaseAddress, Timeout = TimeSpan.FromSeconds(30) };
         clients.Add(client);
         return client;
