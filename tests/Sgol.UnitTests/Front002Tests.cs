@@ -71,7 +71,7 @@ public sealed class Front002Tests
         Assert.Equal("10:00", SessionPresentation.ExpirationText(session, now));
         session = session with { IdleExpiresAt = now.AddDays(2), AbsoluteExpiresAt = now.AddDays(1) };
         Assert.Equal(now.AddDays(1), SessionPresentation.EffectiveExpiration(session));
-        Assert.Contains("25 sept 2026", SessionPresentation.ExpirationText(session, now), StringComparison.Ordinal);
+        Assert.Matches(@"^25 sept? 2026, 08:00$", SessionPresentation.ExpirationText(session, now));
     }
 
     [Fact]
