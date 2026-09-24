@@ -100,10 +100,17 @@ jobs:
       - name: Build Release with static analysis
         run: dotnet build --no-restore --configuration Release
 
+      - name: Install browsers and Linux dependencies for TECH-FRONT-004 smoke
+        shell: pwsh
+        run: ./tests/Sgol.FrontendBrowserTests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium webkit
+
       - name: Run unit, architecture and PostgreSQL integration tests
         env:
           SGOL_EVIDENCE_EICAR_TESTS: "true"
-        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED'
+        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER'
+
+      - name: TECH-FRONT-004 / isolated browser smoke
+        run: dotnet test tests/Sgol.FrontendBrowserTests/Sgol.FrontendBrowserTests.csproj --no-build --configuration Release --filter 'Category=FRONT_BROWSER'
 
       - name: TECH-E2E-CV-04 / integral hosted demo
         shell: pwsh

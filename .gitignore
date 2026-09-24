@@ -8,6 +8,7 @@ TestResults/
 .artifacts/cv03/
 .artifacts/cv04/
 .artifacts/cv05/
+.artifacts/tech-front-004/
 *.user
 *.suo
 *.nupkg
