@@ -1,0 +1,61 @@
+@page "/personas-y-accesos/personas/{personId:guid}"
+@model Sgol.Web.Pages.People.DetailsModel
+@{
+    ViewData["Title"] = "Historial laboral";
+}
+<section aria-labelledby="detalle-persona-titulo">
+    <a class="boton boton--secundario" href="/personas-y-accesos">Volver a personas</a>
+    @if (Model.Error is not null)
+    {
+        <h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">Persona no disponible</h1>
+        <div id="person-detail-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div>
+    }
+    else if (Model.Person is { } person)
+    {
+        <h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">@person.DisplayName</h1>
+        <dl class="detalle-persona">
+            <div><dt>Código de persona</dt><dd>@person.StableCode</dd></div>
+            <div><dt>Fecha de registro</dt><dd><time datetime="@person.CreatedAt.ToString("O")">@Sgol.Web.Pages.People.DetailsModel.LocalDateTime(person.CreatedAt)</time> (Ciudad de México)</dd></div>
+        </dl>
+        <h2>Historial laboral</h2>
+        <div class="tabla-contenedor">
+            <table class="tabla">
+                <caption>Versiones laborales de la persona</caption>
+                <thead class="tabla__encabezado"><tr><th scope="col">Estado</th><th scope="col">Desde</th><th scope="col">Hasta</th><th scope="col">Puesto</th><th scope="col">Turno</th></tr></thead>
+                <tbody class="tabla__cuerpo">
+                    @foreach (var version in person.EmploymentHistory)
+                    {
+                        <tr class="tabla__fila">
+                            <td>
+                                @if (version.Status == "ACTIVA")
+                                {
+                                    <span class="badge badge--exito"><span aria-hidden="true">✓</span>Activa</span>
+                                }
+                                else if (version.Status == "INACTIVA")
+                                {
+                                    <span class="badge badge--neutro"><span aria-hidden="true">⊘</span>Inactiva</span>
+                                }
+                            </td>
+                            <td><time datetime="@version.ValidFrom.ToString("O")">@Sgol.Web.Pages.People.DetailsModel.LocalDateTime(version.ValidFrom)</time></td>
+                            <td>
+                                @if (version.ValidTo is { } validTo)
+                                {
+                                    <time datetime="@validTo.ToString("O")">@Sgol.Web.Pages.People.DetailsModel.LocalDateTime(validTo)</time>
+                                }
+                                else { <span>Vigente</span> }
+                            </td>
+                            <td>@(version.PositionText ?? "Sin registrar")</td>
+                            <td>@(version.ShiftText ?? "Sin registrar")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+@section Scripts {
+    @if (Model.Error is not null)
+    {
+        <script>document.getElementById('person-detail-error')?.focus();</script>
+    }
+}

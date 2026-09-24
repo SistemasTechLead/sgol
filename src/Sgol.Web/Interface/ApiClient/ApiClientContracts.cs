@@ -44,6 +44,10 @@ public sealed class ApiMutationIntent
 
     public static ApiMutationIntent New() => new(Guid.NewGuid());
 
+    public static ApiMutationIntent FromKey(Guid key) => key == Guid.Empty
+        ? throw new ArgumentException("La intención requiere una clave.", nameof(key))
+        : new ApiMutationIntent(key);
+
     internal void Bind(HttpMethod method, string path, string? ifMatch, byte[] body)
     {
         var prefix = Encoding.UTF8.GetBytes($"{method.Method}\n{path}\n{ifMatch}\n");

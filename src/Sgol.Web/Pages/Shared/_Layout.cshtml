@@ -2,8 +2,14 @@
 @inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
 @{
     var title = ViewData["Title"] as string ?? "SGOL";
-    var navigationItems = ViewData["NavigationItems"] as IEnumerable<NavigationItem> ?? [];
-    var shell = Context.Request.Path.Equals("/mi-trabajo", StringComparison.OrdinalIgnoreCase);
+    var navigationItems = new[]
+    {
+        new NavigationItem("Personas y accesos", "/personas-y-accesos",
+            new HashSet<string>(["DIRECCION"], StringComparer.Ordinal),
+            new HashSet<string>(["PER-PERSONA-ADMIN"], StringComparer.Ordinal))
+    };
+    var shell = Context.Request.Path.StartsWithSegments("/mi-trabajo") ||
+        Context.Request.Path.StartsWithSegments("/personas-y-accesos");
     var session = shell ? await SessionState.GetAsync(Context.RequestAborted) : null;
     var roleName = session is null ? null : SessionPresentation.RoleName(session.RoleCode);
     if (roleName is null) session = null;
@@ -56,7 +62,7 @@
                         <li>
                             <a class="navegacion-lateral__item"
                                href="@item.Href"
-                               aria-current="@(Context.Request.Path.Equals(item.Href, StringComparison.OrdinalIgnoreCase) ? "page" : null)">
+                               aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)">
                                 @item.Label
                             </a>
                         </li>
@@ -70,7 +76,7 @@
                             @foreach (var item in visibleItems)
                             {
                                 <li><a class="navegacion-lateral__item" href="@item.Href"
-                                       aria-current="@(Context.Request.Path.Equals(item.Href, StringComparison.OrdinalIgnoreCase) ? "page" : null)">@item.Label</a></li>
+                                       aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)">@item.Label</a></li>
                             }
                         </ul>
                     </nav>

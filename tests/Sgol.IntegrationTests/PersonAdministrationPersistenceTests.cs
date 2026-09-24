@@ -137,6 +137,35 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
+    [Theory]
+    [InlineData("ADMINISTRACION")]
+    [InlineData("SUBCOORDINACION")]
+    [InlineData("PISO_VENTAS")]
+    public async Task OtherRolesCannotListCreateOrReadPeople_AndHaveNoBusinessEffect(string role)
+    {
+        var actorUserId = await ResetAndSeedActorAsync(role);
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator(Now), Now);
+        var peopleBefore = await context.People.CountAsync();
+        var versionsBefore = await context.EmploymentVersions.CountAsync();
+        var idempotencyBefore = await context.IdempotencyRecords.CountAsync();
+        var knownPerson = await context.People.AsNoTracking().Select(item => item.Id).FirstAsync();
+
+        await Assert.ThrowsAsync<PersonAccessDeniedException>(() =>
+            service.ListAsync(actorUserId, Guid.CreateVersion7()));
+        await Assert.ThrowsAsync<PersonAccessDeniedException>(() =>
+            service.FindAsync(actorUserId, Guid.CreateVersion7(), knownPerson));
+        await Assert.ThrowsAsync<PersonAccessDeniedException>(() =>
+            service.CreateAsync(new CreatePersonCommand(actorUserId, Guid.CreateVersion7(),
+                Guid.CreateVersion7(), "FRONT003-DENIED", "Persona sintética denegada")));
+
+        Assert.Equal(peopleBefore, await context.People.CountAsync());
+        Assert.Equal(versionsBefore, await context.EmploymentVersions.CountAsync());
+        Assert.Equal(idempotencyBefore, await context.IdempotencyRecords.CountAsync());
+        Assert.Equal(3, await context.AuditEvents.CountAsync(item =>
+            item.ActorUserId == actorUserId && item.Action == "PERSON_ACCESS_DENIED"));
+    }
+
     [Fact]
     public async Task InactiveDirectionPerson_IsDeniedAndAuditedWithoutBusinessEffect()
     {

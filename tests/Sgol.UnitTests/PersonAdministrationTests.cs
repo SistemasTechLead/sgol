@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Presentation.Endpoints;
@@ -8,8 +9,20 @@ namespace Sgol.UnitTests;
 
 public sealed class PersonAdministrationTests
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly Guid ActorUserId = Guid.Parse("019d2d67-2c00-7000-8000-000000000101");
     private static readonly Guid PersonId = Guid.Parse("019d2d67-2c00-7000-8000-000000000102");
+
+    [Fact]
+    public async Task EmptyList_UsesCollectionEnvelopeWithCountForTheSharedClient()
+    {
+        var result = await PersonApiEndpoints.HandleListAsync(CreateContext(authenticated: true),
+            new RecordingPersonService(CreateDetails()), CancellationToken.None);
+        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
+        using var document = JsonSerializer.SerializeToDocument(value, JsonOptions);
+        Assert.Empty(document.RootElement.GetProperty("data").EnumerateArray());
+        Assert.Equal(0, document.RootElement.GetProperty("meta").GetProperty("count").GetInt32());
+    }
 
     [Fact]
     public void EmploymentCorrection_ClosesPredecessorAndCreatesSuccessor()

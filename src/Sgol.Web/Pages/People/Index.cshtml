@@ -1,0 +1,39 @@
+@page "/personas-y-accesos"
+@model Sgol.Web.Pages.People.IndexModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@using Sgol.Web.Presentation.Components
+@{
+    ViewData["Title"] = "Personas y accesos";
+}
+<section aria-labelledby="personas-titulo">
+    <h1 id="personas-titulo" class="encabezado-pagina__titulo">Personas y accesos</h1>
+    @if (Model.Error is not null)
+    {
+        <div id="people-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div>
+    }
+    @if (Model.CanShowPeople && !Model.IsDenied)
+    {
+        <partial name="_DataTable" model="@(new DataTableViewModel(
+            "Personas registradas", ["Código", "Nombre"],
+            Model.People.Select(person => (IReadOnlyList<string>)[person.StableCode, person.DisplayName]).ToArray(),
+            EmptyState: new EmptyStateViewModel("Aún no hay personas registradas", "Registra la primera persona para comenzar.", "Registrar persona", "#alta-persona"),
+            RowActions: Model.People.Select(person => (IReadOnlyList<DataTableActionViewModel>)[
+                new DataTableActionViewModel("Consultar historial", $"/personas-y-accesos/personas/{person.Id:D}")]).ToArray()))" />
+        <section id="alta-persona" class="formulario-persona" aria-labelledby="alta-persona-titulo">
+            <h2 id="alta-persona-titulo">Registrar persona</h2>
+            <form method="post" asp-antiforgery="false" data-progress-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                <input type="hidden" name="intentKey" value="@Model.IntentKey.ToString("D")" />
+                <partial name="_FormField" model="@(new FormFieldViewModel("stableCode", "Código de persona", Model.StableCode, ErrorMessage: Model.CodeError))" />
+                <partial name="_FormField" model="@(new FormFieldViewModel("displayName", "Nombre", Model.DisplayName))" />
+                <button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Registrar persona</button>
+            </form>
+        </section>
+    }
+</section>
+@section Scripts {
+    @if (Model.Error is not null)
+    {
+        <script>document.getElementById('people-error')?.focus();</script>
+    }
+}

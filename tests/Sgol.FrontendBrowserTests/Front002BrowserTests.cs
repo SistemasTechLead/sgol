@@ -35,7 +35,8 @@ public sealed class Front002BrowserTests
                 await page.GotoAsync(new Uri(fixture.BaseAddress, "/").AbsoluteUri);
                 Assert.EndsWith("/mi-trabajo", page.Url, StringComparison.Ordinal);
                 Assert.Equal("Mi trabajo", await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).InnerTextAsync());
-                Assert.Equal(0, await page.Locator("nav a").CountAsync());
+                Assert.Equal(viewport.Account == 0 ? 1 : 0,
+                    await page.Locator(".navegacion-lateral--escritorio a").CountAsync());
 
                 await page.Locator(".salto-contenido").FocusAsync();
                 Assert.True(await page.Locator(".salto-contenido").EvaluateAsync<bool>(
@@ -45,7 +46,7 @@ public sealed class Front002BrowserTests
                 Assert.True(await logout.EvaluateAsync<bool>(
                     "element => document.activeElement === element && getComputedStyle(element).outlineStyle !== 'none'"));
 
-                await page.Locator("input[name='__RequestVerificationToken']").EvaluateAsync("element => element.remove()");
+                await page.Locator("[data-logout-form] input[name='__RequestVerificationToken']").EvaluateAsync("element => element.remove()");
                 await logout.ClickAsync();
                 Assert.Equal("/mi-trabajo", new Uri(page.Url).AbsolutePath);
                 Assert.Contains("No se pudo verificar la solicitud", await page.Locator("#session-error").InnerTextAsync());
