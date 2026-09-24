@@ -52,7 +52,11 @@ public static class PersonApiEndpoints
                 fromDate,
                 toDate,
                 cancellationToken);
-            return Ok(context, values);
+            return Results.Ok(new
+            {
+                data = values,
+                meta = new { correlationId = context.GetCorrelationId(), count = values.Count },
+            });
         }
         catch (Exception exception)
         {

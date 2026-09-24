@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
@@ -9,6 +10,14 @@ namespace Sgol.UnitTests;
 
 public sealed class AvailabilityAdministrationTests
 {
+    [Theory]
+    [InlineData(CanonicalRole.Direction, true)]
+    [InlineData(CanonicalRole.Administration, false)]
+    [InlineData(CanonicalRole.Subcoordination, false)]
+    [InlineData(CanonicalRole.SalesFloor, false)]
+    public void SessionProjectsAvailabilityPermissionOnlyForDirection(string role, bool expected) =>
+        Assert.Equal(expected, RolePermissionProjection.ForRole(role).Contains(AvailabilityAuthorization.Administer));
+
     private static readonly Guid ActorUserId = Guid.Parse("019d2d67-2c00-7000-8000-000000000301");
     private static readonly Guid PersonId = Guid.Parse("019d2d67-2c00-7000-8000-000000000302");
     private static readonly DateOnly LocalDate = new(2026, 9, 2);
@@ -145,6 +154,9 @@ public sealed class AvailabilityAdministrationTests
         Assert.Equal(new DateOnly(2026, 9, 1), service.FromDate);
         Assert.Equal(new DateOnly(2026, 9, 3), service.ToDate);
         Assert.Empty(service.QueryResult);
+        var body = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
+        using var envelope = JsonDocument.Parse(JsonSerializer.Serialize(body));
+        Assert.Equal(0, envelope.RootElement.GetProperty("meta").GetProperty("count").GetInt32());
     }
 
     [Fact]

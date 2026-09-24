@@ -550,6 +550,23 @@ summary:focus-visible {
     gap: var(--espacio-16);
 }
 
+.disponibilidad-lista {
+    display: grid;
+    gap: var(--espacio-8);
+    padding-inline-start: var(--espacio-4);
+    list-style: none;
+}
+
+.disponibilidad-dia {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--espacio-8);
+    padding: var(--espacio-8) var(--espacio-12);
+    border-bottom: 1px solid var(--color-borde);
+}
+
 .detalle-persona {
     display: grid;
     gap: var(--espacio-12);

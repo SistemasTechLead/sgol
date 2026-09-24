@@ -336,6 +336,12 @@ La primitiva usa `input type="date"` o `datetime-local`, muestra siempre la zona
 
 Estados: normal, foco, deshabilitado y error. La carga de datos deshabilita el formulario o usa el patrón de esqueleto del contenedor; no se sustituye el valor por un spinner dentro del campo.
 
+### UI-I03 — disponibilidad diaria
+
+En el detalle autorizado de persona, una sección «Disponibilidad» muestra dos campos de fecha etiquetados «Desde» y «Hasta», con la zona `America/Mexico_City` visible. La consulta presenta cada día del rango con fecha ISO y texto «Sin registro», «Disponible» o «No disponible»; ausencia de registro nunca equivale a `false`. El día se selecciona con un campo `type="date"` etiquetado «Día», y un `fieldset` de dos radios «Disponible» y «No disponible» define el único valor a guardar. Un día registrado se precarga para corrección; uno nuevo exige elegir valor. La acción se llama «Guardar disponibilidad». No hay porcentaje, horario ni tercera opción de valor.
+
+Normal: los tres estados tienen texto e icono junto a la fecha. Foco: rango, día y radios siguen el orden visual y usan `:focus-visible`; la selección y el estado se anuncian por texto. Deshabilitado: la acción se bloquea mientras la solicitud está en curso o cuando la persona está inactiva; los datos permanecen legibles. Cargando: la región de resultados usa `aria-busy` y anuncia «Consultando disponibilidad…» o «Guardando disponibilidad…». Vacío: el rango sin registros conserva sus días «Sin registro» y la acción autorizada para crear uno. Error: resumen con foco y error asociado a fecha o rango. En móvil los campos y resultados refluyen a una columna sin desplazamiento horizontal ni pérdida de controles.
+
 ### Resumen de errores y aviso de éxito
 
 El resumen de errores usa `role="alert"`, título descriptivo y lista textual. Al fallar un envío, el consumidor puede mover el foco programáticamente al resumen con `tabindex="-1"`; los campos conservan además su error asociado.

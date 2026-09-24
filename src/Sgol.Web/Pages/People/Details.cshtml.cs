@@ -10,7 +10,7 @@ using Sgol.Web.Presentation.ProblemDetails;
 namespace Sgol.Web.Pages.People;
 
 [IgnoreAntiforgeryToken] // The shared bridge validates Razor antiforgery before forwarding CSRF.
-public sealed class DetailsModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
+public sealed partial class DetailsModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
     RazorAntiforgeryBridge antiforgery) : PageModel
 {
     private static readonly TimeZoneInfo MexicoCity = TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City");
@@ -26,10 +26,12 @@ public sealed class DetailsModel(IRazorSessionState sessionState, ISgolApiClient
     public Guid DeactivateIntent { get; private set; } = Guid.CreateVersion7();
     public Guid ReactivateIntent { get; private set; } = Guid.CreateVersion7();
 
-    public async Task<IActionResult> OnGetAsync(Guid personId, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(Guid personId, string? fromDate, string? toDate,
+        string? day, CancellationToken cancellationToken)
     {
         NoStore();
         if (await sessionState.GetAsync(cancellationToken) is null) return Redirect("/acceso");
+        SetAvailabilityRange(fromDate, toDate, day);
         return await LoadAsync(personId, cancellationToken);
     }
 
@@ -148,6 +150,10 @@ public sealed class DetailsModel(IRazorSessionState sessionState, ISgolApiClient
             }
             Person = response.Data;
             ETag = response.ETag;
+            var session = await sessionState.GetAsync(cancellationToken);
+            CanManageAvailability = session?.Permissions.Contains(AvailabilityAuthorization.Administer) == true;
+            if (CanManageAvailability && !IsAvailabilityConflict)
+                await LoadAvailabilityAsync(personId, cancellationToken);
             return Page();
         }
         catch (ApiProtocolException)
