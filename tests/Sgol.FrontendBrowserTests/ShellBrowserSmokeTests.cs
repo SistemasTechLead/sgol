@@ -16,6 +16,7 @@ public sealed class ShellBrowserSmokeTests
     ];
 
     [Fact]
+    [Trait("Category", "FRONT_BROWSER")]
     public async Task FourRoleShellAndUnauthorizedState_AreAccessibleOnDesktopAndMobile()
     {
         var fixture = new BrowserFixture();

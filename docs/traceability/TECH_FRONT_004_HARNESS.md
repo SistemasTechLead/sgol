@@ -23,6 +23,8 @@ El comando `playwright.ps1` es el que genera `Microsoft.Playwright` 1.62.0; se c
 
 En GitHub Actions, después del build Release y antes de `dotnet test`, el workflow ejecuta `./tests/Sgol.FrontendBrowserTests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium webkit`. El primer pipeline del PR `#66` (run `35934604798`, cabeza `51e64a81b449bb4aed10442ec96855f0208d6375`) falló porque el runner Linux carecía de los binarios de Playwright; la preservación de evidencia CV-04 falló de forma derivada al quedar omitida su demo. Esta corrección instala los navegadores y sus dependencias del sistema antes del gate. Su resultado remoto se registra sólo después de ejecutarse para el nuevo SHA.
 
+El segundo run `35935550111` (cabeza `b71cfa87945bae9ace8ba521cac7681afd949689`) instaló Playwright correctamente, pero el smoke falló con `net::ERR_NETWORK_CHANGED` al navegar al Kestrel local mientras el gate global ejecutaba en paralelo pruebas PostgreSQL que administran redes Docker. Para evitar esa interferencia, el smoke tiene categoría `FRONT_BROWSER`: el gate global lo excluye y el workflow lo ejecuta en un paso dedicado al terminar las demás pruebas. La hipótesis de interferencia de red queda pendiente de confirmación por el run del nuevo SHA.
+
 ## Mapa de pruebas y límites
 
 | Criterio | Comprobación | Resultado local |

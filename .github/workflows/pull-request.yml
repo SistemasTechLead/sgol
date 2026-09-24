@@ -107,7 +107,10 @@ jobs:
       - name: Run unit, architecture and PostgreSQL integration tests
         env:
           SGOL_EVIDENCE_EICAR_TESTS: "true"
-        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED'
+        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER'
+
+      - name: TECH-FRONT-004 / isolated browser smoke
+        run: dotnet test tests/Sgol.FrontendBrowserTests/Sgol.FrontendBrowserTests.csproj --no-build --configuration Release --filter 'Category=FRONT_BROWSER'
 
       - name: TECH-E2E-CV-04 / integral hosted demo
         shell: pwsh
