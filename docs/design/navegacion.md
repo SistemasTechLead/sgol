@@ -25,6 +25,8 @@ Esta fuente operativa materializa las decisiones aprobadas por la Adenda 46. Des
 
 Una ruta queda disponible únicamente cuando la historia que la consume la implementa. El shell no muestra enlaces rotos ni usa rutas de mutación `/api/v1` como destinos. Los segmentos variables aceptan sólo el tipo cerrado por el contrato de la historia.
 
+`FRONT-003` materializa `/personas-y-accesos` como lista y formulario de alta de UI-I01. El detalle de una persona usa exclusivamente GET `/personas-y-accesos/personas/{personId:guid}`; el identificador no concede acceso y cada solicitud vuelve a consultar la API autorizada. Ninguna UI-I02..I07 queda implementada por habilitar el grupo. La alta permanece en POST de la ruta de lista, con antiforgery e idempotencia fuera de la URL.
+
 `FRONT-002` materializa `/mi-trabajo` sólo como GET protegido y anfitrión vacío del shell. No materializa bandeja, avisos, obligaciones, evidencia, conclusión ni unidades UI-E01..UI-E08. El enlace de anfitrión no se presenta como hijo funcional del menú; el grupo «Mi trabajo» permanece oculto mientras no tenga un hijo implementado y visible. `/` sigue siendo entrada pública que envía a `/acceso` sin sesión plena y a `/mi-trabajo` con sesión plena.
 
 ## Grupos y unidades

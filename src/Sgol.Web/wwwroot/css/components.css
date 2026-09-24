@@ -533,6 +533,37 @@ summary:focus-visible {
     background: var(--color-info-fondo);
 }
 
+.badge--neutro {
+    color: var(--color-texto-secundario);
+    background: var(--color-superficie-elevada);
+}
+
+.formulario-persona {
+    display: grid;
+    gap: var(--espacio-16);
+    max-width: var(--ancho-formulario);
+    margin-top: var(--espacio-32);
+}
+
+.formulario-persona form {
+    display: grid;
+    gap: var(--espacio-16);
+}
+
+.detalle-persona {
+    display: grid;
+    gap: var(--espacio-12);
+    margin: var(--espacio-24) 0;
+}
+
+.detalle-persona div {
+    display: grid;
+    gap: var(--espacio-4);
+}
+
+.detalle-persona dt { font: var(--tipografia-pequena); color: var(--color-texto-secundario); }
+.detalle-persona dd { margin: 0; }
+
 .esqueleto {
     display: block;
     height: calc(var(--espacio-16) - calc(var(--espacio-4) / 2));
@@ -757,6 +788,7 @@ summary:focus-visible {
             "navegacion"
             "contenido";
         grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr);
     }
 
     .aplicacion--sin-navegacion,

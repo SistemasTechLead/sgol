@@ -130,7 +130,11 @@ public static class PersonApiEndpoints
                 actorUserId,
                 GetCorrelationId(context),
                 cancellationToken);
-            return Ok(context, people);
+            return Results.Ok(new
+            {
+                data = people,
+                meta = new { correlationId = context.GetCorrelationId(), count = people.Count },
+            });
         }
         catch (Exception exception)
         {
