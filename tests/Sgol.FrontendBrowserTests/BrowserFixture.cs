@@ -287,7 +287,7 @@ internal sealed class BrowserFixture : IAsyncDisposable
         $"{role.ToLowerInvariant()}.{Guid.CreateVersion7():N}", role, NewPassword(), NewPassword());
     private static string NewPassword() => $"S!{Convert.ToHexString(RandomNumberGenerator.GetBytes(18))}a";
 
-    private static string Totp(string secret, DateTimeOffset instant)
+    internal static string Totp(string secret, DateTimeOffset instant)
     {
         const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
         var bytes = new List<byte>();

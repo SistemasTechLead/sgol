@@ -31,4 +31,17 @@
     document.querySelectorAll("dialog").forEach(dialog => {
         dialog.addEventListener("close", () => dialogTriggers.get(dialog)?.focus());
     });
+
+    document.querySelectorAll("[data-access-form]").forEach(form => {
+        form.addEventListener("submit", () => {
+            const button = form.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = true;
+                button.setAttribute("aria-busy", "true");
+                button.textContent = "Verificando…";
+            }
+        });
+    });
+
+    document.getElementById("acceso-error")?.focus();
 })();

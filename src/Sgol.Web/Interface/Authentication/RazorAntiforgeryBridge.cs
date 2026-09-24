@@ -43,7 +43,8 @@ public sealed class RazorAntiforgeryBridge(IAntiforgery antiforgery, ISgolApiCli
             ("/api/v1/auth/login" or "/api/v1/auth/password/change" or "/api/v1/auth/mfa/confirm" or
              "/api/v1/auth/mfa/verify" or "/api/v1/auth/recovery-codes/regenerate" or "/api/v1/auth/logout"))
             sessionState?.Invalidate();
-        if (response.IsSuccess && request.Path.StartsWith("/api/v1/auth/", StringComparison.Ordinal))
+        if (response.IsSuccess && request.Path.StartsWith("/api/v1/auth/", StringComparison.Ordinal) &&
+            request.Path != "/api/v1/auth/mfa/enroll")
             ApiCookieBridge.ClearCsrf(context);
         if (request.Path == "/api/v1/auth/logout" && !response.IsSuccess)
         {

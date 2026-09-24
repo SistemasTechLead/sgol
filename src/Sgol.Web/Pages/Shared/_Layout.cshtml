@@ -2,7 +2,8 @@
 @{
     var title = ViewData["Title"] as string ?? "SGOL";
     var navigationItems = ViewData["NavigationItems"] as IEnumerable<NavigationItem> ?? [];
-    var session = await SessionState.GetAsync(Context.RequestAborted);
+    var access = ViewData["SkipSession"] is true;
+    var session = access ? null : await SessionState.GetAsync(Context.RequestAborted);
     var visibleItems = RoleAwareNavigation.VisibleTo(session, navigationItems);
     var hasNavigation = visibleItems.Count > 0;
 }
@@ -17,7 +18,7 @@
 </head>
 <body>
     <a class="salto-contenido" href="#contenido-principal">Saltar al contenido principal</a>
-    <div class="aplicacion">
+    <div class="aplicacion @(access ? "aplicacion--acceso" : null)">
         <header class="encabezado-aplicacion">
             <span class="encabezado-aplicacion__marca" aria-label="Sistema de Gestión Operativa Loretta">SGOL</span>
             @if (session is not null)
@@ -30,6 +31,8 @@
                 }
             }
         </header>
+        @if (!access)
+        {
         <aside class="barra-lateral">
             <nav class="navegacion-lateral navegacion-lateral--escritorio" aria-label="Navegación principal">
                 <ul class="navegacion-lateral__lista">
@@ -65,6 +68,7 @@
                 </dialog>
             }
         </aside>
+        }
         <main id="contenido-principal" class="contenido-principal" tabindex="-1">
             @RenderBody()
         </main>

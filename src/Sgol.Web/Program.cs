@@ -19,7 +19,13 @@ builder.Logging.AddJsonConsole(options =>
     options.UseUtcTimestamp = true;
 });
 
-builder.Services.AddRazorPages();
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.AddPageRoute("/Access/Index", "acceso/cambiar-contrasena");
+    options.Conventions.AddPageRoute("/Access/Index", "acceso/mfa/enrolar");
+    options.Conventions.AddPageRoute("/Access/Index", "acceso/mfa/verificar");
+    options.Conventions.AddPageRoute("/Access/Index", "acceso/codigos-recuperacion");
+});
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IRazorSessionState, RazorSessionState>();
 builder.Services.AddScoped<RazorAntiforgeryBridge>();

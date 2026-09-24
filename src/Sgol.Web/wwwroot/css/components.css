@@ -75,6 +75,30 @@ summary:focus-visible {
     min-height: 100vh;
 }
 
+.aplicacion--acceso {
+    grid-template-areas: "encabezado" "contenido";
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.acceso {
+    display: grid;
+    gap: var(--espacio-24);
+    width: 100%;
+    max-width: var(--ancho-formulario);
+}
+
+.acceso__formulario,
+.acceso__codigos {
+    display: grid;
+    gap: var(--espacio-16);
+}
+
+.acceso__codigos {
+    padding: var(--espacio-16);
+    background: var(--color-superficie-elevada);
+    border-radius: var(--radio-tarjeta);
+}
+
 .encabezado-aplicacion {
     grid-area: encabezado;
     padding: var(--espacio-16) var(--espacio-24);

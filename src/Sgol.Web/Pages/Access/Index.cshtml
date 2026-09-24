@@ -1,0 +1,132 @@
+@page "/acceso"
+@model Sgol.Web.Pages.Access.IndexModel
+@{
+    ViewData["SkipSession"] = true;
+    ViewData["Title"] = Model.Stage switch
+    {
+        "password" => "Cambiar contraseña",
+        "enroll" or "enroll-key" => "Enrolar MFA",
+        "verify" => "Verificar MFA",
+        "regenerate" or "codes" => "Códigos de recuperación",
+        "complete" => "Sesión iniciada",
+        _ => "Acceso",
+    };
+}
+<section class="acceso" aria-labelledby="acceso-titulo">
+    <header class="encabezado-pagina">
+        <h1 id="acceso-titulo" class="encabezado-pagina__titulo">@ViewData["Title"]</h1>
+    </header>
+
+    @if (Model.ErrorTitle is not null)
+    {
+        <div class="alerta alerta--peligro" role="alert" tabindex="-1" id="acceso-error">
+            <strong>@Model.ErrorTitle</strong>
+            <p>@Model.ErrorMessage</p>
+        </div>
+    }
+
+    @switch (Model.Stage)
+    {
+        case "login":
+            <form method="post" action="/acceso" asp-antiforgery="false" class="acceso__formulario" data-access-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@Model.Csrf" />
+                <input type="hidden" name="stepAction" value="login" />
+                <div class="campo">
+                    <label class="campo__etiqueta" for="userName">Usuario</label>
+                    <input class="campo__control" id="userName" name="userName" type="text"
+                           autocomplete="username" autocapitalize="none" spellcheck="false" required />
+                </div>
+                @await Html.PartialAsync("_CredentialField", new CredentialFieldViewModel(
+                    "password", "Contraseña", CredentialKind.Password,
+                    Model.ErrorTitle == "No se pudo iniciar sesión" ? Model.ErrorMessage : null, CanReveal: true))
+                <button class="boton boton--primario" type="submit">Iniciar sesión</button>
+            </form>
+            break;
+        case "password":
+            <p>Debes cambiar la contraseña temporal antes de continuar.</p>
+            <form method="post" action="/acceso/cambiar-contrasena" asp-antiforgery="false" class="acceso__formulario" data-access-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@Model.Csrf" />
+                <input type="hidden" name="flow" value="@Model.Flow" />
+                <input type="hidden" name="stepAction" value="change" />
+                @await Html.PartialAsync("_CredentialField", new CredentialFieldViewModel(
+                    "currentPassword", "Contraseña temporal", CredentialKind.Password, CanReveal: true))
+                @await Html.PartialAsync("_CredentialField", new CredentialFieldViewModel(
+                    "newPassword", "Contraseña nueva", CredentialKind.Password,
+                    Model.ErrorTitle == "La contraseña no cumple los requisitos" ? Model.ErrorMessage : null,
+                    CanReveal: true, Autocomplete: "new-password"))
+                <button class="boton boton--primario" type="submit">Cambiar contraseña</button>
+            </form>
+            break;
+        case "enroll":
+            <p>Configura una aplicación de autenticación para completar tu primer acceso.</p>
+            <form method="post" action="/acceso/mfa/enrolar" asp-antiforgery="false" class="acceso__formulario" data-access-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@Model.Csrf" />
+                <input type="hidden" name="flow" value="@Model.Flow" />
+                <input type="hidden" name="stepAction" value="begin" />
+                <button class="boton boton--primario" type="submit">Mostrar clave de configuración</button>
+            </form>
+            break;
+        case "enroll-key":
+            <p>Ingresa esta clave en tu aplicación de autenticación. Se muestra sólo durante este paso.</p>
+            <p class="acceso__codigos"><code>@Model.ManualKey</code></p>
+            <form method="post" action="/acceso/codigos-recuperacion" asp-antiforgery="false" class="acceso__formulario" data-access-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@Model.Csrf" />
+                <input type="hidden" name="flow" value="@Model.Flow" />
+                <input type="hidden" name="stepAction" value="confirm" />
+                @await Html.PartialAsync("_CredentialField", new CredentialFieldViewModel(
+                    "totpCode", "Código de la aplicación", CredentialKind.OneTimeCode,
+                    Model.ErrorTitle == "No se pudo verificar el código" ? Model.ErrorMessage : null))
+                <button class="boton boton--primario" type="submit">Confirmar MFA</button>
+            </form>
+            break;
+        case "verify":
+            <p>Ingresa el código de tu aplicación de autenticación o usa un código de recuperación.</p>
+            <form method="post" action="/acceso/mfa/verificar" asp-antiforgery="false" class="acceso__formulario" data-access-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@Model.Csrf" />
+                <input type="hidden" name="flow" value="@Model.Flow" />
+                <input type="hidden" name="stepAction" value="totp" />
+                @await Html.PartialAsync("_CredentialField", new CredentialFieldViewModel(
+                    "totpCode", "Código de la aplicación", CredentialKind.OneTimeCode,
+                    Model.ErrorTitle == "No se pudo verificar el código" ? Model.ErrorMessage : null))
+                <button class="boton boton--primario" type="submit">Verificar código</button>
+            </form>
+            <form method="post" action="/acceso/mfa/verificar" asp-antiforgery="false" class="acceso__formulario" data-access-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@Model.Csrf" />
+                <input type="hidden" name="flow" value="@Model.Flow" />
+                <input type="hidden" name="stepAction" value="recovery" />
+                @await Html.PartialAsync("_CredentialField", new CredentialFieldViewModel(
+                    "recoveryCode", "Código de recuperación", CredentialKind.RecoveryCode,
+                    Model.ErrorTitle == "No se pudo verificar el código" ? Model.ErrorMessage : null))
+                <button class="boton boton--secundario" type="submit">Usar código de recuperación</button>
+            </form>
+            break;
+        case "regenerate":
+            <p>El código usado ya no sirve. Crea códigos nuevos antes de abrir una sesión plena.</p>
+            <form method="post" action="/acceso/codigos-recuperacion" asp-antiforgery="false" class="acceso__formulario" data-access-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@Model.Csrf" />
+                <input type="hidden" name="flow" value="@Model.Flow" />
+                <input type="hidden" name="stepAction" value="regenerate" />
+                @await Html.PartialAsync("_CredentialField", new CredentialFieldViewModel(
+                    "currentPassword", "Contraseña actual", CredentialKind.Password, CanReveal: true))
+                <button class="boton boton--primario" type="submit">Generar códigos nuevos</button>
+            </form>
+            break;
+        case "codes":
+            <p>Estos códigos no volverán a mostrarse. Guárdalos en un lugar seguro fuera de SGOL.</p>
+            <ol class="acceso__codigos">
+                @foreach (var code in Model.RecoveryCodes)
+                {
+                    <li><code>@code</code></li>
+                }
+            </ol>
+            <p role="status">Sesión iniciada.</p>
+            break;
+        case "complete":
+            <p role="status">Sesión iniciada.</p>
+            break;
+        case "expired":
+            <p>El paso de acceso venció. Vuelve a iniciar sesión para continuar.</p>
+            <a class="boton boton--secundario" href="/acceso">Volver a acceso</a>
+            break;
+    }
+</section>
