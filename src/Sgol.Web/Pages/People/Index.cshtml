@@ -30,10 +30,91 @@
             </form>
         </section>
     }
+    @if (Model.AccountError is not null)
+    {
+        <div id="account-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.AccountError" /></div>
+    }
+    @if (Model.CanManageAccounts && !Model.IsDenied)
+    {
+        <section id="cuentas" class="seccion-cuentas" aria-labelledby="cuentas-titulo">
+            <h2 id="cuentas-titulo" tabindex="-1">Cuentas</h2>
+            @if (Model.AccountSuccess is not null)
+            {
+                <p role="status" class="alerta alerta--exito"><span aria-hidden="true">✓</span>@Model.AccountSuccess.</p>
+            }
+            @if (Model.OneTimePassword is not null)
+            {
+                <div class="alerta alerta--advertencia" data-sensitive-activation>
+                    <p>Contraseña temporal de visualización única</p>
+                    <code>@Model.OneTimePassword</code>
+                    <p>Entrégala presencialmente a la persona fuera de SGOL. No volverá a mostrarse.</p>
+                </div>
+            }
+            @if (Model.Accounts.Count == 0)
+            {
+                <div class="estado-vacio"><p class="estado-vacio__titulo">Aún no hay cuentas registradas</p><p class="estado-vacio__texto">Crea una cuenta para una persona activa.</p><a class="boton boton--secundario" href="#alta-cuenta">Crear cuenta</a></div>
+            }
+            else
+            {
+                <div class="tabla-contenedor" aria-busy="false">
+                    <table class="tabla">
+                        <caption>Cuentas registradas</caption>
+                        <thead class="tabla__encabezado"><tr><th scope="col">Persona</th><th scope="col">Usuario</th><th scope="col">Estado</th><th scope="col">Acción</th></tr></thead>
+                        <tbody>
+                        @foreach (var account in Model.Accounts)
+                        {
+                            var person = Model.People.FirstOrDefault(item => item.Id == account.PersonId);
+                            var active = account.Status == "ACTIVA";
+                            var dialogId = $"account-status-{account.Id:D}";
+                            <tr class="tabla__fila">
+                                <td>@(person?.DisplayName ?? "Persona no disponible")</td>
+                                <td>@account.UserName</td>
+                                <td><span class="badge @(active ? "badge--exito" : "badge--neutro")"><span aria-hidden="true">@(active ? "✓" : "⊘")</span>@(active ? "Activa" : "Inactiva")</span></td>
+                                <td><button type="button" class="boton boton--secundario tabla__accion" data-dialog-open aria-controls="@dialogId">@(active ? "Desactivar cuenta" : "Reactivar cuenta")</button></td>
+                            </tr>
+                            <tr><td colspan="4">
+                                <dialog id="@dialogId" class="modal" aria-labelledby="@($"{dialogId}-title")" aria-describedby="@($"{dialogId}-summary")">
+                                    <form method="post" asp-page-handler="@(active ? "DeactivateAccount" : "ReactivateAccount")" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                                        <input type="hidden" name="accountIntentKey" value="@Guid.CreateVersion7().ToString("D")" />
+                                        <input type="hidden" name="userId" value="@account.Id.ToString("D")" />
+                                        <h3 id="@($"{dialogId}-title")" class="modal__titulo">@(active ? "Desactivar cuenta" : "Reactivar cuenta")</h3>
+                                        <p id="@($"{dialogId}-summary")" class="modal__texto">@account.UserName — @(active ? "La cuenta dejará de permitir acceso y sus sesiones quedarán invalidadas. El historial se conserva." : "La cuenta volverá a estar activa, se invalidarán las sesiones previas y se exigirá cambio de contraseña temporal.")</p>
+                                        <label class="campo" for="@($"{dialogId}-reason")"><span class="campo__etiqueta">Motivo</span><textarea id="@($"{dialogId}-reason")" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-describedby="@($"{dialogId}-reason-error")" data-required-reason></textarea><span id="@($"{dialogId}-reason-error")" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                                        <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button><button type="submit" class="boton boton--primario" data-progress-label="Guardando…">@(active ? "Desactivar cuenta" : "Reactivar cuenta")</button></div>
+                                    </form>
+                                </dialog>
+                            </td></tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            <section id="alta-cuenta" class="formulario-persona" aria-labelledby="alta-cuenta-titulo">
+                <h3 id="alta-cuenta-titulo">Crear cuenta</h3>
+                <form method="post" asp-page-handler="CreateAccount" asp-antiforgery="false" data-progress-form>
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                    <input type="hidden" name="accountIntentKey" value="@Model.AccountIntentKey.ToString("D")" />
+                    <label class="campo" for="account-person"><span class="campo__etiqueta">Persona</span><select id="account-person" name="personId" class="campo__control campo__control--select" required><option value="">Selecciona una persona</option>@foreach (var person in Model.People){<option value="@person.Id.ToString("D")" selected="@(Model.AccountPersonId == person.Id)">@person.DisplayName (@person.StableCode)</option>}</select></label>
+                    <label class="campo" for="account-user"><span class="campo__etiqueta">Usuario</span><input id="account-user" name="userName" class="campo__control" type="text" required autocomplete="off" value="@Model.AccountUserName" /></label>
+                    <p>La contraseña temporal se genera al crear la cuenta y se muestra una sola vez. No se asigna un rol en este paso.</p>
+                    <button type="submit" class="boton boton--primario" data-progress-label="Guardando…">Crear cuenta</button>
+                </form>
+            </section>
+        </section>
+    }
 </section>
 @section Scripts {
     @if (Model.Error is not null)
     {
         <script>document.getElementById('people-error')?.focus();</script>
+    }
+    @if (Model.AccountError is not null)
+    {
+        <script>document.getElementById('account-error')?.focus();</script>
+    }
+    else if (Model.AccountSuccess is not null)
+    {
+        <script>document.getElementById('cuentas-titulo')?.focus();</script>
     }
 }

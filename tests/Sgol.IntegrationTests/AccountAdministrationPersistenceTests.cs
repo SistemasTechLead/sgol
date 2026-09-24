@@ -25,6 +25,51 @@ public sealed class AccountAdministrationPersistenceTests : IAsyncLifetime
     public async Task DisposeAsync() => await _postgres.DisposeAsync();
 
     [Fact]
+    public async Task GeneratedActivationSecretIsReturnedOnceAndNeverPersisted()
+    {
+        var actorUserId = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);
+        var personId = await SeedPersonAsync("PER-GENERATED", EmploymentStatus.Active);
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator(Now), Now);
+        var create = new CreateAccountCommand
+        {
+            ActorUserId = actorUserId,
+            IdempotencyKey = Guid.CreateVersion7(),
+            CorrelationId = Guid.CreateVersion7(),
+            PersonId = personId,
+            UserName = "generated.person",
+        };
+
+        var first = await service.CreateAsync(create);
+        var replay = await service.CreateAsync(create);
+        Assert.NotNull(first.ActivationSecret);
+        Assert.True(first.ActivationSecret.Length >= 14);
+        Assert.Null(replay.ActivationSecret);
+        Assert.True(replay.Replayed);
+        Assert.False(first.ToString().Contains(first.ActivationSecret, StringComparison.Ordinal));
+        var credential = await context.IdentityCredentials.AsNoTracking().SingleAsync(item => item.UserId == first.Account.Id);
+        var user = await context.AppUsers.AsNoTracking().SingleAsync(item => item.Id == first.Account.Id);
+        Assert.Equal(PasswordVerificationResult.Success,
+            new PasswordHasher<AppUser>().VerifyHashedPassword(user, credential.PasswordHash, first.ActivationSecret));
+        var payload = await context.IdempotencyRecords.AsNoTracking().SingleAsync(item => item.ResourceId == first.Account.Id);
+        var audit = await context.AuditEvents.AsNoTracking().SingleAsync(item => item.ResourceId == first.Account.Id);
+        Assert.False(payload.ResponsePayload!.RootElement.GetRawText().Contains(first.ActivationSecret, StringComparison.Ordinal));
+        Assert.False(audit.AfterData!.RootElement.GetRawText().Contains(first.ActivationSecret, StringComparison.Ordinal));
+
+        await service.DeactivateAsync(StatusCommand(actorUserId, first.Account.Id, "Baja sintética"));
+        var reactivate = StatusCommand(actorUserId, first.Account.Id, "Reactivar sintética");
+        var reactivated = await service.ReactivateAsync(reactivate);
+        var reactivationReplay = await service.ReactivateAsync(reactivate);
+        Assert.NotNull(reactivated.ActivationSecret);
+        Assert.False(string.Equals(first.ActivationSecret, reactivated.ActivationSecret, StringComparison.Ordinal));
+        Assert.Null(reactivationReplay.ActivationSecret);
+        Assert.True(reactivationReplay.Replayed);
+        Assert.All(await context.IdempotencyRecords.AsNoTracking().ToListAsync(), item =>
+            Assert.False((item.ResponsePayload?.RootElement.GetRawText() ?? string.Empty)
+                .Contains(reactivated.ActivationSecret, StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task DirectionCreatesIndividualAccountWithoutChangingEmploymentOrRole()
     {
         var actorUserId = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);

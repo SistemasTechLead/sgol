@@ -76,6 +76,8 @@ public sealed class Front005BrowserTests
                 await SelectDayAsync(page, first);
                 var dayInput = page.GetByLabel("Día", new() { Exact = true });
                 await dayInput.FocusAsync();
+                await page.Keyboard.PressAsync("Shift+Tab");
+                await page.Keyboard.PressAsync("Tab");
                 Assert.True(await dayInput.EvaluateAsync<bool>(
                     "el => document.activeElement === el && getComputedStyle(el).outlineStyle !== 'none'"));
                 for (var tab = 0; tab < 4 && !await page.GetByRole(AriaRole.Button,
@@ -172,8 +174,11 @@ public sealed class Front005BrowserTests
     private static async Task SelectDayAsync(IPage page, string date)
     {
         await page.GetByLabel("Día", new() { Exact = true }).FillAsync(date);
+        await page.EvaluateAsync("() => window.__front005PendingNavigation = true");
         await page.GetByRole(AriaRole.Button, new() { Name = "Consultar disponibilidad" }).ClickAsync();
-        await page.WaitForFunctionAsync("date => document.querySelector('#availability-day')?.value === date", date);
+        await page.WaitForFunctionAsync(
+            "date => !window.__front005PendingNavigation && document.querySelector('#availability-day')?.value === date",
+            date);
     }
 
     private static Task<string> DayAsync(IPage page, string date) =>

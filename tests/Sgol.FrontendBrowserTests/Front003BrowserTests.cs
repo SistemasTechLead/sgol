@@ -31,7 +31,7 @@ public sealed class Front003BrowserTests
                     var listResponse = await page.GotoAsync(new Uri(fixture.BaseAddress, "/personas-y-accesos").AbsoluteUri);
                     Assert.Equal(200, listResponse?.Status);
                     Assert.Equal("Personas y accesos", await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).InnerTextAsync());
-                    Assert.Equal(1, await page.Locator("table caption").CountAsync());
+                    Assert.Equal(1, await page.GetByRole(AriaRole.Table, new() { Name = "Personas registradas" }).CountAsync());
                     Assert.True(await page.Locator("tbody tr").CountAsync() >= 4);
                     Assert.Equal(1, await page.Locator("nav[aria-label='Navegación principal'] a[href='/personas-y-accesos']").CountAsync());
                     Assert.Equal("page", await page.Locator(".navegacion-lateral--escritorio a").GetAttributeAsync("aria-current"));
@@ -153,6 +153,6 @@ public sealed class Front003BrowserTests
         {
             Path = Path.Combine(output, name),
             FullPage = true,
-            Mask = [page.Locator(".encabezado-aplicacion__sesion")],
+            Mask = [page.Locator(".encabezado-aplicacion__identidad")],
         });
 }

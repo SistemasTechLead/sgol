@@ -98,13 +98,13 @@ public sealed class ShellBrowserSmokeTests
                     Assert.True(await page.Locator("main").EvaluateAsync<bool>("el => document.activeElement === el"));
                     await page.EvaluateAsync("() => document.activeElement?.blur()");
 
-                    // Only the synthetic display name can vary; mask it before writing an image.
+                    // Mask the complete session identity before writing an image.
                     var imageName = $"{viewport.Name}-{account.Role}.png";
                     await page.ScreenshotAsync(new()
                     {
                         Path = Path.Combine(output, imageName),
                         FullPage = true,
-                        Mask = [page.Locator(".encabezado-aplicacion__sesion")],
+                        Mask = [page.Locator(".encabezado-aplicacion__identidad")],
                     });
                     results.Add(new
                     {

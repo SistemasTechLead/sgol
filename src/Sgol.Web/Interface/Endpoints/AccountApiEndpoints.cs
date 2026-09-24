@@ -34,7 +34,11 @@ public static class AccountApiEndpoints
                 actorUserId,
                 GetCorrelationId(context),
                 cancellationToken);
-            return Results.Ok(Envelope(context, accounts));
+            return Results.Ok(new
+            {
+                data = accounts,
+                meta = new { correlationId = context.GetCorrelationId(), count = accounts.Count },
+            });
         }
         catch (Exception exception)
         {
@@ -71,9 +75,12 @@ public static class AccountApiEndpoints
                     TemporaryPassword = request.TemporaryPassword,
                 },
                 cancellationToken);
+            context.Response.Headers.CacheControl = "no-store";
             return Results.Created(
                 $"/api/v1/users/{result.Account.Id:D}",
-                Envelope(context, result.Account));
+                Envelope(context, request.TemporaryPassword is null
+                    ? new AccountActivationResponse(result.Account, result.ActivationSecret)
+                    : result.Account));
         }
         catch (Exception exception)
         {
@@ -182,7 +189,10 @@ public static class AccountApiEndpoints
             var result = reactivate
                 ? await service.ReactivateAsync(command, cancellationToken)
                 : await service.DeactivateAsync(command, cancellationToken);
-            return Results.Ok(Envelope(context, result.Account));
+            context.Response.Headers.CacheControl = "no-store";
+            return Results.Ok(Envelope(context, reactivate && temporaryPassword is null
+                ? new AccountActivationResponse(result.Account, result.ActivationSecret)
+                : result.Account));
         }
         catch (Exception exception)
         {
@@ -276,7 +286,7 @@ public sealed class CreateAccountRequest
 
     public required string UserName { get; init; }
 
-    public required string TemporaryPassword { get; init; }
+    public string? TemporaryPassword { get; init; }
 
     public override string ToString() =>
         $"{nameof(CreateAccountRequest)} {{ PersonId = {PersonId}, UserName = {UserName}, " +
@@ -289,7 +299,7 @@ public sealed class ReactivateAccountRequest
 {
     public required string Reason { get; init; }
 
-    public required string TemporaryPassword { get; init; }
+    public string? TemporaryPassword { get; init; }
 
     public override string ToString() =>
         $"{nameof(ReactivateAccountRequest)} {{ Reason = {Reason}, TemporaryPassword = [REDACTED] }}";

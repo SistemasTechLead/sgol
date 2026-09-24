@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
@@ -12,6 +13,50 @@ public sealed class AccountAdministrationTests
     private static readonly Guid PersonId = Guid.Parse("019d2d67-2c00-7000-8000-000000000202");
     private static readonly Guid UserId = Guid.Parse("019d2d67-2c00-7000-8000-000000000203");
     private const string SyntheticPassword = "synthetic-only-password";
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    [Fact]
+    public async Task List_ProvidesCollectionCountRequiredBySharedClient()
+    {
+        var context = CreateContext(authenticated: true);
+        var result = await AccountApiEndpoints.HandleListAsync(
+            context, new RecordingAccountService(CreateAccount()), CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(value, JsonOptions));
+        Assert.Equal(1, json.RootElement.GetProperty("meta").GetProperty("count").GetInt32());
+        Assert.Equal(context.TraceIdentifier, json.RootElement.GetProperty("meta").GetProperty("correlationId").GetString());
+        Assert.Single(json.RootElement.GetProperty("data").EnumerateArray());
+
+        var empty = await AccountApiEndpoints.HandleListAsync(
+            CreateContext(authenticated: true), new RecordingAccountService(CreateAccount(), emptyList: true),
+            CancellationToken.None);
+        using var emptyJson = JsonDocument.Parse(JsonSerializer.Serialize(
+            Assert.IsAssignableFrom<IValueHttpResult>(empty).Value, JsonOptions));
+        Assert.Equal(0, emptyJson.RootElement.GetProperty("meta").GetProperty("count").GetInt32());
+        Assert.Empty(emptyJson.RootElement.GetProperty("data").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task GeneratedActivationUsesOneTimeResponseWithoutChangingLegacyContract()
+    {
+        var service = new RecordingAccountService(CreateAccount());
+        var context = CreateContext(authenticated: true);
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
+        var result = await AccountApiEndpoints.HandleCreateAsync(
+            new CreateAccountRequest { PersonId = PersonId, UserName = "person.synthetic" },
+            context, service, CancellationToken.None);
+
+        Assert.Null(service.CreateCommand?.TemporaryPassword);
+        Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
+        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(value, JsonOptions));
+        var data = json.RootElement.GetProperty("data");
+        Assert.Equal(UserId.ToString("D"), data.GetProperty("account").GetProperty("id").GetString());
+        Assert.Equal(SyntheticPassword.Length, data.GetProperty("temporaryPassword").GetString()?.Length);
+        Assert.False(value?.ToString()?.Contains(SyntheticPassword, StringComparison.Ordinal) == true);
+    }
 
     [Fact]
     public async Task Create_RequiresAuthenticatedUuidActor()
@@ -189,7 +234,7 @@ public sealed class AccountAdministrationTests
         return context;
     }
 
-    private sealed class RecordingAccountService(AccountSummary account) : IAccountAdministrationService
+    private sealed class RecordingAccountService(AccountSummary account, bool emptyList = false) : IAccountAdministrationService
     {
         public CreateAccountCommand? CreateCommand { get; private set; }
 
@@ -203,14 +248,15 @@ public sealed class AccountAdministrationTests
             Guid actorUserId,
             Guid correlationId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<AccountSummary>>([account]);
+            Task.FromResult<IReadOnlyList<AccountSummary>>(emptyList ? [] : [account]);
 
         public Task<AccountMutationResult> CreateAsync(
             CreateAccountCommand command,
             CancellationToken cancellationToken = default)
         {
             CreateCommand = command;
-            return Task.FromResult(new AccountMutationResult(account, Replayed: false));
+            return Task.FromResult(new AccountMutationResult(account, Replayed: false,
+                command.TemporaryPassword is null ? SyntheticPassword : null));
         }
 
         public Task<AccountMutationResult> DeactivateAsync(

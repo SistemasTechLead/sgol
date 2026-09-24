@@ -181,6 +181,26 @@ internal sealed class BrowserFixture : IAsyncDisposable
         await context.SaveChangesAsync();
     }
 
+    public async Task<Guid> SeedUnlinkedPersonAsync(string code, bool active)
+    {
+        if (connectionString is null) throw new InvalidOperationException("Disposable database is unavailable.");
+        await using var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>()
+            .UseNpgsql(connectionString).Options);
+        var personId = Guid.CreateVersion7();
+        context.People.Add(new Person
+        {
+            Id = personId,
+            StableCode = code,
+            DisplayName = $"Persona sintética {code}",
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1)
+        });
+        context.EmploymentVersions.Add(new EmploymentVersion(Guid.CreateVersion7(), personId,
+            BranchScope.LorettaId, active ? EmploymentStatus.Active : EmploymentStatus.Inactive,
+            DateTimeOffset.UtcNow.AddMinutes(-1)));
+        await context.SaveChangesAsync();
+        return personId;
+    }
+
     public async Task<string> AuthenticateAsync(BrowserAccount account)
     {
         using var client = NewClient(out var cookies);

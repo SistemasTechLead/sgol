@@ -26,7 +26,7 @@ public sealed class CreateAccountCommand
 
     public required string UserName { get; init; }
 
-    public required string TemporaryPassword { get; init; }
+    public string? TemporaryPassword { get; init; }
 
     public override string ToString() =>
         $"{nameof(CreateAccountCommand)} {{ ActorUserId = {ActorUserId}, PersonId = {PersonId}, " +
@@ -71,7 +71,18 @@ public sealed class ResetMfaCommand
         $"Reason = {Reason}, TemporaryPassword = [REDACTED] }}";
 }
 
-public sealed record AccountMutationResult(AccountSummary Account, bool Replayed);
+// ActivationSecret is transient: idempotency and audit persist AccountSummary only.
+public sealed record AccountMutationResult(AccountSummary Account, bool Replayed, string? ActivationSecret = null)
+{
+    public override string ToString() =>
+        $"{nameof(AccountMutationResult)} {{ Account = {Account}, Replayed = {Replayed}, ActivationSecret = [REDACTED] }}";
+}
+
+public sealed record AccountActivationResponse(AccountSummary Account, string? TemporaryPassword)
+{
+    public override string ToString() =>
+        $"{nameof(AccountActivationResponse)} {{ Account = {Account}, TemporaryPassword = [REDACTED] }}";
+}
 
 public interface IAccountAdministrationService
 {

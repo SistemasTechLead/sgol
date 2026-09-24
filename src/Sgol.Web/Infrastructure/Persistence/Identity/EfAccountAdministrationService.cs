@@ -46,12 +46,13 @@ public sealed class EfAccountAdministrationService(
 
         var userName = RequireValue(command.UserName, "UserName");
         var normalizedUserName = userName.ToUpperInvariant();
-        var temporaryPassword = RequireTemporaryPassword(command.TemporaryPassword);
+        var generatedPassword = command.TemporaryPassword is null;
+        var temporaryPassword = RequireTemporaryPassword(command.TemporaryPassword ?? NewTemporaryPassword());
         const string operation = "ACCOUNT_CREATE";
         const string resource = "new:LOR-001";
         var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
         var requestHash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource,
-            new { command.PersonId, userName = normalizedUserName, temporaryPassword });
+            new { command.PersonId, userName = normalizedUserName, temporaryPassword = command.TemporaryPassword });
         var legacyScope = CreateScope(command.ActorUserId);
         var legacyRequestHash = ComputeHash(
             command.PersonId.ToString("D"),
@@ -161,7 +162,8 @@ public sealed class EfAccountAdministrationService(
             throw;
         }
 
-        return new AccountMutationResult((await LoadAccountAsync(user.Id, cancellationToken))!, Replayed: false);
+        return new AccountMutationResult((await LoadAccountAsync(user.Id, cancellationToken))!, Replayed: false,
+            generatedPassword ? temporaryPassword : null);
     }
 
     public Task<AccountMutationResult> DeactivateAsync(
@@ -320,14 +322,15 @@ public sealed class EfAccountAdministrationService(
         await EnsureAuthorizedAsync(command.ActorUserId, command.CorrelationId, cancellationToken);
 
         var reason = RequireValue(command.Reason, "Reason");
+        var generatedPassword = requiresTemporaryPassword && command.TemporaryPassword is null;
         var temporaryPassword = requiresTemporaryPassword
-            ? RequireTemporaryPassword(command.TemporaryPassword)
+            ? RequireTemporaryPassword(command.TemporaryPassword ?? NewTemporaryPassword())
             : null;
         var operation = requestedStatus == AccountStatus.Active ? "ACCOUNT_REACTIVATE" : "ACCOUNT_DEACTIVATE";
         var resource = command.UserId.ToString("D");
         var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
         var requestHash = IdempotencyProtocol.HashCanonical(operation, command.ActorUserId.ToString("D"), resource,
-            new { command.UserId, requestedStatus, reason, temporaryPassword });
+            new { command.UserId, requestedStatus, reason, temporaryPassword = command.TemporaryPassword });
         var legacyOperation = requestedStatus == AccountStatus.Active ? "reactivate" : "deactivate";
         var legacyScope = StatusScope(command.ActorUserId, legacyOperation, command.UserId);
         var legacyRequestHash = ComputeHash(
@@ -428,7 +431,8 @@ public sealed class EfAccountAdministrationService(
             throw;
         }
 
-        return new AccountMutationResult((await LoadAccountAsync(command.UserId, cancellationToken))!, Replayed: false);
+        return new AccountMutationResult((await LoadAccountAsync(command.UserId, cancellationToken))!, Replayed: false,
+            generatedPassword ? temporaryPassword : null);
     }
 
     private async Task EnsureAuthorizedAsync(
@@ -646,6 +650,10 @@ public sealed class EfAccountAdministrationService(
 
         return value;
     }
+
+    private static string NewTemporaryPassword() =>
+        Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+            .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
     private static string ComputeHash(params string[] parts)
     {
