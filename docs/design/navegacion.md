@@ -14,7 +14,7 @@ Esta fuente operativa materializa las decisiones aprobadas por la Adenda 46. Des
 | `NAV-AUTH-MFA-ENROLL` | `/acceso/mfa/enrolar` | UI-A03 | Sólo después de `nextStep=ENROLL_MFA` |
 | `NAV-AUTH-MFA-VERIFY` | `/acceso/mfa/verificar` | UI-A04 | Sólo después de `nextStep=VERIFY_MFA` |
 | `NAV-AUTH-RECOVERY` | `/acceso/codigos-recuperacion` | UI-A05 | Sólo para visualización o regeneración autorizada |
-| `NAV-MY-WORK` | `/mi-trabajo` | UI-E01..E08 | Los cuatro roles; hijos según contrato y respuesta de recurso |
+| `NAV-MY-WORK` | `/mi-trabajo` | Anfitrión del shell; UI-E01..E08 aún no implementadas | Los cuatro roles con sesión plena; ningún hijo se muestra hasta que su historia lo implemente |
 | `NAV-VALIDATION` | `/validaciones` | UI-V01..V04 | Dirección, Administración y Subcoordinación; recurso reautorizado |
 | `NAV-PLANNING` | `/planificacion` | UI-C02/C03 y UI-G01..G06 | Sólo hijos cuyo contrato permita presentarlos al rol actual |
 | `NAV-IDENTITY` | `/personas-y-accesos` | UI-I01..I07 | Dirección; hijos con sus permisos específicos |
@@ -24,6 +24,8 @@ Esta fuente operativa materializa las decisiones aprobadas por la Adenda 46. Des
 | `NAV-CONTINUITY` | `/continuidad` | UI-K01..K03 | Sólo Dirección |
 
 Una ruta queda disponible únicamente cuando la historia que la consume la implementa. El shell no muestra enlaces rotos ni usa rutas de mutación `/api/v1` como destinos. Los segmentos variables aceptan sólo el tipo cerrado por el contrato de la historia.
+
+`FRONT-002` materializa `/mi-trabajo` sólo como GET protegido y anfitrión vacío del shell. No materializa bandeja, avisos, obligaciones, evidencia, conclusión ni unidades UI-E01..UI-E08. El enlace de anfitrión no se presenta como hijo funcional del menú; el grupo «Mi trabajo» permanece oculto mientras no tenga un hijo implementado y visible. `/` sigue siendo entrada pública que envía a `/acceso` sin sesión plena y a `/mi-trabajo` con sesión plena.
 
 ## Grupos y unidades
 
@@ -62,6 +64,7 @@ Personas, TAR, obligaciones y validaciones siguen este patrón. Cuentas y roles 
 - Un diálogo devuelve foco al disparador; si desapareció, al encabezado de sección.
 - Regresar desde detalle restaura filtros GET, cursor protegido, ancla de fila y foco del enlace de origen. Si el contexto es inválido, vuelve al listado y enfoca su `h1`.
 - Sólo filtros reales de lectura, no sensibles y allowlisted, además del cursor opaco, permanecen en query string.
+- `/acceso` admite exclusivamente un aviso transitorio protegido de resultado de sesión (`cerrada`, `terminada` o `no-confirmada`) para mostrar el mensaje aprobado tras redirección. El valor no contiene identidad ni secreto, tiene vigencia breve y no se reutiliza como autoridad o destino.
 - Contraseñas, TOTP, recovery codes, motivos, ETag, idempotencia, CSRF, archivos, evidencia, mutaciones y estado de diálogo permanecen en formularios y nunca en la URL.
 
 ## Deep links y errores seguros

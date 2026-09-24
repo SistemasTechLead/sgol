@@ -40,7 +40,11 @@ public sealed class RazorSessionState(ISgolApiClient apiClient, IHttpContextAcce
         }
         if (!response.IsSuccess)
         {
-            IsInvalid = response.Status == 401;
+            if (response.Status == 401)
+            {
+                Invalidate();
+                ClearBrowserCookies();
+            }
             return null;
         }
         var data = response.Data;

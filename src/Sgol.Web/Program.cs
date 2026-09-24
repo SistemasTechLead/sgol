@@ -30,6 +30,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IRazorSessionState, RazorSessionState>();
 builder.Services.AddScoped<RazorAntiforgeryBridge>();
 builder.Services.AddSingleton<SafeReturnDestination>();
+builder.Services.AddSingleton<AccessNotice>();
 builder.Services.AddHttpClient<ISgolApiClient, SgolApiClient>()
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
     {

@@ -385,3 +385,21 @@ Los formularios aplican los estados normal, foco, deshabilitado, error y cargand
 | Modal motivado | Sí | Sí y retorno | Sí durante envío | Motivo asociado | `aria-busy` | No aplica |
 | Upload | Sí | Sí | Sí | Sí | Progreso/PENDIENTE | Lista para seleccionar |
 | Alertas | Sí | Foco programático en resumen | No aplica | Sí | No aplica | No aplica |
+
+## BR-D03 — encabezado de sesión de UI-A06/A07
+
+El encabezado autenticado presenta sólo `DisplayName`, `RoleCode`, la expiración efectiva y la acción «Cerrar sesión» del `SessionSnapshot` vigente. El nombre del rol sale de un mapa cerrado: `DIRECCION` → «Dirección», `ADMINISTRACION` → «Administración», `SUBCOORDINACION` → «Subcoordinación» y `PISO_VENTAS` → «Piso de ventas». Un rol desconocido falla cerrado: no se muestra identidad, navegación ni contenido funcional.
+
+La expiración efectiva es el menor instante de `IdleExpiresAt` y `AbsoluteExpiresAt`. Se convierte en el servidor a `America/Mexico_City`; muestra hora para el día local actual y fecha más hora para otro día. No depende de la zona del navegador. No hay contador ni temporizador JavaScript. Cada petición protegida vuelve a leer el snapshot request-scoped.
+
+| Estado | Presentación y operación |
+|---|---|
+| Cargando | La región de sesión se marca ocupada y no presupone identidad, rol, enlaces ni acciones. |
+| Normal | Identidad, rol, expiración y botón de logout visibles; la navegación sólo contiene rutas implementadas y visibles. |
+| Expiración próxima | No se usa una advertencia anticipada: el snapshot no define umbral. Se muestra la expiración efectiva exacta hasta que el servidor la invalide. |
+| Expirada o invalidada | Se elimina la presentación de identidad y navegación, se limpian las cookies permitidas y se vuelve a acceso con el mensaje aprobado. |
+| Error | Mensaje seguro y textual según `estados-y-mensajes.md`, sin respuesta técnica ni secreto; el resumen recibe foco. |
+| Vacío | El anfitrión `/mi-trabajo` muestra «Aún no hay secciones disponibles» sin enlazar unidades UI-E aún no implementadas. Logout permanece disponible. |
+| Foco y deshabilitado | Los controles usan `:focus-visible` con tokens existentes; logout sólo se deshabilita durante su POST. |
+
+El orden semántico y de tabulación es salto a contenido, marca e información de sesión, logout, navegación disponible y contenido principal. En viewport estrecho el encabezado refluye a una columna sin desplazamiento horizontal y conserva los mismos textos y acciones. El diálogo de navegación móvil conserva Escape, foco modal y retorno al disparador. Sólo se usan las variables de `tokens.md` para propiedades visuales.

@@ -1,0 +1,21 @@
+@page "/mi-trabajo"
+@model Sgol.Web.Pages.MyWork.IndexModel
+@{
+    ViewData["Title"] = "Mi trabajo";
+}
+<section aria-labelledby="mi-trabajo-titulo">
+    <h1 id="mi-trabajo-titulo" class="encabezado-pagina__titulo">Mi trabajo</h1>
+    @if (Model.ErrorTitle is not null)
+    {
+        <div id="session-error" class="alerta alerta--peligro" role="alert" tabindex="-1">
+            <strong>@Model.ErrorTitle</strong>
+            <p>@Model.ErrorMessage</p>
+        </div>
+    }
+    else
+    {
+        <div class="estado-vacio" role="status">
+            <p class="estado-vacio__titulo">Aún no hay secciones disponibles</p>
+        </div>
+    }
+</section>

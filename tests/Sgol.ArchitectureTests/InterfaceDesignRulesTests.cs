@@ -81,7 +81,8 @@ public sealed partial class InterfaceDesignRulesTests
         Assert.Contains("data-dialog-open", layout, StringComparison.Ordinal);
         Assert.Contains("<dialog id=\"navegacion-movil\"", layout, StringComparison.Ordinal);
         Assert.Contains("method=\"dialog\"", layout, StringComparison.Ordinal);
-        Assert.Contains("Aún no hay secciones disponibles", layout, StringComparison.Ordinal);
+        var myWork = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Sgol.Web", "Pages", "MyWork", "Index.cshtml"));
+        Assert.Contains("Aún no hay secciones disponibles", myWork, StringComparison.Ordinal);
         Assert.DoesNotContain("IsInRole", layout, StringComparison.Ordinal);
     }
 
@@ -97,7 +98,9 @@ public sealed partial class InterfaceDesignRulesTests
         Assert.Contains("session.Permissions", navigation, StringComparison.Ordinal);
         Assert.Contains("/api/v1/auth/session", session, StringComparison.Ordinal);
         Assert.DoesNotContain("localStorage", layout + session, StringComparison.Ordinal);
-        Assert.DoesNotContain("/mi-trabajo\"", layout, StringComparison.Ordinal);
+        Assert.Contains("/mi-trabajo", layout, StringComparison.Ordinal);
+        Assert.Contains("data-logout-form", layout, StringComparison.Ordinal);
+        Assert.DoesNotContain("/api/v1/obligations", layout, StringComparison.Ordinal);
     }
 
     [Fact]

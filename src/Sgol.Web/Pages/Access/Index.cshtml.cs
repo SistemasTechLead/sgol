@@ -5,12 +5,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Sgol.Web.Presentation.ApiClient;
 using Sgol.Web.Presentation.Authentication;
+using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Access;
 
 public sealed class IndexModel(
     RazorAntiforgeryBridge antiforgery,
-    IDataProtectionProvider protection) : PageModel
+    IDataProtectionProvider protection,
+    AccessNotice accessNotice) : PageModel
 {
     private const string LoginPath = "/acceso";
     private const string PasswordPath = "/acceso/cambiar-contrasena";
@@ -31,16 +33,21 @@ public sealed class IndexModel(
     public string? Csrf { get; private set; }
     public string? ErrorTitle { get; private set; }
     public string? ErrorMessage { get; private set; }
+    public string? NoticeMessage { get; private set; }
+    public bool NoticeConfirmed { get; private set; }
     public string? ManualKey { get; private set; }
     public IReadOnlyList<string> RecoveryCodes { get; private set; } = [];
 
-    public IActionResult OnGet(string? flow)
+    public IActionResult OnGet(string? flow, string? notice)
     {
         NoStore();
         var path = Request.Path.Value;
         if (path == LoginPath)
         {
             Stage = "login";
+            var kind = accessNotice.Read(notice);
+            NoticeMessage = kind is null ? null : AccessNotice.Message(kind.Value);
+            NoticeConfirmed = kind == AccessNoticeKind.Closed;
         }
         else if (!HasPreAuthentication() || !ValidFlow(flow, ExpectedStep(path)))
         {
