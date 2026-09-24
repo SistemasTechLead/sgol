@@ -106,6 +106,46 @@ public sealed class AvailabilityAdministrationPersistenceTests : IAsyncLifetime
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
+    [Theory]
+    [InlineData(CanonicalRole.Administration)]
+    [InlineData(CanonicalRole.Subcoordination)]
+    [InlineData(CanonicalRole.SalesFloor)]
+    public async Task OtherRolesCannotReadOrWriteAvailabilityAndLeaveNoValue(string roleCode)
+    {
+        var seed = await ResetAndSeedAsync($"AVAIL-ROLE-{roleCode}", actorRole: roleCode);
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator());
+        var date = new DateOnly(2026, 9, 2);
+
+        await Assert.ThrowsAsync<AvailabilityAccessDeniedException>(() => service.GetAsync(
+            seed.ActorUserId, Guid.CreateVersion7(), seed.TargetPersonId, date, date));
+        await Assert.ThrowsAsync<AvailabilityAccessDeniedException>(() => service.PutAsync(
+            Command(seed.ActorUserId, seed.TargetPersonId, date, true)));
+
+        Assert.False(await context.AvailabilityDayVersions.AsNoTracking().AnyAsync());
+        Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(),
+            item => item.Action == "AVAILABILITY_ACCESS_DENIED" && item.Outcome == "DENIED");
+    }
+
+    [Fact]
+    public async Task IdempotentReplayPreservesOneVersionAndRejectsDifferentIntent()
+    {
+        var seed = await ResetAndSeedAsync("AVAIL-REPLAY");
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator());
+        var command = Command(seed.ActorUserId, seed.TargetPersonId, new DateOnly(2026, 9, 2), true);
+
+        var created = await service.PutAsync(command);
+        var replayed = await service.PutAsync(command);
+        await Assert.ThrowsAsync<AvailabilityIdempotencyConflictException>(() =>
+            service.PutAsync(command with { IsAvailable = false }));
+
+        Assert.Equal(created, replayed);
+        Assert.Equal(1, await context.AvailabilityDayVersions.AsNoTracking().CountAsync());
+        Assert.Equal(1, await context.AuditEvents.AsNoTracking()
+            .CountAsync(item => item.Action == "AVAILABILITY_CREATED"));
+    }
+
     [Fact]
     public async Task RangeIsInclusiveBoundedAndReturnsOnlyCurrentValues()
     {

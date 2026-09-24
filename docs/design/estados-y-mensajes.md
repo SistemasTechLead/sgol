@@ -119,6 +119,14 @@ Con dos acciones claras, nunca solo un botón de "Aceptar" que no resuelve nada:
 
 La lista sin registros muestra «Aún no hay personas registradas» y la acción «Registrar persona» para Dirección. El alta con `409 CODIGO_PERSONA_DUPLICADO` muestra «El código de persona ya está registrado» junto al campo de código; conserva los valores introducidos y no afirma que se creó otra persona. Un `403` de la sección muestra «No tienes permiso para ver personas y accesos» sin datos de la lista ni acción de alta. El detalle inexistente o fuera de alcance usa el mismo `404`: «No existe o no está disponible en tu alcance». Los errores desconocidos conservan el mensaje seguro común y, cuando exista, el `correlationId`; nunca se refleja `title` ni `detail` de la API.
 
+### UI-I03 — disponibilidad diaria
+
+Un rango sin valores registrados muestra «Aún no hay disponibilidad registrada en este rango» y «Selecciona un día y guarda Disponible o No disponible». Cada día sin registro conserva el texto «Sin registro»; un registro `false` dice «No disponible». Las fechas se muestran como día local de `America/Mexico_City`.
+
+Si falta una fecha, el orden del rango es inválido, excede el límite del servidor o el día seleccionado queda fuera del rango, el resumen indica «Revisa el rango y el día» y asocia «Selecciona fechas válidas dentro del rango permitido» a los campos. Una respuesta `400 FECHA_INVALIDA` o `CONSULTA_DISPONIBILIDAD_INVALIDA` no se anuncia como guardada. Tras PUT confirmado se muestra «Disponibilidad registrada» para día nuevo o «Disponibilidad corregida» para día existente; sólo la respuesta persistida actualiza la lista.
+
+Ante `412 VERSION_CONFLICT` se muestra el mensaje común y «Recargar disponibilidad». Hasta esa recarga explícita se bloquea el formulario y no se reintenta ni se adopta automáticamente otra versión. `400 IF_MATCH_INVALIDO` también exige recarga antes de corregir, incluso si el servidor lo devolvió porque faltó `If-Match`. Persona inactiva o fuera de alcance muestra un error seguro sin controles de escritura. Los demás errores usan el mensaje seguro por código y `correlationId` cuando exista.
+
 ### UI-I02 — empleo y vigencia
 
 La edición en el detalle presenta «Actualizar empleo» con puesto, turno y motivo obligatorio. Un historial sin versiones muestra «Aún no hay historial laboral» sin inventar una acción. `409 DATOS_LABORALES_SIN_CAMBIO` muestra «Puesto y turno ya son los vigentes» y conserva los campos; `409 VIGENCIA_SIN_CAMBIO` muestra «La vigencia solicitada ya es la vigente». Ninguno se anuncia como éxito.

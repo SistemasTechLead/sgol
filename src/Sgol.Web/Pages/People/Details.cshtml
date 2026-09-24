@@ -95,6 +95,75 @@
                 }
             </section>
         }
+        @if (Model.CanManageAvailability)
+        {
+            <section class="formulario-persona" aria-labelledby="disponibilidad-titulo">
+                <h2 id="disponibilidad-titulo">Disponibilidad</h2>
+                <p>Fechas locales de America/Mexico_City. Un día sin registro es distinto de No disponible.</p>
+                @if (Model.AvailabilityError is not null)
+                {
+                    <div id="availability-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.AvailabilityError" /></div>
+                }
+                @if (Model.IsAvailabilityConflict)
+                {
+                    <a class="boton boton--secundario" href="/personas-y-accesos/personas/@person.Id?fromDate=@Model.FromDate&amp;toDate=@Model.ToDate&amp;day=@Model.SelectedDay">Recargar disponibilidad</a>
+                }
+                else
+                {
+                    <form method="get" data-progress-form>
+                        <label class="campo" for="availability-from"><span class="campo__etiqueta">Desde</span><input id="availability-from" name="fromDate" class="campo__control" type="date" value="@Model.FromDate" required aria-invalid="@(Model.AvailabilityError is null ? "false" : "true")" aria-describedby="availability-zone @(Model.AvailabilityError is null ? null : "availability-error")" /></label>
+                        <label class="campo" for="availability-to"><span class="campo__etiqueta">Hasta</span><input id="availability-to" name="toDate" class="campo__control" type="date" value="@Model.ToDate" required aria-invalid="@(Model.AvailabilityError is null ? "false" : "true")" aria-describedby="availability-zone @(Model.AvailabilityError is null ? null : "availability-error")" /></label>
+                        <label class="campo" for="availability-day"><span class="campo__etiqueta">Día</span><input id="availability-day" name="day" class="campo__control" type="date" value="@Model.SelectedDay" required aria-invalid="@(Model.AvailabilityError is null ? "false" : "true")" aria-describedby="availability-zone @(Model.AvailabilityError is null ? null : "availability-error")" /></label>
+                        <p id="availability-zone">Zona operativa: America/Mexico_City. El día debe estar dentro del rango.</p>
+                        <button type="submit" class="boton boton--secundario" data-progress-label="Consultando disponibilidad…">Consultar disponibilidad</button>
+                    </form>
+                    @if (Model.AvailabilityDays.Count > 0)
+                    {
+                        <div aria-busy="false" aria-live="polite">
+                            @if (Model.AvailabilityDays.All(item => item.IsAvailable is null))
+                            {
+                                <div class="estado-vacio"><p class="estado-vacio__titulo">Aún no hay disponibilidad registrada en este rango</p><p class="estado-vacio__texto">Selecciona un día y guarda Disponible o No disponible.</p></div>
+                            }
+                            <ul class="disponibilidad-lista" aria-label="Días de disponibilidad">
+                                @foreach (var item in Model.AvailabilityDays)
+                                {
+                                    <li class="disponibilidad-dia">
+                                        <time datetime="@item.Date.ToString("yyyy-MM-dd")">@item.Date.ToString("dd/MM/yyyy")</time>
+                                        @if (item.IsAvailable is true) { <span class="badge badge--exito"><span aria-hidden="true">✓</span>Disponible</span> }
+                                        else if (item.IsAvailable is false) { <span class="badge badge--advertencia"><span aria-hidden="true">⊘</span>No disponible</span> }
+                                        else { <span class="badge badge--neutro"><span aria-hidden="true">○</span>Sin registro</span> }
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                        @if (current?.Status == "ACTIVA")
+                        {
+                            <form method="post" asp-page-handler="Availability" asp-antiforgery="false" data-progress-form>
+                                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                                <input type="hidden" name="intentKey" value="@Model.AvailabilityIntent.ToString("D")" />
+                                <input type="hidden" name="fromDate" value="@Model.FromDate" />
+                                <input type="hidden" name="toDate" value="@Model.ToDate" />
+                                <input type="hidden" name="day" value="@Model.SelectedDay" />
+                                <input type="hidden" name="etag" value="@Model.SelectedEtag" />
+                                <p>Día seleccionado: <time datetime="@Model.SelectedDay">@Model.SelectedDay</time>. @(Model.SelectedEtag is null ? "Sin registro" : "Valor registrado")</p>
+                                <fieldset class="grupo-radio" aria-describedby="availability-value-help">
+                                    <legend class="grupo-radio__leyenda">Disponibilidad para el día</legend>
+                                    <label class="grupo-radio__opcion"><input type="radio" name="isAvailable" value="true" required checked="@(Model.SelectedValue is true)" />Disponible</label>
+                                    <label class="grupo-radio__opcion"><input type="radio" name="isAvailable" value="false" required checked="@(Model.SelectedValue is false)" />No disponible</label>
+                                </fieldset>
+                                <p id="availability-value-help">Selecciona exactamente un valor binario.</p>
+                                <button type="submit" class="boton boton--primario" data-progress-label="Guardando disponibilidad…">Guardar disponibilidad</button>
+                            </form>
+                        }
+                        else { <p>La persona está inactiva. La disponibilidad se conserva en lectura.</p> }
+                    }
+                    @if (Model.AvailabilitySuccess is not null)
+                    {
+                        <p class="alerta alerta--exito" role="status"><span aria-hidden="true">✓</span>@Model.AvailabilitySuccess.</p>
+                    }
+                }
+            </section>
+        }
         <h2>Historial laboral</h2>
         <div class="tabla-contenedor">
             <table class="tabla">
@@ -139,5 +208,9 @@
     @if (Model.Error is not null)
     {
         <script>document.getElementById('person-detail-error')?.focus();</script>
+    }
+    @if (Model.AvailabilityError is not null)
+    {
+        <script>document.getElementById('availability-error')?.focus();</script>
     }
 }
