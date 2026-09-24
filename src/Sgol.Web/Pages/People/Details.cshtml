@@ -1,5 +1,6 @@
 @page "/personas-y-accesos/personas/{personId:guid}"
 @model Sgol.Web.Pages.People.DetailsModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
 @{
     ViewData["Title"] = "Historial laboral";
 }
@@ -7,16 +8,93 @@
     <a class="boton boton--secundario" href="/personas-y-accesos">Volver a personas</a>
     @if (Model.Error is not null)
     {
-        <h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">Persona no disponible</h1>
+        @if (Model.IsConflict || Model.Person is null)
+        {
+            <h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">@(Model.IsConflict ? "Conflicto de versión" : "Persona no disponible")</h1>
+        }
         <div id="person-detail-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div>
+    }
+    @if (Model.IsConflict)
+    {
+        <a class="boton boton--secundario" href="/personas-y-accesos/personas/@(RouteData.Values["personId"])">Recargar detalle</a>
     }
     else if (Model.Person is { } person)
     {
+        var current = person.EmploymentHistory.SingleOrDefault(version => version.ValidTo is null);
         <h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">@person.DisplayName</h1>
+        @if (Model.Success is not null)
+        {
+            <p class="alerta alerta--exito" role="status"><span aria-hidden="true">✓</span>@Model.Success. El historial laboral está actualizado.</p>
+        }
         <dl class="detalle-persona">
             <div><dt>Código de persona</dt><dd>@person.StableCode</dd></div>
             <div><dt>Fecha de registro</dt><dd><time datetime="@person.CreatedAt.ToString("O")">@Sgol.Web.Pages.People.DetailsModel.LocalDateTime(person.CreatedAt)</time> (Ciudad de México)</dd></div>
         </dl>
+        @if (current is not null && Model.ETag is not null)
+        {
+            <section class="formulario-persona" aria-labelledby="empleo-titulo">
+                <h2 id="empleo-titulo">Actualizar empleo</h2>
+                <form method="post" asp-page-handler="Employment" asp-antiforgery="false" data-progress-form>
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                    <input type="hidden" name="intentKey" value="@Model.EmploymentIntent.ToString("D")" />
+                    <input type="hidden" name="etag" value="@Model.ETag" />
+                    <input type="hidden" name="status" value="@current.Status" />
+                    <label class="campo" for="positionText">
+                        <span class="campo__etiqueta">Puesto</span>
+                        <input id="positionText" name="positionText" class="campo__control" type="text" value="@(Model.PositionText ?? current.PositionText)" />
+                    </label>
+                    <label class="campo" for="shiftText">
+                        <span class="campo__etiqueta">Turno</span>
+                        <input id="shiftText" name="shiftText" class="campo__control" type="text" value="@(Model.ShiftText ?? current.ShiftText)" />
+                    </label>
+                    <label class="campo" for="employmentReason">
+                        <span class="campo__etiqueta">Motivo</span>
+                        <textarea id="employmentReason" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-invalid="false" aria-describedby="employmentReason-error" data-required-reason></textarea>
+                        <span id="employmentReason-error" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span>
+                    </label>
+                    <button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Guardar empleo</button>
+                </form>
+            </section>
+            <section class="formulario-persona" aria-labelledby="vigencia-titulo">
+                <h2 id="vigencia-titulo">Vigencia laboral</h2>
+                @if (current.Status == "ACTIVA")
+                {
+                    <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="deactivate-dialog">Dar de baja</button>
+                    <dialog id="deactivate-dialog" class="modal" aria-labelledby="deactivate-title" aria-describedby="deactivate-summary">
+                        <form method="post" asp-page-handler="Deactivate" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                            <input type="hidden" name="intentKey" value="@Model.DeactivateIntent.ToString("D")" />
+                            <input type="hidden" name="etag" value="@Model.ETag" />
+                            <h3 id="deactivate-title" class="modal__titulo">Dar de baja a esta persona</h3>
+                            <p id="deactivate-summary" class="modal__texto">@person.DisplayName (@person.StableCode). La persona quedará inactiva. Su historial laboral se conservará.</p>
+                            <label class="campo" for="deactivate-reason"><span class="campo__etiqueta">Motivo</span><textarea id="deactivate-reason" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-invalid="false" aria-describedby="deactivate-reason-error" data-required-reason></textarea><span id="deactivate-reason-error" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                            <div class="modal__acciones">
+                                <button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button>
+                                <button type="submit" class="boton boton--primario" data-progress-label="Guardando…">Dar de baja</button>
+                            </div>
+                        </form>
+                    </dialog>
+                }
+                else if (current.Status == "INACTIVA")
+                {
+                    <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="reactivate-dialog">Reactivar</button>
+                    <dialog id="reactivate-dialog" class="modal" aria-labelledby="reactivate-title" aria-describedby="reactivate-summary">
+                        <form method="post" asp-page-handler="Reactivate" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                            <input type="hidden" name="intentKey" value="@Model.ReactivateIntent.ToString("D")" />
+                            <input type="hidden" name="etag" value="@Model.ETag" />
+                            <h3 id="reactivate-title" class="modal__titulo">Reactivar a esta persona</h3>
+                            <p id="reactivate-summary" class="modal__texto">@person.DisplayName (@person.StableCode). La persona volverá a estar activa. Su historial laboral se conservará.</p>
+                            <label class="campo" for="reactivate-reason"><span class="campo__etiqueta">Motivo</span><textarea id="reactivate-reason" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-invalid="false" aria-describedby="reactivate-reason-error" data-required-reason></textarea><span id="reactivate-reason-error" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                            <div class="modal__acciones">
+                                <button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button>
+                                <button type="submit" class="boton boton--primario" data-progress-label="Guardando…">Reactivar</button>
+                            </div>
+                        </form>
+                    </dialog>
+                }
+            </section>
+        }
         <h2>Historial laboral</h2>
         <div class="tabla-contenedor">
             <table class="tabla">
@@ -50,6 +128,10 @@
                     }
                 </tbody>
             </table>
+            @if (person.EmploymentHistory.Count == 0)
+            {
+                <p class="estado-vacio__titulo">Aún no hay historial laboral</p>
+            }
         </div>
     }
 </section>
