@@ -370,6 +370,12 @@ Los filtros usan un formulario GET con etiquetas y orden DOM; limpiar filtros es
 
 ## Matriz de cobertura de componentes base
 
+### BR-D02 — recorrido de acceso
+
+`UI-A01..A05` usan páginas de formulario de una columna, fuera de la navegación del shell, con un solo botón primario por paso. El orden es título, instrucción, alerta o resumen, campos de credencial y acción. El backend determina el paso mediante `nextStep`; una visita directa sin continuación vigente vuelve a `/acceso`. Las transiciones internas llevan sólo un marcador protegido y breve del paso, nunca contraseñas, TOTP, códigos, cookies o CSRF en la URL. Ese marcador no autoriza: cada POST requiere la preautenticación y la validación del servidor.
+
+Los formularios aplican los estados normal, foco, deshabilitado, error y cargando de los componentes existentes. El vacío de un formulario inicial significa campos sin valor; no se muestra un estado de datos vacío. Durante el envío se deshabilita la acción y se anuncia «Verificando…». Un bloqueo o desafío vencido muestra alerta textual y una acción para volver a acceso; jamás presenta el shell como sesión plena. La pantalla de códigos de recuperación aparece sólo en la respuesta que los crea, sin GET que pueda volver a mostrarlos, y explica que deben guardarse fuera de SGOL antes de continuar.
+
 | Componente | Normal | Foco | Deshabilitado | Error | Cargando | Vacío |
 |---|---:|---:|---:|---:|---:|---:|
 | Campo/select/credencial/textarea/fecha | Sí | Sí | Sí | Sí | Contenedor o select | No aplica |

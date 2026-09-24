@@ -38,7 +38,7 @@ internal static class ApiCookieBridge
     {
         if (!response.Headers.TryGetValues("Set-Cookie", out var headers)) return [];
         var validated = new List<string>();
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var names = new Dictionary<string, bool>(StringComparer.Ordinal);
         foreach (var header in headers)
         {
             var parts = header.Split(';', StringSplitOptions.TrimEntries);
@@ -47,7 +47,7 @@ internal static class ApiCookieBridge
             if (separator <= 0 || header.Any(character => character is '\r' or '\n') || pair.Any(char.IsControl))
                 throw new ApiProtocolException();
             var name = pair[..separator];
-            if (!IsKnown(name) || !names.Add(name) || !CanSet(name, method, path)) throw new ApiProtocolException();
+            if (!IsKnown(name) || !CanSet(name, method, path)) throw new ApiProtocolException();
             var attributes = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             foreach (var attribute in parts.Skip(1))
             {
@@ -73,6 +73,19 @@ internal static class ApiCookieBridge
             if (attributes.TryGetValue("Max-Age", out var maxAge) &&
                 (!long.TryParse(maxAge, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds) ||
                  seconds is < 0 or > 28800)) throw new ApiProtocolException();
+            var deleted = pair[(separator + 1)..].Length == 0 &&
+                (attributes.TryGetValue("Max-Age", out var age) && age == "0" ||
+                 attributes.TryGetValue("Expires", out var date) &&
+                 DateTimeOffset.TryParse(date, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var expiration) &&
+                 expiration <= DateTimeOffset.UtcNow);
+            if (names.TryGetValue(name, out var previousDeleted))
+            {
+                // The hosted login deliberately deletes an old preauth cookie before issuing its replacement.
+                if (name != PreAuth || !IsLogin(path) || !previousDeleted || deleted)
+                    throw new ApiProtocolException();
+                names[name] = false;
+            }
+            else names.Add(name, deleted);
             validated.Add(header);
         }
         return validated;

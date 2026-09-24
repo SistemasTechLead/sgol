@@ -63,7 +63,7 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
             if (status == 401) ApiCookieBridge.Clear(context);
             throw;
         }
-        if (status == 401)
+        if (status == 401 && !PreAuthenticationStep(request.Path))
         {
             ApiCookieBridge.Clear(context);
             responseCookies = [];
@@ -137,6 +137,7 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
             }
             if ((code is null && status != 500) || code is not null && !ValidCode(code)) throw new ApiProtocolException();
             var presentation = ProblemDetailsPresenter.Present(status, code, problemCorrelation);
+            if (status == 401 && code == "DESAFIO_INVALIDO") ApiCookieBridge.Clear(context);
             ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
             return new(status, default, null, problemCorrelation!, null, null, null, false, code, presentation);
         }
@@ -150,6 +151,11 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
             !pathOnly.Contains("/../", StringComparison.Ordinal) && !pathOnly.Contains("/./", StringComparison.Ordinal) &&
             !path.Contains('#') && Uri.TryCreate(path, UriKind.Relative, out _);
     }
+
+    private static bool PreAuthenticationStep(string path) => path is
+        "/api/v1/auth/password/change" or "/api/v1/auth/mfa/enroll" or
+        "/api/v1/auth/mfa/confirm" or "/api/v1/auth/mfa/verify" or
+        "/api/v1/auth/recovery-codes/regenerate";
 
     private static bool StrongEtag(string value) => value.Length >= 3 && value[0] == '"' && value[^1] == '"' &&
         !value.AsSpan(1, value.Length - 2).Contains('"') && !value.Contains('\r') && !value.Contains('\n');

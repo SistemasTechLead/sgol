@@ -49,6 +49,24 @@ La presentación común selecciona el mensaje por la combinación de HTTP y `cod
 
 ## 403 — autorización denegada
 
+## BR-M01/BR-M02 — mensajes del acceso hospedado
+
+Estos textos se aplican únicamente a `UI-A01..A05`. La interfaz selecciona por código cerrado de la API y nunca refleja el usuario, contraseña, TOTP, recovery code, `title` o `detail` crudos. La misma respuesta `AUTHENTICATION_FAILED` se presenta de forma idéntica para usuario inexistente, cuenta inactiva o contraseña incorrecta.
+
+| Respuesta | Título visible | Mensaje y acción |
+|---|---|---|
+| `401 AUTHENTICATION_FAILED` | No se pudo iniciar sesión | Revisa los datos de acceso e inténtalo de nuevo. |
+| `400 PASSWORD_NO_CUMPLE_POLITICA` | La contraseña no cumple los requisitos | Usa una contraseña nueva de 14 a 128 caracteres. Revisa los campos e inténtalo de nuevo. |
+| `400 DATOS_AUTENTICACION_INVALIDOS` | Revisa los datos ingresados | Corrige los campos señalados e inténtalo de nuevo. |
+| `401 CODIGO_MFA_INVALIDO` | No se pudo verificar el código | Revisa el código e inténtalo de nuevo. No indica si se usó TOTP o recuperación. |
+| `401 DESAFIO_INVALIDO` | El paso de acceso venció | Vuelve a iniciar sesión para continuar. |
+| `423 ACCOUNT_LOCKED` | El acceso está bloqueado temporalmente | Espera antes de volver a intentarlo. No se muestra identidad ni contador de fallos. |
+| `429 RATE_LIMITED` | Demasiadas solicitudes | Espera antes de volver a intentarlo. No se reenvía automáticamente. |
+| `400 CSRF_INVALID` o rechazo antiforgery de Razor | No se pudo verificar la solicitud | Recarga la página antes de volver a enviarla. |
+| `409 MFA_STATE_INCONSISTENT` | Se requiere recuperación administrada | Solicita a Dirección el restablecimiento de MFA. |
+
+Al mostrar por primera y única vez códigos de recuperación, el título es «Guarda tus códigos de recuperación» y la instrucción es «Estos códigos no volverán a mostrarse. Guárdalos en un lugar seguro fuera de SGOL». La pantalla no ofrece impresión, descarga ni copia automática. Tras TOTP válido o regeneración confirmada, el texto «Sesión iniciada» se muestra sólo cuando existe una cookie plena emitida por la API; la preautenticación nunca usa ese texto.
+
 Nunca "Acceso denegado" a secas. El mensaje nombra el recurso y, cuando ayuda a que el usuario entienda que no es un bug sino una regla de su rol, lo dice.
 
 **Mal**:

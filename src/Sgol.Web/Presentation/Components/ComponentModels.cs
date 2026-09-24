@@ -15,7 +15,8 @@ public sealed record CredentialFieldViewModel(
     CredentialKind Kind,
     string? ErrorMessage = null,
     bool IsDisabled = false,
-    bool CanReveal = false);
+    bool CanReveal = false,
+    string? Autocomplete = null);
 
 public sealed record FormFieldViewModel(
     string Id,

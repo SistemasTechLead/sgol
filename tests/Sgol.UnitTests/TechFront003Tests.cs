@@ -20,6 +20,16 @@ public sealed class TechFront003Tests
         "__Host-SGOL-Session=opaque; Path=/; Secure; HttpOnly; SameSite=Strict",
         "unexpected=opaque; Path=/; Secure; HttpOnly; SameSite=Strict",
     ];
+    private static readonly string[] RotatedPreauthHeaders =
+    [
+        "__Host-SGOL-PreAuth=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; HttpOnly; SameSite=Strict",
+        "__Host-SGOL-PreAuth=new-ticket; Path=/; Secure; HttpOnly; SameSite=Strict",
+    ];
+    private static readonly string[] DuplicatePreauthHeaders =
+    [
+        "__Host-SGOL-PreAuth=first; Path=/; Secure; HttpOnly; SameSite=Strict",
+        "__Host-SGOL-PreAuth=second; Path=/; Secure; HttpOnly; SameSite=Strict",
+    ];
 
     [Theory]
     [InlineData("DIRECCION")]
@@ -132,6 +142,20 @@ public sealed class TechFront003Tests
         Assert.Throws<ApiProtocolException>(() => ApiCookieBridge.ValidateResponseCookies(mixed,
             HttpMethod.Get, "/api/v1/auth/session"));
         Assert.False(context.Response.Headers.ContainsKey("Set-Cookie"));
+    }
+
+    [Fact]
+    public void LoginMayReplaceDeletedPreauthCookieButRejectsTwoLiveValues()
+    {
+        using var rotated = new HttpResponseMessage(HttpStatusCode.OK);
+        rotated.Headers.TryAddWithoutValidation("Set-Cookie", RotatedPreauthHeaders);
+        Assert.Equal(2, ApiCookieBridge.ValidateResponseCookies(rotated, HttpMethod.Post,
+            "/api/v1/auth/login").Count);
+
+        using var duplicate = new HttpResponseMessage(HttpStatusCode.OK);
+        duplicate.Headers.TryAddWithoutValidation("Set-Cookie", DuplicatePreauthHeaders);
+        Assert.Throws<ApiProtocolException>(() => ApiCookieBridge.ValidateResponseCookies(duplicate,
+            HttpMethod.Post, "/api/v1/auth/login"));
     }
 
     [Fact]
