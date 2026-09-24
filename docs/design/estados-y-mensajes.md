@@ -119,6 +119,14 @@ Con dos acciones claras, nunca solo un botón de "Aceptar" que no resuelve nada:
 
 La lista sin registros muestra «Aún no hay personas registradas» y la acción «Registrar persona» para Dirección. El alta con `409 CODIGO_PERSONA_DUPLICADO` muestra «El código de persona ya está registrado» junto al campo de código; conserva los valores introducidos y no afirma que se creó otra persona. Un `403` de la sección muestra «No tienes permiso para ver personas y accesos» sin datos de la lista ni acción de alta. El detalle inexistente o fuera de alcance usa el mismo `404`: «No existe o no está disponible en tu alcance». Los errores desconocidos conservan el mensaje seguro común y, cuando exista, el `correlationId`; nunca se refleja `title` ni `detail` de la API.
 
+### UI-I02 — empleo y vigencia
+
+La edición en el detalle presenta «Actualizar empleo» con puesto, turno y motivo obligatorio. Un historial sin versiones muestra «Aún no hay historial laboral» sin inventar una acción. `409 DATOS_LABORALES_SIN_CAMBIO` muestra «Puesto y turno ya son los vigentes» y conserva los campos; `409 VIGENCIA_SIN_CAMBIO` muestra «La vigencia solicitada ya es la vigente». Ninguno se anuncia como éxito.
+
+La baja abre «Dar de baja a esta persona» y resume nombre y código: «La persona quedará inactiva. Su historial laboral se conservará». La reactivación abre «Reactivar a esta persona» y resume el mismo recurso: «La persona volverá a estar activa. Su historial laboral se conservará». Ambos diálogos exigen «Motivo» y ofrecen «Cancelar» y, respectivamente, «Dar de baja» o «Reactivar». Un motivo vacío se asocia al campo y se anuncia antes de enviar. Tras éxito se muestra «Empleo actualizado», «Persona dada de baja» o «Persona reactivada», con el historial recibido de la API.
+
+Ante `412 VERSION_CONFLICT`, el detalle muestra el mensaje común de conflicto y una acción explícita «Recargar detalle». El formulario y los diálogos dejan de estar disponibles hasta esa recarga; no se reenvía la intención ni se toma una nueva versión automáticamente. Los errores de API desconocidos usan el mensaje seguro común y `correlationId` cuando exista. El motivo nunca aparece en URL, historial visible, captura ni log.
+
 Siempre con texto + acción sugerida, nunca solo un ícono y "No hay datos". La acción cambia según por qué está vacío: no es lo mismo "todavía no hay nada" que "filtraste hasta que no quedó nada".
 
 **Sin datos todavía** (ej. panel de un colaborador nuevo, semana 1):

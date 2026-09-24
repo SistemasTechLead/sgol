@@ -150,6 +150,8 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
         var versionsBefore = await context.EmploymentVersions.CountAsync();
         var idempotencyBefore = await context.IdempotencyRecords.CountAsync();
         var knownPerson = await context.People.AsNoTracking().Select(item => item.Id).FirstAsync();
+        var currentVersion = await context.EmploymentVersions.AsNoTracking()
+            .Where(item => item.PersonId == knownPerson).Select(item => item.RowVersion).SingleAsync();
 
         await Assert.ThrowsAsync<PersonAccessDeniedException>(() =>
             service.ListAsync(actorUserId, Guid.CreateVersion7()));
@@ -158,11 +160,20 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
         await Assert.ThrowsAsync<PersonAccessDeniedException>(() =>
             service.CreateAsync(new CreatePersonCommand(actorUserId, Guid.CreateVersion7(),
                 Guid.CreateVersion7(), "FRONT003-DENIED", "Persona sintética denegada")));
+        foreach (var operation in new[] { "PERSON_EMPLOYMENT_PATCH", "PERSON_DEACTIVATE", "PERSON_REACTIVATE" })
+        {
+            var status = operation == "PERSON_DEACTIVATE" ? EmploymentStatus.Inactive : EmploymentStatus.Active;
+            await Assert.ThrowsAsync<PersonAccessDeniedException>(() =>
+                service.ChangeEmploymentAsync(new ChangeEmploymentCommand(actorUserId, Guid.CreateVersion7(),
+                    knownPerson, status, currentVersion, "Motivo sintético", Guid.CreateVersion7(),
+                    operation == "PERSON_EMPLOYMENT_PATCH" ? "Director" : null,
+                    operation == "PERSON_EMPLOYMENT_PATCH" ? "Vespertino" : null, operation)));
+        }
 
         Assert.Equal(peopleBefore, await context.People.CountAsync());
         Assert.Equal(versionsBefore, await context.EmploymentVersions.CountAsync());
         Assert.Equal(idempotencyBefore, await context.IdempotencyRecords.CountAsync());
-        Assert.Equal(3, await context.AuditEvents.CountAsync(item =>
+        Assert.Equal(6, await context.AuditEvents.CountAsync(item =>
             item.ActorUserId == actorUserId && item.Action == "PERSON_ACCESS_DENIED"));
     }
 
@@ -458,6 +469,63 @@ public sealed class PersonAdministrationPersistenceTests : IAsyncLifetime
         Assert.Null(persisted.ValidTo);
         Assert.Equal(1, persisted.RowVersion);
         Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task Front004EmploymentVigency_ReplaysAndRejectsStaleOrUnchangedWithoutEffect()
+    {
+        var actor = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator(Now), Now);
+        var created = await service.CreateAsync(new CreatePersonCommand(actor, Guid.CreateVersion7(),
+            Guid.CreateVersion7(), "PER-FRONT004", "Persona FRONT-004 sintética"));
+        var initial = Assert.Single(created.Person.EmploymentHistory);
+        var edit = new ChangeEmploymentCommand(actor, Guid.CreateVersion7(), created.Person.Id,
+            EmploymentStatus.Active, initial.RowVersion, "Cambio sintético", Guid.CreateVersion7(),
+            "Director", "Vespertino");
+        var edited = await service.ChangeEmploymentAsync(edit);
+        Assert.True((await service.ChangeEmploymentAsync(edit)).Replayed);
+        Assert.Equal(2, edited.Person.EmploymentHistory.Count);
+        var version = edited.Person.EmploymentHistory[^1].RowVersion;
+        await Assert.ThrowsAsync<PersonEmploymentNoChangeException>(() =>
+            service.ChangeEmploymentAsync(edit with
+            {
+                ExpectedRowVersion = version,
+                IdempotencyKey = Guid.CreateVersion7()
+            }));
+        await Assert.ThrowsAsync<PersonVersionConflictException>(() =>
+            service.ChangeEmploymentAsync(edit with
+            {
+                IdempotencyKey = Guid.CreateVersion7(),
+                PositionText = "Otro puesto"
+            }));
+        await Assert.ThrowsAsync<PersonValidationException>(() =>
+            service.ChangeEmploymentAsync(edit with
+            {
+                ExpectedRowVersion = version,
+                IdempotencyKey = Guid.CreateVersion7(),
+                Reason = " "
+            }));
+
+        var deactivated = await service.ChangeEmploymentAsync(new ChangeEmploymentCommand(actor,
+            Guid.CreateVersion7(), created.Person.Id, EmploymentStatus.Inactive, version,
+            "Baja sintética", Guid.CreateVersion7(), Operation: "PERSON_DEACTIVATE"));
+        var reactivated = await service.ChangeEmploymentAsync(new ChangeEmploymentCommand(actor,
+            Guid.CreateVersion7(), created.Person.Id, EmploymentStatus.Active,
+            deactivated.Person.EmploymentHistory[^1].RowVersion, "Reactivación sintética",
+            Guid.CreateVersion7(), Operation: "PERSON_REACTIVATE"));
+
+        Assert.Equal([EmploymentStatus.Active, EmploymentStatus.Active, EmploymentStatus.Inactive,
+            EmploymentStatus.Active], reactivated.Person.EmploymentHistory.Select(item => item.Status));
+        Assert.Equal("Director", reactivated.Person.EmploymentHistory[^1].PositionText);
+        Assert.Equal("Vespertino", reactivated.Person.EmploymentHistory[^1].ShiftText);
+        Assert.Single(reactivated.Person.EmploymentHistory, item => item.ValidTo is null);
+        Assert.Equal(4, await context.EmploymentVersions.AsNoTracking()
+            .CountAsync(item => item.PersonId == created.Person.Id));
+        Assert.Equal(4, await context.AuditEvents.AsNoTracking()
+            .CountAsync(item => item.ResourceId == created.Person.Id && item.Outcome == "SUCCESS"));
+        Assert.Equal(4, await context.IdempotencyRecords.AsNoTracking()
+            .CountAsync(item => item.ResourceId == created.Person.Id));
     }
 
     private async Task<Guid> ResetAndSeedActorAsync(

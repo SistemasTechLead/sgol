@@ -25,11 +25,29 @@
         if (dialog instanceof HTMLDialogElement) {
             dialogTriggers.set(dialog, opener);
             dialog.showModal();
+            dialog.querySelector("[data-initial-focus]")?.focus();
         }
     });
 
     document.querySelectorAll("dialog").forEach(dialog => {
         dialog.addEventListener("close", () => dialogTriggers.get(dialog)?.focus());
+    });
+    document.addEventListener("click", event => {
+        event.target.closest("[data-dialog-close]")?.closest("dialog")?.close();
+    });
+    document.querySelectorAll("[data-required-reason]").forEach(field => {
+        const error = document.getElementById(field.getAttribute("aria-describedby"));
+        field.addEventListener("invalid", () => {
+            field.setAttribute("aria-invalid", "true");
+            field.closest(".campo")?.classList.add("campo--error");
+            if (error) error.hidden = false;
+        });
+        field.addEventListener("input", () => {
+            if (!field.validity.valid) return;
+            field.setAttribute("aria-invalid", "false");
+            field.closest(".campo")?.classList.remove("campo--error");
+            if (error) error.hidden = true;
+        });
     });
 
     document.querySelectorAll("[data-access-form]").forEach(form => {
