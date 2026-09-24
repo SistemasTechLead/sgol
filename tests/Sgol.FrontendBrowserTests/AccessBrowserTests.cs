@@ -3,6 +3,7 @@ using Xunit;
 
 namespace Sgol.FrontendBrowserTests;
 
+[Collection("FRONT_BROWSER")]
 public sealed class AccessBrowserTests
 {
     [Fact]

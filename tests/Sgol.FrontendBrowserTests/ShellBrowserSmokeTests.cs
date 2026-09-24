@@ -5,6 +5,7 @@ using Xunit;
 
 namespace Sgol.FrontendBrowserTests;
 
+[Collection("FRONT_BROWSER")]
 public sealed class ShellBrowserSmokeTests
 {
     private const string ShellPath = "/branches/LOR-001";
@@ -40,7 +41,7 @@ public sealed class ShellBrowserSmokeTests
                 await AssertAnonymousAsync(browser, fixture, viewport);
                 foreach (var account in fixture.Accounts)
                 {
-                    // Real API first access is a separate fixture. No visual login route exists yet.
+                    // Keep the shell regression focused on each role's full session.
                     await using var context = await NewContextAsync(browser, viewport);
                     await context.AddCookiesAsync([new Microsoft.Playwright.Cookie
                     {
