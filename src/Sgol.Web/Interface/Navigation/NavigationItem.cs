@@ -31,5 +31,6 @@ public static class RoleAwareNavigation
     }
 
     // This set grows only when a NAV route is actually implemented by its own story.
-    private static readonly HashSet<string> ImplementedNavigationRoutes = new(["/personas-y-accesos"], StringComparer.Ordinal);
+    private static readonly HashSet<string> ImplementedNavigationRoutes = new(
+        ["/personas-y-accesos", "/configuracion"], StringComparer.Ordinal);
 }

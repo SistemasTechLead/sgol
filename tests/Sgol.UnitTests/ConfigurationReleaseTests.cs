@@ -1,7 +1,9 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
+using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
 
@@ -9,6 +11,7 @@ namespace Sgol.UnitTests;
 
 public sealed class ConfigurationReleaseTests
 {
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly Guid ActorUserId = Guid.Parse("019d2d67-2c00-7000-8000-000000000801");
     private static readonly Guid ReleaseId = Guid.Parse("019d2d67-2c00-7000-8000-000000000802");
     private static readonly DateTimeOffset September = new(2026, 9, 3, 0, 0, 0, TimeSpan.Zero);
@@ -42,6 +45,26 @@ public sealed class ConfigurationReleaseTests
         Assert.Equal(VersionStatuses.Current, successor.Status);
         Assert.Equal(first.Id, successor.SupersedesId);
         Assert.Equal(2, successor.VersionNo);
+    }
+
+    [Fact]
+    public void SessionPermissionProjection_OnlyDirectionSeesConfigurationAdministration()
+    {
+        Assert.Contains(ConfigurationAuthorization.Administer,
+            RolePermissionProjection.ForRole(CanonicalRole.Direction));
+        foreach (var role in new[] { CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor })
+            Assert.DoesNotContain(ConfigurationAuthorization.Administer, RolePermissionProjection.ForRole(role));
+    }
+
+    [Fact]
+    public async Task List_ExposesCollectionCountRequiredBySharedRazorClient()
+    {
+        var service = new RecordingService(CreateDetails(VersionStatuses.Draft, rowVersion: 1));
+        var result = await ConfigurationApiEndpoints.HandleListAsync(CreateContext(), service, CancellationToken.None);
+        var value = Assert.IsAssignableFrom<IValueHttpResult>(result).Value;
+        using var body = JsonDocument.Parse(JsonSerializer.Serialize(value, WebJsonOptions));
+        Assert.Equal(JsonValueKind.Array, body.RootElement.GetProperty("data").ValueKind);
+        Assert.Equal(1, body.RootElement.GetProperty("meta").GetProperty("count").GetInt32());
     }
 
     [Fact]

@@ -1,0 +1,130 @@
+@page "/configuracion"
+@model Sgol.Web.Pages.Configuration.IndexModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@using Sgol.BuildingBlocks.Versioning
+@{
+    ViewData["Title"] = "Configuración";
+}
+<section aria-labelledby="releases-title">
+    <h1 id="releases-title" class="encabezado-pagina__titulo">Releases de configuración</h1>
+    <p>Versiones de LOR-001. Las fechas se muestran en hora de Ciudad de México.</p>
+    @if (Model.Error is not null)
+    {
+        <div id="configuration-error" tabindex="-1">
+            <partial name="_ProblemAlert" model="Model.Error" />
+            @if (Model.ConflictReleaseId is not null)
+            {
+                <a class="boton boton--secundario" href="/configuracion">Recargar releases</a>
+            }
+        </div>
+    }
+    @if (Model.Success is not null)
+    {
+        <p role="status" class="alerta alerta--exito"><span aria-hidden="true">✓</span>@Model.Success.</p>
+    }
+    @if (Model.CanShow)
+    {
+        @if (Model.Releases.Count == 0)
+        {
+            <div class="estado-vacio">
+                <span class="estado-vacio__icono" aria-hidden="true">○</span>
+                <p class="estado-vacio__titulo">Aún no hay releases de configuración</p>
+                <p class="estado-vacio__texto">Crea un borrador para preparar la primera versión.</p>
+                @if (Model.CanManage) { <a class="boton boton--secundario" href="#nuevo-borrador">Crear borrador</a> }
+            </div>
+        }
+        else
+        {
+            <div class="tabla-contenedor" aria-busy="false">
+                <table class="tabla">
+                    <caption>Historia de releases de LOR-001</caption>
+                    <thead class="tabla__encabezado"><tr>
+                        <th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Vigente desde</th>
+                        <th scope="col">Vigente hasta</th><th scope="col">Publicación</th><th scope="col">Actor</th>
+                        <th scope="col">Motivo</th><th scope="col">Acción</th>
+                    </tr></thead>
+                    <tbody>
+                    @foreach (var release in Model.Releases)
+                    {
+                        var isDraft = release.Status == VersionStatuses.Draft;
+                        var isCurrent = release.Status == VersionStatuses.Current;
+                        var dialogId = $"publish-{release.Id:D}";
+                        <tr class="tabla__fila">
+                            <td>@(release.VersionNo?.ToString() ?? "—")</td>
+                            <td><span class="badge @(isDraft ? "badge--neutro" : isCurrent ? "badge--exito" : "badge--info")"><span aria-hidden="true">@(isDraft ? "✎" : isCurrent ? "✓" : "◷")</span>@(isDraft ? "Borrador" : isCurrent ? "Vigente" : "Sustituida")</span></td>
+                            <td>@Model.LocalInstant(release.EffectiveFrom)</td>
+                            <td>@Model.LocalInstant(release.EffectiveTo)</td>
+                            <td>@Model.LocalInstant(release.PublishedAt)</td>
+                            <td>@(release.PublishedBy?.ToString("D") ?? "—")</td>
+                            <td>@(release.Reason ?? "—")</td>
+                            <td>
+                                @if (isDraft && Model.CanManage && Model.ConflictReleaseId != release.Id)
+                                {
+                                    <button type="button" class="boton boton--secundario tabla__accion" data-dialog-open aria-controls="@dialogId">Publicar borrador</button>
+                                }
+                                else if (isDraft && Model.ConflictReleaseId == release.Id)
+                                {
+                                    <span>Recarga requerida</span>
+                                }
+                                else { <span>—</span> }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (Model.CanManage)
+        {
+            <section id="nuevo-borrador" class="formulario-persona" aria-labelledby="new-draft-title">
+                <h2 id="new-draft-title">Nuevo borrador</h2>
+                <p>El borrador no entra en vigor hasta su publicación.</p>
+                <form method="post" asp-page-handler="Create" asp-antiforgery="false" data-progress-form>
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                    <input type="hidden" name="intentKey" value="@Model.CreateIntentKey.ToString("D")" />
+                    <button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Crear borrador</button>
+                </form>
+            </section>
+            @foreach (var release in Model.Releases.Where(item => item.Status == VersionStatuses.Draft && Model.ConflictReleaseId != item.Id))
+            {
+                var dialogId = $"publish-{release.Id:D}";
+                var hasError = Model.PublicationErrorReleaseId == release.Id;
+                <dialog id="@dialogId" class="modal" aria-labelledby="@($"{dialogId}-title")"
+                        aria-describedby="@($"{dialogId}-summary")" data-open-on-error="@(hasError ? "true" : null)">
+                    <form method="post" asp-page-handler="Publish" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                        <input type="hidden" name="intentKey" value="@((hasError ? Model.PublishIntentKey : Guid.CreateVersion7()).ToString("D"))" />
+                        <input type="hidden" name="releaseId" value="@release.Id.ToString("D")" />
+                        <input type="hidden" name="releaseEtag" value="@Model.Etag(release)" />
+                        <h2 id="@($"{dialogId}-title")" class="modal__titulo">Publicar release</h2>
+                        <p id="@($"{dialogId}-summary")" class="modal__texto">El borrador pasará a vigente. Si existe una versión vigente, pasará a sustituida y permanecerá en el historial.</p>
+                        @if (hasError && Model.Error is not null)
+                        {
+                            <div tabindex="-1" data-dialog-error><partial name="_ProblemAlert" model="Model.Error" /></div>
+                        }
+                        <label class="campo @(hasError && Model.EffectiveFromError is not null ? "campo--error" : null)" for="@($"{dialogId}-date")">
+                            <span class="campo__etiqueta">Fecha y hora de vigencia (America/Mexico_City)</span>
+                            <input id="@($"{dialogId}-date")" name="effectiveFrom" type="datetime-local" class="campo__control"
+                                   value="@(hasError ? Model.EffectiveFromInput : null)" required
+                                   aria-invalid="@(hasError && Model.EffectiveFromError is not null ? "true" : "false")"
+                                   aria-describedby="@($"{dialogId}-date-error")" />
+                            <span id="@($"{dialogId}-date-error")" class="campo__mensaje-error" hidden="@(!hasError || Model.EffectiveFromError is null)">@Model.EffectiveFromError</span>
+                        </label>
+                        <label class="campo @(hasError && Model.ReasonError is not null ? "campo--error" : null)" for="@($"{dialogId}-reason")">
+                            <span class="campo__etiqueta">Motivo</span>
+                            <textarea id="@($"{dialogId}-reason")" name="reason" class="campo__control campo__control--textarea" required
+                                      aria-invalid="@(hasError && Model.ReasonError is not null ? "true" : "false")"
+                                      aria-describedby="@($"{dialogId}-reason-error")" data-required-reason>@(hasError ? Model.ReasonInput : null)</textarea>
+                            <span id="@($"{dialogId}-reason-error")" class="campo__mensaje-error" hidden="@(!hasError || Model.ReasonError is null)">@(Model.ReasonError ?? "Ingresa el motivo antes de continuar.")</span>
+                        </label>
+                        <div class="modal__acciones">
+                            <button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button>
+                            <button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Publicar release</button>
+                        </div>
+                    </form>
+                </dialog>
+            }
+        }
+    }
+</section>

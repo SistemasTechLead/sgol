@@ -32,6 +32,12 @@
     document.querySelectorAll("dialog").forEach(dialog => {
         dialog.addEventListener("close", () => dialogTriggers.get(dialog)?.focus());
     });
+    document.querySelectorAll('dialog[data-open-on-error="true"]').forEach(dialog => {
+        const opener = document.querySelector(`[data-dialog-open][aria-controls="${dialog.id}"]`);
+        if (opener) dialogTriggers.set(dialog, opener);
+        dialog.showModal();
+        dialog.querySelector("[data-dialog-error]")?.focus();
+    });
     document.addEventListener("click", event => {
         event.target.closest("[data-dialog-close]")?.closest("dialog")?.close();
     });
@@ -88,4 +94,6 @@
     document.getElementById("acceso-error")?.focus();
     document.getElementById("access-notice")?.focus();
     document.getElementById("session-error")?.focus();
+    if (!document.querySelector('dialog[data-open-on-error="true"]'))
+        document.getElementById("configuration-error")?.focus();
 })();
