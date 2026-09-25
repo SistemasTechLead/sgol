@@ -160,7 +160,7 @@ public static class RolePermissionProjection
 
         if (roleCode == CanonicalRole.Direction)
         {
-            permissions.AddRange(["PER-PERSONA-ADMIN", "PER-DISPONIBILIDAD-ADMIN", "PER-USUARIO-ADMIN", "PER-ROL-ADMIN", "PER-CONFIG-ADMIN", "PER-CALENDARIO-ADMIN", "PER-CONTINUIDAD-VER"]);
+            permissions.AddRange(["PER-PERSONA-ADMIN", "PER-DISPONIBILIDAD-ADMIN", "PER-USUARIO-ADMIN", "PER-ROL-ADMIN", "PER-CONFIG-ADMIN", "PER-CALENDARIO-ADMIN", "PER-DEFINICION-ADMIN", "PER-CONTINUIDAD-VER"]);
         }
 
         return permissions;

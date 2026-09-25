@@ -31,11 +31,12 @@ public sealed class EfTaskDefinitionService(
         CancellationToken cancellationToken = default)
     {
         await EnsureReadableAsync(actorUserId, correlationId, cancellationToken);
+        var includeDrafts = await ConfigurationAuthorizationQuery.IsDirectionAsync(dbContext, actorUserId, cancellationToken);
         var definitions = await dbContext.TaskDefinitions.AsNoTracking()
             .OrderBy(item => item.TaskCode)
             .ToListAsync(cancellationToken);
         var versions = await dbContext.TaskDefinitionVersions.AsNoTracking()
-            .Where(item => item.Status != VersionStatuses.Draft)
+            .Where(item => includeDrafts || item.Status != VersionStatuses.Draft)
             .OrderByDescending(item => item.VersionNo)
             .ToListAsync(cancellationToken);
         var policies = await dbContext.EligibilityPolicyVersions.AsNoTracking()
@@ -71,12 +72,13 @@ public sealed class EfTaskDefinitionService(
         CancellationToken cancellationToken = default)
     {
         await EnsureReadableAsync(actorUserId, correlationId, cancellationToken);
+        var includeDrafts = await ConfigurationAuthorizationQuery.IsDirectionAsync(dbContext, actorUserId, cancellationToken);
         var seed = TaskDefinitionCatalog.Require(taskCode);
         var definition = await dbContext.TaskDefinitions.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == seed.Id, cancellationToken)
             ?? throw new TaskDefinitionNotFoundException();
         var versions = await dbContext.TaskDefinitionVersions.AsNoTracking()
-            .Where(item => item.TaskDefinitionId == seed.Id && item.Status != VersionStatuses.Draft)
+            .Where(item => item.TaskDefinitionId == seed.Id && (includeDrafts || item.Status != VersionStatuses.Draft))
             .OrderByDescending(item => item.VersionNo)
             .ToListAsync(cancellationToken);
         var policy = await dbContext.EligibilityPolicyVersions.AsNoTracking()

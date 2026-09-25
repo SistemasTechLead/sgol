@@ -28,6 +28,8 @@ Segunda regla: no todo es verde/rojo. Un estado que es simplemente historia (`SU
 | VIGENTE | "Vigente" | `--color-exito` / `--color-exito-fondo` | escudo con check | Es la versión que el sistema está aplicando ahora mismo. Verde porque es información operativa positiva: "esta es la que manda". |
 | SUSTITUIDA | "Sustituida" | `--color-info` / `--color-info-fondo` | reloj de historial / archivo | **No es un error.** Es una versión anterior reemplazada por una VIGENTE más nueva — es historia, trazabilidad. Usar rojo o gris apagado la haría ver como una falla; usar info azul comunica "esto es dato histórico, consúltalo si necesitas contexto". |
 
+Para UI-C05, `INACTIVA_NUEVAS` se presenta como «Inactiva para nuevas generaciones» con `--color-advertencia` / `--color-advertencia-fondo` e ícono de pausa. Describe sólo la generación futura; no implica baja, borrado ni cambio de obligaciones existentes.
+
 ## Solicitudes idempotentes
 
 | Estado | Texto (ES) | Token de color | Ícono | Por qué |

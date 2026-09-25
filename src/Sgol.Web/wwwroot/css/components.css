@@ -577,6 +577,35 @@ summary:focus-visible {
     white-space: nowrap;
 }
 
+.seccion-definiciones,
+.seccion-definiciones__detalle,
+.seccion-definiciones__formulario {
+    display: grid;
+    gap: var(--espacio-16);
+    min-width: 0;
+}
+
+.seccion-definiciones {
+    margin-top: var(--espacio-32);
+}
+
+.seccion-definiciones__formulario {
+    max-width: var(--ancho-formulario);
+}
+
+.seccion-definiciones .campo,
+.seccion-definiciones .campo__control {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.seccion-definiciones .campo__control--select {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .planificacion__dias {
     display: grid;
     gap: var(--espacio-8);
