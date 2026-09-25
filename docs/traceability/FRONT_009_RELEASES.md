@@ -33,3 +33,5 @@ Resultado local: restore locked `26/26`; build Release `26/26`, cero errores y a
 Las capturas sintéticas sanitizadas se guardan fuera del checkout en `C:\Users\josej\Dev\front-009-evidence`; se enmascara la identidad de sesión. No contienen cookies, CSRF, contraseñas, TOTP ni tokens. Ninguna evidencia local equivale a pipeline remoto, publicación, integración o autorización de merge. El recorrido combinado de primera release y BR-API01 quedan para el PR `#74` de FRONT-008 tras adaptar esa rama; `FRONT-010` y `TECH-FRONT-005` permanecen fuera de alcance.
 
 No quedó validación local de FRONT-009 diferida. La suite integral de la solución y el pipeline remoto no se ejecutaron por el alcance local autorizado; no son resultados aprobados de este cambio.
+
+Publicación: PR draft `#75` desde `codex/front-009`. La integración no está autorizada ni ejecutada; el pipeline debe verificarse para la cabeza exacta antes de solicitar una decisión de merge separada.
