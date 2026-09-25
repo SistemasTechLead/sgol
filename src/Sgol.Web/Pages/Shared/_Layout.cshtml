@@ -6,10 +6,14 @@
     {
         new NavigationItem("Personas y accesos", "/personas-y-accesos",
             new HashSet<string>(["DIRECCION"], StringComparer.Ordinal),
-            new HashSet<string>(["PER-PERSONA-ADMIN"], StringComparer.Ordinal))
+            new HashSet<string>(["PER-PERSONA-ADMIN"], StringComparer.Ordinal)),
+        new NavigationItem("Configuración", "/configuracion",
+            new HashSet<string>(["DIRECCION"], StringComparer.Ordinal),
+            new HashSet<string>(["PER-CONFIG-ADMIN"], StringComparer.Ordinal))
     };
     var shell = Context.Request.Path.StartsWithSegments("/mi-trabajo") ||
-        Context.Request.Path.StartsWithSegments("/personas-y-accesos");
+        Context.Request.Path.StartsWithSegments("/personas-y-accesos") ||
+        Context.Request.Path.StartsWithSegments("/configuracion");
     var session = shell ? await SessionState.GetAsync(Context.RequestAborted) : null;
     var roleName = session is null ? null : SessionPresentation.RoleName(session.RoleCode);
     if (roleName is null) session = null;

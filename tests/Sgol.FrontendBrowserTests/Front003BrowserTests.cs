@@ -35,7 +35,7 @@ public sealed class Front003BrowserTests
                     Assert.Equal(1, await page.GetByRole(AriaRole.Table, new() { Name = "Personas registradas" }).CountAsync());
                     Assert.True(await page.Locator("tbody tr").CountAsync() >= 4);
                     Assert.Equal(1, await page.Locator("nav[aria-label='Navegación principal'] a[href='/personas-y-accesos']").CountAsync());
-                    Assert.Equal("page", await page.Locator(".navegacion-lateral--escritorio a").GetAttributeAsync("aria-current"));
+                    Assert.Equal("page", await page.Locator(".navegacion-lateral--escritorio a[href='/personas-y-accesos']").GetAttributeAsync("aria-current"));
                     Assert.False(await page.EvaluateAsync<bool>(
                         "() => document.documentElement.scrollWidth > document.documentElement.clientWidth"));
                     await CaptureAsync(page, output, $"{viewport}-list.png");

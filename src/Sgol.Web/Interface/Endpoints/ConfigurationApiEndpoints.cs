@@ -33,7 +33,11 @@ public static class ConfigurationApiEndpoints
                 actorUserId,
                 GetCorrelationId(context),
                 cancellationToken);
-            return Ok(context, releases);
+            return Results.Ok(new
+            {
+                data = releases,
+                meta = new { correlationId = context.GetCorrelationId(), count = releases.Count },
+            });
         }
         catch (Exception exception)
         {
