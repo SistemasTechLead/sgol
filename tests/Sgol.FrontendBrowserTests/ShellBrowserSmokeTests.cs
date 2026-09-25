@@ -61,8 +61,9 @@ public sealed class ShellBrowserSmokeTests
                     Assert.Equal(1, await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).CountAsync());
                     Assert.Equal(1, await page.GetByRole(AriaRole.Main).CountAsync());
                     Assert.Equal(1, await page.GetByRole(AriaRole.Banner).CountAsync());
-                    Assert.Equal(account.Role == "DIRECCION" ? 1 : 0,
-                        await page.Locator("nav[aria-label='Navegación principal']").CountAsync());
+                    Assert.Equal(1, await page.Locator("nav[aria-label='Navegación principal']").CountAsync());
+                    Assert.Equal(1, await page.Locator(".navegacion-lateral--escritorio a[href='/configuracion']").CountAsync());
+                    Assert.Equal(1, await page.Locator(".navegacion-lateral--escritorio a[href='/planificacion']").CountAsync());
                     Assert.Equal(0, await page.GetByRole(AriaRole.Link, new() { Name = "Mi trabajo" }).CountAsync());
                     Assert.Equal("Aún no hay secciones disponibles", await page.Locator(".estado-vacio__titulo").InnerTextAsync());
                     Assert.Equal(1, await page.Locator(".encabezado-aplicacion__sesion").CountAsync());
@@ -86,7 +87,7 @@ public sealed class ShellBrowserSmokeTests
                     var mainBox = await page.Locator("main").BoundingBoxAsync();
                     Assert.NotNull(headerBox);
                     Assert.NotNull(mainBox);
-                    var navigationHeight = viewport.Mobile && account.Role == "DIRECCION"
+                    var navigationHeight = viewport.Mobile
                         ? (await page.Locator(".barra-lateral").BoundingBoxAsync())?.Height ?? 0 : 0;
                     Assert.InRange(Math.Abs(mainBox.Y - headerBox.Y - headerBox.Height - navigationHeight), 0, 2);
                     if (viewport.Mobile)

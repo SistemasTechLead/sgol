@@ -135,6 +135,7 @@ internal sealed class Cv02ScenarioEngine(Cv02Database database)
         await calendarService.PutAsync(new PutCalendarDayCommand(
             actors.Direction.UserId,
             database.UuidGenerator.NewUuid(),
+            database.UuidGenerator.NewUuid(),
             Cv02Timeline.WorkingDate,
             policyRelease.Id,
             CalendarContract.WorkingDay,
@@ -143,6 +144,7 @@ internal sealed class Cv02ScenarioEngine(Cv02Database database)
             ExpectedRowVersion: null), cancellationToken);
         await calendarService.PutAsync(new PutCalendarDayCommand(
             actors.Direction.UserId,
+            database.UuidGenerator.NewUuid(),
             database.UuidGenerator.NewUuid(),
             Cv02Timeline.NonWorkingDate,
             policyRelease.Id,
@@ -173,6 +175,7 @@ internal sealed class Cv02ScenarioEngine(Cv02Database database)
             database.UuidGenerator.NewUuid()), cancellationToken);
         await calendarService.PutAsync(new PutCalendarDayCommand(
             actors.Direction.UserId,
+            database.UuidGenerator.NewUuid(),
             database.UuidGenerator.NewUuid(),
             Cv02Timeline.NonWorkingDate,
             successorRelease.Id,

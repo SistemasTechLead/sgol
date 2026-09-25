@@ -207,6 +207,80 @@ public sealed class CalendarPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DraftReadReplayAndStaleCorrectionPreserveVersionAuditAndPublishedCalendar()
+    {
+        var actor = await ResetAndSeedActorAsync("CALENDAR-FRONT-008", CanonicalRole.Direction);
+        var denied = await SeedActorAsync("CALENDAR-FRONT-008-DENIED", CanonicalRole.Administration);
+        await using var context = CreateContext();
+        var releases = CreateReleaseService(context, NewUuidGenerator());
+        var calendar = CreateCalendarService(context, NewUuidGenerator());
+        var release = await releases.CreateDraftAsync(CreateReleaseCommand(actor));
+        Assert.Empty(await calendar.GetDraftAsync(actor, Guid.CreateVersion7(), release.Id, Holiday, Holiday));
+
+        var command = PutCommand(actor, release.Id, Holiday, CalendarContract.Holiday,
+            false, "Festivo sintético");
+        var created = await calendar.PutAsync(command);
+        var auditCount = await context.AuditEvents.CountAsync(audit =>
+            audit.Action == "CALENDAR_DAY_DRAFT_CREATED");
+        var replay = await calendar.PutAsync(command);
+        Assert.Equal(created.Id, replay.Id);
+        Assert.Equal(created.RowVersion, replay.RowVersion);
+        Assert.Equal(auditCount, await context.AuditEvents.CountAsync(audit =>
+            audit.Action == "CALENDAR_DAY_DRAFT_CREATED"));
+        Assert.Single(await calendar.GetDraftAsync(actor, Guid.CreateVersion7(), release.Id, Holiday, Holiday));
+        Assert.Empty(await calendar.GetAsync(actor, Guid.CreateVersion7(), Holiday, Holiday));
+
+        await Assert.ThrowsAsync<CalendarIdempotencyConflictException>(() => calendar.PutAsync(
+            command with { Reason = "Otro motivo" }));
+        Assert.Equal(1, await context.AuditEvents.CountAsync(audit =>
+            audit.Action == "IDEMPOTENCY_CONFLICT_REJECTED"));
+        await Assert.ThrowsAsync<CalendarAccessDeniedException>(() =>
+            calendar.GetDraftAsync(denied, Guid.CreateVersion7(), release.Id, Holiday, Holiday));
+
+        var correction = await calendar.PutAsync(PutCommand(actor, release.Id, Holiday,
+            CalendarContract.ExtraordinaryClosure, false, "Corrección sintética", created.RowVersion));
+        Assert.Equal(2, correction.RowVersion);
+        await Assert.ThrowsAsync<CalendarVersionConflictException>(() => calendar.PutAsync(
+            PutCommand(actor, release.Id, Holiday, CalendarContract.Holiday,
+                false, "Versión obsoleta", created.RowVersion)));
+        var persisted = Assert.Single(await calendar.GetDraftAsync(actor, Guid.CreateVersion7(),
+            release.Id, Holiday, Holiday));
+        Assert.Equal(CalendarContract.ExtraordinaryClosure, persisted.DayType);
+        Assert.Equal(2, persisted.RowVersion);
+        Assert.Equal(1, await context.AuditEvents.CountAsync(audit =>
+            audit.Action == "CALENDAR_DAY_DRAFT_CORRECTED"));
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task ConcurrentSameIntentCreatesOneCalendarDraftAndReplaysOneSnapshot()
+    {
+        var actor = await ResetAndSeedActorAsync("CALENDAR-SAME-INTENT", CanonicalRole.Direction);
+        Guid releaseId;
+        await using (var setup = CreateContext())
+        {
+            releaseId = (await CreateReleaseService(setup, NewUuidGenerator())
+                .CreateDraftAsync(CreateReleaseCommand(actor))).Id;
+        }
+        var command = PutCommand(actor, releaseId, Holiday, CalendarContract.Holiday,
+            false, "Intención concurrente sintética");
+        await using var first = CreateContext();
+        await using var second = CreateContext();
+        var outcomes = await Task.WhenAll(
+            CaptureAsync(() => CreateCalendarService(first, NewUuidGenerator()).PutAsync(command)),
+            CaptureAsync(() => CreateCalendarService(second, NewUuidGenerator()).PutAsync(command)));
+        var drafts = outcomes.Select(Assert.IsType<CalendarDayDetails>).ToArray();
+        Assert.Equal(drafts[0].Id, drafts[1].Id);
+        Assert.Equal(drafts[0].RowVersion, drafts[1].RowVersion);
+        await using var verification = CreateContext();
+        Assert.Equal(1, await verification.CalendarDayVersions.CountAsync());
+        Assert.Equal(1, await verification.AuditEvents.CountAsync(audit =>
+            audit.Action == "CALENDAR_DAY_DRAFT_CREATED"));
+        Assert.Equal(1, await verification.IdempotencyRecords.CountAsync(record =>
+            record.ResourceType == "CALENDAR_DAY"));
+    }
+
+    [Fact]
     public async Task CalendarAuditFailureRollsBackReleaseAndDayPublication()
     {
         var actorUserId = await ResetAndSeedActorAsync("CALENDAR-ROLLBACK", CanonicalRole.Direction);
@@ -394,6 +468,7 @@ public sealed class CalendarPersistenceTests : IAsyncLifetime
         string reason,
         long? expectedRowVersion = null) => new(
             actorUserId,
+            Guid.CreateVersion7(),
             Guid.CreateVersion7(),
             localDate,
             releaseId,

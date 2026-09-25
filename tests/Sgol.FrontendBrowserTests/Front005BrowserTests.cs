@@ -67,7 +67,8 @@ public sealed class Front005BrowserTests
                 }
                 Assert.Equal(1, await navigation.Locator("a[href='/personas-y-accesos']").CountAsync());
                 Assert.Equal(1, await navigation.Locator("a[href='/configuracion']").CountAsync());
-                Assert.Equal(2, await navigation.Locator("a").CountAsync());
+                Assert.Equal(1, await navigation.Locator("a[href='/planificacion']").CountAsync());
+                Assert.Equal(3, await navigation.Locator("a").CountAsync());
                 if (mobile)
                 {
                     await page.Keyboard.PressAsync("Escape");

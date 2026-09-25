@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
+using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
 
@@ -14,6 +15,19 @@ public sealed class CalendarTests
     private static readonly Guid ReleaseId = Guid.Parse("019d2d67-2c00-7000-8000-000000000902");
     private static readonly DateOnly LocalDate = new(2026, 9, 16);
     private static readonly DateTimeOffset EffectiveFrom = new(2026, 9, 10, 6, 0, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData(CanonicalRole.Direction, true)]
+    [InlineData(CanonicalRole.Administration, false)]
+    [InlineData(CanonicalRole.Subcoordination, false)]
+    [InlineData(CanonicalRole.SalesFloor, false)]
+    public void SessionProjection_ExposesOnlyTheApprovedCalendarActions(string role, bool canEdit)
+    {
+        var permissions = RolePermissionProjection.ForRole(role);
+        Assert.Contains("PER-PLAN-VER", permissions);
+        Assert.Equal(canEdit, permissions.Contains(CalendarAuthorization.Administer));
+        Assert.Equal(canEdit, permissions.Contains(ConfigurationAuthorization.Administer));
+    }
 
     [Theory]
     [InlineData(CalendarContract.WorkingDay, true)]
@@ -83,6 +97,7 @@ public sealed class CalendarTests
         var service = new RecordingCalendarService(CreateDetails(rowVersion: 2));
         var context = CreateContext();
         context.Request.Headers.IfMatch = "\"1\"";
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
         var request = Parse($$"""
             {"releaseId":"{{ReleaseId:D}}","dayType":"FESTIVO","isWorkingDay":false,"reason":"Día festivo"}
             """);
@@ -97,6 +112,7 @@ public sealed class CalendarTests
         Assert.Equal(200, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Equal(LocalDate, service.Command?.LocalDate);
         Assert.Equal(ReleaseId, service.Command?.ReleaseId);
+        Assert.NotEqual(Guid.Empty, service.Command?.IdempotencyKey);
         Assert.Equal(1, service.Command?.ExpectedRowVersion);
         Assert.Equal("\"2\"", context.Response.Headers.ETag);
     }
@@ -132,6 +148,33 @@ public sealed class CalendarTests
         Assert.Equal(new DateOnly(2026, 9, 14), service.From);
         Assert.Equal(new DateOnly(2026, 9, 20), service.To);
         Assert.Equal(CalendarContract.TimeZone, service.Details.TimeZone);
+    }
+
+    [Fact]
+    public async Task DraftGet_UsesReleaseAndRange()
+    {
+        var service = new RecordingCalendarService(CreateDetails(rowVersion: 2));
+        var context = CreateContext();
+        context.Request.QueryString = new QueryString("?from=2026-09-14&to=2026-09-20");
+
+        var result = await CalendarApiEndpoints.HandleGetDraftAsync(
+            ReleaseId, context, service, CancellationToken.None);
+
+        Assert.Equal(200, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal(ReleaseId, service.DraftReleaseId);
+        Assert.Equal(new DateOnly(2026, 9, 14), service.From);
+    }
+
+    [Fact]
+    public async Task Put_RequiresCanonicalIdempotencyKey()
+    {
+        var service = new RecordingCalendarService(CreateDetails(rowVersion: 1));
+        var result = await CalendarApiEndpoints.HandlePutAsync("2026-09-16",
+            Parse($$"""{"releaseId":"{{ReleaseId:D}}","dayType":"FESTIVO","isWorkingDay":false,"reason":"Festivo"}"""),
+            CreateContext(), service, CancellationToken.None);
+
+        Assert.Equal(400, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Null(service.Command);
     }
 
     private static CalendarDayVersion NewDraft() => new(
@@ -176,6 +219,7 @@ public sealed class CalendarTests
         public DateOnly? From { get; private set; }
 
         public DateOnly? To { get; private set; }
+        public Guid? DraftReleaseId { get; private set; }
 
         public Task<IReadOnlyList<CalendarDayDetails>> GetAsync(
             Guid actorUserId,
@@ -184,6 +228,16 @@ public sealed class CalendarTests
             DateOnly toDate,
             CancellationToken cancellationToken = default)
         {
+            From = fromDate;
+            To = toDate;
+            return Task.FromResult<IReadOnlyList<CalendarDayDetails>>([Details]);
+        }
+
+        public Task<IReadOnlyList<CalendarDayDetails>> GetDraftAsync(
+            Guid actorUserId, Guid correlationId, Guid releaseId, DateOnly fromDate,
+            DateOnly toDate, CancellationToken cancellationToken = default)
+        {
+            DraftReleaseId = releaseId;
             From = fromDate;
             To = toDate;
             return Task.FromResult<IReadOnlyList<CalendarDayDetails>>([Details]);

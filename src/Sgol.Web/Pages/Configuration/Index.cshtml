@@ -5,8 +5,36 @@
 @{
     ViewData["Title"] = "Configuración";
 }
+<header class="encabezado-pagina">
+    <h1 class="encabezado-pagina__titulo">Configuración de LOR-001</h1>
+    <p class="encabezado-pagina__descripcion">Sucursal Loretta y versiones de configuración.</p>
+</header>
+<section aria-labelledby="branch-title">
+    <h2 id="branch-title">Sucursal Loretta</h2>
+    @if (Model.BranchError is not null)
+    {
+        <div id="branch-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.BranchError" /></div>
+    }
+    else if (Model.Branch is { } branch)
+    {
+        <div class="tabla-contenedor">
+            <table class="tabla">
+                <caption>Datos de LOR-001</caption>
+                <thead class="tabla__encabezado"><tr><th scope="col">Código</th><th scope="col">Nombre</th><th scope="col">Estado</th><th scope="col">Zona horaria</th></tr></thead>
+                <tbody class="tabla__cuerpo"><tr class="tabla__fila">
+                    <td><code>@branch.Code</code></td><td>@branch.Name</td>
+                    <td>@if (branch.Status == "ACTIVA") { <span class="badge badge--exito"><span aria-hidden="true">✓</span>Activa</span> }
+                        else { <span class="badge badge--neutro"><span aria-hidden="true">⊘</span>Inactiva</span> }</td>
+                    <td>@branch.TimeZone</td>
+                </tr></tbody>
+            </table>
+        </div>
+    }
+</section>
+@if (Model.CanManage)
+{
 <section aria-labelledby="releases-title">
-    <h1 id="releases-title" class="encabezado-pagina__titulo">Releases de configuración</h1>
+    <h2 id="releases-title">Releases de configuración</h2>
     <p>Versiones de LOR-001. Las fechas se muestran en hora de Ciudad de México.</p>
     @if (Model.Error is not null)
     {
@@ -60,6 +88,7 @@
                             <td>
                                 @if (isDraft && Model.CanManage && Model.ConflictReleaseId != release.Id)
                                 {
+                                    <a class="boton boton--secundario tabla__accion" href="/planificacion?releaseId=@release.Id.ToString("D")">Editar días del borrador</a>
                                     <button type="button" class="boton boton--secundario tabla__accion" data-dialog-open aria-controls="@dialogId">Publicar borrador</button>
                                 }
                                 else if (isDraft && Model.ConflictReleaseId == release.Id)
@@ -128,3 +157,8 @@
         }
     }
 </section>
+}
+@section Scripts {
+    @if (Model.BranchError is not null) { <script>document.getElementById('branch-error')?.focus();</script> }
+    else if (Model.Error is not null && Model.PublicationErrorReleaseId is null) { <script>document.getElementById('configuration-error')?.focus();</script> }
+}
