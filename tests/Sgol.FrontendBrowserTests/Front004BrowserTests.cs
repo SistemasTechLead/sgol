@@ -11,7 +11,8 @@ public sealed class Front004BrowserTests
     public async Task DirectionEditsEmploymentAndVigency_WhileOtherRolesAreDenied()
     {
         var fixture = new BrowserFixture();
-        var output = Path.Combine(BrowserFixture.RepositoryRoot(), ".artifacts", "front-004");
+        var output = Path.Combine(Directory.GetParent(BrowserFixture.RepositoryRoot())!.FullName,
+            "front-004-evidence");
         Directory.CreateDirectory(output);
         try
         {
@@ -148,7 +149,7 @@ public sealed class Front004BrowserTests
 
     private static async Task<byte[]> CaptureAsync(IPage page, string output, string name)
     {
-        var masks = new List<ILocator> { page.Locator(".encabezado-aplicacion__identidad") };
+        var masks = new List<ILocator> { page.Locator(".encabezado-aplicacion") };
         foreach (var field in await page.Locator("textarea").AllAsync())
             if (!string.IsNullOrEmpty(await field.InputValueAsync())) masks.Add(field);
         return await page.ScreenshotAsync(new()

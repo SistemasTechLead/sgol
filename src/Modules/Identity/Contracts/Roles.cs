@@ -194,6 +194,12 @@ public sealed record RoleAssignmentMutationResult(RoleAssignmentDetails Assignme
 
 public interface IRoleAssignmentService
 {
+    Task<RoleAssignmentDetails> GetAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task<RoleAssignmentMutationResult> ChangeAsync(
         ChangeRoleAssignmentCommand command,
         CancellationToken cancellationToken = default);

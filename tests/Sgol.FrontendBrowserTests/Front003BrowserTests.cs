@@ -11,7 +11,8 @@ public sealed class Front003BrowserTests
     public async Task DirectionCanListCreateAndReadHistory_WhileOtherRolesSeeNoPeople()
     {
         var fixture = new BrowserFixture();
-        var output = Path.Combine(BrowserFixture.RepositoryRoot(), ".artifacts", "front-003");
+        var output = Path.Combine(Directory.GetParent(BrowserFixture.RepositoryRoot())!.FullName,
+            "front-003-evidence");
         Directory.CreateDirectory(output);
         try
         {
@@ -52,7 +53,8 @@ public sealed class Front003BrowserTests
                         container.append(empty);
                     }
                     """);
-                    Assert.Equal("Aún no hay personas registradas", await page.Locator(".estado-vacio__titulo").InnerTextAsync());
+                    Assert.Equal("Aún no hay personas registradas", await page.Locator(
+                        ".tabla-contenedor .estado-vacio__titulo").InnerTextAsync());
                     await CaptureAsync(page, output, $"{viewport}-empty-preview.png");
                     await page.ReloadAsync();
 
@@ -78,7 +80,10 @@ public sealed class Front003BrowserTests
                         "el => document.activeElement === el"));
                     await page.GetByLabel("Nombre").FillAsync("Persona sintética FRONT-003");
                     await CaptureAsync(page, output, $"{viewport}-form.png");
+                    var createResponse = page.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+                        response.Url.Contains("/personas-y-accesos", StringComparison.OrdinalIgnoreCase));
                     await page.GetByRole(AriaRole.Button, new() { Name = "Registrar persona" }).ClickAsync();
+                    Assert.Equal(302, (await createResponse).Status);
                     await page.WaitForURLAsync("**/personas-y-accesos/personas/*");
                     Assert.Equal("Persona sintética FRONT-003", await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).InnerTextAsync());
                     Assert.Equal(code, await page.Locator(".detalle-persona dd").First.InnerTextAsync());
@@ -93,7 +98,8 @@ public sealed class Front003BrowserTests
                     Assert.Equal("/personas-y-accesos", new Uri(page.Url).AbsolutePath);
                     Assert.Contains("El código de persona ya está registrado", await page.Locator("#people-error").InnerTextAsync());
                     Assert.Equal("true", await page.GetByLabel("Código de persona").GetAttributeAsync("aria-invalid"));
-                    Assert.Equal(1, await page.Locator($"tbody tr:has-text('{code}')").CountAsync());
+                    Assert.Equal(1, await page.GetByRole(AriaRole.Table,
+                        new() { Name = "Personas registradas" }).Locator($"tbody tr:has-text('{code}')").CountAsync());
                     await CaptureAsync(page, output, $"{viewport}-duplicate.png");
 
                     var missing = await page.GotoAsync(new Uri(fixture.BaseAddress,
@@ -153,6 +159,6 @@ public sealed class Front003BrowserTests
         {
             Path = Path.Combine(output, name),
             FullPage = true,
-            Mask = [page.Locator(".encabezado-aplicacion__identidad")],
+            Mask = [page.Locator(".encabezado-aplicacion")],
         });
 }

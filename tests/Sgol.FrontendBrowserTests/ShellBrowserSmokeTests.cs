@@ -23,7 +23,8 @@ public sealed class ShellBrowserSmokeTests
         var fixture = new BrowserFixture();
         var results = new List<object>();
         var browserVersions = new Dictionary<string, string>(StringComparer.Ordinal);
-        var output = Path.Combine(BrowserFixture.RepositoryRoot(), ".artifacts", "front-002");
+        var output = Path.Combine(Directory.GetParent(BrowserFixture.RepositoryRoot())!.FullName,
+            "front-002-evidence");
         Directory.CreateDirectory(output);
         File.Delete(Path.Combine(output, "report.json"));
         try
@@ -104,7 +105,7 @@ public sealed class ShellBrowserSmokeTests
                     {
                         Path = Path.Combine(output, imageName),
                         FullPage = true,
-                        Mask = [page.Locator(".encabezado-aplicacion__identidad")],
+                        Mask = [page.Locator(".encabezado-aplicacion")],
                     });
                     results.Add(new
                     {

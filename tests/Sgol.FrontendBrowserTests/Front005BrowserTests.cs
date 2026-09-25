@@ -197,7 +197,7 @@ public sealed class Front005BrowserTests
         {
             Path = Path.Combine(output, name),
             FullPage = true,
-            Mask = [page.Locator(".encabezado-aplicacion__identidad")],
+            Mask = [page.Locator(".encabezado-aplicacion")],
         });
 
     private const string AccessibilityCheck = """

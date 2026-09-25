@@ -7,6 +7,39 @@ namespace Sgol.Web.Presentation.Endpoints;
 
 public static class RoleApiEndpoints
 {
+    public static async Task<IResult> HandleGetAsync(
+        Guid userId,
+        HttpContext context,
+        IRoleAssignmentService service,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(context, out var actorUserId, out var denied))
+        {
+            return denied;
+        }
+
+        try
+        {
+            var details = await service.GetAsync(actorUserId, GetCorrelationId(context), userId, cancellationToken);
+            context.Response.Headers.CacheControl = "no-store";
+            var active = details.History.SingleOrDefault(item =>
+                item.Status == RoleAssignmentStatus.Active && item.ValidTo is null);
+            if (active is not null)
+            {
+                context.Response.Headers.ETag = $"\"{active.RowVersion.ToString(CultureInfo.InvariantCulture)}\"";
+            }
+            return Results.Ok(Envelope(context, details));
+        }
+        catch (Exception exception)
+        {
+            if (exception is RoleTargetNotFoundException or RoleTargetInactiveException or RoleTargetOutOfScopeException)
+            {
+                return Problem(context, 404, "CUENTA_NO_DISPONIBLE", "No existe o no está disponible en tu alcance");
+            }
+            return MapException(context, exception);
+        }
+    }
+
     public static async Task<IResult> HandleChangeAsync(
         Guid userId,
         ChangeRoleAssignmentRequest request,
@@ -53,7 +86,7 @@ public static class RoleApiEndpoints
                 .ThenByDescending(item => item.Id)
                 .First();
             context.Response.Headers.ETag = $"\"{latest.RowVersion.ToString(CultureInfo.InvariantCulture)}\"";
-            return Results.Ok(Envelope(context, result.Assignment));
+            return Results.Ok(Envelope(context, result.Assignment, result.Replayed));
         }
         catch (Exception exception)
         {
@@ -142,10 +175,10 @@ public static class RoleApiEndpoints
             ? correlationId
             : Guid.CreateVersion7();
 
-    private static object Envelope(HttpContext context, object data) => new
+    private static object Envelope(HttpContext context, object data, bool replayed = false) => new
     {
         data,
-        meta = new { correlationId = context.GetCorrelationId() },
+        meta = new { correlationId = context.GetCorrelationId(), replayed },
     };
 
     private static IResult Problem(HttpContext context, int status, string code, string title) =>

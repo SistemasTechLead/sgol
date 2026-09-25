@@ -34,6 +34,15 @@
     {
         <div id="account-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.AccountError" /></div>
     }
+    @if (Model.RoleError is not null)
+    {
+        <div id="role-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.RoleError" />
+            @if (Model.RoleConflictUserId is not null)
+            {
+                <a class="boton boton--secundario" href="/personas-y-accesos#roles">Recargar roles</a>
+            }
+        </div>
+    }
     @if (Model.CanManageAccounts && !Model.IsDenied)
     {
         <section id="cuentas" class="seccion-cuentas" aria-labelledby="cuentas-titulo">
@@ -90,6 +99,78 @@
                     </table>
                 </div>
             }
+            @if (Model.CanManageRoles)
+            {
+                <section id="roles" aria-labelledby="roles-titulo">
+                    <h3 id="roles-titulo">Roles y recuperación MFA</h3>
+                    @foreach (var account in Model.Accounts.Where(item => item.Status == "ACTIVA"))
+                    {
+                        if (!Model.RolesByUser.TryGetValue(account.Id, out var assignment)) continue;
+                        var current = assignment.History.SingleOrDefault(item => item.Status == "ACTIVO" && item.ValidTo is null);
+                        var baseId = $"role-{account.Id:D}";
+                        var locked = Model.RoleConflictUserId == account.Id;
+                        <section class="formulario-persona" aria-labelledby="@($"{baseId}-title")">
+                            <h4 id="@($"{baseId}-title")">@account.UserName</h4>
+                            <p>Rol vigente: @(current?.RoleCode ?? "Sin rol vigente")</p>
+                            @if (assignment.History.Count == 0)
+                            {
+                                <div class="estado-vacio"><p class="estado-vacio__titulo">Aún no hay historial de roles</p><p class="estado-vacio__texto">Asigna un único rol canónico si corresponde.</p></div>
+                            }
+                            else
+                            {
+                                <div class="tabla-contenedor"><table class="tabla"><caption>Historia de roles de @account.UserName</caption><thead class="tabla__encabezado"><tr><th scope="col">Rol</th><th scope="col">Estado</th><th scope="col">Desde (UTC)</th><th scope="col">Hasta (UTC)</th></tr></thead><tbody>
+                                    @foreach (var version in assignment.History.OrderByDescending(item => item.ValidFrom))
+                                    {
+                                        <tr class="tabla__fila"><td>@version.RoleCode</td><td><span class="badge @(version.Status == "ACTIVO" ? "badge--exito" : "badge--info")"><span aria-hidden="true">@(version.Status == "ACTIVO" ? "✓" : "◷")</span>@(version.Status == "ACTIVO" ? "Vigente" : "Sustituido")</span></td><td>@version.ValidFrom.ToString("u")</td><td>@(version.ValidTo?.ToString("u") ?? "—")</td></tr>
+                                    }
+                                </tbody></table></div>
+                            }
+                            @if (locked)
+                            {
+                                <p>Los controles están bloqueados hasta que recargues los roles.</p>
+                            }
+                            else
+                            {
+                                <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="@($"{baseId}-change")">@(current is null ? "Asignar rol" : "Cambiar rol")</button>
+                                @if (current is not null)
+                                {
+                                    <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="@($"{baseId}-revoke")">Revocar rol</button>
+                                }
+                                <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="@($"{baseId}-reset")">Restablecer MFA</button>
+                            }
+                            <dialog id="@($"{baseId}-change")" class="modal" aria-labelledby="@($"{baseId}-change-title")" aria-describedby="@($"{baseId}-change-summary")">
+                                <form method="post" asp-page-handler="ChangeRole" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" /><input type="hidden" name="roleIntentKey" value="@Guid.CreateVersion7().ToString("D")" /><input type="hidden" name="userId" value="@account.Id.ToString("D")" /><input type="hidden" name="roleEtag" value="@Model.RoleEtags.GetValueOrDefault(account.Id)" />
+                                    <h5 id="@($"{baseId}-change-title")" class="modal__titulo">@(current is null ? "Asignar rol" : "Cambiar rol")</h5>
+                                    <p id="@($"{baseId}-change-summary")" class="modal__texto">@account.UserName — @(current is null ? "Se asignará un rol único; el acceso dependerá de ese rol." : "El rol vigente quedará sustituido y las sesiones anteriores se invalidarán de inmediato.")</p>
+                                    <label class="campo" for="@($"{baseId}-select")"><span class="campo__etiqueta">Nuevo rol</span><select id="@($"{baseId}-select")" name="roleCode" class="campo__control campo__control--select" required><option value="">Selecciona un rol</option>@foreach (var role in new[] { "DIRECCION", "ADMINISTRACION", "SUBCOORDINACION", "PISO_VENTAS" }){<option value="@role">@role</option>}</select></label>
+                                    <label class="campo" for="@($"{baseId}-change-reason")"><span class="campo__etiqueta">Motivo</span><textarea id="@($"{baseId}-change-reason")" name="reason" class="campo__control campo__control--textarea" required aria-describedby="@($"{baseId}-change-error")" data-required-reason></textarea><span id="@($"{baseId}-change-error")" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                                    <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button><button type="submit" class="boton boton--primario" data-progress-label="Guardando…">@(current is null ? "Asignar rol" : "Cambiar rol")</button></div>
+                                </form>
+                            </dialog>
+                            @if (current is not null)
+                            {
+                                <dialog id="@($"{baseId}-revoke")" class="modal" aria-labelledby="@($"{baseId}-revoke-title")" aria-describedby="@($"{baseId}-revoke-summary")">
+                                    <form method="post" asp-page-handler="ChangeRole" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" /><input type="hidden" name="roleIntentKey" value="@Guid.CreateVersion7().ToString("D")" /><input type="hidden" name="userId" value="@account.Id.ToString("D")" /><input type="hidden" name="roleEtag" value="@Model.RoleEtags.GetValueOrDefault(account.Id)" /><input type="hidden" name="roleCode" value="" />
+                                        <h5 id="@($"{baseId}-revoke-title")" class="modal__titulo">Revocar rol</h5><p id="@($"{baseId}-revoke-summary")" class="modal__texto">@account.UserName — El rol vigente dejará de aplicar, quedará en el historial y las sesiones anteriores se invalidarán de inmediato.</p>
+                                        <label class="campo" for="@($"{baseId}-revoke-reason")"><span class="campo__etiqueta">Motivo</span><textarea id="@($"{baseId}-revoke-reason")" name="reason" class="campo__control campo__control--textarea" required aria-describedby="@($"{baseId}-revoke-error")" data-required-reason></textarea><span id="@($"{baseId}-revoke-error")" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                                        <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button><button type="submit" class="boton boton--destructivo" data-progress-label="Guardando…">Revocar rol</button></div>
+                                    </form>
+                                </dialog>
+                            }
+                            <dialog id="@($"{baseId}-reset")" class="modal" aria-labelledby="@($"{baseId}-reset-title")" aria-describedby="@($"{baseId}-reset-summary")">
+                                <form method="post" asp-page-handler="ResetMfa" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" /><input type="hidden" name="resetIntentKey" value="@Guid.CreateVersion7().ToString("D")" /><input type="hidden" name="userId" value="@account.Id.ToString("D")" />
+                                    <h5 id="@($"{baseId}-reset-title")" class="modal__titulo">Restablecer MFA</h5><p id="@($"{baseId}-reset-summary")" class="modal__texto">@account.UserName — Se revocarán TOTP y códigos de recuperación, se invalidarán sesiones y se exigirá nueva contraseña y MFA. Debes haber autenticado tu MFA en los últimos cinco minutos.</p>
+                                    <label class="campo" for="@($"{baseId}-reset-reason")"><span class="campo__etiqueta">Motivo</span><textarea id="@($"{baseId}-reset-reason")" name="reason" class="campo__control campo__control--textarea" required aria-describedby="@($"{baseId}-reset-error")" data-required-reason></textarea><span id="@($"{baseId}-reset-error")" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                                    <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button><button type="submit" class="boton boton--destructivo" data-progress-label="Guardando…">Restablecer MFA</button></div>
+                                </form>
+                            </dialog>
+                        </section>
+                    }
+                </section>
+            }
             <section id="alta-cuenta" class="formulario-persona" aria-labelledby="alta-cuenta-titulo">
                 <h3 id="alta-cuenta-titulo">Crear cuenta</h3>
                 <form method="post" asp-page-handler="CreateAccount" asp-antiforgery="false" data-progress-form>
@@ -112,6 +193,10 @@
     @if (Model.AccountError is not null)
     {
         <script>document.getElementById('account-error')?.focus();</script>
+    }
+    else if (Model.RoleError is not null)
+    {
+        <script>document.getElementById('role-error')?.focus();</script>
     }
     else if (Model.AccountSuccess is not null)
     {

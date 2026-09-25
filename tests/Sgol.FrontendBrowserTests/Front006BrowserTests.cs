@@ -59,7 +59,7 @@ public sealed class Front006BrowserTests
                     }
                     """);
                 Assert.Equal("Aún no hay cuentas registradas",
-                    await page.Locator("#cuentas .estado-vacio__titulo").InnerTextAsync());
+                    await page.Locator("#cuentas > .estado-vacio .estado-vacio__titulo").InnerTextAsync());
                 await CaptureAsync(page, output, $"{viewport}-empty-preview.png");
                 await page.ReloadAsync();
 
@@ -71,9 +71,14 @@ public sealed class Front006BrowserTests
                 if (mobile) await page.Keyboard.PressAsync("Escape");
 
                 await page.Locator("#account-person").FocusAsync();
-                await page.Keyboard.PressAsync("Tab");
-                Assert.True(await page.Locator("#account-user").EvaluateAsync<bool>(
-                    "el => document.activeElement === el && getComputedStyle(el).outlineStyle !== 'none'"));
+                Assert.Equal("account-person", await page.EvaluateAsync<string>(
+                    "() => document.activeElement?.id"));
+                await page.Locator("#account-person").PressAsync("Tab");
+                var focus = await page.EvaluateAsync<string>("""
+                    () => `${document.activeElement?.id}|${getComputedStyle(document.activeElement).outlineStyle}`
+                    """);
+                Assert.True(focus.StartsWith("account-user|", StringComparison.Ordinal) &&
+                    !focus.EndsWith("|none", StringComparison.Ordinal), $"{viewport}: {focus}");
                 await CaptureAsync(page, output, $"{viewport}-focus.png");
                 await page.Locator("#account-person").SelectOptionAsync(personId.ToString("D"));
                 await page.Locator("#account-user").FillAsync(userName);
@@ -188,7 +193,7 @@ public sealed class Front006BrowserTests
         {
             Path = Path.Combine(output, name),
             FullPage = true,
-            Mask = [page.Locator(".encabezado-aplicacion__identidad"), page.Locator("[data-sensitive-activation]")],
+            Mask = [page.Locator(".encabezado-aplicacion"), page.Locator("[data-sensitive-activation]")],
         });
 
     private static async Task AssertNoHorizontalOverflowAsync(IPage page)
