@@ -35,3 +35,7 @@ Las capturas sintéticas sanitizadas se guardan fuera del checkout en `C:\Users\
 No quedó validación local de FRONT-009 diferida. La suite integral de la solución y el pipeline remoto no se ejecutaron por el alcance local autorizado; no son resultados aprobados de este cambio.
 
 Publicación: PR draft `#75` desde `codex/front-009`. La integración no está autorizada ni ejecutada; el pipeline debe verificarse para la cabeza exacta antes de solicitar una decisión de merge separada.
+
+## Reconciliación posterior en FRONT-008
+
+La descripción anterior corresponde al estado local y de PR draft anterior al cierre. PR `#75` quedó **Integrada**: cabeza `59c5371e8a4d22c65bfa19f4cd95790e45b58e04`, check `TECH-BASE-003 / PR gates` `SUCCESS` run `36174853716` para esa cabeza y merge `9ce0aa82c2494b8826265772d08504bdbd19f5c1`; cabeza y merge son ancestros del `origin/master` verificado el 2026-09-25. FRONT-008 retomó desde ese merge el recorrido combinado de primera release sin adelantar FRONT-010.

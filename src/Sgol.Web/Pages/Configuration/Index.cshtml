@@ -18,7 +18,7 @@
     else if (Model.Branch is { } branch)
     {
         <div class="tabla-contenedor">
-            <table class="tabla">
+            <table id="branch-details" class="tabla">
                 <caption>Datos de LOR-001</caption>
                 <thead class="tabla__encabezado"><tr><th scope="col">Código</th><th scope="col">Nombre</th><th scope="col">Estado</th><th scope="col">Zona horaria</th></tr></thead>
                 <tbody class="tabla__cuerpo"><tr class="tabla__fila">
@@ -49,6 +49,10 @@
     @if (Model.Success is not null)
     {
         <p role="status" class="alerta alerta--exito"><span aria-hidden="true">✓</span>@Model.Success.</p>
+        @if (Model.CanShow && Model.CreatedDraftId is { } createdDraftId)
+        {
+            <a class="boton boton--secundario" href="/planificacion?releaseId=@(createdDraftId.ToString("D"))">Editar días del borrador</a>
+        }
     }
     @if (Model.CanShow)
     {
@@ -64,7 +68,7 @@
         else
         {
             <div class="tabla-contenedor" aria-busy="false">
-                <table class="tabla">
+                <table id="release-history" class="tabla">
                     <caption>Historia de releases de LOR-001</caption>
                     <thead class="tabla__encabezado"><tr>
                         <th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Vigente desde</th>
@@ -88,7 +92,7 @@
                             <td>
                                 @if (isDraft && Model.CanManage && Model.ConflictReleaseId != release.Id)
                                 {
-                                    <a class="boton boton--secundario tabla__accion" href="/planificacion?releaseId=@release.Id.ToString("D")">Editar días del borrador</a>
+                                    <a class="boton boton--secundario tabla__accion" href="/planificacion?releaseId=@(release.Id.ToString("D"))">Editar días del borrador</a>
                                     <button type="button" class="boton boton--secundario tabla__accion" data-dialog-open aria-controls="@dialogId">Publicar borrador</button>
                                 }
                                 else if (isDraft && Model.ConflictReleaseId == release.Id)

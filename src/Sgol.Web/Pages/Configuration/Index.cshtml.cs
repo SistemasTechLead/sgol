@@ -26,6 +26,7 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
     public bool CanShow { get; private set; }
     public ProblemDetailsPresentation? Error { get; private set; }
     public string? Success { get; private set; }
+    public Guid? CreatedDraftId { get; private set; }
     public Guid? ConflictReleaseId { get; private set; }
     public Guid? PublicationErrorReleaseId { get; private set; }
     public string? EffectiveFromInput { get; private set; }
@@ -63,6 +64,8 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
             if (response.Status == StatusCodes.Status401Unauthorized) return Redirect("/acceso");
             if (response.IsSuccess && response.Data is { Id: var id } && id != Guid.Empty)
             {
+                if (!response.Replayed && response.Data.Status == VersionStatuses.Draft)
+                    CreatedDraftId = id;
                 Success = response.Replayed || response.Data.Status != VersionStatuses.Draft
                     ? "La operación ya se había procesado; consulta la historia"
                     : "Borrador disponible; todavía no está vigente";

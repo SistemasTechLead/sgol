@@ -10,6 +10,79 @@ public sealed class Front008BrowserTests
 {
     [Fact]
     [Trait("Category", "FRONT_BROWSER")]
+    public async Task FirstDraftCreatedInConfigurationCanBeEditedInPlanningAfterReload()
+    {
+        var output = Path.Combine(Directory.GetParent(BrowserFixture.RepositoryRoot())!.FullName,
+            "front-008-evidence");
+        Directory.CreateDirectory(output);
+        using var playwright = await Playwright.CreateAsync();
+        foreach (var mobile in new[] { false, true })
+        {
+            var fixture = new BrowserFixture();
+            try
+            {
+                await fixture.StartAsync();
+                var ticket = await fixture.AuthenticateAsync(fixture.Accounts[0]);
+                await using var browser = await (mobile ? playwright.Webkit : playwright.Chromium)
+                    .LaunchAsync(new() { Headless = true });
+                await using var context = await NewContextAsync(browser, mobile);
+                await SetSessionAsync(context, fixture, ticket);
+                var page = await context.NewPageAsync();
+                var viewport = mobile ? "mobile" : "desktop";
+
+                Assert.Equal(200, (await page.GotoAsync(new Uri(fixture.BaseAddress,
+                    "/planificacion").AbsoluteUri))?.Status);
+                Assert.Contains("No hay una release en borrador disponible",
+                    await page.Locator("section[aria-labelledby='draft-title']").InnerTextAsync());
+                await CheckWidthAndCaptureAsync(page, output, $"{viewport}-first-draft-empty.png", mobile);
+                var configuration = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+                    response.Url.EndsWith("/configuracion", StringComparison.OrdinalIgnoreCase));
+                await page.GetByRole(AriaRole.Link, new() { Name = "Crear borrador" }).ClickAsync();
+                Assert.Equal(200, (await configuration).Status);
+                Assert.Contains("Sucursal Loretta", await page.Locator("main").InnerTextAsync());
+                Assert.Contains("Aún no hay releases de configuración", await page.Locator("main").InnerTextAsync());
+                var creation = page.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+                    response.Url.Contains("/configuracion", StringComparison.OrdinalIgnoreCase));
+                await page.GetByRole(AriaRole.Button, new() { Name = "Crear borrador" }).ClickAsync();
+                Assert.Equal(200, (await creation).Status);
+                await page.Locator("#release-history tbody tr").WaitForAsync();
+                Assert.Contains("Borrador", await page.Locator("#release-history").InnerTextAsync());
+                await CheckWidthAndCaptureAsync(page, output, $"{viewport}-first-draft-config.png", mobile);
+
+                var planning = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+                    response.Url.Contains("/planificacion?releaseId=", StringComparison.OrdinalIgnoreCase));
+                await page.GetByRole(AriaRole.Link, new() { Name = "Editar días del borrador" })
+                    .First.ClickAsync();
+                Assert.Equal(200, (await planning).Status);
+                Assert.Contains("Aún no hay días en este borrador", await page.Locator("#draft-days").InnerTextAsync());
+                await CheckWidthAndCaptureAsync(page, output, $"{viewport}-first-draft-planning.png", mobile);
+
+                await page.Locator("#draft-type").SelectOptionAsync("FESTIVO");
+                await page.GetByRole(AriaRole.Button, new() { Name = "Guardar día en borrador" }).ClickAsync();
+                var dialog = page.Locator("#calendar-confirm[open]");
+                await dialog.GetByLabel("Motivo").FillAsync("Primera release sintética FRONT-008");
+                var save = page.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+                    response.Url.Contains("/planificacion", StringComparison.OrdinalIgnoreCase));
+                await dialog.GetByRole(AriaRole.Button, new() { Name = "Guardar día en borrador" }).ClickAsync();
+                Assert.Equal(200, (await save).Status);
+                await page.Locator("[role=status]").Filter(new() { HasTextString = "Día agregado al borrador" }).WaitForAsync();
+                Assert.Contains("Festivo", await page.Locator("#draft-days").InnerTextAsync());
+                Assert.Contains("No hay días publicados en este rango", await page.Locator("#published-calendar").InnerTextAsync());
+                await CheckWidthAndCaptureAsync(page, output, $"{viewport}-first-draft-day.png", mobile);
+
+                Assert.Equal(200, (await page.ReloadAsync())?.Status);
+                Assert.Contains("Festivo", await page.Locator("#draft-days").InnerTextAsync());
+            }
+            finally
+            {
+                await fixture.DisposeAsync();
+                Assert.True(fixture.CleanupComplete);
+            }
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "FRONT_BROWSER")]
     public async Task BranchWeekCalendarAndExistingDraftRespectAuthorityConflictAndViewport()
     {
         var fixture = new BrowserFixture();

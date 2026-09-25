@@ -45,7 +45,7 @@ public sealed class Front009BrowserTests
 
                 await SubmitAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Crear borrador" }), 200);
                 Assert.Contains("Borrador disponible", await page.GetByRole(AriaRole.Status).InnerTextAsync());
-                Assert.Equal(1, await page.Locator("table tbody tr").CountAsync());
+                Assert.Equal(1, await page.Locator("#release-history tbody tr").CountAsync());
                 await CheckWidthAndCaptureAsync(page, output, $"{viewport}-draft.png", mobile);
 
                 var draft = DraftRow(page);
@@ -69,8 +69,8 @@ public sealed class Front009BrowserTests
                 await dialog.GetByLabel("Motivo").FillAsync("Publicación inicial sintética");
                 await SubmitAsync(page, dialog.GetByRole(AriaRole.Button, new() { Name = "Publicar release" }), 200);
                 Assert.Contains("Release publicada", await page.GetByRole(AriaRole.Status).InnerTextAsync());
-                Assert.Contains("Vigente", await page.Locator("table tbody").InnerTextAsync());
-                Assert.Contains("Publicación inicial sintética", await page.Locator("table tbody").InnerTextAsync());
+                Assert.Contains("Vigente", await page.Locator("#release-history tbody").InnerTextAsync());
+                Assert.Contains("Publicación inicial sintética", await page.Locator("#release-history tbody").InnerTextAsync());
                 await CheckWidthAndCaptureAsync(page, output, $"{viewport}-published-v1.png", mobile);
 
                 await SubmitAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Crear borrador" }), 200);
@@ -90,9 +90,9 @@ public sealed class Front009BrowserTests
                 await page.Locator("dialog[open]").GetByLabel("Motivo").FillAsync("Publicación sucesora sintética");
                 await SubmitAsync(page, page.Locator("dialog[open]").GetByRole(AriaRole.Button,
                     new() { Name = "Publicar release" }), 200);
-                Assert.Contains("Sustituida", await page.Locator("table tbody").InnerTextAsync());
-                Assert.Contains("Vigente", await page.Locator("table tbody").InnerTextAsync());
-                Assert.Contains("2", await page.Locator("table tbody").InnerTextAsync());
+                Assert.Contains("Sustituida", await page.Locator("#release-history tbody").InnerTextAsync());
+                Assert.Contains("Vigente", await page.Locator("#release-history tbody").InnerTextAsync());
+                Assert.Contains("2", await page.Locator("#release-history tbody").InnerTextAsync());
                 await CheckWidthAndCaptureAsync(page, output, $"{viewport}-history-v2.png", mobile);
 
                 await SubmitAsync(page, page.GetByRole(AriaRole.Button, new() { Name = "Crear borrador" }), 200);
@@ -130,10 +130,13 @@ public sealed class Front009BrowserTests
                     });
                     await SetSessionAsync(deniedContext, fixture, tickets[index]);
                     var denied = await deniedContext.NewPageAsync();
-                    Assert.Equal(403, (await denied.GotoAsync(new Uri(fixture.BaseAddress,
+                    Assert.Equal(200, (await denied.GotoAsync(new Uri(fixture.BaseAddress,
                         "/configuracion").AbsoluteUri))?.Status);
-                    Assert.Equal(0, await denied.Locator("table, #nuevo-borrador").CountAsync());
+                    Assert.Equal(1, await denied.Locator("#branch-details").CountAsync());
+                    Assert.Equal(0, await denied.Locator("#release-history, #nuevo-borrador").CountAsync());
                     if (index == 1) await CheckWidthAndCaptureAsync(denied, output, $"{viewport}-denied.png", mobile);
+                    Assert.Equal(403, (await denied.GotoAsync(new Uri(fixture.BaseAddress,
+                        "/api/v1/configuration/releases").AbsoluteUri))?.Status);
                 }
             }
             finally
@@ -145,7 +148,7 @@ public sealed class Front009BrowserTests
     }
 
     private static ILocator DraftRow(IPage page) =>
-        page.Locator("table tbody tr").Filter(new() { HasTextString = "Borrador" }).Last;
+        page.Locator("#release-history tbody tr").Filter(new() { HasTextString = "Borrador" }).Last;
 
     private static string LocalFuture(int days) => TimeZoneInfo.ConvertTime(
         DateTimeOffset.UtcNow.AddDays(days), TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City"))
@@ -179,7 +182,7 @@ public sealed class Front009BrowserTests
         {
             Path = Path.Combine(output, name),
             FullPage = true,
-            Mask = [page.Locator(".encabezado-aplicacion__identidad")],
+            Mask = [page.Locator(".encabezado-aplicacion")],
         });
         Assert.Equal(mobile ? 390 : 1440, BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(16, 4)));
     }
