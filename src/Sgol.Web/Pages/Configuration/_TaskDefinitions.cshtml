@@ -1,0 +1,233 @@
+@model Sgol.Web.Pages.Configuration.IndexModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@using Sgol.BuildingBlocks.Versioning
+@using Sgol.Configuration.Contracts
+
+<section id="task-definitions" class="seccion-definiciones" aria-labelledby="task-definitions-title">
+    <h2 id="task-definitions-title">Definiciones TAR del MVP</h2>
+    <p>Ocho definiciones aprobadas. Las versiones anteriores y las obligaciones ya generadas permanecen en su historia.</p>
+    @if (Model.TaskDefinitionsError is not null)
+    {
+        <div id="task-definitions-error" tabindex="-1">
+            <partial name="_ProblemAlert" model="Model.TaskDefinitionsError" />
+            @if (Model.TaskConflict)
+            {
+                <a class="boton boton--secundario" href="/configuracion?taskCode=@Model.SelectedTaskCode#task-detail">Recargar definiciones</a>
+            }
+        </div>
+    }
+    @if (Model.TaskDefinitionsSuccess is not null)
+    {
+        <p role="status" class="alerta alerta--exito"><span aria-hidden="true">✓</span>@Model.TaskDefinitionsSuccess.</p>
+    }
+    @if (Model.CanShowTaskDefinitions)
+    {
+        @if (Model.TaskDefinitions.Count == 0)
+        {
+            <div class="estado-vacio">
+                <span class="estado-vacio__icono" aria-hidden="true">○</span>
+                <p class="estado-vacio__titulo">No hay definiciones TAR disponibles</p>
+                <p class="estado-vacio__texto">Vuelve a consultar el catálogo más tarde.</p>
+            </div>
+        }
+        else
+        {
+            <div class="tabla-contenedor" aria-busy="false">
+                <table id="task-definition-catalog" class="tabla">
+                    <caption>Catálogo de ocho TAR</caption>
+                    <thead class="tabla__encabezado"><tr><th scope="col">Código</th><th scope="col">Definición</th><th scope="col">Estado</th><th scope="col">Detalle</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in Model.TaskDefinitions)
+                    {
+                        <tr class="tabla__fila">
+                            <td><code>@item.TaskCode</code></td>
+                            <td>@item.Name</td>
+                            <td>@if (item.Current is null) { <span>Sin versión publicada</span> }
+                                else { <span class="badge @Model.TaskBadgeClass(item.Current.Status)"><span aria-hidden="true">@Model.TaskBadgeIcon(item.Current.Status)</span>@Model.TaskStatusText(item.Current.Status)</span> }</td>
+                            <td><a class="boton boton--secundario tabla__accion" href="/configuracion?taskCode=@item.TaskCode#task-detail">Ver detalle de @item.TaskCode</a></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (Model.SelectedTask is { } selected)
+        {
+            <section id="task-detail" class="seccion-definiciones__detalle" aria-labelledby="task-detail-title">
+                <h3 id="task-detail-title" tabindex="-1">@selected.TaskCode — @selected.Name</h3>
+                @if (selected.Current is { } current)
+                {
+                    <p>Versión actual: @current.VersionNo. Estado:
+                        <span class="badge @Model.TaskBadgeClass(current.Status)"><span aria-hidden="true">@Model.TaskBadgeIcon(current.Status)</span>@Model.TaskStatusText(current.Status)</span>.
+                        Vigente desde @Model.LocalInstant(current.EffectiveFrom). Release @current.ReleaseId.ToString("D").</p>
+                }
+                else
+                {
+                    <div class="estado-vacio">
+                        <span class="estado-vacio__icono" aria-hidden="true">○</span>
+                        <p class="estado-vacio__titulo">Esta TAR aún no tiene versión publicada</p>
+                        <p class="estado-vacio__texto">Una versión en borrador no genera obligaciones.</p>
+                    </div>
+                }
+                <h4>Historia de versiones</h4>
+                @if (selected.History.Count == 0)
+                {
+                    <div class="estado-vacio">
+                        <span class="estado-vacio__icono" aria-hidden="true">○</span>
+                        <p class="estado-vacio__titulo">Aún no hay versiones de esta TAR</p>
+                        <p class="estado-vacio__texto">Crea un borrador desde una release en borrador si tienes permiso.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="tabla-contenedor" aria-busy="false">
+                        <table id="task-definition-history" class="tabla">
+                            <caption>Historia de @selected.TaskCode</caption>
+                            <thead class="tabla__encabezado"><tr><th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Desde</th><th scope="col">Hasta</th><th scope="col">Release</th><th scope="col">Acción</th></tr></thead>
+                            <tbody>
+                            @foreach (var version in selected.History)
+                            {
+                                <tr class="tabla__fila">
+                                    <td>@version.VersionNo</td>
+                                    <td><span class="badge @Model.TaskBadgeClass(version.Status)"><span aria-hidden="true">@Model.TaskBadgeIcon(version.Status)</span>@Model.TaskStatusText(version.Status)</span></td>
+                                    <td>@Model.LocalInstant(version.EffectiveFrom)</td>
+                                    <td>@Model.LocalInstant(version.EffectiveTo)</td>
+                                    <td>@version.ReleaseId.ToString("D")</td>
+                                    <td>
+                                        @if (version.Status == VersionStatuses.Draft && Model.CanManageTaskDefinitions && !Model.TaskConflict)
+                                        {
+                                            <button type="button" class="boton boton--secundario tabla__accion" data-dialog-open aria-controls="task-publish-@version.Id.ToString("N")">Publicar versión @version.VersionNo</button>
+                                        }
+                                        else { <span>—</span> }
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @if (Model.CanManageTaskDefinitions && selected.Current is { Status: VersionStatuses.Current } currentActive && !Model.TaskConflict)
+                {
+                    <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="task-deactivate-@currentActive.Id.ToString("N")">Desactivar nuevas generaciones de @selected.TaskCode</button>
+                }
+            </section>
+        }
+
+        @if (Model.CanManageTaskDefinitions && !Model.TaskConflict)
+        {
+            <section id="task-new-version" class="formulario-persona" aria-labelledby="task-new-version-title">
+                <h3 id="task-new-version-title">Crear versión en borrador</h3>
+                <p>Esquema aprobado: <code>schemaVersion=1</code> y <code>taskPayload={}</code>. No hay campos de definición editables.</p>
+                @if (!Model.Releases.Any(release => release.Status == VersionStatuses.Draft))
+                {
+                    <div class="estado-vacio">
+                        <span class="estado-vacio__icono" aria-hidden="true">○</span>
+                        <p class="estado-vacio__titulo">No hay una release en borrador disponible</p>
+                        <p class="estado-vacio__texto">Crea una release en borrador antes de preparar una versión TAR.</p>
+                        @if (Model.CanManage) { <a class="boton boton--secundario" href="#nuevo-borrador">Crear borrador de configuración</a> }
+                    </div>
+                }
+                else
+                {
+                    <form method="post" asp-page-handler="CreateTaskVersion" asp-antiforgery="false" class="seccion-definiciones__formulario" data-progress-form>
+                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                        <input type="hidden" name="intentKey" value="@Model.TaskCreateIntentKey.ToString("D")" />
+                        <label class="campo" for="task-code-select">
+                            <span class="campo__etiqueta">Definición TAR</span>
+                            <select id="task-code-select" name="taskCode" class="campo__control campo__control--select" required>
+                                <option value="">Selecciona una TAR</option>
+                                @foreach (var item in Model.TaskDefinitions)
+                                {
+                                    <option value="@item.TaskCode" selected="@(Model.SelectedTaskCode == item.TaskCode)">@item.TaskCode</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="campo" for="task-release-select">
+                            <span class="campo__etiqueta">Release en borrador</span>
+                            <select id="task-release-select" name="releaseId" class="campo__control campo__control--select" required>
+                                <option value="">Selecciona una release</option>
+                                @foreach (var release in Model.Releases.Where(item => item.Status == VersionStatuses.Draft))
+                                {
+                                    <option value="@release.Id.ToString("D")">Borrador @(release.Id.ToString("N")[..8])</option>
+                                }
+                            </select>
+                        </label>
+                        <button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Crear versión TAR</button>
+                    </form>
+                }
+            </section>
+        }
+
+        @if (Model.SelectedTask is { } task && Model.CanManageTaskDefinitions && !Model.TaskConflict)
+        {
+            @foreach (var version in task.History.Where(item => item.Status == VersionStatuses.Draft))
+            {
+                var id = $"task-publish-{version.Id:N}";
+                var hasError = Model.TaskActionError == "publish" && Model.TaskErrorVersionId == version.Id;
+                <dialog id="@id" class="modal" aria-labelledby="@($"{id}-title")" aria-describedby="@($"{id}-summary")" data-open-on-error="@(hasError ? "true" : null)">
+                    <form method="post" asp-page-handler="PublishTaskVersion" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                        <input type="hidden" name="intentKey" value="@((hasError ? Model.TaskMutationIntentKey : Guid.CreateVersion7()).ToString("D"))" />
+                        <input type="hidden" name="taskCode" value="@task.TaskCode" />
+                        <input type="hidden" name="versionId" value="@version.Id.ToString("D")" />
+                        <input type="hidden" name="versionEtag" value="@Model.TaskEtag(version)" />
+                        <h3 id="@($"{id}-title")" class="modal__titulo">Publicar versión de TAR</h3>
+                        <p id="@($"{id}-summary")" class="modal__texto">@task.TaskCode, versión @version.VersionNo, release @version.ReleaseId.ToString("D"). La versión vigente pasará a historia. Las obligaciones existentes no cambiarán.</p>
+                        @if (hasError && Model.TaskDefinitionsError is not null) { <div tabindex="-1" data-dialog-error><partial name="_ProblemAlert" model="Model.TaskDefinitionsError" /></div> }
+                        <label class="campo @(hasError && Model.TaskEffectiveFromError is not null ? "campo--error" : null)" for="@($"{id}-date")">
+                            <span class="campo__etiqueta">Fecha y hora de vigencia (America/Mexico_City)</span>
+                            <input id="@($"{id}-date")" name="effectiveFrom" type="datetime-local" class="campo__control" required value="@(hasError ? Model.TaskEffectiveFromInput : null)" aria-invalid="@(hasError && Model.TaskEffectiveFromError is not null ? "true" : "false")" aria-describedby="@($"{id}-date-error")" />
+                            <span id="@($"{id}-date-error")" class="campo__mensaje-error" hidden="@(!hasError || Model.TaskEffectiveFromError is null)">@Model.TaskEffectiveFromError</span>
+                        </label>
+                        <label class="campo @(hasError && Model.TaskReasonError is not null ? "campo--error" : null)" for="@($"{id}-reason")">
+                            <span class="campo__etiqueta">Motivo</span>
+                            <textarea id="@($"{id}-reason")" name="reason" class="campo__control campo__control--textarea" required aria-invalid="@(hasError && Model.TaskReasonError is not null ? "true" : "false")" aria-describedby="@($"{id}-reason-error")" data-required-reason>@(hasError ? Model.TaskReasonInput : null)</textarea>
+                            <span id="@($"{id}-reason-error")" class="campo__mensaje-error" hidden="@(!hasError || Model.TaskReasonError is null)">@(Model.TaskReasonError ?? "Ingresa el motivo antes de continuar.")</span>
+                        </label>
+                        <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Publicar versión de TAR</button></div>
+                    </form>
+                </dialog>
+            }
+            @if (task.Current is { Status: VersionStatuses.Current } active)
+            {
+                var id = $"task-deactivate-{active.Id:N}";
+                var hasError = Model.TaskActionError == "deactivate" && Model.TaskErrorVersionId == active.Id;
+                <dialog id="@id" class="modal" aria-labelledby="@($"{id}-title")" aria-describedby="@($"{id}-summary")" data-open-on-error="@(hasError ? "true" : null)">
+                    <form method="post" asp-page-handler="DeactivateTask" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                        <input type="hidden" name="intentKey" value="@((hasError ? Model.TaskMutationIntentKey : Guid.CreateVersion7()).ToString("D"))" />
+                        <input type="hidden" name="taskCode" value="@task.TaskCode" />
+                        <input type="hidden" name="versionId" value="@active.Id.ToString("D")" />
+                        <input type="hidden" name="versionEtag" value="@Model.TaskEtag(active)" />
+                        <h3 id="@($"{id}-title")" class="modal__titulo">Desactivar nuevas generaciones</h3>
+                        <p id="@($"{id}-summary")" class="modal__texto">@task.TaskCode dejará de generar obligaciones nuevas. Las obligaciones existentes y la historia permanecerán intactas.</p>
+                        @if (hasError && Model.TaskDefinitionsError is not null) { <div tabindex="-1" data-dialog-error><partial name="_ProblemAlert" model="Model.TaskDefinitionsError" /></div> }
+                        <label class="campo" for="@($"{id}-release")"><span class="campo__etiqueta">Release en borrador</span>
+                            <select id="@($"{id}-release")" name="releaseId" class="campo__control campo__control--select" required>
+                                <option value="">Selecciona una release</option>
+                                @foreach (var release in Model.Releases.Where(item => item.Status == VersionStatuses.Draft))
+                                {
+                                    <option value="@release.Id.ToString("D")">Borrador @(release.Id.ToString("N")[..8])</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="campo @(hasError && Model.TaskEffectiveFromError is not null ? "campo--error" : null)" for="@($"{id}-date")"><span class="campo__etiqueta">Fecha y hora de vigencia (America/Mexico_City)</span>
+                            <input id="@($"{id}-date")" name="effectiveFrom" type="datetime-local" class="campo__control" required value="@(hasError ? Model.TaskEffectiveFromInput : null)" aria-invalid="@(hasError && Model.TaskEffectiveFromError is not null ? "true" : "false")" aria-describedby="@($"{id}-date-error")" />
+                            <span id="@($"{id}-date-error")" class="campo__mensaje-error" hidden="@(!hasError || Model.TaskEffectiveFromError is null)">@Model.TaskEffectiveFromError</span>
+                        </label>
+                        <label class="campo @(hasError && Model.TaskReasonError is not null ? "campo--error" : null)" for="@($"{id}-reason")"><span class="campo__etiqueta">Motivo</span>
+                            <textarea id="@($"{id}-reason")" name="reason" class="campo__control campo__control--textarea" required aria-invalid="@(hasError && Model.TaskReasonError is not null ? "true" : "false")" aria-describedby="@($"{id}-reason-error")" data-required-reason>@(hasError ? Model.TaskReasonInput : null)</textarea>
+                            <span id="@($"{id}-reason-error")" class="campo__mensaje-error" hidden="@(!hasError || Model.TaskReasonError is null)">@(Model.TaskReasonError ?? "Ingresa el motivo antes de continuar.")</span>
+                        </label>
+                        <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton boton--destructivo" type="submit" data-progress-label="Guardando…">Desactivar nuevas generaciones</button></div>
+                    </form>
+                </dialog>
+            }
+        }
+    }
+</section>
+@if (Model.TaskDefinitionsError is not null && Model.TaskActionError is null)
+{
+    <script>document.getElementById('task-definitions-error')?.focus();</script>
+}

@@ -12,7 +12,7 @@ using Sgol.Web.Presentation.ProblemDetails;
 namespace Sgol.Web.Pages.Configuration;
 
 [IgnoreAntiforgeryToken] // The shared bridge validates the Razor token and forwards its CSRF pair.
-public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
+public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
     RazorAntiforgeryBridge antiforgery) : PageModel
 {
     private const string ReleasesPath = "/api/v1/configuration/releases";
@@ -158,6 +158,8 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
     {
         var session = await sessionState.GetAsync(cancellationToken);
         CanManage = session?.Permissions?.Contains(ConfigurationAuthorization.Administer, StringComparer.Ordinal) == true;
+        await LoadTaskDefinitionsAsync(cancellationToken);
+        if (TaskDefinitionsUnauthorized) return Redirect("/acceso");
         try
         {
             var branch = await apiClient.SendAsync<BranchCatalogItem>(

@@ -124,6 +124,30 @@ public sealed class TaskDefinitionPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DraftIsRecoverableByDirectionButHiddenFromOtherActiveProfiles()
+    {
+        var direction = await ResetAndSeedActorAsync("TASK-DRAFT-OWNER", CanonicalRole.Direction);
+        var administration = await SeedActorAsync("TASK-DRAFT-READER", CanonicalRole.Administration);
+        await using var context = CreateContext();
+        var (releaseService, taskService) = CreateServices(context, NewUuidGenerator());
+        var release = await releaseService.CreateDraftAsync(NewRelease(direction));
+        var draft = await taskService.CreateVersionAsync(NewCreate(direction, release.Id, "TAR-0005"));
+
+        var directionDetail = await taskService.GetAsync(direction, Guid.CreateVersion7(), "TAR-0005");
+        var administrationDetail = await taskService.GetAsync(administration, Guid.CreateVersion7(), "TAR-0005");
+        var directionCatalog = await taskService.ListAsync(direction, Guid.CreateVersion7());
+        var administrationCatalog = await taskService.ListAsync(administration, Guid.CreateVersion7());
+
+        Assert.Contains(directionDetail.History, version => version.Id == draft.Id &&
+            version.RowVersion == draft.RowVersion && version.Status == VersionStatuses.Draft);
+        Assert.Empty(administrationDetail.History);
+        Assert.Contains(directionCatalog.Single(item => item.TaskCode == "TAR-0005").History,
+            version => version.Id == draft.Id);
+        Assert.Empty(administrationCatalog.Single(item => item.TaskCode == "TAR-0005").History);
+        Assert.Null(administrationDetail.Current);
+    }
+
+    [Fact]
     public async Task DuplicateDraftAndStaleEtagAreRejectedWithoutSecondVersion()
     {
         var actor = await ResetAndSeedActorAsync("TASK-CONCURRENCY", CanonicalRole.Direction);

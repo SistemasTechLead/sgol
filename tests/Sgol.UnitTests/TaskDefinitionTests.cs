@@ -2,8 +2,11 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.DependencyInjection;
 using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
+using Sgol.Generation.Contracts;
+using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
 
@@ -24,6 +27,15 @@ public sealed class TaskDefinitionTests
         Assert.Equal(8, TaskDefinitionCatalog.All.Select(item => item.Id).Distinct().Count());
         Assert.All(TaskDefinitionCatalog.All, item =>
             Assert.Equal(7, item.Id.ToByteArray()[7] >> 4));
+    }
+
+    [Fact]
+    public void SessionProjectsDefinitionAdministrationOnlyForDirection()
+    {
+        Assert.Contains(TaskDefinitionAuthorization.Administer,
+            RolePermissionProjection.ForRole(CanonicalRole.Direction));
+        foreach (var role in new[] { CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor })
+            Assert.DoesNotContain(TaskDefinitionAuthorization.Administer, RolePermissionProjection.ForRole(role));
     }
 
     [Theory]
@@ -81,6 +93,30 @@ public sealed class TaskDefinitionTests
     }
 
     [Fact]
+    public void ObligationCreatedFromV1KeepsItsSnapshotWhenV2ReplacesTheDefinition()
+    {
+        var definition = TaskDefinitionCatalog.Require("TAR-0005");
+        using var payload = JsonDocument.Parse("{}");
+        var v1 = new TaskDefinitionVersion(Guid.CreateVersion7(), definition.Id, 1, 1, payload, ReleaseId);
+        var v1Plan = VersioningRules.PlanPublication(v1.ToVersionRecord(), null, [], 1, Effective, "V1");
+        v1.ApplyPublished(v1Plan.Published, activeForNew: true);
+        var obligation = new WorkObligation(Guid.CreateVersion7(), v1.Id, Guid.CreateVersion7(),
+            Guid.CreateVersion7(), Guid.CreateVersion7(), "synthetic-origin");
+
+        var v2 = new TaskDefinitionVersion(Guid.CreateVersion7(), definition.Id, 2, 1, payload, Guid.CreateVersion7());
+        var v2Plan = VersioningRules.PlanPublication(v2.ToVersionRecord(), v1.ToVersionRecord(),
+            [v1.ToVersionRecord()], 1, Effective.AddDays(1), "V2");
+        v1.ApplySuperseded(v2Plan.Superseded!);
+        v2.ApplyPublished(v2Plan.Published, activeForNew: true);
+
+        Assert.Equal(v1.Id, obligation.TaskDefinitionVersionId);
+        Assert.NotEqual(v2.Id, obligation.TaskDefinitionVersionId);
+        Assert.Equal(WorkObligationStatuses.Pending, obligation.ExecutionStatus);
+        Assert.Equal(1, obligation.RowVersion);
+        Assert.Equal(VersionStatuses.Superseded, v1.Status);
+    }
+
+    [Fact]
     public async Task CreateEndpoint_RejectsAdditionalPolicyFieldsBeforeCallingService()
     {
         var service = new RecordingTaskDefinitionService();
@@ -94,6 +130,22 @@ public sealed class TaskDefinitionTests
 
         Assert.Equal(400, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Null(service.CreateCommand);
+    }
+
+    [Fact]
+    public async Task ListEndpoint_UsesCollectionEnvelopeRequiredBySharedClient()
+    {
+        var context = AuthenticatedContext();
+        context.Response.Body = new MemoryStream();
+        context.RequestServices = new ServiceCollection().AddLogging().AddOptions().BuildServiceProvider();
+        var result = await TaskDefinitionApiEndpoints.HandleListAsync(
+            context, new RecordingTaskDefinitionService(), CancellationToken.None);
+
+        await result.ExecuteAsync(context);
+        context.Response.Body.Position = 0;
+        using var response = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal(0, response.RootElement.GetProperty("meta").GetProperty("count").GetInt32());
+        Assert.Empty(response.RootElement.GetProperty("data").EnumerateArray());
     }
 
     [Fact]

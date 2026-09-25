@@ -31,7 +31,7 @@ public static class TaskDefinitionApiEndpoints
 
         try
         {
-            return Ok(context, await service.ListAsync(actorUserId, CorrelationId(context), cancellationToken));
+            return OkCollection(context, await service.ListAsync(actorUserId, CorrelationId(context), cancellationToken));
         }
         catch (Exception exception)
         {
@@ -348,6 +348,12 @@ public static class TaskDefinitionApiEndpoints
         context.Response.Headers.ETag = VersionEtag.Format(rowVersion);
 
     private static IResult Ok(HttpContext context, object data) => Results.Ok(Envelope(context, data));
+
+    private static IResult OkCollection<T>(HttpContext context, IReadOnlyList<T> data) => Results.Ok(new
+    {
+        data,
+        meta = new { correlationId = context.GetCorrelationId(), count = data.Count },
+    });
 
     private static object Envelope(HttpContext context, object data) => new
     {
