@@ -39,6 +39,7 @@ public sealed partial class IndexModel
             }
             Accounts = response.Items ?? [];
             CanManageAccounts = true;
+            await LoadRolesAsync(cancellationToken);
         }
         catch (ApiProtocolException)
         {

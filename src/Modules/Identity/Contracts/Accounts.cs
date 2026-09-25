@@ -64,7 +64,9 @@ public sealed class ResetMfaCommand
 
     public required string Reason { get; init; }
 
-    public required string TemporaryPassword { get; init; }
+    public string? TemporaryPassword { get; init; }
+
+    public DateTimeOffset? MfaAuthenticatedAt { get; init; }
 
     public override string ToString() =>
         $"{nameof(ResetMfaCommand)} {{ ActorUserId = {ActorUserId}, UserId = {UserId}, " +
@@ -117,6 +119,10 @@ public sealed class AccountPersonOutOfScopeException()
     : Exception("The person is not active in LOR-001.");
 
 public sealed class AccountNotFoundException() : Exception("The account does not exist.");
+
+public sealed class AccountTargetInactiveException() : Exception("The target account is inactive.");
+
+public sealed class AccountRecentMfaRequiredException() : Exception("Recent MFA authentication is required.");
 
 public sealed class AccountConflictException()
     : Exception("The person or access identifier already has an account.");

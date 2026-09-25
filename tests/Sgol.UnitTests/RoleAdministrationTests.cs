@@ -75,6 +75,32 @@ public sealed class RoleAdministrationTests
         Assert.Null(service.Command);
     }
 
+    [Fact]
+    public async Task GetRoleHistory_UsesExistingDetailsAndActiveEtag()
+    {
+        var service = new RecordingRoleService(CreateDetails(CanonicalRole.Administration, rowVersion: 3));
+        var context = CreateContext();
+
+        var result = await RoleApiEndpoints.HandleGetAsync(TargetUserId, context, service, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal("\"3\"", context.Response.Headers.ETag);
+        Assert.Equal(TargetUserId, service.ReadUserId);
+    }
+
+    [Fact]
+    public async Task GetRoleHistory_WithoutActiveRoleHasNoEtag()
+    {
+        var service = new RecordingRoleService(new RoleAssignmentDetails(TargetUserId,
+            BranchScope.LorettaId, []));
+        var context = CreateContext();
+
+        var result = await RoleApiEndpoints.HandleGetAsync(TargetUserId, context, service, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.True(string.IsNullOrEmpty(context.Response.Headers.ETag));
+    }
+
     [Theory]
     [InlineData(CanonicalRole.Administration, CanonicalRole.Administration, false, false)]
     [InlineData(CanonicalRole.Administration, CanonicalRole.Subcoordination, false, true)]
@@ -138,6 +164,15 @@ public sealed class RoleAdministrationTests
     private sealed class RecordingRoleService(RoleAssignmentDetails details) : IRoleAssignmentService
     {
         public ChangeRoleAssignmentCommand? Command { get; private set; }
+
+        public Guid? ReadUserId { get; private set; }
+
+        public Task<RoleAssignmentDetails> GetAsync(Guid actorUserId, Guid correlationId,
+            Guid userId, CancellationToken cancellationToken = default)
+        {
+            ReadUserId = userId;
+            return Task.FromResult(details);
+        }
 
         public Task<RoleAssignmentMutationResult> ChangeAsync(
             ChangeRoleAssignmentCommand command,

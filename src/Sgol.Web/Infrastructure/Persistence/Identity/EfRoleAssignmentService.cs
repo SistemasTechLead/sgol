@@ -24,6 +24,34 @@ public sealed class EfRoleAssignmentService(
     private const string IdempotencyPrimaryKey = "PK_idempotency_record";
     private const string ResourceType = "ROLE_ASSIGNMENT";
 
+    public async Task<RoleAssignmentDetails> GetAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthorizedAsync(actorUserId, correlationId, cancellationToken);
+        var target = await dbContext.AppUsers.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == userId, cancellationToken)
+            ?? throw new RoleTargetNotFoundException();
+        if (target.Status != AccountStatus.Active)
+        {
+            throw new RoleTargetInactiveException();
+        }
+
+        var inScope = await dbContext.EmploymentVersions.AsNoTracking()
+            .AnyAsync(item => item.PersonId == target.PersonId &&
+                item.BranchId == BranchScope.LorettaId &&
+                item.Status == EmploymentStatus.Active && item.ValidTo == null,
+                cancellationToken);
+        if (!inScope)
+        {
+            throw new RoleTargetOutOfScopeException();
+        }
+
+        return await LoadDetailsAsync(userId, cancellationToken);
+    }
+
     public async Task<RoleAssignmentMutationResult> ChangeAsync(
         ChangeRoleAssignmentCommand command,
         CancellationToken cancellationToken = default)

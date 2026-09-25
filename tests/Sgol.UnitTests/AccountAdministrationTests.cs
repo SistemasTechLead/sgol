@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Globalization;
+using Sgol.Web.Infrastructure.Authentication;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Sgol.Identity.Contracts;
@@ -182,8 +184,23 @@ public sealed class AccountAdministrationTests
         Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Equal(idempotencyKey, service.ResetCommand?.IdempotencyKey);
         Assert.Equal("Recuperación sintética", service.ResetCommand?.Reason);
+        Assert.NotNull(service.ResetCommand?.MfaAuthenticatedAt);
         Assert.DoesNotContain(SyntheticPassword, request.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain(SyntheticPassword, service.ResetCommand?.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ResetMfa_ExpiredMfaIsRejectedWithoutCallingService()
+    {
+        var service = new RecordingAccountService(CreateAccount());
+        var context = CreateContext(authenticated: true, recentMfa: false);
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
+
+        var result = await AccountApiEndpoints.HandleMfaResetAsync(UserId,
+            new ResetMfaRequest { Reason = "Recuperación sintética" }, context, service, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Null(service.ResetCommand);
     }
 
     private static void AssertSafeResponseContract()
@@ -218,7 +235,7 @@ public sealed class AccountAdministrationTests
         MustChangePassword: true,
         MfaEnrolledAt: null);
 
-    private static DefaultHttpContext CreateContext(bool authenticated)
+    private static DefaultHttpContext CreateContext(bool authenticated, bool recentMfa = true)
     {
         var context = new DefaultHttpContext
         {
@@ -227,7 +244,10 @@ public sealed class AccountAdministrationTests
         if (authenticated)
         {
             context.User = new ClaimsPrincipal(new ClaimsIdentity(
-                [new Claim(ClaimTypes.NameIdentifier, ActorUserId.ToString("D"))],
+                [new Claim(ClaimTypes.NameIdentifier, ActorUserId.ToString("D")),
+                    new Claim(SgolClaimTypes.MfaAuthenticatedAt,
+                        DateTimeOffset.UtcNow.AddMinutes(recentMfa ? 0 : -6)
+                            .ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture))],
                 "synthetic"));
         }
 

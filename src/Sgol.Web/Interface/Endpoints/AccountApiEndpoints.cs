@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using System.Globalization;
 using Sgol.Identity.Contracts;
+using Sgol.Web.Infrastructure.Authentication;
 using Sgol.Web.Infrastructure.Http;
 
 namespace Sgol.Web.Presentation.Endpoints;
@@ -15,6 +17,7 @@ public static class AccountApiEndpoints
         users.MapPost("/{userId:guid}/reactivate", HandleReactivateAsync);
         users.MapPost("/{userId:guid}/mfa-reset", HandleMfaResetAsync);
         users.MapPost("/{userId:guid}/role-assignments", RoleApiEndpoints.HandleChangeAsync);
+        users.MapGet("/{userId:guid}/role-assignments", RoleApiEndpoints.HandleGetAsync);
         return endpoints;
     }
 
@@ -130,6 +133,16 @@ public static class AccountApiEndpoints
             return denied;
         }
 
+        var now = DateTimeOffset.UtcNow;
+        var rawMfaAt = context.User.FindFirstValue(SgolClaimTypes.MfaAuthenticatedAt);
+        if (!long.TryParse(rawMfaAt, NumberStyles.None, CultureInfo.InvariantCulture, out var mfaSeconds) ||
+            mfaSeconds < 0 || mfaSeconds > now.ToUnixTimeSeconds() ||
+            now - DateTimeOffset.FromUnixTimeSeconds(mfaSeconds) > TimeSpan.FromMinutes(5))
+        {
+            return Problem(context, StatusCodes.Status403Forbidden, "MFA_RECIENTE_REQUERIDO",
+                "Vuelve a autenticarte con MFA antes de restablecerlo para otra persona");
+        }
+
         if (!TryGetIdempotencyKey(context, out var idempotencyKey, out var invalidKey))
         {
             return invalidKey;
@@ -146,9 +159,12 @@ public static class AccountApiEndpoints
                     UserId = userId,
                     Reason = request.Reason,
                     TemporaryPassword = request.TemporaryPassword,
+                    MfaAuthenticatedAt = DateTimeOffset.FromUnixTimeSeconds(mfaSeconds),
                 },
                 cancellationToken);
-            return Results.Ok(Envelope(context, result.Account));
+            context.Response.Headers.CacheControl = "no-store";
+            return Results.Ok(Envelope(context, new AccountActivationResponse(
+                result.Account, result.Replayed ? null : result.ActivationSecret), result.Replayed));
         }
         catch (Exception exception)
         {
@@ -252,6 +268,8 @@ public static class AccountApiEndpoints
         AccountPersonNotFoundException => Problem(context, 404, "PERSONA_NO_ENCONTRADA", "No se encontró la persona"),
         AccountPersonOutOfScopeException => Problem(context, 409, "PERSONA_FUERA_DE_ALCANCE", "La persona no está activa en LOR-001"),
         AccountNotFoundException => Problem(context, 404, "CUENTA_NO_ENCONTRADA", "No se encontró la cuenta"),
+        AccountTargetInactiveException => Problem(context, 409, "CUENTA_INACTIVA", "La cuenta objetivo no está activa"),
+        AccountRecentMfaRequiredException => Problem(context, 403, "MFA_RECIENTE_REQUERIDO", "Vuelve a autenticarte con MFA"),
         AccountConflictException => Problem(context, 409, "CUENTA_DUPLICADA", "La persona o el identificador ya tiene una cuenta"),
         AccountStateConflictException => Problem(context, 409, "ESTADO_CUENTA_SIN_CAMBIO", "El estado solicitado ya es el vigente"),
         AccountIdempotencyConflictException => Problem(context, 409, "IDEMPOTENCY_KEY_CONFLICT", "La clave ya fue usada con otro contenido"),
@@ -263,10 +281,10 @@ public static class AccountApiEndpoints
             ? correlationId
             : Guid.CreateVersion7();
 
-    private static object Envelope(HttpContext context, object data) => new
+    private static object Envelope(HttpContext context, object data, bool replayed = false) => new
     {
         data,
-        meta = new { correlationId = context.GetCorrelationId() },
+        meta = new { correlationId = context.GetCorrelationId(), replayed },
     };
 
     private static IResult Problem(HttpContext context, int status, string code, string title) =>
@@ -309,7 +327,7 @@ public sealed class ResetMfaRequest
 {
     public required string Reason { get; init; }
 
-    public required string TemporaryPassword { get; init; }
+    public string? TemporaryPassword { get; init; }
 
     public override string ToString() =>
         $"{nameof(ResetMfaRequest)} {{ Reason = {Reason}, TemporaryPassword = [REDACTED] }}";

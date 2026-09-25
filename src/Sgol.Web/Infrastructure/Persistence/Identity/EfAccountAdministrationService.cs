@@ -183,8 +183,14 @@ public sealed class EfAccountAdministrationService(
         ArgumentNullException.ThrowIfNull(command);
         await EnsureAuthorizedAsync(command.ActorUserId, command.CorrelationId, cancellationToken);
 
+        var mfaAge = command.MfaAuthenticatedAt is { } mfaAt ? clock.UtcNow - mfaAt : TimeSpan.MaxValue;
+        if (mfaAge < TimeSpan.Zero || mfaAge > TimeSpan.FromMinutes(5))
+        {
+            throw new AccountRecentMfaRequiredException();
+        }
+
         var reason = RequireValue(command.Reason, "Reason");
-        var temporaryPassword = RequireTemporaryPassword(command.TemporaryPassword);
+        var generatedPassword = command.TemporaryPassword is null;
         const string operation = "ACCOUNT_MFA_RESET";
         var resource = command.UserId.ToString("D");
         var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
@@ -192,7 +198,7 @@ public sealed class EfAccountAdministrationService(
             operation,
             command.ActorUserId.ToString("D"),
             resource,
-            new { command.UserId, reason, temporaryPassword });
+            new { command.UserId, reason, temporaryPassword = command.TemporaryPassword });
         var replay = await FindReplayAsync(
             scope,
             scope,
@@ -208,6 +214,8 @@ public sealed class EfAccountAdministrationService(
             return replay;
         }
 
+        var temporaryPassword = RequireTemporaryPassword(command.TemporaryPassword ?? NewTemporaryPassword());
+
         try
         {
             await auditTransaction.ExecuteAsync(
@@ -217,6 +225,20 @@ public sealed class EfAccountAdministrationService(
                         .FromSqlInterpolated($"SELECT * FROM app_user WHERE id = {command.UserId} FOR UPDATE")
                         .SingleOrDefaultAsync(criticalWriteCancellationToken)
                         ?? throw new AccountNotFoundException();
+                    if (user.Status != AccountStatus.Active)
+                    {
+                        throw new AccountTargetInactiveException();
+                    }
+
+                    var activeEmployment = await dbContext.EmploymentVersions.AsNoTracking()
+                        .AnyAsync(item => item.PersonId == user.PersonId &&
+                            item.BranchId == BranchScope.LorettaId &&
+                            item.Status == EmploymentStatus.Active && item.ValidTo == null,
+                            criticalWriteCancellationToken);
+                    if (!activeEmployment)
+                    {
+                        throw new AccountPersonOutOfScopeException();
+                    }
                     var credential = await dbContext.IdentityCredentials
                         .SingleAsync(item => item.UserId == user.Id, criticalWriteCancellationToken);
                     var now = clock.UtcNow;
@@ -309,7 +331,8 @@ public sealed class EfAccountAdministrationService(
             throw;
         }
 
-        return new AccountMutationResult((await LoadAccountAsync(command.UserId, cancellationToken))!, Replayed: false);
+        return new AccountMutationResult((await LoadAccountAsync(command.UserId, cancellationToken))!, Replayed: false,
+            generatedPassword ? temporaryPassword : null);
     }
 
     private async Task<AccountMutationResult> ChangeStatusAsync(

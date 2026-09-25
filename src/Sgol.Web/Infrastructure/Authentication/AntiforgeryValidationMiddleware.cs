@@ -121,6 +121,9 @@ public sealed class AntiforgeryValidationMiddleware(RequestDelegate next)
 
             return string.Equals(request.Path.Value, "/api/v1/auth/mfa/verify", StringComparison.OrdinalIgnoreCase)
                 ? names.Count == 1 && expected.IsSupersetOf(names)
+                : request.Path.Value is { } path && path.StartsWith("/api/v1/users/", StringComparison.OrdinalIgnoreCase) &&
+                  path.EndsWith("/mfa-reset", StringComparison.OrdinalIgnoreCase)
+                    ? names.Contains("reason") && expected.IsSupersetOf(names)
                 : names.SetEquals(expected);
         }
         catch (JsonException)

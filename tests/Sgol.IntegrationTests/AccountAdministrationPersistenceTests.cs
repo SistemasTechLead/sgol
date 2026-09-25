@@ -70,6 +70,95 @@ public sealed class AccountAdministrationPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GeneratedMfaResetSecretIsOneTimeAuditedAndInvalidatesPreviousSession()
+    {
+        var actor = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);
+        var person = await SeedPersonAsync("PER-MFA-RESET", EmploymentStatus.Active);
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator(Now), Now);
+        var created = await service.CreateAsync(CreateCommand(actor, person, "mfa.reset.person"));
+        var before = await context.AppUsers.AsNoTracking().SingleAsync(item => item.Id == created.Account.Id);
+        var command = new ResetMfaCommand
+        {
+            ActorUserId = actor,
+            UserId = created.Account.Id,
+            IdempotencyKey = Guid.CreateVersion7(),
+            CorrelationId = Guid.CreateVersion7(),
+            Reason = "Recuperación sintética",
+            MfaAuthenticatedAt = Now,
+        };
+
+        var first = await service.ResetMfaAsync(command);
+        var replay = await service.ResetMfaAsync(command);
+        var after = await context.AppUsers.AsNoTracking().SingleAsync(item => item.Id == created.Account.Id);
+        var credential = await context.IdentityCredentials.AsNoTracking()
+            .SingleAsync(item => item.UserId == created.Account.Id);
+        Assert.NotNull(first.ActivationSecret);
+        Assert.Null(replay.ActivationSecret);
+        Assert.True(replay.Replayed);
+        Assert.NotEqual(before.SecurityStamp, after.SecurityStamp);
+        Assert.True(after.MustChangePassword);
+        Assert.Null(after.MfaEnrolledAt);
+        Assert.Equal(PasswordVerificationResult.Success, new PasswordHasher<AppUser>()
+            .VerifyHashedPassword(after, credential.PasswordHash, first.ActivationSecret));
+        var audit = await context.AuditEvents.AsNoTracking()
+            .SingleAsync(item => item.Action == "AUTH_MFA_RESET");
+        Assert.Equal("Recuperación sintética", audit.Reason);
+        Assert.DoesNotContain(first.ActivationSecret, audit.AfterData!.RootElement.GetRawText(), StringComparison.Ordinal);
+        var stored = await context.IdempotencyRecords.AsNoTracking()
+            .Where(item => item.ResourceId == created.Account.Id).ToListAsync();
+        Assert.True(stored.Count >= 2);
+        Assert.All(stored, item => Assert.DoesNotContain(first.ActivationSecret,
+            item.ResponsePayload!.RootElement.GetRawText(), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task MfaResetRejectsInactiveOrOutOfScopeTargetWithoutCredentialOrAuditEffect()
+    {
+        var actor = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);
+        var person = await SeedPersonAsync("PER-MFA-REJECT", EmploymentStatus.Active);
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator(Now), Now);
+        var created = await service.CreateAsync(CreateCommand(actor, person, "mfa.reject.person"));
+        var userId = created.Account.Id;
+        var hashBefore = await context.IdentityCredentials.AsNoTracking()
+            .Where(item => item.UserId == userId).Select(item => item.PasswordHash).SingleAsync();
+        var command = new ResetMfaCommand
+        {
+            ActorUserId = actor,
+            UserId = userId,
+            IdempotencyKey = Guid.CreateVersion7(),
+            CorrelationId = Guid.CreateVersion7(),
+            Reason = "Rechazo sintético",
+            MfaAuthenticatedAt = Now,
+        };
+        await Assert.ThrowsAsync<AccountRecentMfaRequiredException>(() => service.ResetMfaAsync(new ResetMfaCommand
+        {
+            ActorUserId = actor,
+            UserId = userId,
+            IdempotencyKey = Guid.CreateVersion7(),
+            CorrelationId = Guid.CreateVersion7(),
+            Reason = "MFA vencido sintético",
+            MfaAuthenticatedAt = Now.AddMinutes(-6),
+        }));
+        await service.DeactivateAsync(StatusCommand(actor, userId, "Baja sintética"));
+        await Assert.ThrowsAsync<AccountTargetInactiveException>(() => service.ResetMfaAsync(command));
+
+        var user = await context.AppUsers.SingleAsync(item => item.Id == userId);
+        user.Status = AccountStatus.Active;
+        var employment = await context.EmploymentVersions.SingleAsync(item => item.PersonId == person);
+        context.EmploymentVersions.Add(employment.CreateSuccessor(Guid.CreateVersion7(),
+            EmploymentStatus.Inactive, Now.AddMinutes(1)));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        await Assert.ThrowsAsync<AccountPersonOutOfScopeException>(() => service.ResetMfaAsync(command));
+
+        Assert.Equal(hashBefore, await context.IdentityCredentials.AsNoTracking()
+            .Where(item => item.UserId == userId).Select(item => item.PasswordHash).SingleAsync());
+        Assert.False(await context.AuditEvents.AsNoTracking().AnyAsync(item => item.Action == "AUTH_MFA_RESET"));
+    }
+
+    [Fact]
     public async Task DirectionCreatesIndividualAccountWithoutChangingEmploymentOrRole()
     {
         var actorUserId = await ResetAndSeedActorAsync(BootstrapContract.DirectionRoleCode);

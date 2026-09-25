@@ -64,6 +64,28 @@ public sealed class RoleAdministrationPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RoleReadRequiresDirectionAndInScopeActiveTargetWithoutMutation()
+    {
+        var actor = await ResetAndSeedUserAsync("ACTOR-READ", CanonicalRole.Direction);
+        var target = await SeedUserAsync("TARGET-READ", roleCode: null);
+        var inactive = await SeedUserAsync("TARGET-READ-INACTIVE", roleCode: null,
+            accountStatus: AccountStatus.Inactive);
+        var outOfScope = await SeedUserAsync("TARGET-READ-SCOPE", roleCode: null,
+            activeEmployment: false);
+        await using var context = CreateContext();
+        var service = CreateService(context, NewUuidGenerator(Now), Now);
+        var correlation = Guid.CreateVersion7();
+
+        Assert.Empty((await service.GetAsync(actor, correlation, target)).History);
+        await Assert.ThrowsAsync<RoleTargetInactiveException>(() => service.GetAsync(actor, correlation, inactive));
+        await Assert.ThrowsAsync<RoleTargetOutOfScopeException>(() => service.GetAsync(actor, correlation, outOfScope));
+        await Assert.ThrowsAsync<RoleTargetNotFoundException>(() => service.GetAsync(actor, correlation, Guid.CreateVersion7()));
+        await Assert.ThrowsAsync<RoleAccessDeniedException>(() => service.GetAsync(target, correlation, actor));
+        Assert.Empty(await context.RoleAssignmentVersions.AsNoTracking().Where(item => item.UserId == target).ToListAsync());
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
     public async Task ChangeAndRevokePreserveHistoryRotateSecurityStampAndLeaveNoActiveRole()
     {
         var actorUserId = await ResetAndSeedUserAsync("ACTOR-CYCLE", CanonicalRole.Direction);
