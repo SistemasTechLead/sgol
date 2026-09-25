@@ -161,6 +161,7 @@ public sealed record CalendarDayDetails(
 
 public sealed record PutCalendarDayCommand(
     Guid ActorUserId,
+    Guid IdempotencyKey,
     Guid CorrelationId,
     DateOnly LocalDate,
     Guid ReleaseId,
@@ -174,6 +175,14 @@ public interface ICalendarService
     Task<IReadOnlyList<CalendarDayDetails>> GetAsync(
         Guid actorUserId,
         Guid correlationId,
+        DateOnly fromDate,
+        DateOnly toDate,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CalendarDayDetails>> GetDraftAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid releaseId,
         DateOnly fromDate,
         DateOnly toDate,
         CancellationToken cancellationToken = default);
@@ -206,3 +215,6 @@ public sealed class CalendarVersionConflictException : Exception
 }
 
 public sealed class CalendarValidationException(string message) : Exception(message);
+
+public sealed class CalendarIdempotencyConflictException()
+    : Exception("The idempotency key was used with different calendar content.");

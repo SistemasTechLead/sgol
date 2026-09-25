@@ -127,6 +127,16 @@ Si falta una fecha, el orden del rango es inválido, excede el límite del servi
 
 Ante `412 VERSION_CONFLICT` se muestra el mensaje común y «Recargar disponibilidad». Hasta esa recarga explícita se bloquea el formulario y no se reintenta ni se adopta automáticamente otra versión. `400 IF_MATCH_INVALIDO` también exige recarga antes de corregir, incluso si el servidor lo devolvió porque faltó `If-Match`. Persona inactiva o fuera de alcance muestra un error seguro sin controles de escritura. Los demás errores usan el mensaje seguro por código y `correlationId` cuando exista.
 
+### UI-C01/C02/C03 — configuración y planificación
+
+UI-C01: la ficha se titula «Sucursal Loretta». Si el GET no encuentra `LOR-001`, muestra «No existe o no está disponible en tu alcance» sin datos parciales. Otro código se rechaza y no se ofrece como opción. La zona se muestra literalmente como `America/Mexico_City` cuando el servidor confirma ese valor.
+
+UI-C02: «Semana ISO» identifica año, semana, lunes, domingo y el estado calculado por el servidor. «Revisa el año y la semana ISO» se asocia a ambos campos si la combinación es inválida; una semana transcurrida se consulta sin acciones de cierre o reapertura. `403` muestra «No tienes permiso para consultar el período semanal» y no presenta datos previos.
+
+UI-C03: el rango sin días publicados dice «No hay días publicados en este rango» y «Consulta otro rango». No convierte ausencia en día laborable. «Revisa el rango de calendario» y «Selecciona fechas válidas» se asocian a Desde/Hasta ante fechas inexistentes u orden inverso. Cada fila muestra la fecha, «Laborable», «Festivo» o «Cierre extraordinario» y el valor laborable recibido. `403` muestra «No tienes permiso para consultar el calendario» sin filas.
+
+El editor muestra «No hay una release en borrador disponible» si el listado autorizado no trae una y ofrece «Crear borrador» como enlace a UI-C04 en `/configuracion`; no crea la release ni sugiere una llamada técnica. Un borrador sin días dice «Aún no hay días en este borrador» y permite elegir un día si Dirección tiene permiso. La confirmación dice «Guardar día en borrador» y «El día seleccionado quedará en la release borrador; el calendario vigente no cambiará hasta que se publique». Exige «Motivo». Éxito nuevo: «Día agregado al borrador»; corrección: «Día corregido en el borrador». Ante `409 CONFIGURACION_BORRADOR_REQUERIDA` o un `412 VERSION_CONFLICT`, el editor muestra «El borrador cambió; recárgalo antes de continuar», bloquea guardar y no reintenta. `403` oculta el editor. Un error desconocido usa el mensaje seguro y `correlationId`, sin reflejar el motivo ni datos de sesión.
+
 ### UI-I02 — empleo y vigencia
 
 La edición en el detalle presenta «Actualizar empleo» con puesto, turno y motivo obligatorio. Un historial sin versiones muestra «Aún no hay historial laboral» sin inventar una acción. `409 DATOS_LABORALES_SIN_CAMBIO` muestra «Puesto y turno ya son los vigentes» y conserva los campos; `409 VIGENCIA_SIN_CAMBIO` muestra «La vigencia solicitada ya es la vigente». Ninguno se anuncia como éxito.

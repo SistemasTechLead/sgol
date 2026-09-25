@@ -18,7 +18,7 @@ public sealed class Hu034IdempotencyArchitectureTests
             })
             .ToArray();
 
-        Assert.Equal(18, consumers.Length);
+        Assert.Equal(19, consumers.Length);
         foreach (var path in consumers.Where(path => !Path.GetFileName(path).Equals("InboxApiEndpoints.cs", StringComparison.Ordinal)))
         {
             var source = File.ReadAllText(path);
@@ -66,6 +66,7 @@ public sealed class Hu034IdempotencyArchitectureTests
             "PERSON_CREATE", "PERSON_EMPLOYMENT_PATCH", "PERSON_DEACTIVATE", "PERSON_REACTIVATE",
             "AVAILABILITY_PUT", "ACCOUNT_CREATE", "ACCOUNT_DEACTIVATE", "ACCOUNT_REACTIVATE",
             "ROLE_ASSIGNMENT_CHANGE", "CONFIGURATION_RELEASE_CREATE", "CONFIGURATION_RELEASE_PUBLISH",
+            "CALENDAR_DAY_PUT",
             "TASK_DEFINITION_VERSION_CREATE", "TASK_DEFINITION_VERSION_PUBLISH", "TASK_DEFINITION_DEACTIVATE_NEW",
             "ACTIVATION_POLICY_PUT", "ELIGIBILITY_POLICY_PUT", "EVIDENCE_POLICY_PUT", "VALIDATION_POLICY_PUT",
             "GENERATION_REQUEST_CREATE", "ASSIGNMENT_CORRECTION_CREATE", "WORK_PLAN_ENSURE",

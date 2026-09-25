@@ -35,7 +35,7 @@ public sealed class Front002BrowserTests
                 await page.GotoAsync(new Uri(fixture.BaseAddress, "/").AbsoluteUri);
                 Assert.EndsWith("/mi-trabajo", page.Url, StringComparison.Ordinal);
                 Assert.Equal("Mi trabajo", await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).InnerTextAsync());
-                Assert.Equal(viewport.Account == 0 ? 2 : 0,
+                Assert.Equal(viewport.Account == 0 ? 3 : 2,
                     await page.Locator(".navegacion-lateral--escritorio a").CountAsync());
 
                 await page.Locator(".salto-contenido").FocusAsync();

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
+using Sgol.Organization.Contracts;
 using Sgol.Web.Presentation.ApiClient;
 using Sgol.Web.Presentation.Authentication;
 using Sgol.Web.Presentation.Navigation;
@@ -19,10 +20,13 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
         TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City");
 
     public IReadOnlyList<ConfigurationReleaseDetails> Releases { get; private set; } = [];
+    public BranchCatalogItem? Branch { get; private set; }
+    public ProblemDetailsPresentation? BranchError { get; private set; }
     public bool CanManage { get; private set; }
     public bool CanShow { get; private set; }
     public ProblemDetailsPresentation? Error { get; private set; }
     public string? Success { get; private set; }
+    public Guid? CreatedDraftId { get; private set; }
     public Guid? ConflictReleaseId { get; private set; }
     public Guid? PublicationErrorReleaseId { get; private set; }
     public string? EffectiveFromInput { get; private set; }
@@ -60,6 +64,8 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
             if (response.Status == StatusCodes.Status401Unauthorized) return Redirect("/acceso");
             if (response.IsSuccess && response.Data is { Id: var id } && id != Guid.Empty)
             {
+                if (!response.Replayed && response.Data.Status == VersionStatuses.Draft)
+                    CreatedDraftId = id;
                 Success = response.Replayed || response.Data.Status != VersionStatuses.Draft
                     ? "La operación ya se había procesado; consulta la historia"
                     : "Borrador disponible; todavía no está vigente";
@@ -154,6 +160,27 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
         CanManage = session?.Permissions?.Contains(ConfigurationAuthorization.Administer, StringComparer.Ordinal) == true;
         try
         {
+            var branch = await apiClient.SendAsync<BranchCatalogItem>(
+                new ApiRequest(HttpMethod.Get, "/api/v1/branches/LOR-001", ApiResponseShape.Item),
+                cancellationToken);
+            if (branch.Status == StatusCodes.Status401Unauthorized) return Redirect("/acceso");
+            if (branch.Status is StatusCodes.Status403Forbidden or StatusCodes.Status404NotFound)
+            {
+                BranchError = new("No existe o no está disponible en tu alcance",
+                    "No se pudo consultar la sucursal Loretta.", branch.CorrelationId);
+                Response.StatusCode = branch.Status;
+            }
+            else if (!branch.IsSuccess || branch.Data is null ||
+                branch.Data.Code != BranchScope.LorettaCode ||
+                branch.Data.TimeZone != "America/Mexico_City")
+            {
+                BranchError = branch.Error ?? new("No se pudo cargar la sucursal",
+                    "Vuelve a consultar más tarde.", branch.CorrelationId);
+                Response.StatusCode = branch.IsSuccess ? StatusCodes.Status503ServiceUnavailable : branch.Status;
+            }
+            else Branch = branch.Data;
+
+            if (!CanManage) return Page();
             var response = await apiClient.SendAsync<ConfigurationReleaseDetails>(
                 new ApiRequest(HttpMethod.Get, ReleasesPath, ApiResponseShape.Collection), cancellationToken);
             if (response.Status == StatusCodes.Status401Unauthorized) return Redirect("/acceso");
@@ -176,7 +203,8 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
         }
         catch (ApiProtocolException)
         {
-            Error = SafeError(null);
+            if (Branch is null) BranchError = new("No se pudo cargar la sucursal", "Vuelve a consultar más tarde.", null);
+            else Error = SafeError(null);
             Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             return Page();
         }

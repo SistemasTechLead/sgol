@@ -4,6 +4,7 @@ using System.Text.Json;
 using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
 using Sgol.Web.Infrastructure.Http;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Presentation.Endpoints;
 
@@ -13,6 +14,7 @@ public static class CalendarApiEndpoints
     {
         var calendar = endpoints.MapGroup("/api/v1/calendar");
         calendar.MapGet("", HandleGetAsync);
+        calendar.MapGet("/drafts/{releaseId:guid}", HandleGetDraftAsync);
         calendar.MapPut("/{date}", HandlePutAsync);
         return endpoints;
     }
@@ -45,7 +47,7 @@ public static class CalendarApiEndpoints
                 fromDate,
                 toDate,
                 cancellationToken);
-            return Ok(context, days);
+            return OkCollection(context, days);
         }
         catch (Exception exception)
         {
@@ -75,6 +77,12 @@ public static class CalendarApiEndpoints
             return invalidBody;
         }
 
+        var parsedKey = IdempotencyKeyHeader.Parse(context.Request);
+        if (!parsedKey.IsValid)
+        {
+            return Problem(context, 400, parsedKey.ErrorCode!, parsedKey.Detail!);
+        }
+
         if (!TryGetOptionalRowVersion(context, out var rowVersion, out var invalidVersion))
         {
             return invalidVersion;
@@ -85,6 +93,7 @@ public static class CalendarApiEndpoints
             var day = await service.PutAsync(
                 new PutCalendarDayCommand(
                     actorUserId,
+                    parsedKey.Key,
                     GetCorrelationId(context),
                     localDate,
                     body.ReleaseId,
@@ -95,6 +104,39 @@ public static class CalendarApiEndpoints
                 cancellationToken);
             context.Response.Headers.ETag = VersionEtag.Format(day.RowVersion);
             return Ok(context, day);
+        }
+        catch (Exception exception)
+        {
+            return MapException(context, exception);
+        }
+    }
+
+    public static async Task<IResult> HandleGetDraftAsync(
+        Guid releaseId,
+        HttpContext context,
+        ICalendarService service,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(context, out var actorUserId, out var denied))
+        {
+            return denied;
+        }
+
+        if (!TryGetLocalDate(context.Request.Query["from"], "from", context, out var fromDate, out var invalidFrom))
+        {
+            return invalidFrom;
+        }
+
+        if (!TryGetLocalDate(context.Request.Query["to"], "to", context, out var toDate, out var invalidTo))
+        {
+            return invalidTo;
+        }
+
+        try
+        {
+            var days = await service.GetDraftAsync(actorUserId, GetCorrelationId(context), releaseId,
+                fromDate, toDate, cancellationToken);
+            return OkCollection(context, days);
         }
         catch (Exception exception)
         {
@@ -241,6 +283,12 @@ public static class CalendarApiEndpoints
             409,
             "CONFIGURACION_BORRADOR_REQUERIDA",
             "La release debe existir, pertenecer a LOR-001 y permanecer en BORRADOR"),
+        CalendarIdempotencyConflictException => Problem(
+            context, 409, "IDEMPOTENCY_CONFLICT", "La clave ya fue usada con otro contenido"),
+        IdempotencyConflictAuditException => Problem(
+            context, 500, "IDEMPOTENCY_CONFLICT_AUDIT_FAILED", "El conflicto no pudo registrarse"),
+        IdempotencyReplayUnavailableException => Problem(
+            context, 503, "IDEMPOTENCY_REPLAY_UNAVAILABLE", "No se pudo recuperar la respuesta original"),
         CalendarIfMatchRequiredException => Problem(
             context,
             400,
@@ -268,6 +316,12 @@ public static class CalendarApiEndpoints
     {
         data,
         meta = new { correlationId = context.GetCorrelationId() },
+    });
+
+    private static IResult OkCollection(HttpContext context, IReadOnlyList<CalendarDayDetails> days) => Results.Ok(new
+    {
+        data = days,
+        meta = new { correlationId = context.GetCorrelationId(), count = days.Count },
     });
 
     private static IResult Problem(HttpContext context, int status, string code, string title) =>

@@ -1,0 +1,167 @@
+@page "/planificacion"
+@model Sgol.Web.Pages.Planning.IndexModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@{
+    ViewData["Title"] = "Planificación";
+    var selectedDraftDay = Model.DraftDays.FirstOrDefault(item => item.LocalDate.ToString("yyyy-MM-dd") == Model.Day);
+}
+<section class="planificacion" aria-labelledby="planning-title">
+    <header class="encabezado-pagina">
+        <h1 id="planning-title" class="encabezado-pagina__titulo">Planificación de LOR-001</h1>
+        <p class="encabezado-pagina__descripcion">Fechas locales de America/Mexico_City y semanas ISO.</p>
+    </header>
+
+    @if (Model.CanViewWeek)
+    {
+        <section class="planificacion__seccion" aria-labelledby="week-title">
+            <h2 id="week-title">Semana ISO</h2>
+            @if (Model.WeekError is not null)
+            {
+                <div id="week-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.WeekError" /></div>
+            }
+            <form method="get" class="planificacion__formulario" data-progress-form>
+                <label class="campo" for="iso-year"><span class="campo__etiqueta">Año ISO</span>
+                    <input id="iso-year" name="isoYear" class="campo__control" type="number" min="1" max="9999" value="@Model.IsoYear" required
+                           aria-invalid="@(Model.WeekError is null ? "false" : "true")" aria-describedby="@(Model.WeekError is null ? null : "week-error")" /></label>
+                <label class="campo" for="iso-week"><span class="campo__etiqueta">Semana ISO</span>
+                    <input id="iso-week" name="isoWeek" class="campo__control" type="number" min="1" max="53" value="@Model.IsoWeek" required
+                           aria-invalid="@(Model.WeekError is null ? "false" : "true")" aria-describedby="@(Model.WeekError is null ? null : "week-error")" /></label>
+                <input type="hidden" name="from" value="@Model.From" /><input type="hidden" name="to" value="@Model.To" />
+                <button class="boton boton--secundario" type="submit" data-progress-label="Consultando semana…">Consultar semana</button>
+            </form>
+            @if (Model.Week is { } week)
+            {
+                <div class="planificacion__resultado" aria-live="polite" aria-busy="false">
+                    <p>Período único: <time datetime="@week.StartsOn.ToString("yyyy-MM-dd")">@week.StartsOn.ToString("dd/MM/yyyy")</time>
+                        al <time datetime="@week.EndsOn.ToString("yyyy-MM-dd")">@week.EndsOn.ToString("dd/MM/yyyy")</time>.</p>
+                    @if (week.DerivedStatus == "TRANSCURRIDA") { <span class="badge badge--info"><span aria-hidden="true">◷</span>Transcurrida</span> }
+                    else { <span class="badge badge--exito"><span aria-hidden="true">✓</span>Vigente</span> }
+                </div>
+            }
+        </section>
+    }
+
+    <section class="planificacion__seccion" aria-labelledby="calendar-title">
+        <h2 id="calendar-title">Calendario vigente</h2>
+        <p>Los días sin versión publicada no se presumen laborables.</p>
+        @if (Model.CalendarError is not null)
+        {
+            <div id="calendar-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.CalendarError" /></div>
+        }
+        <form method="get" class="planificacion__formulario" data-progress-form>
+            <label class="campo" for="calendar-from"><span class="campo__etiqueta">Desde</span>
+                <input id="calendar-from" name="from" class="campo__control" type="date" value="@Model.From" required
+                       aria-invalid="@(Model.CalendarError is null ? "false" : "true")" aria-describedby="calendar-zone @(Model.CalendarError is null ? null : "calendar-error")" /></label>
+            <label class="campo" for="calendar-to"><span class="campo__etiqueta">Hasta</span>
+                <input id="calendar-to" name="to" class="campo__control" type="date" value="@Model.To" required
+                       aria-invalid="@(Model.CalendarError is null ? "false" : "true")" aria-describedby="calendar-zone @(Model.CalendarError is null ? null : "calendar-error")" /></label>
+            <input type="hidden" name="isoYear" value="@Model.IsoYear" /><input type="hidden" name="isoWeek" value="@Model.IsoWeek" />
+            <p id="calendar-zone">Zona operativa: America/Mexico_City.</p>
+            <button class="boton boton--secundario" type="submit" data-progress-label="Consultando calendario…">Consultar calendario</button>
+        </form>
+        @if (Model.CalendarError is null)
+        {
+            <div id="published-calendar" aria-live="polite" aria-busy="false">
+                @if (Model.PublishedDays.Count == 0)
+                {
+                    <div class="estado-vacio" role="status"><p class="estado-vacio__titulo">No hay días publicados en este rango</p><p>Consulta otro rango.</p></div>
+                }
+                else
+                {
+                    <ul class="planificacion__dias" aria-label="Días publicados">
+                        @foreach (var item in Model.PublishedDays)
+                        {
+                            <li class="planificacion__dia"><time datetime="@item.LocalDate.ToString("yyyy-MM-dd")">@item.LocalDate.ToString("dd/MM/yyyy")</time>
+                                <span>@(item.DayType switch { "LABORABLE" => "Laborable", "FESTIVO" => "Festivo", _ => "Cierre extraordinario" })</span>
+                                <span>@(item.IsWorkingDay ? "Día laborable" : "Día no laborable")</span></li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </section>
+
+    @if (Model.CanEditCalendar)
+    {
+        <section class="planificacion__seccion" aria-labelledby="draft-title">
+            <h2 id="draft-title">Días en borrador</h2>
+            @if (Model.DraftError is not null)
+            {
+                <div id="draft-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.DraftError" /></div>
+            }
+            @if (Model.IsConflict)
+            {
+                <a class="boton boton--secundario" href="/planificacion?isoYear=@Model.IsoYear&amp;isoWeek=@Model.IsoWeek&amp;from=@Model.From&amp;to=@Model.To&amp;day=@Model.Day&amp;releaseId=@Model.SelectedReleaseId">Recargar borrador</a>
+            }
+            else if (Model.DraftReleases.Count == 0)
+            {
+                <div class="estado-vacio" role="status"><p class="estado-vacio__titulo">No hay una release en borrador disponible</p>
+                    <a class="boton boton--secundario" href="/configuracion">Crear borrador</a></div>
+            }
+            else
+            {
+                <form method="get" class="planificacion__formulario" data-progress-form>
+                    <input type="hidden" name="isoYear" value="@Model.IsoYear" /><input type="hidden" name="isoWeek" value="@Model.IsoWeek" />
+                    <input type="hidden" name="from" value="@Model.From" /><input type="hidden" name="to" value="@Model.To" />
+                    <label class="campo" for="draft-release"><span class="campo__etiqueta">Release en borrador</span>
+                        <select id="draft-release" name="releaseId" class="campo__control campo__control--select" required>
+                            @foreach (var release in Model.DraftReleases)
+                            { <option value="@release.Id" selected="@(release.Id == Model.SelectedReleaseId)">Borrador @release.Id</option> }
+                        </select></label>
+                    <label class="campo" for="draft-day"><span class="campo__etiqueta">Día</span>
+                        <input id="draft-day" name="day" class="campo__control" type="date" value="@Model.Day" required /></label>
+                    <button type="submit" class="boton boton--secundario" data-progress-label="Consultando borrador…">Consultar borrador</button>
+                </form>
+                @if (Model.SelectedReleaseId is not null && Model.DraftError is null && Model.CalendarError is null)
+                {
+                    <div id="draft-days" aria-live="polite" aria-busy="false">
+                        @if (Model.DraftDays.Count == 0)
+                        {
+                            <div class="estado-vacio" role="status"><p class="estado-vacio__titulo">Aún no hay días en este borrador</p></div>
+                        }
+                        else
+                        {
+                            <ul class="planificacion__dias" aria-label="Días del borrador">
+                                @foreach (var item in Model.DraftDays)
+                                { <li class="planificacion__dia"><time datetime="@item.LocalDate.ToString("yyyy-MM-dd")">@item.LocalDate.ToString("dd/MM/yyyy")</time><span>@(item.DayType switch { "LABORABLE" => "Laborable", "FESTIVO" => "Festivo", _ => "Cierre extraordinario" })</span><span>Borrador</span></li> }
+                            </ul>
+                        }
+                    </div>
+                    <div class="planificacion__formulario">
+                        <label class="campo" for="draft-type"><span class="campo__etiqueta">Tipo de día</span>
+                            <select id="draft-type" name="dayType" form="calendar-save" class="campo__control campo__control--select" required>
+                                <option value="LABORABLE" selected="@(selectedDraftDay?.DayType == "LABORABLE")">Laborable</option>
+                                <option value="FESTIVO" selected="@(selectedDraftDay?.DayType == "FESTIVO")">Festivo</option>
+                                <option value="CIERRE_EXTRAORDINARIO" selected="@(selectedDraftDay?.DayType == "CIERRE_EXTRAORDINARIO")">Cierre extraordinario</option>
+                            </select></label>
+                        <p>Día seleccionado: <time datetime="@Model.Day">@Model.Day</time>. @(selectedDraftDay is null ? "Sin registro en borrador" : "Versión borrador existente").</p>
+                        <button class="boton boton--primario" type="button" data-dialog-open aria-controls="calendar-confirm">Guardar día en borrador</button>
+                    </div>
+                    <dialog id="calendar-confirm" class="modal" aria-labelledby="calendar-confirm-title" aria-describedby="calendar-confirm-summary">
+                        <form id="calendar-save" method="post" asp-page-handler="Save" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                            <input type="hidden" name="intentKey" value="@Model.IntentKey.ToString("D")" />
+                            <input type="hidden" name="releaseId" value="@Model.SelectedReleaseId" />
+                            <input type="hidden" name="isoYear" value="@Model.IsoYear" /><input type="hidden" name="isoWeek" value="@Model.IsoWeek" />
+                            <input type="hidden" name="from" value="@Model.From" /><input type="hidden" name="to" value="@Model.To" />
+                            <input type="hidden" name="day" value="@Model.Day" /><input type="hidden" name="etag" value="@Model.SelectedEtag" />
+                            <h3 id="calendar-confirm-title" class="modal__titulo">Guardar día en borrador</h3>
+                            <p id="calendar-confirm-summary">El día @Model.Day quedará en la release borrador; el calendario vigente no cambiará hasta que se publique.</p>
+                            <label class="campo" for="calendar-reason"><span class="campo__etiqueta">Motivo</span>
+                                <textarea id="calendar-reason" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-invalid="false" aria-describedby="calendar-reason-error" data-required-reason></textarea>
+                                <span id="calendar-reason-error" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                            <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button>
+                                <button type="submit" class="boton boton--primario" data-progress-label="Guardando…">Guardar día en borrador</button></div>
+                        </form>
+                    </dialog>
+                }
+            }
+            @if (Model.Success is not null) { <p class="alerta alerta--exito" role="status"><span aria-hidden="true">✓</span>@Model.Success.</p> }
+        </section>
+    }
+</section>
+@section Scripts {
+    @if (Model.WeekError is not null) { <script>document.getElementById('week-error')?.focus();</script> }
+    else if (Model.CalendarError is not null) { <script>document.getElementById('calendar-error')?.focus();</script> }
+    else if (Model.DraftError is not null) { <script>document.getElementById('draft-error')?.focus();</script> }
+}

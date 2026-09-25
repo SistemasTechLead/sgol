@@ -545,6 +545,56 @@ summary:focus-visible {
     margin-top: var(--espacio-32);
 }
 
+.planificacion {
+    display: grid;
+    gap: var(--espacio-32);
+    min-width: 0;
+}
+
+.planificacion__seccion {
+    display: grid;
+    gap: var(--espacio-16);
+    min-width: 0;
+}
+
+.planificacion__formulario {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ancho-modal)), 1fr));
+    gap: var(--espacio-16);
+    max-width: var(--ancho-contenido);
+    min-width: 0;
+}
+
+.planificacion__formulario .campo,
+.planificacion__formulario .campo__control {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.planificacion__formulario .campo__control--select {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.planificacion__dias {
+    display: grid;
+    gap: var(--espacio-8);
+    min-width: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.planificacion__dia {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--espacio-16);
+    min-width: 0;
+    padding: var(--espacio-12);
+    background: var(--color-superficie-elevada);
+    border-radius: var(--radio-control);
+}
+
 .seccion-cuentas {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

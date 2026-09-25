@@ -8,10 +8,16 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Sgol.BuildingBlocks.Identifiers;
+using Sgol.BuildingBlocks.Time;
+using Sgol.Configuration.Contracts;
 using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence;
+using Sgol.Web.Infrastructure.Persistence.Auditing;
 using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+using Sgol.Web.Infrastructure.Persistence.Configuration;
+using Sgol.Web.Infrastructure.Persistence.Versioning;
 using Testcontainers.PostgreSql;
 
 namespace Sgol.FrontendBrowserTests;
@@ -199,6 +205,35 @@ internal sealed class BrowserFixture : IAsyncDisposable
             DateTimeOffset.UtcNow.AddMinutes(-1)));
         await context.SaveChangesAsync();
         return personId;
+    }
+
+    public async Task<Guid> SeedCalendarScenarioAsync(Guid directionUserId, DateOnly publishedDate)
+    {
+        if (connectionString is null) throw new InvalidOperationException("Disposable database is unavailable.");
+        await using var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>()
+            .UseNpgsql(connectionString).Options);
+        var clock = new BrowserFixedClock(DateTimeOffset.UtcNow.AddMinutes(-2));
+        var uuids = new Uuid7Generator(clock);
+        var audit = new AuditTransaction(context);
+        var releases = new EfConfigurationReleaseService(context, audit,
+            new VersioningTransaction(context, audit), clock, uuids);
+        var calendar = new EfCalendarService(context, audit, clock, uuids);
+        var published = await releases.CreateDraftAsync(new CreateConfigurationReleaseCommand(
+            directionUserId, Guid.CreateVersion7(), Guid.CreateVersion7()));
+        await calendar.PutAsync(new PutCalendarDayCommand(directionUserId, Guid.CreateVersion7(),
+            Guid.CreateVersion7(), publishedDate, published.Id, CalendarContract.Holiday,
+            false, "Festivo sintético FRONT-008", null));
+        await releases.PublishAsync(new PublishConfigurationReleaseCommand(directionUserId,
+            Guid.CreateVersion7(), Guid.CreateVersion7(), published.Id, published.RowVersion,
+            clock.UtcNow, "Publicación sintética FRONT-008"));
+        var draft = await releases.CreateDraftAsync(new CreateConfigurationReleaseCommand(
+            directionUserId, Guid.CreateVersion7(), Guid.CreateVersion7()));
+        return draft.Id;
+    }
+
+    private sealed class BrowserFixedClock(DateTimeOffset now) : IClock
+    {
+        public DateTimeOffset UtcNow { get; } = now;
     }
 
     public async Task<string> AuthenticateAsync(BrowserAccount account)

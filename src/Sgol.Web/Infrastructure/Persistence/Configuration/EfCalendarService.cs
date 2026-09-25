@@ -7,6 +7,7 @@ using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
+using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Configuration;
 
@@ -17,6 +18,7 @@ public sealed class EfCalendarService(
     IUuidGenerator uuidGenerator) : ICalendarService
 {
     private const string DraftIndex = "IX_calendar_day_version_release_id_local_date";
+    private const string IdempotencyPrimaryKey = "PK_idempotency_record";
 
     public async Task<IReadOnlyList<CalendarDayDetails>> GetAsync(
         Guid actorUserId,
@@ -57,14 +59,71 @@ public sealed class EfCalendarService(
         return days;
     }
 
+    public async Task<IReadOnlyList<CalendarDayDetails>> GetDraftAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        Guid releaseId,
+        DateOnly fromDate,
+        DateOnly toDate,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRange(fromDate, toDate);
+        await EnsureAuthorizedAsync(actorUserId, correlationId, cancellationToken);
+        var releaseExists = await dbContext.ConfigurationReleases.AsNoTracking()
+            .AnyAsync(release => release.Id == releaseId &&
+                release.BranchId == BranchScope.LorettaId &&
+                release.Status == VersionStatuses.Draft, cancellationToken);
+        if (!releaseExists)
+        {
+            throw new CalendarReleaseNotFoundException();
+        }
+
+        var days = await dbContext.CalendarDayVersions.AsNoTracking()
+            .Where(day => day.BranchId == BranchScope.LorettaId &&
+                day.ReleaseId == releaseId && day.Status == VersionStatuses.Draft &&
+                day.LocalDate >= fromDate && day.LocalDate <= toDate)
+            .OrderBy(day => day.LocalDate)
+            .Select(day => new CalendarDayDetails(day.Id, day.LocalDate, day.DayType,
+                day.IsWorkingDay, CalendarContract.TimeZone, day.ReleaseId, day.Status,
+                day.EffectiveFrom, day.EffectiveTo, day.Reason, day.SupersedesId,
+                day.RowVersion))
+            .ToListAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+        return days;
+    }
+
     public async Task<CalendarDayDetails> PutAsync(
         PutCalendarDayCommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        if (command.IdempotencyKey == Guid.Empty)
+        {
+            throw new CalendarValidationException("Idempotency key is required.");
+        }
         await EnsureAuthorizedAsync(command.ActorUserId, command.CorrelationId, cancellationToken);
         CalendarContract.ValidateDay(command.DayType, command.IsWorkingDay);
         var reason = VersioningRules.NormalizeRequiredReason(command.Reason);
+
+        const string operation = "CALENDAR_DAY_PUT";
+        var resource = $"{command.ReleaseId:D}:{command.LocalDate:yyyy-MM-dd}";
+        var scope = IdempotencyProtocol.Scope(command.ActorUserId.ToString("D"), operation, resource);
+        var requestHash = IdempotencyProtocol.HashCanonical(operation,
+            command.ActorUserId.ToString("D"), resource,
+            new
+            {
+                command.ReleaseId,
+                command.LocalDate,
+                command.DayType,
+                command.IsWorkingDay,
+                Reason = reason
+            }, command.ExpectedRowVersion);
+        var replay = await FindReplayAsync(scope, command.IdempotencyKey, requestHash,
+            command.ActorUserId, command.CorrelationId, cancellationToken);
+        if (replay is not null)
+        {
+            return replay;
+        }
 
         CalendarDayVersion? saved = null;
         try
@@ -131,6 +190,11 @@ public sealed class EfCalendarService(
                         saved = draft;
                     }
 
+                    var response = ToDetails(saved);
+                    dbContext.IdempotencyRecords.Add(IdempotencyProtocol.Completed(
+                        scope, command.IdempotencyKey, requestHash, "CALENDAR_DAY", saved.Id,
+                        StatusCodes.Status200OK, response, clock.UtcNow, DateTimeOffset.MaxValue,
+                        responseEtag: VersionEtag.Format(response.RowVersion)));
                     return NewAuditEvent(
                         command.ActorUserId,
                         command.CorrelationId,
@@ -147,15 +211,36 @@ public sealed class EfCalendarService(
             dbContext.ChangeTracker.Clear();
             throw new CalendarVersionConflictException(exception);
         }
+        catch (DbUpdateException exception) when (GetConstraintName(exception) == IdempotencyPrimaryKey)
+        {
+            dbContext.ChangeTracker.Clear();
+            return await FindReplayAsync(scope, command.IdempotencyKey, requestHash,
+                command.ActorUserId, command.CorrelationId, cancellationToken)
+                ?? throw new CalendarIdempotencyConflictException();
+        }
         catch (DbUpdateException exception) when (GetConstraintName(exception) == DraftIndex)
         {
             dbContext.ChangeTracker.Clear();
+            var recovered = await FindReplayAsync(scope, command.IdempotencyKey, requestHash,
+                command.ActorUserId, command.CorrelationId, cancellationToken);
+            if (recovered is not null) return recovered;
             throw new CalendarVersionConflictException(exception);
         }
         catch (VersionConflictException exception)
         {
             dbContext.ChangeTracker.Clear();
+            var recovered = await FindReplayAsync(scope, command.IdempotencyKey, requestHash,
+                command.ActorUserId, command.CorrelationId, cancellationToken);
+            if (recovered is not null) return recovered;
             throw new CalendarVersionConflictException(exception);
+        }
+        catch (CalendarIfMatchRequiredException)
+        {
+            dbContext.ChangeTracker.Clear();
+            var recovered = await FindReplayAsync(scope, command.IdempotencyKey, requestHash,
+                command.ActorUserId, command.CorrelationId, cancellationToken);
+            if (recovered is not null) return recovered;
+            throw;
         }
         catch
         {
@@ -166,6 +251,33 @@ public sealed class EfCalendarService(
         var result = ToDetails(saved!);
         dbContext.ChangeTracker.Clear();
         return result;
+    }
+
+    private async Task<CalendarDayDetails?> FindReplayAsync(
+        string scope,
+        Guid key,
+        string requestHash,
+        Guid actorUserId,
+        Guid correlationId,
+        CancellationToken token)
+    {
+        var record = await dbContext.IdempotencyRecords.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, token);
+        if (record is null)
+        {
+            return null;
+        }
+
+        if (!string.Equals(record.RequestHash, requestHash, StringComparison.Ordinal))
+        {
+            await IdempotencyProtocol.PersistConflictAsync(auditTransaction,
+                IdempotencyProtocol.ConflictAudit(uuidGenerator.NewUuid(), clock.UtcNow,
+                    actorUserId, "CALENDAR_DAY", null, BranchScope.LorettaId,
+                    correlationId, key, "CALENDAR_DAY_PUT"), token);
+            throw new CalendarIdempotencyConflictException();
+        }
+
+        return IdempotencyProtocol.ReadPayload<CalendarDayDetails>(record);
     }
 
     private async Task EnsureAuthorizedAsync(
