@@ -163,6 +163,7 @@
 </section>
 }
 <partial name="_TaskDefinitions" model="Model" />
+<partial name="_Policies" model="Model" />
 @section Scripts {
     @if (Model.BranchError is not null) { <script>document.getElementById('branch-error')?.focus();</script> }
     else if (Model.Error is not null && Model.PublicationErrorReleaseId is null) { <script>document.getElementById('configuration-error')?.focus();</script> }

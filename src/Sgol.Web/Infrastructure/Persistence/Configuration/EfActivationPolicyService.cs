@@ -24,6 +24,21 @@ public sealed class EfActivationPolicyService(
     private const string ReleaseTaskIndex = "IX_activation_rule_version_release_task";
     private const string VersionNumberIndex = "IX_activation_rule_version_number";
 
+    public async Task<ActivationPolicyHistoryDetails> GetAsync(
+        Guid actorUserId, Guid correlationId, string taskCode,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthorizedAsync(actorUserId, correlationId, cancellationToken);
+        var seed = TaskDefinitionCatalog.Require(taskCode);
+        var versions = await dbContext.ActivationRuleVersions.AsNoTracking()
+            .Where(rule => rule.TaskDefinitionId == seed.Id)
+            .OrderByDescending(rule => rule.VersionNo)
+            .ToListAsync(cancellationToken);
+        var history = versions.Select(rule => ToDetails(taskCode, rule)).ToArray();
+        dbContext.ChangeTracker.Clear();
+        return new(taskCode, history.SingleOrDefault(rule => rule.Status == VersionStatuses.Current), history);
+    }
+
     public async Task<ActivationRuleVersionDetails> PutAsync(
         PutActivationPolicyCommand command,
         CancellationToken cancellationToken = default)
@@ -191,12 +206,12 @@ public sealed class EfActivationPolicyService(
 
         if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
         {
-            return IdempotencyProtocol.ReadPayload<ActivationRuleVersionDetails>(record);
+            return IdempotencyProtocol.ReadPayload<ActivationRuleVersionDetails>(record) with { Replayed = true };
         }
 
         var rule = await dbContext.ActivationRuleVersions.AsNoTracking()
             .SingleAsync(item => item.Id == record.ResourceId, cancellationToken);
-        return ToDetails(taskCode, rule);
+        return ToDetails(taskCode, rule) with { Replayed = true };
     }
 
     private Task AuditConflictAsync(Guid actorUserId, Guid correlationId, Guid key, Guid resourceId, CancellationToken token) =>

@@ -10,10 +10,31 @@ public static class EligibilityPolicyApiEndpoints
 {
     public static IEndpointRouteBuilder MapEligibilityPolicyApi(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet(
+            "/api/v1/task-definitions/{taskCode}/eligibility-policy",
+            HandleGetAsync);
         endpoints.MapPut(
             "/api/v1/task-definitions/{taskCode}/eligibility-policy",
             HandlePutAsync);
         return endpoints;
+    }
+
+    public static async Task<IResult> HandleGetAsync(
+        string taskCode, HttpContext context, IEligibilityPolicyService service,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(context, out var actorUserId, out var denied)) return denied;
+        try
+        {
+            var result = await service.GetAsync(actorUserId, CorrelationId(context), taskCode, cancellationToken);
+            if (result.Current is { } current) context.Response.Headers.ETag = VersionEtag.Format(current.RowVersion);
+            return Results.Ok(Envelope(context, result));
+        }
+        catch (TaskDefinitionNotMvpException)
+        {
+            return Problem(context, 404, "DEFINICION_NO_DISPONIBLE", "No existe o no está disponible en tu alcance");
+        }
+        catch (Exception exception) { return MapException(context, exception); }
     }
 
     public static async Task<IResult> HandlePutAsync(
@@ -74,7 +95,7 @@ public static class EligibilityPolicyApiEndpoints
             context.Response.Headers.ETag = VersionEtag.Format(policy.RowVersion);
             return Results.Created(
                 $"/api/v1/task-definitions/{taskCode}/eligibility-policy",
-                Envelope(context, policy));
+                PutEnvelope(context, policy));
         }
         catch (Exception exception)
         {
@@ -167,6 +188,12 @@ public static class EligibilityPolicyApiEndpoints
     {
         data,
         meta = new { correlationId = context.GetCorrelationId() },
+    };
+
+    private static object PutEnvelope(HttpContext context, EligibilityPolicyVersionDetails data) => new
+    {
+        data,
+        meta = new { correlationId = context.GetCorrelationId(), replayed = data.Replayed },
     };
 
     private static IResult Problem(HttpContext context, int status, string code, string title) =>

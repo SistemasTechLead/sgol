@@ -54,6 +54,10 @@ public sealed class ActivationPolicyPersistenceTests : IAsyncLifetime
             .OrderBy(item => item.TaskDefinitionId)
             .ToListAsync();
         Assert.Equal(8, current.Count);
+        var activationRead = await services.Policy.GetAsync(actor, Guid.CreateVersion7(), "TAR-0005");
+        Assert.Equal("TAR-0005", activationRead.TaskCode);
+        Assert.Single(activationRead.History);
+        Assert.Equal(VersionStatuses.Current, activationRead.Current?.Status);
         Assert.All(current, policy => Assert.Equal(taskVersions.Values.Single(id => id == policy.TaskDefinitionVersionId), policy.TaskDefinitionVersionId));
         var sales = current.Single(item => item.TaskDefinitionId == TaskDefinitionCatalog.Require("TAR-0005").Id);
         Assert.Equal(ExpectedSalesTimes,
@@ -80,6 +84,9 @@ public sealed class ActivationPolicyPersistenceTests : IAsyncLifetime
             .OrderBy(item => item.VersionNo)
             .ToListAsync();
         Assert.Equal(2, history.Count);
+        var activationHistoryRead = await services.Policy.GetAsync(actor, Guid.CreateVersion7(), "TAR-0026");
+        Assert.Equal(2, activationHistoryRead.History.Count);
+        Assert.Equal(history[1].Id, activationHistoryRead.Current?.Id);
         Assert.Equal(VersionStatuses.Superseded, history[0].Status);
         Assert.Equal(VersionStatuses.Current, history[1].Status);
         Assert.Equal(history[0].Id, history[1].SupersedesId);
@@ -140,6 +147,8 @@ public sealed class ActivationPolicyPersistenceTests : IAsyncLifetime
         foreach (var role in DeniedRoles)
         {
             var denied = await SeedActorAsync($"ACTIVATION-{role}", role);
+            await Assert.ThrowsAsync<ActivationPolicyAccessDeniedException>(() =>
+                services.Policy.GetAsync(denied, Guid.CreateVersion7(), "TAR-0007"));
             await Assert.ThrowsAsync<ActivationPolicyAccessDeniedException>(() => services.Policy.PutAsync(
                 NewPolicy(denied, release.Id, "TAR-0007", taskVersions["TAR-0007"])));
         }
@@ -154,6 +163,8 @@ public sealed class ActivationPolicyPersistenceTests : IAsyncLifetime
         var created = await services.Policy.PutAsync(command);
         var replay = await services.Policy.PutAsync(command);
         Assert.Equal(created.Id, replay.Id);
+        Assert.False(created.Replayed);
+        Assert.True(replay.Replayed);
         await Assert.ThrowsAsync<ActivationPolicyIdempotencyConflictException>(() => services.Policy.PutAsync(
             command with { ExpectedRowVersion = 1 }));
         await Assert.ThrowsAsync<VersionConflictException>(() => services.Policy.PutAsync(

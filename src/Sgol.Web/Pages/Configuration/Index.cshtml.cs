@@ -201,6 +201,8 @@ public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApi
             }
             Releases = response.Items ?? [];
             CanShow = true;
+            await LoadPoliciesAsync(cancellationToken);
+            if (PoliciesUnauthorized) return Redirect("/acceso");
             return Page();
         }
         catch (ApiProtocolException)

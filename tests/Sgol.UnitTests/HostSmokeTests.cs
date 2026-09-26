@@ -238,6 +238,8 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
 
     private sealed class UnusedActivationPolicyService : IActivationPolicyService
     {
+        public Task<ActivationPolicyHistoryDetails> GetAsync(Guid actorUserId, Guid correlationId,
+            string taskCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ActivationRuleVersionDetails> PutAsync(
             PutActivationPolicyCommand command,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
