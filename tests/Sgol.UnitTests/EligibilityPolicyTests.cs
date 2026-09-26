@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Sgol.Configuration.Contracts;
+using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
 
@@ -10,6 +11,25 @@ namespace Sgol.UnitTests;
 
 public sealed class EligibilityPolicyTests
 {
+    [Fact]
+    public void SessionProjectsEligibilityAdministrationOnlyForDirection()
+    {
+        Assert.Contains(EligibilityPolicyAuthorization.Administer, RolePermissionProjection.ForRole(CanonicalRole.Direction));
+        foreach (var role in new[] { CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor })
+            Assert.DoesNotContain(EligibilityPolicyAuthorization.Administer, RolePermissionProjection.ForRole(role));
+    }
+
+    [Fact]
+    public async Task GetEndpoint_RequiresSessionAndReturnsHistoryEnvelope()
+    {
+        var service = new RecordingService();
+        var denied = await EligibilityPolicyApiEndpoints.HandleGetAsync("TAR-0007", new DefaultHttpContext(), service, CancellationToken.None);
+        Assert.Equal(401, Assert.IsAssignableFrom<IStatusCodeHttpResult>(denied).StatusCode);
+        var context = AuthenticatedContext();
+        var result = await EligibilityPolicyApiEndpoints.HandleGetAsync("TAR-0007", context, service, CancellationToken.None);
+        Assert.Equal(200, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal("\"3\"", context.Response.Headers.ETag.ToString());
+    }
     [Fact]
     public void Catalog_ContainsExactlyTheEightApprovedTaskRolePairs()
     {
@@ -100,6 +120,14 @@ public sealed class EligibilityPolicyTests
 
     private sealed class RecordingService : IEligibilityPolicyService
     {
+        public Task<EligibilityPolicyHistoryDetails> GetAsync(Guid actorUserId, Guid correlationId,
+            string taskCode, CancellationToken cancellationToken = default)
+        {
+            var current = new EligibilityPolicyVersionDetails(Guid.CreateVersion7(), taskCode, Guid.CreateVersion7(),
+                Guid.CreateVersion7(), 1, EligibilityPolicyCatalog.RequireRole(taskCode), true, null,
+                "VIGENTE", null, null, null, null, 3);
+            return Task.FromResult(new EligibilityPolicyHistoryDetails(taskCode, current, [current]));
+        }
         public PutEligibilityPolicyCommand? Command { get; private set; }
 
         public Task<IReadOnlyList<EligibilityPolicyVersionDetails>> ListAsync(

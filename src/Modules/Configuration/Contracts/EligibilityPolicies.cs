@@ -137,7 +137,16 @@ public sealed record EligibilityPolicyVersionDetails(
     DateTimeOffset? EffectiveTo,
     string? Reason,
     Guid? SupersedesId,
-    long RowVersion);
+    long RowVersion)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Replayed { get; init; }
+}
+
+public sealed record EligibilityPolicyHistoryDetails(
+    string TaskCode,
+    EligibilityPolicyVersionDetails? Current,
+    IReadOnlyList<EligibilityPolicyVersionDetails> History);
 
 public sealed record PutEligibilityPolicyCommand(
     Guid ActorUserId,
@@ -152,6 +161,9 @@ public sealed record PutEligibilityPolicyCommand(
 
 public interface IEligibilityPolicyService
 {
+    Task<EligibilityPolicyHistoryDetails> GetAsync(
+        Guid actorUserId, Guid correlationId, string taskCode,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<EligibilityPolicyVersionDetails>> ListAsync(Guid actorUserId, Guid correlationId, CancellationToken cancellationToken = default);
     Task<EligibilityPolicyVersionDetails> PutAsync(PutEligibilityPolicyCommand command, CancellationToken cancellationToken = default);
 }

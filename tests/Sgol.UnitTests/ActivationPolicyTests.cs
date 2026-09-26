@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Sgol.Configuration.Contracts;
+using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
 
@@ -11,6 +12,26 @@ namespace Sgol.UnitTests;
 public sealed class ActivationPolicyTests
 {
     private static readonly string[] ServiceDueDateReferenceParts = ["serviceKey", "dueDate", "reference"];
+
+    [Fact]
+    public void SessionProjectsActivationAdministrationOnlyForDirection()
+    {
+        Assert.Contains(ActivationPolicyAuthorization.Administer, RolePermissionProjection.ForRole(CanonicalRole.Direction));
+        foreach (var role in new[] { CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor })
+            Assert.DoesNotContain(ActivationPolicyAuthorization.Administer, RolePermissionProjection.ForRole(role));
+    }
+
+    [Fact]
+    public async Task GetEndpoint_RequiresSessionAndReturnsHistoryEnvelope()
+    {
+        var service = new RecordingService();
+        var denied = await ActivationPolicyApiEndpoints.HandleGetAsync("TAR-0007", new DefaultHttpContext(), service, CancellationToken.None);
+        Assert.Equal(401, Assert.IsAssignableFrom<IStatusCodeHttpResult>(denied).StatusCode);
+        var context = AuthenticatedContext();
+        var result = await ActivationPolicyApiEndpoints.HandleGetAsync("TAR-0007", context, service, CancellationToken.None);
+        Assert.Equal(200, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal("\"3\"", context.Response.Headers.ETag.ToString());
+    }
 
     [Fact]
     public void Catalog_ContainsExactlyTheEightApprovedTaskMechanisms()
@@ -158,6 +179,15 @@ public sealed class ActivationPolicyTests
 
     private sealed class RecordingService : IActivationPolicyService
     {
+        public Task<ActivationPolicyHistoryDetails> GetAsync(Guid actorUserId, Guid correlationId,
+            string taskCode, CancellationToken cancellationToken = default)
+        {
+            using var schedule = JsonDocument.Parse("null");
+            var current = new ActivationRuleVersionDetails(Guid.CreateVersion7(), taskCode, Guid.CreateVersion7(),
+                Guid.CreateVersion7(), 1, ActivationModes.Manual, schedule.RootElement.Clone(),
+                ActivationOriginSchemas.ManualReference, "VIGENTE", null, null, null, null, 3);
+            return Task.FromResult(new ActivationPolicyHistoryDetails(taskCode, current, [current]));
+        }
         public PutActivationPolicyCommand? Command { get; private set; }
 
         public Task<ActivationRuleVersionDetails> PutAsync(

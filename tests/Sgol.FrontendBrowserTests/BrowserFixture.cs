@@ -231,6 +231,56 @@ internal sealed class BrowserFixture : IAsyncDisposable
         return draft.Id;
     }
 
+    public async Task SeedPublishedPoliciesAsync(Guid directionUserId)
+    {
+        if (connectionString is null) throw new InvalidOperationException("Disposable database is unavailable.");
+        await using var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>()
+            .UseNpgsql(connectionString).Options);
+        var now = DateTimeOffset.UtcNow.AddMinutes(-2);
+        var clock = new BrowserFixedClock(now);
+        var uuids = new Uuid7Generator(clock);
+        var audit = new AuditTransaction(context);
+        var releases = new EfConfigurationReleaseService(context, audit,
+            new VersioningTransaction(context, audit), clock, uuids);
+        var definitions = new EfTaskDefinitionService(context, audit, releases, clock, uuids);
+        var activation = new EfActivationPolicyService(context, audit, clock, uuids);
+        var eligibility = new EfEligibilityPolicyService(context, audit, clock, uuids);
+        using var empty = JsonDocument.Parse("{}");
+        var definitionRelease = await releases.CreateDraftAsync(new CreateConfigurationReleaseCommand(
+            directionUserId, Guid.CreateVersion7(), Guid.CreateVersion7()));
+        foreach (var task in TaskDefinitionCatalog.All)
+            await definitions.CreateVersionAsync(new CreateTaskDefinitionVersionCommand(
+                directionUserId, Guid.CreateVersion7(), Guid.CreateVersion7(), task.TaskCode,
+                definitionRelease.Id, 1, empty.RootElement));
+        await releases.PublishAsync(new PublishConfigurationReleaseCommand(directionUserId,
+            Guid.CreateVersion7(), Guid.CreateVersion7(), definitionRelease.Id, definitionRelease.RowVersion,
+            now, "Definiciones sintéticas FRONT-011"));
+        var currentDefinitions = await context.TaskDefinitionVersions.AsNoTracking()
+            .Where(item => item.Status == Sgol.BuildingBlocks.Versioning.VersionStatuses.Current)
+            .ToDictionaryAsync(item => item.TaskDefinitionId, item => item.Id);
+        var policyRelease = await releases.CreateDraftAsync(new CreateConfigurationReleaseCommand(
+            directionUserId, Guid.CreateVersion7(), Guid.CreateVersion7()));
+        foreach (var task in TaskDefinitionCatalog.All)
+        {
+            var contract = ActivationPolicyCatalog.Require(task.TaskCode);
+            using var schedule = task.TaskCode switch
+            {
+                "TAR-0005" => JsonDocument.Parse("""{"kind":"WORKING_DAY_WINDOWS","workingDaysOnly":true,"localTimes":["12:00","17:00"],"timeZone":"America/Mexico_City"}"""),
+                "TAR-0026" => JsonDocument.Parse("""{"kind":"BUSINESS_DAYS_BEFORE_DUE_DATE","businessDaysBefore":3,"localTime":"08:30","timeZone":"America/Mexico_City","adjustDueDateToPreviousBusinessDay":true}"""),
+                _ => JsonDocument.Parse("null"),
+            };
+            await activation.PutAsync(new PutActivationPolicyCommand(directionUserId, Guid.CreateVersion7(),
+                Guid.CreateVersion7(), task.TaskCode, currentDefinitions[task.Id], policyRelease.Id,
+                contract.Mode, schedule.RootElement, contract.OriginKeySchema, null));
+            await eligibility.PutAsync(new PutEligibilityPolicyCommand(directionUserId, Guid.CreateVersion7(),
+                Guid.CreateVersion7(), task.TaskCode, policyRelease.Id,
+                EligibilityPolicyCatalog.RequireRole(task.TaskCode), true, null, null));
+        }
+        await releases.PublishAsync(new PublishConfigurationReleaseCommand(directionUserId,
+            Guid.CreateVersion7(), Guid.CreateVersion7(), policyRelease.Id, policyRelease.RowVersion,
+            now.AddMinutes(1), "Políticas sintéticas FRONT-011"));
+    }
+
     private sealed class BrowserFixedClock(DateTimeOffset now) : IClock
     {
         public DateTimeOffset UtcNow { get; } = now;

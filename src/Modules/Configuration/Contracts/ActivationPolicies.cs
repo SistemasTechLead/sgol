@@ -269,7 +269,16 @@ public sealed record ActivationRuleVersionDetails(
     DateTimeOffset? EffectiveTo,
     string? Reason,
     Guid? SupersedesId,
-    long RowVersion);
+    long RowVersion)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Replayed { get; init; }
+}
+
+public sealed record ActivationPolicyHistoryDetails(
+    string TaskCode,
+    ActivationRuleVersionDetails? Current,
+    IReadOnlyList<ActivationRuleVersionDetails> History);
 
 public sealed record PutActivationPolicyCommand(
     Guid ActorUserId,
@@ -285,6 +294,9 @@ public sealed record PutActivationPolicyCommand(
 
 public interface IActivationPolicyService
 {
+    Task<ActivationPolicyHistoryDetails> GetAsync(
+        Guid actorUserId, Guid correlationId, string taskCode,
+        CancellationToken cancellationToken = default);
     Task<ActivationRuleVersionDetails> PutAsync(
         PutActivationPolicyCommand command,
         CancellationToken cancellationToken = default);

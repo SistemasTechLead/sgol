@@ -1,0 +1,147 @@
+@model Sgol.Web.Pages.Configuration.IndexModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@using Sgol.BuildingBlocks.Versioning
+@using Sgol.Configuration.Contracts
+@if (Model.SelectedTask is { } task)
+{
+    @if (Model.CanManageActivation || Model.ActivationError is not null)
+    {
+        <section id="activation-policy" aria-labelledby="activation-policy-title">
+            <h3 id="activation-policy-title">Activación de @task.TaskCode</h3>
+            @if (Model.ActivationError is not null)
+            {
+                <div id="activation-policy-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.ActivationError" />
+                    @if (Model.ActivationConflict) { <a class="boton boton--secundario" href="/configuracion?taskCode=@task.TaskCode#activation-policy">Recargar política de activación</a> }
+                </div>
+            }
+            @if (Model.ActivationSuccess is not null) { <p role="status" class="alerta alerta--exito"><span aria-hidden="true">✓</span>@Model.ActivationSuccess.</p> }
+            @if (Model.ActivationPolicy is { } policy)
+            {
+                <div aria-busy="false">
+                    @if (policy.Current is null)
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">Esta TAR aún no tiene política de activación vigente</p></div>
+                    }
+                    else
+                    {
+                        <p>Versión vigente @policy.Current.VersionNo: @policy.Current.Mode; origen @policy.Current.OriginKeySchema.
+                            @if (task.TaskCode == "TAR-0005") { <span>Días laborables a las 12:00 y 17:00, America/Mexico_City.</span> }
+                            @if (task.TaskCode == "TAR-0026") { <span>Tres días hábiles antes del vencimiento, a las @policy.Current.Schedule.GetProperty("localTime").GetString() (America/Mexico_City).</span> }
+                        </p>
+                    }
+                    <h4>Historia de activación</h4>
+                    @if (policy.History.Count == 0)
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">Aún no hay versiones de esta política</p></div>
+                    }
+                    else
+                    {
+                        <div class="tabla-contenedor"><table id="activation-policy-history" class="tabla"><caption>Historia de activación de @task.TaskCode</caption>
+                            <thead class="tabla__encabezado"><tr><th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Mecanismo</th><th scope="col">Desde</th><th scope="col">Release</th></tr></thead>
+                            <tbody>@foreach (var version in policy.History) { <tr class="tabla__fila"><td>@version.VersionNo</td><td><span class="badge @Model.TaskBadgeClass(version.Status)"><span aria-hidden="true">@Model.TaskBadgeIcon(version.Status)</span>@Model.TaskStatusText(version.Status)</span></td><td>@version.Mode</td><td>@Model.LocalInstant(version.EffectiveFrom)</td><td>@version.ReleaseId.ToString("D")</td></tr> }</tbody>
+                        </table></div>
+                    }
+                </div>
+                @if (Model.CanManageActivation && !Model.ActivationConflict)
+                {
+                    <h4>Editor cerrado de activación</h4>
+                    <p>Mecanismo permitido: @ActivationPolicyCatalog.Require(task.TaskCode).Mode. Las obligaciones existentes permanecen intactas.</p>
+                    @if (!Model.Releases.Any(item => item.Status == VersionStatuses.Draft))
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">No hay una release en borrador disponible</p><a class="boton boton--secundario" href="/configuracion#nuevo-borrador">Crear borrador</a></div>
+                    }
+                    @foreach (var release in Model.Releases.Where(item => item.Status == VersionStatuses.Draft))
+                    {
+                        var target = task.History.FirstOrDefault(item => item.ReleaseId == release.Id && item.Status == VersionStatuses.Draft) ?? task.Current;
+                        if (target is null) { continue; }
+                        var id = $"activation-confirm-{release.Id:N}";
+                        <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="@id">Configurar activación en borrador @release.Id.ToString("N")[..8]</button>
+                        var hasError = Model.ActivationErrorReleaseId == release.Id;
+                        <dialog id="@id" class="modal" aria-labelledby="@($"{id}-title")" aria-describedby="@($"{id}-summary")" data-open-on-error="@(hasError ? "true" : null)">
+                            <form method="post" asp-page-handler="ActivationPolicy" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                                <input type="hidden" name="intentKey" value="@((hasError ? Model.ActivationIntentKey : Guid.CreateVersion7()).ToString("D"))" />
+                                <input type="hidden" name="taskCode" value="@task.TaskCode" />
+                                <input type="hidden" name="releaseId" value="@release.Id.ToString("D")" />
+                                <input type="hidden" name="taskDefinitionVersionId" value="@target.Id.ToString("D")" />
+                                <input type="hidden" name="policyEtag" value="@Model.ActivationReadEtag" />
+                                <h4 id="@($"{id}-title")" class="modal__titulo">Guardar política de activación</h4>
+                                <p id="@($"{id}-summary")" class="modal__texto">@task.TaskCode en release @release.Id.ToString("D"). La versión vigente quedará en historia; las obligaciones existentes no cambiarán.</p>
+                                @if (hasError && Model.ActivationError is not null) { <div tabindex="-1" data-dialog-error><partial name="_ProblemAlert" model="Model.ActivationError" /></div> }
+                                <p>Modo @ActivationPolicyCatalog.Require(task.TaskCode).Mode; origen @ActivationPolicyCatalog.Require(task.TaskCode).OriginKeySchema.</p>
+                                @if (task.TaskCode == "TAR-0005") { <p>Schedule cerrado: días laborables a las 12:00 y 17:00 en America/Mexico_City.</p> }
+                                @if (task.TaskCode == "TAR-0026")
+                                {
+                                    <p>Schedule cerrado: tres días hábiles antes del vencimiento, con ajuste al día hábil anterior.</p>
+                                    <label class="campo @(Model.ActivationTimeError is not null ? "campo--error" : null)" for="@($"{id}-time")"><span class="campo__etiqueta">Hora local (America/Mexico_City)</span>
+                                        <input id="@($"{id}-time")" name="localTime" type="time" class="campo__control" required value="@(hasError ? Model.ActivationTimeInput : null)" aria-invalid="@(hasError && Model.ActivationTimeError is not null ? "true" : "false")" aria-describedby="@($"{id}-time-error")" />
+                                        <span id="@($"{id}-time-error")" class="campo__mensaje-error" hidden="@(Model.ActivationTimeError is null)">@Model.ActivationTimeError</span>
+                                    </label>
+                                }
+                                <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Guardar política de activación</button></div>
+                            </form>
+                        </dialog>
+                    }
+                }
+            }
+        </section>
+    }
+    @if (Model.CanManageEligibility || Model.EligibilityError is not null)
+    {
+        <section id="eligibility-policy" aria-labelledby="eligibility-policy-title">
+            <h3 id="eligibility-policy-title">Elegibilidad de @task.TaskCode</h3>
+            @if (Model.EligibilityError is not null)
+            {
+                <div id="eligibility-policy-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.EligibilityError" />
+                    @if (Model.EligibilityConflict) { <a class="boton boton--secundario" href="/configuracion?taskCode=@task.TaskCode#eligibility-policy">Recargar política de elegibilidad</a> }
+                </div>
+            }
+            @if (Model.EligibilitySuccess is not null) { <p role="status" class="alerta alerta--exito"><span aria-hidden="true">✓</span>@Model.EligibilitySuccess.</p> }
+            @if (Model.EligibilityPolicy is { } policy)
+            {
+                <div aria-busy="false">
+                    @if (policy.Current is null) { <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">Esta TAR aún no tiene política de elegibilidad vigente</p></div> }
+                    else { <p>Versión vigente @policy.Current.VersionNo: rol @policy.Current.RequiredRole; disponibilidad positiva obligatoria; sin restricción de turno.</p> }
+                    <h4>Historia de elegibilidad</h4>
+                    @if (policy.History.Count == 0) { <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">Aún no hay versiones de esta política</p></div> }
+                    else
+                    {
+                        <div class="tabla-contenedor"><table id="eligibility-policy-history" class="tabla"><caption>Historia de elegibilidad de @task.TaskCode</caption>
+                            <thead class="tabla__encabezado"><tr><th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Rol</th><th scope="col">Disponibilidad</th><th scope="col">Turno</th><th scope="col">Release</th></tr></thead>
+                            <tbody>@foreach (var version in policy.History) { <tr class="tabla__fila"><td>@version.VersionNo</td><td><span class="badge @Model.TaskBadgeClass(version.Status)"><span aria-hidden="true">@Model.TaskBadgeIcon(version.Status)</span>@Model.TaskStatusText(version.Status)</span></td><td>@version.RequiredRole</td><td>@(version.RequiresAvailability ? "Obligatoria" : "No requerida")</td><td>@(version.RequiredShift ?? "Sin restricción")</td><td>@version.ReleaseId.ToString("D")</td></tr> }</tbody>
+                        </table></div>
+                    }
+                </div>
+                @if (Model.CanManageEligibility && !Model.EligibilityConflict)
+                {
+                    <h4>Editor cerrado de elegibilidad</h4>
+                    <p>Rol exacto @EligibilityPolicyCatalog.RequireRole(task.TaskCode), disponibilidad positiva obligatoria y sin restricción de turno.</p>
+                    @if (!Model.Releases.Any(item => item.Status == VersionStatuses.Draft))
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">No hay una release en borrador disponible</p><a class="boton boton--secundario" href="/configuracion#nuevo-borrador">Crear borrador</a></div>
+                    }
+                    @foreach (var release in Model.Releases.Where(item => item.Status == VersionStatuses.Draft))
+                    {
+                        var id = $"eligibility-confirm-{release.Id:N}";
+                        <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="@id">Configurar elegibilidad en borrador @release.Id.ToString("N")[..8]</button>
+                        <dialog id="@id" class="modal" aria-labelledby="@($"{id}-title")" aria-describedby="@($"{id}-summary")">
+                            <form method="post" asp-page-handler="EligibilityPolicy" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                                <input type="hidden" name="intentKey" value="@Guid.CreateVersion7().ToString("D")" />
+                                <input type="hidden" name="taskCode" value="@task.TaskCode" />
+                                <input type="hidden" name="releaseId" value="@release.Id.ToString("D")" />
+                                <input type="hidden" name="policyEtag" value="@Model.EligibilityReadEtag" />
+                                <h4 id="@($"{id}-title")" class="modal__titulo">Guardar política de elegibilidad</h4>
+                                <p id="@($"{id}-summary")" class="modal__texto">@task.TaskCode en release @release.Id.ToString("D"). La versión vigente quedará en historia; las obligaciones existentes no cambiarán.</p>
+                                <p>Rol exacto @EligibilityPolicyCatalog.RequireRole(task.TaskCode); disponibilidad positiva obligatoria; turno sin restricción.</p>
+                                <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Guardar política de elegibilidad</button></div>
+                            </form>
+                        </dialog>
+                    }
+                }
+            }
+        </section>
+    }
+}
+@if (Model.ActivationError is not null) { <script>document.getElementById('activation-policy-error')?.focus();</script> }
+else if (Model.EligibilityError is not null) { <script>document.getElementById('eligibility-policy-error')?.focus();</script> }
