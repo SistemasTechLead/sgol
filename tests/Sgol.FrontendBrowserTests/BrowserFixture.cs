@@ -281,6 +281,40 @@ internal sealed class BrowserFixture : IAsyncDisposable
             now.AddMinutes(1), "Políticas sintéticas FRONT-011"));
     }
 
+    public async Task SeedPublishedEvidenceValidationAsync(Guid directionUserId)
+    {
+        await SeedPublishedPoliciesAsync(directionUserId);
+        if (connectionString is null) throw new InvalidOperationException("Disposable database is unavailable.");
+        await using var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>()
+            .UseNpgsql(connectionString).Options);
+        var now = DateTimeOffset.UtcNow.AddMinutes(-2);
+        var clock = new BrowserFixedClock(now);
+        var uuids = new Uuid7Generator(clock);
+        var audit = new AuditTransaction(context);
+        var releases = new EfConfigurationReleaseService(context, audit,
+            new VersioningTransaction(context, audit), clock, uuids);
+        var evidence = new EfEvidencePolicyService(context, audit, clock, uuids);
+        var validation = new EfValidationPolicyService(context, audit, clock, uuids);
+        var release = await releases.CreateDraftAsync(new CreateConfigurationReleaseCommand(
+            directionUserId, Guid.CreateVersion7(), Guid.CreateVersion7()));
+        foreach (var task in TaskDefinitionCatalog.All)
+        {
+            await evidence.PutAsync(new PutEvidencePolicyCommand(directionUserId, Guid.CreateVersion7(),
+                Guid.CreateVersion7(), task.TaskCode, release.Id,
+                EvidencePolicyCatalog.Require(task.TaskCode)
+                    .Select(item => new EvidenceRequirementInput(item.Code, item.Kind, item.ConditionCode)).ToArray(),
+                null));
+            var matrix = ValidationPolicyCatalog.Require(task.TaskCode);
+            await validation.PutAsync(new PutValidationPolicyCommand(directionUserId, Guid.CreateVersion7(),
+                Guid.CreateVersion7(), task.TaskCode, release.Id, true, matrix.ExecutorRole,
+                ValidationPolicyValues.ImmediateSuperior, matrix.ValidatorRole,
+                ValidationPolicyValues.AllowedResults, null));
+        }
+        await releases.PublishAsync(new PublishConfigurationReleaseCommand(directionUserId,
+            Guid.CreateVersion7(), Guid.CreateVersion7(), release.Id, release.RowVersion,
+            DateTimeOffset.UtcNow, "Políticas sintéticas FRONT-012"));
+    }
+
     private sealed class BrowserFixedClock(DateTimeOffset now) : IClock
     {
         public DateTimeOffset UtcNow { get; } = now;

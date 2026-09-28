@@ -59,8 +59,10 @@ public sealed class EvidenceInfrastructureArchitectureTests
         Assert.Contains("evidence_version", migrationSource, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("evidence_review_snapshot", migrationSource, StringComparison.OrdinalIgnoreCase);
 
+        var approvedPolicyUi = Path.Combine(web, "Pages", "Configuration", "_EvidenceValidation.cshtml");
         var ui = Directory.EnumerateFiles(web, "*Evidence*", SearchOption.AllDirectories)
             .Where(path => Path.GetExtension(path) is ".cshtml" or ".razor" or ".css" or ".js")
+            .Where(path => !path.Equals(approvedPolicyUi, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         Assert.Empty(ui);
     }

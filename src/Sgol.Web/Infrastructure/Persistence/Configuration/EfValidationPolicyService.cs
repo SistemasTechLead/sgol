@@ -24,6 +24,21 @@ public sealed class EfValidationPolicyService(
     private const string ReleaseTaskIndex = "IX_validation_policy_version_release_task";
     private const string VersionNumberIndex = "IX_validation_policy_version_number";
 
+    public async Task<ValidationPolicyHistoryDetails> GetAsync(
+        Guid actorUserId, Guid correlationId, string taskCode,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthorizedAsync(actorUserId, correlationId, cancellationToken);
+        var seed = TaskDefinitionCatalog.Require(taskCode);
+        var versions = await dbContext.ValidationPolicyVersions.AsNoTracking()
+            .Where(item => item.TaskDefinitionId == seed.Id)
+            .OrderByDescending(item => item.VersionNo)
+            .ToListAsync(cancellationToken);
+        var history = versions.Select(item => ToDetails(taskCode, item)).ToArray();
+        dbContext.ChangeTracker.Clear();
+        return new(taskCode, history.SingleOrDefault(item => item.Status == VersionStatuses.Current), history);
+    }
+
     public async Task<ValidationPolicyVersionDetails> PutAsync(
         PutValidationPolicyCommand command,
         CancellationToken cancellationToken = default)
@@ -272,12 +287,12 @@ public sealed class EfValidationPolicyService(
 
         if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
         {
-            return IdempotencyProtocol.ReadPayload<ValidationPolicyVersionDetails>(record);
+            return IdempotencyProtocol.ReadPayload<ValidationPolicyVersionDetails>(record) with { Replayed = true };
         }
 
         var policy = await dbContext.ValidationPolicyVersions.AsNoTracking()
             .SingleAsync(item => item.Id == record.ResourceId, cancellationToken);
-        return ToDetails(taskCode, policy);
+        return ToDetails(taskCode, policy) with { Replayed = true };
     }
 
     private Task AuditConflictAsync(Guid actorUserId, Guid correlationId, Guid key, Guid resourceId, CancellationToken token) =>

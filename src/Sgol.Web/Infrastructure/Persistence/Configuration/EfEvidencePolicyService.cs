@@ -24,6 +24,32 @@ public sealed class EfEvidencePolicyService(
     private const string ReleaseTaskIndex = "IX_evidence_policy_version_release_task";
     private const string VersionNumberIndex = "IX_evidence_policy_version_number";
 
+    public async Task<EvidencePolicyHistoryDetails> GetAsync(
+        Guid actorUserId, Guid correlationId, string taskCode,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthorizedAsync(actorUserId, correlationId, cancellationToken);
+        var seed = TaskDefinitionCatalog.Require(taskCode);
+        var versions = await dbContext.EvidencePolicyVersions.AsNoTracking()
+            .Where(item => item.TaskDefinitionId == seed.Id)
+            .OrderByDescending(item => item.VersionNo)
+            .ToListAsync(cancellationToken);
+        var ids = versions.Select(item => item.Id).ToArray();
+        var requirements = await dbContext.EvidenceRequirementVersions.AsNoTracking()
+            .Where(item => ids.Contains(item.PolicyVersionId))
+            .OrderBy(item => item.Ordinal)
+            .ToListAsync(cancellationToken);
+        var history = versions.Select(item => ToDetails(taskCode, item,
+            requirements.Where(requirement => requirement.PolicyVersionId == item.Id)
+                .Select(requirement => new EvidenceRequirementVersionDetails(
+                    requirement.RequirementCode, requirement.Kind,
+                    requirement.ConditionCode == EvidenceConditionCodes.Always
+                        ? null : new EvidenceConditionDetails(requirement.ConditionCode),
+                    requirement.IsRequired, requirement.Ordinal)).ToArray())).ToArray();
+        dbContext.ChangeTracker.Clear();
+        return new(taskCode, history.SingleOrDefault(item => item.Status == VersionStatuses.Current), history);
+    }
+
     public async Task<EvidencePolicyVersionDetails> PutAsync(
         PutEvidencePolicyCommand command,
         CancellationToken cancellationToken = default)
@@ -258,7 +284,7 @@ public sealed class EfEvidencePolicyService(
 
         if (record.ProtocolVersion == IdempotencyProtocol.CurrentVersion)
         {
-            return IdempotencyProtocol.ReadPayload<EvidencePolicyVersionDetails>(record);
+            return IdempotencyProtocol.ReadPayload<EvidencePolicyVersionDetails>(record) with { Replayed = true };
         }
 
         var policy = await dbContext.EvidencePolicyVersions.AsNoTracking()
@@ -275,7 +301,7 @@ public sealed class EfEvidencePolicyService(
                 item.IsRequired,
                 item.Ordinal))
             .ToListAsync(cancellationToken);
-        return ToDetails(taskCode, policy, requirements);
+        return ToDetails(taskCode, policy, requirements) with { Replayed = true };
     }
 
     private Task AuditConflictAsync(Guid actorUserId, Guid correlationId, Guid key, Guid resourceId, CancellationToken token) =>

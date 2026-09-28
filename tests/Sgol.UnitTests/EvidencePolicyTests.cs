@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Sgol.Configuration.Contracts;
+using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
 
@@ -10,6 +11,35 @@ namespace Sgol.UnitTests;
 
 public sealed class EvidencePolicyTests
 {
+    [Fact]
+    public void PresentationPermissionIsProjectedOnlyForDirection()
+    {
+        Assert.Contains(EvidencePolicyAuthorization.Administer, RolePermissionProjection.ForRole(CanonicalRole.Direction));
+        foreach (var role in new[] { CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor })
+            Assert.DoesNotContain(EvidencePolicyAuthorization.Administer, RolePermissionProjection.ForRole(role));
+    }
+
+    [Fact]
+    public async Task GetEndpointReturnsAnAuthorizedHistoryWithCurrentEtag()
+    {
+        var current = new EvidencePolicyVersionDetails(Guid.CreateVersion7(), "TAR-0092", Guid.CreateVersion7(),
+            Guid.CreateVersion7(), 2, "VIGENTE", null, null, null, null, null, [], 7);
+        var service = new RecordingService { ReadResult = new("TAR-0092", current, [current]) };
+        var context = AuthenticatedContext();
+        var result = await EvidencePolicyApiEndpoints.HandleGetAsync("TAR-0092", context, service, CancellationToken.None);
+        Assert.Equal(200, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal("\"7\"", context.Response.Headers.ETag);
+        Assert.Equal(1, service.ReadCount);
+
+        var denied = await EvidencePolicyApiEndpoints.HandleGetAsync("TAR-0092",
+            new DefaultHttpContext(), service, CancellationToken.None);
+        Assert.Equal(401, Assert.IsAssignableFrom<IStatusCodeHttpResult>(denied).StatusCode);
+        Assert.Equal(1, service.ReadCount);
+        service.Exception = new EvidencePolicyAccessDeniedException();
+        var forbidden = await EvidencePolicyApiEndpoints.HandleGetAsync("TAR-0092",
+            AuthenticatedContext(), service, CancellationToken.None);
+        Assert.Equal(403, Assert.IsAssignableFrom<IStatusCodeHttpResult>(forbidden).StatusCode);
+    }
     [Fact]
     public void Catalog_ContainsExactlyTheApprovedEightPoliciesAndTwentySevenRequirements()
     {
@@ -154,6 +184,17 @@ public sealed class EvidencePolicyTests
 
     private sealed class RecordingService : IEvidencePolicyService
     {
+        public EvidencePolicyHistoryDetails? ReadResult { get; set; }
+        public int ReadCount { get; private set; }
+        public Task<EvidencePolicyHistoryDetails> GetAsync(
+            Guid actorUserId, Guid correlationId, string taskCode,
+            CancellationToken cancellationToken = default)
+        {
+            ReadCount++;
+            if (Exception is not null) throw Exception;
+            return Task.FromResult(ReadResult ?? new EvidencePolicyHistoryDetails(taskCode, null, []));
+        }
+
         public PutEvidencePolicyCommand? Command { get; private set; }
         public Exception? Exception { get; set; }
         public Exception? RejectionException { get; set; }

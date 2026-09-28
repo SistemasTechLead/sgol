@@ -10,10 +10,31 @@ public static class ValidationPolicyApiEndpoints
 {
     public static IEndpointRouteBuilder MapValidationPolicyApi(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet(
+            "/api/v1/task-definitions/{taskCode}/validation-policy",
+            HandleGetAsync);
         endpoints.MapPut(
             "/api/v1/task-definitions/{taskCode}/validation-policy",
             HandlePutAsync);
         return endpoints;
+    }
+
+    public static async Task<IResult> HandleGetAsync(
+        string taskCode, HttpContext context, IValidationPolicyService service,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(context, out var actorUserId, out var denied)) return denied;
+        try
+        {
+            var result = await service.GetAsync(actorUserId, CorrelationId(context), taskCode, cancellationToken);
+            if (result.Current is { } current) context.Response.Headers.ETag = VersionEtag.Format(current.RowVersion);
+            return Results.Ok(Envelope(context, result));
+        }
+        catch (TaskDefinitionNotMvpException)
+        {
+            return Problem(context, 404, "DEFINICION_NO_DISPONIBLE", "No existe o no está disponible en tu alcance");
+        }
+        catch (Exception exception) { return MapException(context, exception); }
     }
 
     public static async Task<IResult> HandlePutAsync(
@@ -78,7 +99,7 @@ public static class ValidationPolicyApiEndpoints
             context.Response.Headers.ETag = VersionEtag.Format(policy.RowVersion);
             return Results.Created(
                 $"/api/v1/task-definitions/{taskCode}/validation-policy",
-                Envelope(context, policy));
+                PutEnvelope(context, policy));
         }
         catch (Exception exception)
         {
@@ -192,6 +213,12 @@ public static class ValidationPolicyApiEndpoints
     {
         data,
         meta = new { correlationId = context.GetCorrelationId() },
+    };
+
+    private static object PutEnvelope(HttpContext context, ValidationPolicyVersionDetails data) => new
+    {
+        data,
+        meta = new { correlationId = context.GetCorrelationId(), replayed = data.Replayed },
     };
 
     private static IResult Problem(HttpContext context, int status, string code, string title) =>

@@ -67,12 +67,22 @@ public sealed partial class EvidencePolicyPersistenceTests
         });
 
         var old = definitions.Single(item => item.TaskCode == "TAR-0005").CurrentValidationPolicy!;
+        foreach (var taskCode in ValidationPolicyCatalog.All.Keys)
+        {
+            var read = await services.Validation.GetAsync(actor, Guid.CreateVersion7(), taskCode);
+            Assert.Equal(taskCode, read.TaskCode);
+            Assert.Single(read.History);
+            Assert.Equal(read.Current?.PolicyVersionId, read.History[0].PolicyVersionId);
+        }
         var successorRelease = await services.Release.CreateDraftAsync(NewRelease(actor));
         var successor = await services.Validation.PutAsync(NewValidationPolicy(
             actor,
             successorRelease.Id,
             "TAR-0005",
             expected: old.RowVersion));
+        var draftRead = await services.Validation.GetAsync(actor, Guid.CreateVersion7(), "TAR-0005");
+        Assert.Equal(old.PolicyVersionId, draftRead.Current?.PolicyVersionId);
+        Assert.Equal(VersionStatuses.Draft, draftRead.History[0].Status);
         await services.Release.PublishAsync(new PublishConfigurationReleaseCommand(
             actor,
             Guid.CreateVersion7(),
@@ -85,6 +95,9 @@ public sealed partial class EvidencePolicyPersistenceTests
         var detail = await services.Task.GetAsync(actor, Guid.CreateVersion7(), "TAR-0005");
         Assert.Equal(successor.PolicyVersionId, detail.CurrentValidationPolicy!.PolicyVersionId);
         Assert.Equal(2, detail.ValidationPolicyHistory.Count);
+        var publishedRead = await services.Validation.GetAsync(actor, Guid.CreateVersion7(), "TAR-0005");
+        Assert.Equal(successor.PolicyVersionId, publishedRead.Current?.PolicyVersionId);
+        Assert.Equal(VersionStatuses.Superseded, publishedRead.History[1].Status);
         Assert.Equal(VersionStatuses.Current, detail.ValidationPolicyHistory[0].Status);
         Assert.Equal(VersionStatuses.Superseded, detail.ValidationPolicyHistory[1].Status);
         Assert.Equal(detail.ValidationPolicyHistory[1].PolicyVersionId, detail.ValidationPolicyHistory[0].SupersedesPolicyVersionId);
@@ -121,15 +134,22 @@ public sealed partial class EvidencePolicyPersistenceTests
             var denied = await SeedActorAsync($"VALIDATION-{role}", role);
             await Assert.ThrowsAsync<ValidationPolicyAccessDeniedException>(() => services.Validation.PutAsync(
                 NewValidationPolicy(denied, release.Id, "TAR-0005")));
+            await Assert.ThrowsAsync<ValidationPolicyAccessDeniedException>(() => services.Validation.GetAsync(
+                denied, Guid.CreateVersion7(), "TAR-0005"));
         }
 
         var command = NewValidationPolicy(direction, release.Id, "TAR-0005");
         var created = await services.Validation.PutAsync(command);
+        var readDraft = await services.Validation.GetAsync(direction, Guid.CreateVersion7(), "TAR-0005");
+        Assert.Null(readDraft.Current);
+        Assert.Equal(created.PolicyVersionId, Assert.Single(readDraft.History).PolicyVersionId);
         var replay = await services.Validation.PutAsync(command with
         {
             AllowedResults = ValidationPolicyValues.AllowedResults.Reverse().ToArray(),
         });
         Assert.Equal(created.PolicyVersionId, replay.PolicyVersionId);
+        Assert.False(created.Replayed);
+        Assert.True(replay.Replayed);
         await Assert.ThrowsAsync<ValidationPolicyIdempotencyConflictException>(() => services.Validation.PutAsync(
             command with { ExpectedRowVersion = 1 }));
         await Assert.ThrowsAsync<ValidationPolicyOverlapException>(() => services.Validation.PutAsync(

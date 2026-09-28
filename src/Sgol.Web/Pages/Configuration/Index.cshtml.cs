@@ -203,6 +203,8 @@ public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApi
             CanShow = true;
             await LoadPoliciesAsync(cancellationToken);
             if (PoliciesUnauthorized) return Redirect("/acceso");
+            await LoadEvidenceValidationAsync(cancellationToken);
+            if (EvidenceValidationUnauthorized) return Redirect("/acceso");
             return Page();
         }
         catch (ApiProtocolException)

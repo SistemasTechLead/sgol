@@ -299,7 +299,16 @@ public sealed record EvidencePolicyVersionDetails(
     Guid? BasedOnPolicyVersionId,
     Guid? SupersedesPolicyVersionId,
     IReadOnlyList<EvidenceRequirementVersionDetails> Requirements,
-    long RowVersion);
+    long RowVersion)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Replayed { get; init; }
+}
+
+public sealed record EvidencePolicyHistoryDetails(
+    string TaskCode,
+    EvidencePolicyVersionDetails? Current,
+    IReadOnlyList<EvidencePolicyVersionDetails> History);
 
 public sealed record PutEvidencePolicyCommand(
     Guid ActorUserId,
@@ -312,6 +321,12 @@ public sealed record PutEvidencePolicyCommand(
 
 public interface IEvidencePolicyService
 {
+    Task<EvidencePolicyHistoryDetails> GetAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        string taskCode,
+        CancellationToken cancellationToken = default);
+
     Task<EvidencePolicyVersionDetails> PutAsync(
         PutEvidencePolicyCommand command,
         CancellationToken cancellationToken = default);
