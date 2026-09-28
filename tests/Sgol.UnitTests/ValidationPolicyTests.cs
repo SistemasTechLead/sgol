@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Sgol.Configuration.Contracts;
+using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
 
@@ -10,6 +11,37 @@ namespace Sgol.UnitTests;
 
 public sealed class ValidationPolicyTests
 {
+    [Fact]
+    public void PresentationPermissionIsProjectedOnlyForDirection()
+    {
+        Assert.Contains(ValidationPolicyAuthorization.Administer, RolePermissionProjection.ForRole(CanonicalRole.Direction));
+        foreach (var role in new[] { CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor })
+            Assert.DoesNotContain(ValidationPolicyAuthorization.Administer, RolePermissionProjection.ForRole(role));
+    }
+
+    [Fact]
+    public async Task GetEndpointReturnsAnAuthorizedHistoryWithCurrentEtag()
+    {
+        var current = new ValidationPolicyVersionDetails(Guid.CreateVersion7(), "TAR-0005",
+            Guid.CreateVersion7(), Guid.CreateVersion7(), 2, true, "SUBCOORDINACION",
+            ValidationPolicyValues.ImmediateSuperior, "ADMINISTRACION", ValidationPolicyValues.AllowedResults,
+            "VIGENTE", null, null, null, null, null, 9);
+        var service = new RecordingService { ReadResult = new("TAR-0005", current, [current]) };
+        var context = AuthenticatedContext();
+        var result = await ValidationPolicyApiEndpoints.HandleGetAsync("TAR-0005", context, service, CancellationToken.None);
+        Assert.Equal(200, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Equal("\"9\"", context.Response.Headers.ETag);
+        Assert.Equal(1, service.ReadCount);
+
+        var denied = await ValidationPolicyApiEndpoints.HandleGetAsync("TAR-0005",
+            new DefaultHttpContext(), service, CancellationToken.None);
+        Assert.Equal(401, Assert.IsAssignableFrom<IStatusCodeHttpResult>(denied).StatusCode);
+        Assert.Equal(1, service.ReadCount);
+        service.Exception = new ValidationPolicyAccessDeniedException();
+        var forbidden = await ValidationPolicyApiEndpoints.HandleGetAsync("TAR-0005",
+            AuthenticatedContext(), service, CancellationToken.None);
+        Assert.Equal(403, Assert.IsAssignableFrom<IStatusCodeHttpResult>(forbidden).StatusCode);
+    }
     [Theory]
     [InlineData("TAR-0005", "SUBCOORDINACION", "ADMINISTRACION")]
     [InlineData("TAR-0007", "PISO_VENTAS", "SUBCOORDINACION")]
@@ -152,6 +184,17 @@ public sealed class ValidationPolicyTests
 
     private sealed class RecordingService : IValidationPolicyService
     {
+        public ValidationPolicyHistoryDetails? ReadResult { get; set; }
+        public int ReadCount { get; private set; }
+        public Task<ValidationPolicyHistoryDetails> GetAsync(
+            Guid actorUserId, Guid correlationId, string taskCode,
+            CancellationToken cancellationToken = default)
+        {
+            ReadCount++;
+            if (Exception is not null) throw Exception;
+            return Task.FromResult(ReadResult ?? new ValidationPolicyHistoryDetails(taskCode, null, []));
+        }
+
         public PutValidationPolicyCommand? Command { get; private set; }
         public Exception? Exception { get; set; }
         public Exception? RejectionException { get; set; }

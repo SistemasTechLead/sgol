@@ -175,7 +175,11 @@ public sealed record ValidationPolicyVersionDetails(
     string? Reason,
     Guid? BasedOnPolicyVersionId,
     Guid? SupersedesPolicyVersionId,
-    long RowVersion);
+    long RowVersion)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Replayed { get; init; }
+}
 
 public sealed record PutValidationPolicyCommand(
     Guid ActorUserId,
@@ -190,8 +194,19 @@ public sealed record PutValidationPolicyCommand(
     IReadOnlyCollection<string> AllowedResults,
     long? ExpectedRowVersion);
 
+public sealed record ValidationPolicyHistoryDetails(
+    string TaskCode,
+    ValidationPolicyVersionDetails? Current,
+    IReadOnlyList<ValidationPolicyVersionDetails> History);
+
 public interface IValidationPolicyService
 {
+    Task<ValidationPolicyHistoryDetails> GetAsync(
+        Guid actorUserId,
+        Guid correlationId,
+        string taskCode,
+        CancellationToken cancellationToken = default);
+
     Task<ValidationPolicyVersionDetails> PutAsync(
         PutValidationPolicyCommand command,
         CancellationToken cancellationToken = default);

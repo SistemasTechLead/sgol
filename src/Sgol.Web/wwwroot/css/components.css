@@ -606,6 +606,25 @@ summary:focus-visible {
     white-space: nowrap;
 }
 
+.seccion-politicas {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    margin-top: var(--espacio-32);
+}
+
+.seccion-politicas .campo,
+.seccion-politicas .campo__control {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.seccion-politicas .campo__control--select {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .planificacion__dias {
     display: grid;
     gap: var(--espacio-8);

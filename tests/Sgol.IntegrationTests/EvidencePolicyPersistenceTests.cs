@@ -71,6 +71,15 @@ public sealed partial class EvidencePolicyPersistenceTests : IAsyncLifetime
             Assert.All(policy.Requirements, requirement => Assert.True(requirement.IsRequired));
         });
         var tar0092 = definitions.Single(item => item.TaskCode == "TAR-0092").CurrentEvidencePolicy!;
+        foreach (var taskCode in EvidencePolicyCatalog.All.Keys)
+        {
+            var read = await services.Policy.GetAsync(actor, Guid.CreateVersion7(), taskCode);
+            Assert.Equal(taskCode, read.TaskCode);
+            Assert.Single(read.History);
+            Assert.Equal(read.Current?.PolicyVersionId, read.History[0].PolicyVersionId);
+            Assert.Equal(EvidencePolicyCatalog.Require(taskCode).Select(item => item.Code),
+                read.History[0].Requirements.Select(item => item.Code));
+        }
         var conditional = Assert.Single(tar0092.Requirements, item => item.Code == "FOTO_DIFERENCIA_DANO");
         Assert.Equal(EvidenceConditionCodes.DifferenceOrDamage, conditional.Condition!.Code);
         var finalPhoto = definitions.Single(item => item.TaskCode == "TAR-0018").CurrentEvidencePolicy!
@@ -84,6 +93,10 @@ public sealed partial class EvidencePolicyPersistenceTests : IAsyncLifetime
             successorRelease.Id,
             "TAR-0005",
             expected: old.RowVersion));
+        var draftRead = await services.Policy.GetAsync(actor, Guid.CreateVersion7(), "TAR-0005");
+        Assert.Equal(old.PolicyVersionId, draftRead.Current?.PolicyVersionId);
+        Assert.Equal(2, draftRead.History.Count);
+        Assert.Equal(VersionStatuses.Draft, draftRead.History[0].Status);
         await services.Release.PublishAsync(new PublishConfigurationReleaseCommand(
             actor,
             Guid.CreateVersion7(),
@@ -98,6 +111,9 @@ public sealed partial class EvidencePolicyPersistenceTests : IAsyncLifetime
             .OrderBy(item => item.VersionNo)
             .ToListAsync();
         Assert.Equal(2, history.Count);
+        var publishedRead = await services.Policy.GetAsync(actor, Guid.CreateVersion7(), "TAR-0005");
+        Assert.Equal(successorDraft.PolicyVersionId, publishedRead.Current?.PolicyVersionId);
+        Assert.Equal(VersionStatuses.Superseded, publishedRead.History[1].Status);
         Assert.Equal(VersionStatuses.Superseded, history[0].Status);
         Assert.Equal(VersionStatuses.Current, history[1].Status);
         Assert.Equal(history[0].Id, history[1].SupersedesId);
@@ -144,6 +160,8 @@ public sealed partial class EvidencePolicyPersistenceTests : IAsyncLifetime
             var denied = await SeedActorAsync($"EVIDENCE-{role}", role);
             await Assert.ThrowsAsync<EvidencePolicyAccessDeniedException>(() => services.Policy.PutAsync(
                 NewPolicy(denied, release.Id, "TAR-0005")));
+            await Assert.ThrowsAsync<EvidencePolicyAccessDeniedException>(() => services.Policy.GetAsync(
+                denied, Guid.CreateVersion7(), "TAR-0005"));
         }
         var inactive = await SeedActorAsync("EVIDENCE-INACTIVE", CanonicalRole.Direction, accountActive: false);
         var outside = await SeedActorAsync("EVIDENCE-OUTSIDE", CanonicalRole.Direction, hasEmployment: false);
@@ -154,8 +172,13 @@ public sealed partial class EvidencePolicyPersistenceTests : IAsyncLifetime
 
         var command = NewPolicy(direction, release.Id, "TAR-0005");
         var created = await services.Policy.PutAsync(command);
+        var readDraft = await services.Policy.GetAsync(direction, Guid.CreateVersion7(), "TAR-0005");
+        Assert.Null(readDraft.Current);
+        Assert.Equal(created.PolicyVersionId, Assert.Single(readDraft.History).PolicyVersionId);
         var replay = await services.Policy.PutAsync(command);
         Assert.Equal(created.PolicyVersionId, replay.PolicyVersionId);
+        Assert.False(created.Replayed);
+        Assert.True(replay.Replayed);
         await Assert.ThrowsAsync<EvidencePolicyIdempotencyConflictException>(() => services.Policy.PutAsync(
             command with { ExpectedRowVersion = 1 }));
         await Assert.ThrowsAsync<EvidencePolicyOverlapException>(() => services.Policy.PutAsync(

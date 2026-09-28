@@ -247,6 +247,10 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
 
     private sealed class UnusedEvidencePolicyService : IEvidencePolicyService
     {
+        public Task<EvidencePolicyHistoryDetails> GetAsync(
+            Guid actorUserId, Guid correlationId, string taskCode,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<EvidencePolicyVersionDetails> PutAsync(
             PutEvidencePolicyCommand command,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -259,6 +263,10 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
 
     private sealed class UnusedValidationPolicyService : IValidationPolicyService
     {
+        public Task<ValidationPolicyHistoryDetails> GetAsync(
+            Guid actorUserId, Guid correlationId, string taskCode,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<ValidationPolicyVersionDetails> PutAsync(
             PutValidationPolicyCommand command,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();

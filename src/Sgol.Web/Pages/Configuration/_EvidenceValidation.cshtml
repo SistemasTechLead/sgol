@@ -1,0 +1,179 @@
+@model Sgol.Web.Pages.Configuration.IndexModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@using Sgol.BuildingBlocks.Versioning
+@using Sgol.Configuration.Contracts
+@if (Model.SelectedTask is { } task)
+{
+    @if (Model.CanManageEvidence || Model.EvidenceError is not null)
+    {
+        <section id="evidence-policy" class="seccion-politicas" aria-labelledby="evidence-policy-title">
+            <h3 id="evidence-policy-title">Evidencia de @task.TaskCode</h3>
+            @if (Model.EvidenceError is not null)
+            {
+                <div id="evidence-policy-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.EvidenceError" />
+                    @if (Model.EvidenceConflict) { <a class="boton boton--secundario" href="/configuracion?taskCode=@task.TaskCode#evidence-policy">Recargar política de evidencia</a> }
+                </div>
+            }
+            @if (Model.EvidenceSuccess is not null) { <p role="status" class="alerta alerta--info"><span aria-hidden="true">↻</span>@Model.EvidenceSuccess.</p> }
+            @if (Model.EvidencePolicy is { } policy)
+            {
+                <div aria-busy="false">
+                    @if (policy.Current is null)
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">Esta TAR aún no tiene política de evidencia vigente</p></div>
+                    }
+                    else
+                    {
+                        <p>Versión vigente @policy.Current.VersionNo, release @policy.Current.ConfigurationReleaseId.ToString("D"). Las obligaciones anteriores conservan sus requisitos de creación.</p>
+                        <ol id="evidence-current-requirements">
+                            @foreach (var requirement in policy.Current.Requirements.OrderBy(item => item.Ordinal))
+                            {
+                                <li><code>@requirement.Code</code> — @requirement.Kind; condición @(requirement.Condition?.Code ?? EvidenceConditionCodes.Always); @(requirement.IsRequired ? "obligatorio" : "opcional").</li>
+                            }
+                        </ol>
+                    }
+                    <h4>Historia de evidencia</h4>
+                    @if (policy.History.Count == 0)
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">Aún no hay versiones de esta política</p></div>
+                    }
+                    else
+                    {
+                        <div class="tabla-contenedor"><table id="evidence-policy-history" class="tabla">
+                            <caption>Historia de evidencia de @task.TaskCode</caption>
+                            <thead class="tabla__encabezado"><tr><th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Requisitos ordenados</th><th scope="col">Desde</th><th scope="col">Release</th></tr></thead>
+                            <tbody>
+                            @foreach (var version in policy.History)
+                            {
+                                <tr class="tabla__fila"><td>@version.VersionNo</td><td><span class="badge @Model.TaskBadgeClass(version.Status)"><span aria-hidden="true">@Model.TaskBadgeIcon(version.Status)</span>@Model.TaskStatusText(version.Status)</span></td>
+                                    <td><ol>@foreach (var requirement in version.Requirements.OrderBy(item => item.Ordinal)) { <li><code>@requirement.Code</code> — @requirement.Kind; @(requirement.Condition?.Code ?? EvidenceConditionCodes.Always)</li> }</ol></td>
+                                    <td>@Model.LocalInstant(version.EffectiveFrom)</td><td>@version.ConfigurationReleaseId.ToString("D")</td></tr>
+                            }
+                            </tbody>
+                        </table></div>
+                    }
+                </div>
+                @if (Model.CanManageEvidence && !Model.EvidenceConflict)
+                {
+                    <h4>Editor cerrado de evidencia</h4>
+                    <p>Requisitos, orden, tipo y condición exactos del catálogo. No son editables.</p>
+                    <ol id="evidence-canonical-requirements">
+                        @foreach (var requirement in EvidencePolicyCatalog.Require(task.TaskCode))
+                        {
+                            <li><code>@requirement.Code</code> — @requirement.Kind; condición @requirement.ConditionCode.</li>
+                        }
+                    </ol>
+                    @if (!Model.Releases.Any(item => item.Status == VersionStatuses.Draft))
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">No hay una release en borrador disponible</p>@if (Model.CanManage) { <a class="boton boton--secundario" href="/configuracion#nuevo-borrador">Crear borrador</a> }</div>
+                    }
+                    else
+                    {
+                        <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="evidence-confirm">Configurar evidencia</button>
+                        <dialog id="evidence-confirm" class="modal" aria-labelledby="evidence-confirm-title" aria-describedby="evidence-confirm-summary" data-open-on-error="@(Model.EvidenceErrorReleaseId is not null ? "true" : null)">
+                            <form method="post" asp-page-handler="EvidencePolicy" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                                <input type="hidden" name="intentKey" value="@Model.EvidenceIntentKey.ToString("D")" />
+                                <input type="hidden" name="taskCode" value="@task.TaskCode" />
+                                <input type="hidden" name="policyEtag" value="@Model.EvidenceReadEtag" />
+                                <h4 id="evidence-confirm-title" class="modal__titulo">Guardar política de evidencia</h4>
+                                <p id="evidence-confirm-summary" class="modal__texto">@task.TaskCode: la versión vigente quedará en historia; las obligaciones existentes no cambiarán.</p>
+                                @if (Model.EvidenceErrorReleaseId is not null && Model.EvidenceError is not null) { <div tabindex="-1" data-dialog-error><partial name="_ProblemAlert" model="Model.EvidenceError" /></div> }
+                                <label class="campo @(Model.EvidenceErrorReleaseId is not null ? "campo--error" : null)" for="evidence-release"><span class="campo__etiqueta">Release en borrador</span>
+                                    <select id="evidence-release" name="releaseId" class="campo__control campo__control--select" required aria-invalid="@(Model.EvidenceErrorReleaseId is not null ? "true" : "false")" aria-describedby="evidence-release-error">
+                                        <option value="">Selecciona una release</option>
+                                        @foreach (var release in Model.Releases.Where(item => item.Status == VersionStatuses.Draft)) { <option value="@release.Id.ToString("D")" selected="@(Model.EvidenceErrorReleaseId == release.Id)">Borrador @(release.Id.ToString("N")[..8])</option> }
+                                    </select>
+                                    <span id="evidence-release-error" class="campo__mensaje-error" hidden="@(Model.EvidenceErrorReleaseId is null)">Revisa la release y la historia antes de continuar.</span>
+                                </label>
+                                <p>Los requisitos se enviarán en el orden aprobado. La publicación se hace desde releases.</p>
+                                <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Guardar política de evidencia</button></div>
+                            </form>
+                        </dialog>
+                    }
+                }
+            }
+        </section>
+    }
+    @if (Model.CanManageValidation || Model.ValidationError is not null)
+    {
+        <section id="validation-policy" class="seccion-politicas" aria-labelledby="validation-policy-title">
+            <h3 id="validation-policy-title">Validación de @task.TaskCode</h3>
+            @if (Model.ValidationError is not null)
+            {
+                <div id="validation-policy-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.ValidationError" />
+                    @if (Model.ValidationConflict) { <a class="boton boton--secundario" href="/configuracion?taskCode=@task.TaskCode#validation-policy">Recargar política de validación</a> }
+                </div>
+            }
+            @if (Model.ValidationSuccess is not null) { <p role="status" class="alerta alerta--info"><span aria-hidden="true">↻</span>@Model.ValidationSuccess.</p> }
+            @if (Model.ValidationPolicy is { } policy)
+            {
+                <div aria-busy="false">
+                    @if (policy.Current is null)
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">Esta TAR aún no tiene política de validación vigente</p></div>
+                    }
+                    else
+                    {
+                        <p>Versión vigente @policy.Current.VersionNo: ejecuta @policy.Current.ExecutorRole; valida @policy.Current.ValidatorRole mediante @policy.Current.ValidatorRelation. Validación obligatoria.</p>
+                        <p>Resultados permitidos: @string.Join(", ", policy.Current.AllowedResults).</p>
+                    }
+                    <h4>Historia de validación</h4>
+                    @if (policy.History.Count == 0)
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">Aún no hay versiones de esta política</p></div>
+                    }
+                    else
+                    {
+                        <div class="tabla-contenedor"><table id="validation-policy-history" class="tabla">
+                            <caption>Historia de validación de @task.TaskCode</caption>
+                            <thead class="tabla__encabezado"><tr><th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Ejecutor</th><th scope="col">Validador</th><th scope="col">Relación</th><th scope="col">Resultados</th><th scope="col">Release</th></tr></thead>
+                            <tbody>
+                            @foreach (var version in policy.History)
+                            {
+                                <tr class="tabla__fila"><td>@version.VersionNo</td><td><span class="badge @Model.TaskBadgeClass(version.Status)"><span aria-hidden="true">@Model.TaskBadgeIcon(version.Status)</span>@Model.TaskStatusText(version.Status)</span></td>
+                                    <td>@version.ExecutorRole</td><td>@version.ValidatorRole</td><td>@version.ValidatorRelation</td><td>@string.Join(", ", version.AllowedResults)</td><td>@version.ConfigurationReleaseId.ToString("D")</td></tr>
+                            }
+                            </tbody>
+                        </table></div>
+                    }
+                </div>
+                @if (Model.CanManageValidation && !Model.ValidationConflict)
+                {
+                    var matrix = ValidationPolicyCatalog.Require(task.TaskCode);
+                    <h4>Editor cerrado de validación</h4>
+                    <p>Ejecutor @matrix.ExecutorRole; superior inmediato @matrix.ValidatorRole; validación obligatoria. Resultados: @string.Join(", ", ValidationPolicyValues.AllowedResults). Estos valores no son editables.</p>
+                    @if (!Model.Releases.Any(item => item.Status == VersionStatuses.Draft))
+                    {
+                        <div class="estado-vacio"><span class="estado-vacio__icono" aria-hidden="true">○</span><p class="estado-vacio__titulo">No hay una release en borrador disponible</p>@if (Model.CanManage) { <a class="boton boton--secundario" href="/configuracion#nuevo-borrador">Crear borrador</a> }</div>
+                    }
+                    else
+                    {
+                        <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="validation-confirm">Configurar validación</button>
+                        <dialog id="validation-confirm" class="modal" aria-labelledby="validation-confirm-title" aria-describedby="validation-confirm-summary" data-open-on-error="@(Model.ValidationErrorReleaseId is not null ? "true" : null)">
+                            <form method="post" asp-page-handler="ValidationPolicy" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                                <input type="hidden" name="intentKey" value="@Model.ValidationIntentKey.ToString("D")" />
+                                <input type="hidden" name="taskCode" value="@task.TaskCode" />
+                                <input type="hidden" name="policyEtag" value="@Model.ValidationReadEtag" />
+                                <h4 id="validation-confirm-title" class="modal__titulo">Guardar política de validación</h4>
+                                <p id="validation-confirm-summary" class="modal__texto">@task.TaskCode: la versión vigente quedará en historia; las obligaciones existentes no cambiarán.</p>
+                                @if (Model.ValidationErrorReleaseId is not null && Model.ValidationError is not null) { <div tabindex="-1" data-dialog-error><partial name="_ProblemAlert" model="Model.ValidationError" /></div> }
+                                <label class="campo @(Model.ValidationErrorReleaseId is not null ? "campo--error" : null)" for="validation-release"><span class="campo__etiqueta">Release en borrador</span>
+                                    <select id="validation-release" name="releaseId" class="campo__control campo__control--select" required aria-invalid="@(Model.ValidationErrorReleaseId is not null ? "true" : "false")" aria-describedby="validation-release-error">
+                                        <option value="">Selecciona una release</option>
+                                        @foreach (var release in Model.Releases.Where(item => item.Status == VersionStatuses.Draft)) { <option value="@release.Id.ToString("D")" selected="@(Model.ValidationErrorReleaseId == release.Id)">Borrador @(release.Id.ToString("N")[..8])</option> }
+                                    </select>
+                                    <span id="validation-release-error" class="campo__mensaje-error" hidden="@(Model.ValidationErrorReleaseId is null)">Revisa la release y la historia antes de continuar.</span>
+                                </label>
+                                <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Guardar política de validación</button></div>
+                            </form>
+                        </dialog>
+                    }
+                }
+            }
+        </section>
+    }
+}
+@if (Model.EvidenceError is not null) { <script>document.getElementById('evidence-policy-error')?.focus();</script> }
+else if (Model.ValidationError is not null) { <script>document.getElementById('validation-policy-error')?.focus();</script> }
