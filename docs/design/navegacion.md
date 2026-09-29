@@ -109,3 +109,13 @@ Razor recibe cookies `HttpOnly` desde el navegador y el cliente común reenvía 
 - Error: mensaje funcional aprobado, `correlationId` cuando exista y foco en el resumen; nunca JSON crudo ni secretos.
 
 En teléfono, la apertura y cierre del panel conservan foco, bloqueo modal y `Escape`; en escritorio, el orden y los nombres accesibles son equivalentes. Todo comportamiento cumple `accesibilidad.md`, `componentes.md` y `estados-y-mensajes.md`.
+
+## UI-G01 — navegación consumidora aprobada
+
+Aprobada expresamente durante FRONT-013: la función vive en una sección «Alta manual» de `/planificacion`, con enlace de ancla dentro de esa ruta sólo cuando esté implementada y PER-OBLIGACION-CREAR permita presentarla. Conserva las secciones actuales y oculta funciones posteriores.
+
+La selección GET admite sólo una TAR canónica allowlisted mediante taskCode; el resultado admite generationRequestId UUID en la misma ruta. Los filtros ya aprobados de semana/calendario conservan su contrato. Referencias, datos del formulario, intención, clave y CSRF quedan fuera de URL. Una consulta vuelve a autorizar; recurso inexistente o invisible usa el 404 convergente. No hay deep link a confirmación, mutación GET ni enlace API de menú.
+
+«Recuperar resultado» reenvía sólo la intención original conservada tras decisión explícita; no crea otra. «Preparar otra solicitud» no envía automáticamente. Un GET de resultado debe terminar antes de presentar el estado siguiente; el valor anterior al submit no acredita la nueva respuesta. La aprobación es de composición: los esquemas CAT y cambios funcionales pendientes requieren el contrato de Adenda 51.
+
+La aprobación íntegra posterior «Si la apruebo» da eficacia a Adenda 51 y resuelve la limitación de aprobación parcial descrita arriba para UI-G01.

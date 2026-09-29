@@ -16,20 +16,22 @@ using Sgol.Web.Infrastructure.Persistence.Idempotency;
 
 namespace Sgol.Web.Infrastructure.Persistence.Generation;
 
-public sealed class EfGenerationRequestService(
+public sealed partial class EfGenerationRequestService(
     SgolDbContext dbContext,
     AuditTransaction auditTransaction,
     IRoleHierarchyResolver hierarchyResolver,
     IClock clock,
-    IUuidGenerator uuidGenerator) : IGenerationRequestService
+    IUuidGenerator uuidGenerator, Microsoft.AspNetCore.DataProtection.IDataProtectionProvider? protectionProvider = null) : IGenerationRequestService, IManualGenerationReader
 {
     private const string IdempotencyScopePrefix = "generation-request:create:";
-    private const string IdempotencyPrimaryKey = "PK_idempotency_record";
+
 
     public async Task<GenerationRequestDetails> CreateAsync(
         CreateGenerationRequestCommand command,
         CancellationToken cancellationToken = default)
     {
+        if (command.InputPayload is not null)
+            return await CreateManualAsync(command, cancellationToken);
         var originType = command.OriginType?.Trim() ?? string.Empty;
         var originReference = command.OriginReference?.Trim() ?? string.Empty;
         var legacyRequestHash = Hash(
@@ -59,6 +61,7 @@ public sealed class EfGenerationRequestService(
         var actorRole = await GenerationAuthorizationQuery.GetCreatorRoleAsync(
             dbContext,
             command.ActorUserId,
+            clock.UtcNow,
             cancellationToken);
         if (actorRole is null)
         {
@@ -85,150 +88,8 @@ public sealed class EfGenerationRequestService(
             return replay;
         }
 
-        if (command.BranchId != BranchScope.LorettaId)
-        {
-            await AuditDeniedAsync(command, cancellationToken);
-            throw new GenerationRequestAccessDeniedException();
-        }
-
-        var request = new GenerationRequest(
-            uuidGenerator.NewUuid(),
-            command.IdempotencyKey,
-            requestHash,
-            command.RuleVersionId,
-            command.BranchId,
-            command.PeriodId,
-            originType,
-            originReference,
-            command.ActorUserId,
-            clock.UtcNow);
-        var selectedRequest = request;
-        var semanticResult = GenerationRequestResults.Accepted;
-
-        try
-        {
-            await auditTransaction.ExecuteAsync(
-                async token =>
-                {
-                    await ValidateFreshRequestAsync(
-                        command,
-                        actorRole,
-                        originType,
-                        originReference,
-                        token);
-                    var existingRequest = await FindFunctionalRequestAsync(
-                        command.RuleVersionId,
-                        command.BranchId,
-                        command.PeriodId,
-                        originType,
-                        originReference,
-                        token);
-                    if (existingRequest is null)
-                    {
-                        dbContext.GenerationRequests.Add(request);
-                    }
-                    else
-                    {
-                        selectedRequest = existingRequest;
-                        semanticResult = GenerationRequestResults.Recovered;
-                    }
-
-                    var responseCode = semanticResult == GenerationRequestResults.Accepted
-                        ? StatusCodes.Status201Created
-                        : StatusCodes.Status200OK;
-                    dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
-                        scope,
-                        command.IdempotencyKey,
-                        requestHash,
-                        selectedRequest.Id,
-                        request.RequestedAt,
-                        ToDetails(selectedRequest, semanticResult, responseCode)));
-                    return NewAuditEvent(
-                        command.ActorUserId,
-                        command.CorrelationId,
-                        selectedRequest.Id,
-                        semanticResult == GenerationRequestResults.Accepted
-                            ? "GENERATION_REQUEST_ACCEPTED"
-                            : "GENERATION_REQUEST_RECOVERED",
-                        Serialize(selectedRequest),
-                        "SUCCESS");
-                },
-                cancellationToken);
-        }
-        catch (GenerationRequestAccessDeniedException)
-        {
-            dbContext.ChangeTracker.Clear();
-            await AuditDeniedAsync(command, cancellationToken);
-            throw;
-        }
-        catch (DbUpdateException exception) when (IsUniquenessConflict(exception))
-        {
-            dbContext.ChangeTracker.Clear();
-            var concurrentReplay = await FindReplayAsync(
-                scope,
-                command.ActorUserId,
-                command.CorrelationId,
-                command.IdempotencyKey,
-                requestHash,
-                legacyScope,
-                legacyRequestHash,
-                cancellationToken);
-            if (concurrentReplay is not null)
-            {
-                return concurrentReplay;
-            }
-
-            var keyOwner = await dbContext.GenerationRequests.AsNoTracking()
-                .SingleOrDefaultAsync(
-                    item => item.RequestedBy == command.ActorUserId
-                        && item.IdempotencyKey == command.IdempotencyKey,
-                    cancellationToken);
-            if (keyOwner is not null)
-            {
-                await AuditConflictAsync(
-                    command.ActorUserId,
-                    command.CorrelationId,
-                    keyOwner.Id,
-                    command.IdempotencyKey,
-                    cancellationToken);
-                throw new GenerationRequestIdempotencyConflictException();
-            }
-
-            var concurrentFunctional = await FindFunctionalRequestAsync(
-                command.RuleVersionId,
-                command.BranchId,
-                command.PeriodId,
-                originType,
-                originReference,
-                cancellationToken);
-            if (concurrentFunctional is not null)
-            {
-                return await BindFunctionalReplayAsync(
-                    concurrentFunctional,
-                    scope,
-                    command,
-                    requestHash,
-                    cancellationToken);
-            }
-
-            throw;
-        }
-        catch
-        {
-            dbContext.ChangeTracker.Clear();
-            throw;
-        }
-
-        var result = ToDetails(
-            selectedRequest,
-            semanticResult,
-            semanticResult == GenerationRequestResults.Accepted
-                ? StatusCodes.Status201Created
-                : StatusCodes.Status200OK);
-        dbContext.ChangeTracker.Clear();
-        return result;
+        throw new ManualGenerationException("GENERATION_REQUEST_SCHEMA_REQUERIDO");
     }
-
     private async Task ValidateFreshRequestAsync(
         CreateGenerationRequestCommand command,
         string actorRole,
@@ -239,6 +100,7 @@ public sealed class EfGenerationRequestService(
         var currentActorRole = await GenerationAuthorizationQuery.GetCreatorRoleAsync(
             dbContext,
             command.ActorUserId,
+            clock.UtcNow,
             cancellationToken);
         if (!string.Equals(currentActorRole, actorRole, StringComparison.Ordinal))
         {
@@ -250,7 +112,7 @@ public sealed class EfGenerationRequestService(
             .AsNoTracking()
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new GenerationRequestRuleNotFoundException();
-        if (rule.Status != VersionStatuses.Current)
+        if (rule.Status != VersionStatuses.Current || rule.EffectiveFrom is null || rule.EffectiveFrom > clock.UtcNow || rule.EffectiveTo <= clock.UtcNow)
         {
             throw new GenerationRequestRuleNotFoundException();
         }
@@ -266,7 +128,7 @@ public sealed class EfGenerationRequestService(
             .SingleOrDefaultAsync(cancellationToken);
         if (taskVersion is null ||
             taskVersion.TaskDefinitionId != rule.TaskDefinitionId ||
-            taskVersion.Status != VersionStatuses.Current)
+            taskVersion.Status != VersionStatuses.Current || taskVersion.EffectiveFrom is null || taskVersion.EffectiveFrom > clock.UtcNow || taskVersion.EffectiveTo <= clock.UtcNow)
         {
             throw new GenerationRequestTaskInactiveException();
         }
@@ -275,7 +137,7 @@ public sealed class EfGenerationRequestService(
             .FromSqlInterpolated($"SELECT * FROM eligibility_policy_version WHERE task_definition_version_id = {rule.TaskDefinitionVersionId} AND task_definition_id = {rule.TaskDefinitionId} AND status = 'VIGENTE' FOR SHARE")
             .AsNoTracking()
             .SingleOrDefaultAsync(cancellationToken);
-        if (eligibility is null || !RoleHierarchy.CanAccessLevel(actorRole, eligibility.RequiredRole))
+        if (eligibility is null || eligibility.EffectiveFrom is null || eligibility.EffectiveFrom > clock.UtcNow || eligibility.EffectiveTo <= clock.UtcNow || !RoleHierarchy.CanAccessLevel(actorRole, eligibility.RequiredRole))
         {
             throw new GenerationRequestAccessDeniedException();
         }
@@ -325,7 +187,14 @@ public sealed class EfGenerationRequestService(
             throw new GenerationRequestNotFoundException();
         }
 
-        return ToDetails(request, request.Result);
+        if (await GenerationAuthorizationQuery.GetCreatorRoleAsync(dbContext, actorUserId, clock.UtcNow, cancellationToken) is null)
+            throw new GenerationRequestNotFoundException();
+        await RequireVisibleAsync(actorUserId, generationRequestId, cancellationToken);
+        var obligation = await dbContext.WorkObligations.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.GenerationRequestId == request.Id, cancellationToken);
+        return obligation?.ManualTaskCode is not null
+            ? ManualDetails(request, obligation, request.Result, 200, includeInput: true)
+            : ToDetails(request, request.Result);
     }
 
     private async Task<GenerationRequestDetails?> FindReplayAsync(
@@ -350,6 +219,7 @@ public sealed class EfGenerationRequestService(
             return null;
         }
 
+        await GetAsync(actorUserId, correlationId, record.ResourceId, cancellationToken);
         var expectedHash = record.ProtocolVersion == IdempotencyProtocol.CurrentVersion
             ? requestHash
             : legacyRequestHash;
@@ -387,64 +257,6 @@ public sealed class EfGenerationRequestService(
                 item.OriginType == originType &&
                 item.OriginReference == originReference,
             cancellationToken);
-
-    private async Task<GenerationRequestDetails> BindFunctionalReplayAsync(
-        GenerationRequest request,
-        string scope,
-        CreateGenerationRequestCommand command,
-        string requestHash,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await auditTransaction.ExecuteAsync(
-                token =>
-                {
-                    dbContext.IdempotencyRecords.Add(NewIdempotencyRecord(
-                        scope,
-                        command.IdempotencyKey,
-                        requestHash,
-                        request.Id,
-                        clock.UtcNow,
-                        ToDetails(request, GenerationRequestResults.Recovered, StatusCodes.Status200OK)));
-                    return Task.FromResult(NewAuditEvent(
-                        command.ActorUserId,
-                        command.CorrelationId,
-                        request.Id,
-                        "GENERATION_REQUEST_RECOVERED",
-                        Serialize(request),
-                        "SUCCESS"));
-                },
-                cancellationToken);
-        }
-        catch (DbUpdateException exception) when (IsUniquenessConflict(exception))
-        {
-            dbContext.ChangeTracker.Clear();
-            var replay = await FindReplayAsync(
-                scope,
-                command.ActorUserId,
-                command.CorrelationId,
-                command.IdempotencyKey,
-                requestHash,
-                IdempotencyScopePrefix + command.ActorUserId.ToString("N"),
-                Hash(
-                    command.RuleVersionId.ToString("N"),
-                    command.BranchId.ToString("N"),
-                    command.PeriodId.ToString("N"),
-                    command.OriginType.Trim(),
-                    command.OriginReference.Trim()),
-                cancellationToken);
-            if (replay is not null)
-            {
-                return replay;
-            }
-
-            throw;
-        }
-
-        dbContext.ChangeTracker.Clear();
-        return ToDetails(request, GenerationRequestResults.Recovered);
-    }
 
     private async Task AuditDeniedAsync(
         CreateGenerationRequestCommand command,
@@ -517,7 +329,7 @@ public sealed class EfGenerationRequestService(
             "GENERATION_REQUEST",
             resourceId,
             response.ResponseCode,
-            response,
+            GenerationRequestSerialization.Snapshot(response),
             createdAt,
             DateTimeOffset.MaxValue,
             responseLocation: $"/api/v1/generation-requests/{resourceId:D}");
@@ -543,23 +355,6 @@ public sealed class EfGenerationRequestService(
             Outcome = outcome,
         };
 
-    private static JsonDocument Serialize(GenerationRequest request) =>
-        JsonSerializer.SerializeToDocument(new
-        {
-            schemaVersion = 1,
-            generationRequestId = request.Id,
-            request.RuleVersionId,
-            request.BranchId,
-            request.PeriodId,
-            request.OriginType,
-            request.OriginReference,
-            request.Result,
-            request.RequestedBy,
-            request.RequestedAt,
-            request.ObligationId,
-            request.ErrorCode,
-        });
-
     private static GenerationRequestDetails ToDetails(
         GenerationRequest request,
         string result,
@@ -576,12 +371,6 @@ public sealed class EfGenerationRequestService(
         request.ObligationId,
         request.ErrorCode,
         responseCode);
-
-    private static bool IsUniquenessConflict(DbUpdateException exception) =>
-        (exception.InnerException as PostgresException)?.ConstraintName is
-            GenerationRequestConfiguration.IdempotencyIndex or
-            GenerationRequestConfiguration.FunctionalKeyIndex or
-            IdempotencyPrimaryKey;
 
     private static string Hash(params string[] values) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', values))));

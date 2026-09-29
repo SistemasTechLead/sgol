@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Sgol.Generation.Contracts;
+using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Endpoints;
 using Xunit;
 
@@ -10,6 +11,19 @@ namespace Sgol.UnitTests;
 
 public sealed class GenerationRequestTests
 {
+    [Theory]
+    [InlineData(CanonicalRole.Direction, true)]
+    [InlineData(CanonicalRole.Administration, true)]
+    [InlineData(CanonicalRole.Subcoordination, true)]
+    [InlineData(CanonicalRole.SalesFloor, false)]
+    [InlineData("Dirección", false)]
+    [InlineData("GERENTE", false)]
+    [InlineData("", false)]
+    public void GenerationPresentationPermissionUsesCanonicalCreatorRoles(string role, bool expected)
+    {
+        Assert.Equal(expected, RolePermissionProjection.ForRole(role).Contains(GenerationRequestAuthorization.Create));
+    }
+
     [Fact]
     public async Task Post_RequiresUuidIdempotencyKeyWithoutCallingService()
     {
@@ -150,6 +164,29 @@ public sealed class GenerationRequestTests
 
     private static JsonDocument ValidBody() => JsonDocument.Parse(
         $$"""{"ruleVersionId":"{{Guid.CreateVersion7():D}}","branchId":"019d3a10-0100-7000-8000-000000000001","periodId":"{{Guid.CreateVersion7():D}}","originType":"MANUAL_REFERENCE_V1","originReference":"synthetic-reference"}""");
+
+    [Fact]
+    public async Task VersionTwoBodyForwardsClosedInputWithoutOriginReferenceOrIfMatch()
+    {
+        var service = new RecordingService();
+        var context = AuthenticatedContext();
+        context.Request.Headers["Idempotency-Key"] = Guid.CreateVersion7().ToString("D");
+        using var body = JsonDocument.Parse($$$"""{"schemaVersion":2,"ruleVersionId":"{{{Guid.CreateVersion7():D}}}","branchId":"019d3a10-0100-7000-8000-000000000001","periodId":"{{{Guid.CreateVersion7():D}}}","originType":"MANUAL_REFERENCE_V1","inputPayload":{"taskCode":"TAR-0018","eventReference":"E","zoneReference":"Z","planogramReference":"P"}}""");
+        var result = await GenerationRequestApiEndpoints.HandlePostAsync(body.RootElement, context, service, CancellationToken.None);
+        Assert.IsAssignableFrom<IStatusCodeHttpResult>(result);
+        Assert.NotNull(service.CreateCommand?.InputPayload);
+        Assert.Equal("", service.CreateCommand!.OriginReference);
+        Assert.Equal("TAR-0018", service.CreateCommand.InputPayload!.Value.GetProperty("taskCode").GetString());
+        var json = body.RootElement.GetRawText();
+        foreach (var changed in new[] { json.Replace("\"schemaVersion\":2", "\"schemaVersion\":3", StringComparison.Ordinal),
+            json.Replace("\"schemaVersion\":2", "\"schemaVersion\":2,\"schemaVersion\":2", StringComparison.Ordinal),
+            json.Replace("\"schemaVersion\":2", "\"schemaVersion\":2,\"originReference\":\"invented\"", StringComparison.Ordinal) })
+        {
+            using var invalid = JsonDocument.Parse(changed);
+            AssertProblem(await GenerationRequestApiEndpoints.HandlePostAsync(invalid.RootElement, context, service, CancellationToken.None),
+                400, "GENERATION_REQUEST_INVALIDA", context.TraceIdentifier);
+        }
+    }
 
     private sealed class RecordingService : IGenerationRequestService
     {

@@ -13,7 +13,7 @@ internal static class DemoContract
     public const string PostgreSqlImage = "postgres:18.6-alpine3.23";
     public const string DatabasePrefix = "sgol_cv04_";
     public const string LoopbackAddress = "127.0.0.1";
-    public const string LatestMigration = "20260918001719_AddHostedAuthentication";
+    public const string LatestMigration = "20260929005540_AddManualGenerationSnapshots";
 
     public static readonly IReadOnlyList<string> Phases =
     [

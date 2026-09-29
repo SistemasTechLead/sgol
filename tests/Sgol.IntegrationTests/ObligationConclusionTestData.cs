@@ -77,7 +77,7 @@ internal static class ObligationConclusionTestData
         SgolDbContext context,
         Guid obligationId,
         DateTimeOffset concludedAt,
-        Guid? fallbackResponsiblePersonId = null)
+        Guid? fallbackResponsiblePersonId = null, bool receiptDifference = false)
     {
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
@@ -163,6 +163,13 @@ internal static class ObligationConclusionTestData
             else
             {
                 var payload = CreateStructuredPayload(requirement.RequirementCode);
+                if (receiptDifference && requirement.RequirementCode == "F_ENT_001")
+                {
+                    var node = System.Text.Json.Nodes.JsonNode.Parse(payload.RootElement.GetRawText())!;
+                    node["hasDifference"] = true;
+                    payload.Dispose();
+                    payload = JsonSerializer.SerializeToDocument(node);
+                }
                 version = new EvidenceVersion(
                     Guid.CreateVersion7(), item.Id, 1, payload, responsibleUserId, concludedAt.AddMinutes(-1));
             }

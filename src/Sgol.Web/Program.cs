@@ -32,6 +32,7 @@ builder.Services.AddScoped<RazorAntiforgeryBridge>();
 builder.Services.AddSingleton<SafeReturnDestination>();
 builder.Services.AddSingleton<AccessNotice>();
 builder.Services.AddHttpClient<ISgolApiClient, SgolApiClient>()
+    .RemoveAllLoggers() // Consumer queries can contain private manual-origin references.
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
     {
         UseCookies = false,

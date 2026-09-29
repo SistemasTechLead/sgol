@@ -158,6 +158,12 @@ public static class RolePermissionProjection
             permissions.Add("PER-VALIDACION-EMITIR");
         }
 
+        // Presentation only. Generation revalidates account, employment, scope and TAR level.
+        if (roleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination)
+        {
+            permissions.Add("PER-OBLIGACION-CREAR");
+        }
+
         if (roleCode == CanonicalRole.Direction)
         {
             permissions.AddRange(["PER-PERSONA-ADMIN", "PER-DISPONIBILIDAD-ADMIN", "PER-USUARIO-ADMIN", "PER-ROL-ADMIN", "PER-CONFIG-ADMIN", "PER-CALENDARIO-ADMIN", "PER-DEFINICION-ADMIN", "PER-ACTIVACION-ADMIN", "PER-POLITICA-ADMIN", "PER-EVIDENCIA-CONFIG", "PER-VALIDACION-CONFIG", "PER-CONTINUIDAD-VER"]);

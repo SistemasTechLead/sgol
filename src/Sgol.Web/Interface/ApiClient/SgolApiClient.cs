@@ -136,10 +136,18 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
                 code = codeElement.GetString();
             }
             if ((code is null && status != 500) || code is not null && !ValidCode(code)) throw new ApiProtocolException();
+            IReadOnlyList<ApiFieldError>? fields = null;
+            if (root.TryGetProperty("fieldErrors", out var errors))
+            {
+                if (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() > 32) throw new ApiProtocolException();
+                fields = Deserialize<List<ApiFieldError>>(errors);
+                if (fields.Any(f => f is null || f.Path is null || f.Path.Length > 100 || !f.Path.All(c => char.IsAsciiLetterOrDigit(c) || c == '.') ||
+                    f.Code is not ("REQUIRED" or "INVALID" or "DUPLICATE" or "OUT_OF_RANGE" or "MISMATCH"))) throw new ApiProtocolException();
+            }
             var presentation = ProblemDetailsPresenter.Present(status, code, problemCorrelation);
             if (status == 401 && code == "DESAFIO_INVALIDO") ApiCookieBridge.Clear(context);
             ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
-            return new(status, default, null, problemCorrelation!, null, null, null, false, code, presentation);
+            return new(status, default, null, problemCorrelation!, null, null, null, false, code, presentation, fields);
         }
     }
 

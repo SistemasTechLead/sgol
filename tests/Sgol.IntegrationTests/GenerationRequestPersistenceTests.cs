@@ -20,7 +20,7 @@ using Xunit;
 
 namespace Sgol.IntegrationTests;
 
-public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
+public sealed partial class GenerationRequestPersistenceTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 3, 21, 0, 0, TimeSpan.Zero);
     private readonly PostgreSqlContainer _postgres = PostgreSqlPersistenceTests.CreateContainerForTests();
@@ -30,7 +30,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
     public async Task DisposeAsync() => await _postgres.DisposeAsync();
 
     [Fact]
-    public async Task AcceptedReplayAndConflictAreAuditedWithoutCreatingAnObligation()
+    public async Task AcceptedReplayAndConflictCreateExactlyOneAtomicObligation()
     {
         var scenario = await ResetAndSeedAsync(CanonicalRole.Administration);
         var key = Guid.CreateVersion7();
@@ -47,7 +47,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
         Assert.Equal(StatusCodes.Status201Created, accepted.ResponseCode);
         Assert.Equal(StatusCodes.Status201Created, recovered.ResponseCode);
         Assert.Equal(accepted.GenerationRequestId, recovered.GenerationRequestId);
-        Assert.Null(accepted.ObligationId);
+        Assert.NotNull(accepted.ObligationId);
         Assert.Single(await context.GenerationRequests.AsNoTracking().ToListAsync());
         var idempotency = Assert.Single(await context.IdempotencyRecords.AsNoTracking()
             .Where(item => item.ResourceType == "GENERATION_REQUEST")
@@ -61,7 +61,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
             item.Action == "IDEMPOTENCY_CONFLICT_REJECTED" && item.Outcome == "REJECTED" &&
             item.RequestId == key.ToString("D") && item.AfterData != null &&
             !item.AfterData.RootElement.GetRawText().Contains("requestHash", StringComparison.Ordinal));
-        Assert.Empty(await context.WorkObligations.AsNoTracking().ToListAsync());
+        Assert.Single(await context.WorkObligations.AsNoTracking().ToListAsync());
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
@@ -104,18 +104,18 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
         Assert.Equal(scenario.TaskDefinitionVersionId, result.TaskDefinitionVersionId);
         Assert.Equal(BranchScope.LorettaId, result.BranchId);
         Assert.Equal(scenario.PeriodId, result.PeriodId);
-        Assert.Equal("synthetic-reference", result.OriginReference);
+        Assert.StartsWith("CAT2:", result.OriginReference);
         Assert.Equal(WorkObligationStatuses.Pending, result.ExecutionStatus);
         var storedRequest = await context.GenerationRequests.AsNoTracking()
             .SingleAsync(item => item.Id == request.GenerationRequestId);
         var stored = await context.WorkObligations.AsNoTracking().SingleAsync();
         Assert.Equal(stored.Id, storedRequest.ObligationId);
-        Assert.Null(stored.InputPayload);
-        Assert.Null(stored.DueAt);
+        Assert.NotNull(stored.InputPayload);
+        Assert.Equal(Now.AddHours(24), stored.DueAt);
         Assert.Contains(await context.AuditEvents.AsNoTracking().ToListAsync(), item =>
             item.Action == "WORK_OBLIGATION_CREATED" &&
             item.ResourceId == stored.Id &&
-            item.ActorType == "SYSTEM" &&
+            item.ActorType == "USER" &&
             item.Outcome == "SUCCESS");
         Assert.Empty(await context.AssignmentVersions.AsNoTracking().ToListAsync());
         Assert.Contains(context.Model.GetEntityTypes(), item => item.ClrType.Name == "WorkPlan");
@@ -218,7 +218,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
     {
         var scenario = await ResetAndSeedAsync(CanonicalRole.Direction);
         await using var context = CreateContext();
-        var request = await CreateService(context).CreateAsync(Command(scenario, Guid.CreateVersion7()));
+        var request = await SeedLegacyRequestAsync(context, scenario);
         var duplicateAuditId = Guid.CreateVersion7();
         context.AuditEvents.Add(new AuditEvent
         {
@@ -260,7 +260,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
         await Assert.ThrowsAsync<GenerationRequestNotFoundException>(() =>
             materializer.MaterializeAsync(new(Guid.CreateVersion7(), Guid.CreateVersion7())));
 
-        var request = await CreateService(context).CreateAsync(Command(scenario, Guid.CreateVersion7()));
+        var request = await SeedLegacyRequestAsync(context, scenario);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE generation_request SET result = {"RECHAZADA"} WHERE id = {request.GenerationRequestId}");
         context.ChangeTracker.Clear();
@@ -320,7 +320,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
         context.ChangeTracker.Clear();
 
         var requestId = Guid.CreateVersion7();
-        var service = CreateService(context, new SequenceUuidGenerator(requestId, duplicateAuditId));
+        var service = CreateService(context, new SequenceUuidGenerator(requestId, Guid.CreateVersion7(), duplicateAuditId, Guid.CreateVersion7()));
         await Assert.ThrowsAsync<DbUpdateException>(() =>
             service.CreateAsync(Command(scenario, Guid.CreateVersion7())));
 
@@ -346,7 +346,7 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
             var service = CreateService(invalidContext);
             await Assert.ThrowsAsync<GenerationRequestAccessDeniedException>(() =>
                 service.CreateAsync(Command(allowed, Guid.CreateVersion7()) with { BranchId = Guid.CreateVersion7() }));
-            await Assert.ThrowsAsync<GenerationRequestOriginInvalidException>(() =>
+            await Assert.ThrowsAsync<ManualGenerationException>(() =>
                 service.CreateAsync(Command(allowed, Guid.CreateVersion7(), originReference: " ")));
         }
 
@@ -468,6 +468,14 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
         context.EligibilityPolicyVersions.Add(eligibility);
         context.ActivationRuleVersions.Add(rule);
         context.WeekPeriods.Add(period);
+        var evidence = new EvidencePolicyVersion(Guid.CreateVersion7(), task.Id, taskVersionId, releaseId, null, 1);
+        evidence.ApplyPublished(Published(evidence.Id));
+        context.EvidencePolicyVersions.Add(evidence);
+        var approved = ValidationPolicyCatalog.Require(taskCode);
+        var validation = new ValidationPolicyVersion(Guid.CreateVersion7(), task.Id, taskVersionId, releaseId, null, 1,
+            true, approved.ExecutorRole, ValidationPolicyValues.ImmediateSuperior, approved.ValidatorRole, ValidationPolicyValues.AllowedResults);
+        validation.ApplyPublished(Published(validation.Id));
+        context.ValidationPolicyVersions.Add(validation);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
         return new Scenario(actor, ruleId, taskVersionId, period.Id, originType);
@@ -538,13 +546,13 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
 
     private static EfGenerationRequestService CreateService(
         SgolDbContext context,
-        IUuidGenerator? uuidGenerator = null)
+        IUuidGenerator? uuidGenerator = null, Microsoft.AspNetCore.DataProtection.IDataProtectionProvider? protection = null)
     {
         var clock = new FixedClock(Now);
         var generator = uuidGenerator ?? new Uuid7Generator(clock);
         var audit = new AuditTransaction(context);
         var hierarchy = new EfRoleAssignmentService(context, audit, clock, generator);
-        return new EfGenerationRequestService(context, audit, hierarchy, clock, generator);
+        return new EfGenerationRequestService(context, audit, hierarchy, clock, generator, protection);
     }
 
     private static EfWorkObligationMaterializer CreateMaterializer(
@@ -571,7 +579,16 @@ public sealed class GenerationRequestPersistenceTests : IAsyncLifetime
             BranchScope.LorettaId,
             scenario.PeriodId,
             originType ?? scenario.OriginType,
-            originReference);
+            originReference,
+            JsonSerializer.SerializeToElement(new
+            {
+                taskCode = "TAR-0007",
+                reservationReference = originReference,
+                merchandiseReference = "M-SYN",
+                startedAt = Now.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture),
+                expiresAt = Now.AddHours(24).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture),
+                sourceReference = "D-SYN"
+            }));
 
     private static VersionRecord Published(Guid id) => new(
         id,

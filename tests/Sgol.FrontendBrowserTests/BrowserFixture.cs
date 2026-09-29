@@ -25,7 +25,7 @@ namespace Sgol.FrontendBrowserTests;
 internal sealed record BrowserAccount(Guid UserId, Guid PersonId, string UserName, string Role,
     string TemporaryPassword, string NewPassword);
 
-internal sealed class BrowserFixture : IAsyncDisposable
+internal sealed partial class BrowserFixture : IAsyncDisposable
 {
     private static readonly string[] RejectedEnvironmentVariables =
         ["ConnectionStrings__Sgol", "DATABASE_URL", "PGHOST", "PGDATABASE", "PGUSER", "PGPASSWORD"];

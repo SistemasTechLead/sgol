@@ -240,7 +240,7 @@ internal sealed class Cv02ScenarioEngine(Cv02Database database)
                 BranchScope.LorettaId,
                 configuration.PeriodId,
                 ActivationOriginSchemas.ManualReference,
-                "CV02-MANUAL-CONFLICT"), cancellationToken));
+                "CV02-MANUAL-CONFLICT", Cv02Seed.ManualInput("TAR-0007", "CV02-MANUAL-CONFLICT")), cancellationToken));
         var snapshot = await new Cv02DemoReader(database).ReadAsync(cancellationToken);
         Require(snapshot.GenerationRequests == 1 && snapshot.Obligations == 1);
         return Facts(("solicitudes", "1"), ("obligaciones", "1"), ("reintento", "RECUPERADA"));

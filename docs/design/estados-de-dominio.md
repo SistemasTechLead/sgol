@@ -67,3 +67,9 @@ Para UI-C05, `INACTIVA_NUEVAS` se presenta como «Inactiva para nuevas generacio
 ```
 
 Los dos badges van uno junto al otro, nunca uno reemplaza al otro. Ver `componentes.md` para el marcado completo del componente badge.
+
+## UI-G01 — resultado confirmado y recuperación
+
+Aclaración consumidora aprobada durante FRONT-013. ACEPTADA y RECUPERADA se presentan sólo cuando el servidor las devuelve; recuperar conserva el ID y no significa otra creación. GET conserva el resultado persistido y no lo cambia a RECUPERADA porque la persona haya vuelto a consultar.
+
+Un rechazo HTTP no inventa una solicitud persistida RECHAZADA ni un ID. La interfaz comunica el intento rechazado con el mensaje aprobado. La presencia de obligationId confirmado permite mostrar el vínculo; su ausencia no se anuncia como obligación creada. Se conservan los badges, texto e iconos de «Solicitudes idempotentes»; no se agregan estados de dominio.

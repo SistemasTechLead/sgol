@@ -1,0 +1,187 @@
+@using Sgol.Generation.Contracts
+@using Sgol.Web.Pages.Planning
+@model IndexModel
+<section id="alta-manual" class="planificacion__seccion generacion-manual" aria-labelledby="manual-title" aria-busy="false">
+    <h2 id="manual-title">Alta manual</h2>
+    @if (Model.ManualError is not null)
+    {
+        <div id="manual-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.ManualError" /></div>
+    }
+    @if (Model.CanCreateManual)
+    {
+        @if (Model.ManualBranch is { } branch)
+        { <p>Sucursal: @branch.Code — @branch.Name</p> }
+        <div id="manual-catalog">
+            @if (Model.ManualOptions.Count == 0)
+            { <div class="estado-vacio" role="status"><p class="estado-vacio__titulo">No hay tareas disponibles para alta manual en tu alcance</p></div> }
+            <form method="get" action="/planificacion#alta-manual" class="planificacion__formulario" data-progress-form>
+                <input type="hidden" name="isoYear" value="@Model.IsoYear" /><input type="hidden" name="isoWeek" value="@Model.IsoWeek" />
+                <input type="hidden" name="from" value="@Model.From" /><input type="hidden" name="to" value="@Model.To" />
+                @if (Model.ManualOptions.Count > 0)
+                {
+                    <label class="campo" for="manual-task"><span class="campo__etiqueta">Tarea manual</span>
+                        <select id="manual-task" name="taskCode" class="campo__control campo__control--select" required>
+                            <option value="">Selecciona una tarea</option>
+                            @foreach (var option in Model.ManualOptions)
+                            { <option value="@option.TaskCode" selected="@(option.TaskCode == Model.ManualTaskCode)">@option.TaskCode — @option.Name</option> }
+                        </select></label>
+                }
+                <button class="boton boton--secundario" type="submit" data-progress-label="Consultando…">@(Model.ManualOptions.Count == 0 ? "Recargar opciones" : "Consultar formulario")</button>
+            </form>
+        </div>
+        @if (Model.ManualOption is { } selected && Model.PreparedManual is null && Model.ManualResult is null && !Model.ManualExpired)
+        {
+            <h3>@selected.TaskCode — @selected.Name</h3>
+            <p>Regla vigente: <span id="manual-rule">@selected.RuleVersionId</span>. Tipo de origen: @selected.OriginType.</p>
+            @if (Model.Week is { } week)
+            { <p>Período: semana @week.IsoWeek de @week.IsoYear, @week.StartsOn.ToString("dd/MM/yyyy") al @week.EndsOn.ToString("dd/MM/yyyy").</p> }
+            <p id="manual-reference-help">Registra la referencia del documento; SGOL no verifica su contenido.</p>
+            <p id="manual-time-help">Hora de Ciudad de México.</p>
+            @if (selected.TaskCode == "TAR-0007")
+            { <p>El plazo ordinario es de 24 horas. Otro plazo requiere referencia documental; esta solicitud no concede una prórroga.</p> }
+            @if (selected.TaskCode == "TAR-0011")
+            { <p>Declara una autorización externa previa. El plazo es de siete días laborables del calendario publicado.</p> }
+            @if (selected.TaskCode == "TAR-0093")
+            {
+                <form method="post" asp-page-handler="ReceiptSearch" asp-antiforgery="false" class="planificacion__formulario" data-progress-form>
+                    <partial name="_ManualFilters" model="Model" />
+                    <label class="campo" for="receipt-filter"><span class="campo__etiqueta">Buscar referencia exacta de recepción</span>
+                        <input id="receipt-filter" name="receiptFilter" value="@Model.ReceiptFilter" class="campo__control" maxlength="240" /></label>
+                    <button class="boton boton--secundario" type="submit" data-progress-label="Consultando…">Actualizar recepciones</button>
+                </form>
+                <div id="manual-receipts">
+                    @if (Model.ManualReceipts.Count == 0)
+                    { <div class="estado-vacio" role="status"><p class="estado-vacio__titulo">No hay recepciones disponibles para vincular</p></div> }
+                    @if (Model.NextReceiptCursor is not null)
+                    {
+                        <form method="post" asp-page-handler="ReceiptSearch" asp-antiforgery="false" data-progress-form>
+                            <partial name="_ManualFilters" model="Model" />
+                            <input type="hidden" name="receiptFilter" value="@Model.ReceiptFilter" /><input type="hidden" name="receiptCursor" value="@Model.NextReceiptCursor" />
+                            <button class="boton boton--secundario" type="submit">Más recepciones</button>
+                        </form>
+                    }
+                </div>
+            }
+            <form id="manual-form" method="post" asp-page-handler="PrepareManual" asp-antiforgery="false" class="planificacion__formulario" data-progress-form>
+                <partial name="_ManualFilters" model="Model" />
+                <input type="hidden" name="receiptFilter" value="@Model.ReceiptFilter" /><input type="hidden" name="receiptCursor" value="@Model.ReceiptCursor" />
+                @foreach (var field in ManualGenerationInput.Fields(selected.TaskCode))
+                {
+                    var invalid = Model.ManualInvalid(field);
+                    var id = "manual-" + field;
+                    var errorId = id + "-error";
+                    if (field == "claimantReferences")
+                    {
+                        <fieldset class="planificacion__seccion" aria-describedby="@errorId"><legend>Reclamantes</legend>
+                            <div id="manual-claimants" class="planificacion__seccion">
+                                @for (var index = 0; index < Model.ManualClaimants.Count; index++)
+                                {
+                                    <div data-claimant class="campo">
+                                        <label for="claimant-@index" class="campo__etiqueta">Reclamante @(index + 1)</label>
+                                        <input id="claimant-@index" name="claimantReferences" class="campo__control" value="@Model.ManualClaimants[index]" required maxlength="240" aria-invalid="@invalid.ToString().ToLowerInvariant()" aria-describedby="@errorId" />
+                                        <button type="button" class="boton boton--secundario" data-remove-claimant disabled="@(Model.ManualClaimants.Count <= 2)">Quitar reclamante @(index + 1)</button>
+                                    </div>
+                                }
+                            </div>
+                            <span id="@errorId" class="campo__mensaje-error" hidden="@(!invalid)">Revisa este campo</span>
+                            <button id="add-claimant" type="button" class="boton boton--secundario">Añadir reclamante</button>
+                        </fieldset>
+                        continue;
+                    }
+                    <label class="campo" for="@id"><span class="campo__etiqueta">@IndexModel.ManualLabel(field)</span>
+                        @if (field == "parentObligationId")
+                        {
+                            <select id="@id" name="@field" class="campo__control campo__control--select" required aria-invalid="@invalid.ToString().ToLowerInvariant()" aria-describedby="@errorId parent-period">
+                                <option value="">Selecciona una recepción</option>
+                                @foreach (var parent in Model.ManualReceipts)
+                                { <option value="@parent.ObligationId" data-period="@parent.PeriodId" selected="@(Model.ManualValue(field) == parent.ObligationId.ToString())">@parent.ReceiptReference — @parent.ObligationId</option> }
+                            </select>
+                            <span id="parent-period" aria-live="polite">El período se hereda de la recepción seleccionada.</span>
+                        }
+                        else if (field is "solutionType" or "incidentType")
+                        {
+                            var choices = field == "solutionType" ? new[] { "REPARACION", "CAMBIO" } : new[] { "DIFERENCIA", "DANO", "DIFERENCIA_Y_DANO" };
+                            <select id="@id" name="@field" class="campo__control campo__control--select" required aria-invalid="@invalid.ToString().ToLowerInvariant()" aria-describedby="@errorId">
+                                <option value="">Selecciona una opción</option>
+                                @foreach (var choice in choices) { <option value="@choice" selected="@(Model.ManualValue(field) == choice)">@choice</option> }
+                            </select>
+                        }
+                        else if (field == "description")
+                        { <textarea id="@id" name="@field" class="campo__control campo__control--textarea" required maxlength="1000" aria-invalid="@invalid.ToString().ToLowerInvariant()" aria-describedby="@errorId">@Model.ManualValue(field)</textarea> }
+                        else
+                        { <input id="@id" name="@field" class="campo__control" type="@(field.EndsWith("At", StringComparison.Ordinal) ? "datetime-local" : "text")" step="1" value="@Model.ManualValue(field)" required maxlength="240" aria-invalid="@invalid.ToString().ToLowerInvariant()" aria-describedby="@errorId @(field.EndsWith("At", StringComparison.Ordinal) ? "manual-time-help" : "manual-reference-help")" /> }
+                        <span id="@errorId" class="campo__mensaje-error" hidden="@(!invalid)">Revisa este campo</span>
+                    </label>
+                }
+                <button class="boton boton--primario" type="submit" disabled="@(Model.Week is null || selected.TaskCode == "TAR-0093" && Model.ManualReceipts.Count == 0)" data-progress-label="Revisando…">Revisar solicitud</button>
+            </form>
+        }        @if (Model.PreparedManual is { } prepared)
+        {
+            <div id="manual-prepared" class="planificacion__seccion">
+                <h3>Solicitud revisada — @ManualGenerationInput.TaskCode(prepared.InputPayload)</h3>
+                <p>Período: @prepared.PeriodId. Regla: @prepared.RuleVersionId.</p>
+                <dl>
+                    @foreach (var field in prepared.InputPayload.EnumerateObject().Where(p => p.Name != "taskCode"))
+                    {
+                        <dt>@IndexModel.ManualLabel(field.Name)</dt>
+                        <dd>@(field.Value.ValueKind == System.Text.Json.JsonValueKind.Array ? string.Join(", ", field.Value.EnumerateArray().Select(v => v.GetString())) : field.Value.GetString())</dd>
+                    }
+                </dl>
+                @if (Model.ManualResult is null && Model.ManualError is null)
+                {
+                    <button id="manual-open-confirm" type="button" class="boton boton--primario" data-dialog-open aria-controls="manual-confirm">Crear solicitud manual</button>
+                    <dialog id="manual-confirm" class="modal" aria-labelledby="manual-confirm-title" aria-describedby="manual-confirm-summary" data-manual-open="@Model.OpenManualConfirmation.ToString().ToLowerInvariant()">
+                        <form method="post" asp-page-handler="CreateManual" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                            <partial name="_ManualFilters" model="Model" />
+                            <input type="hidden" name="manualIntent" value="@Model.ManualIntentToken" />
+                        <input type="hidden" name="knownGenerationRequestId" value="@Model.ManualResult?.GenerationRequestId" />
+                            <h3 id="manual-confirm-title" class="modal__titulo">Crear solicitud manual</h3>
+                            <p id="manual-confirm-summary">@ManualGenerationInput.TaskCode(prepared.InputPayload), período @prepared.PeriodId. Origen: @prepared.OriginType.</p>
+                            <p>Se creará una obligación pendiente; aún no estará asignada ni publicada.</p>
+                            <div class="modal__acciones">
+                                <button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button>
+                                <button type="submit" class="boton boton--primario" data-progress-label="Enviando solicitud…">Crear solicitud</button>
+                            </div>
+                        </form>
+                    </dialog>
+                }
+                else if (Model.ManualIntentToken is not null && !Model.ManualExpired)
+                {
+                    <form method="post" asp-page-handler="CreateManual" asp-antiforgery="false" data-progress-form>
+                        <partial name="_ManualFilters" model="Model" />
+                        <input type="hidden" name="manualIntent" value="@Model.ManualIntentToken" />
+                        <input type="hidden" name="knownGenerationRequestId" value="@Model.ManualResult?.GenerationRequestId" />
+                        <button class="boton boton--secundario" type="submit" data-progress-label="Enviando solicitud…">Recuperar resultado</button>
+                    </form>
+                }
+                <a class="boton boton--secundario" href="/planificacion?isoYear=@Model.IsoYear&amp;isoWeek=@Model.IsoWeek&amp;from=@Model.From&amp;to=@Model.To&amp;taskCode=@Model.ManualTaskCode#alta-manual">Preparar otra solicitud</a>
+            </div>
+        }
+        @if (Model.ManualResult is { } result)
+        {
+            <div id="manual-result" class="planificacion__seccion" role="status" tabindex="-1">
+                <h3>@(result.Result == GenerationRequestResults.Recovered ? "Se recuperó la misma solicitud; no se creó otra" : result.Result == GenerationRequestResults.Accepted ? "Solicitud aceptada" : "No se pudo crear la solicitud")</h3>
+                <dl>
+                    <dt>Solicitud</dt><dd id="manual-result-id">@result.GenerationRequestId</dd>
+                    <dt>Obligación</dt><dd id="manual-obligation-id">@(result.ObligationId?.ToString() ?? "Solicitud histórica sin obligación vinculada")</dd>
+                    <dt>Tarea</dt><dd>@result.TaskCode</dd>
+                    <dt>Versión de tarea</dt><dd>@result.TaskDefinitionVersionId</dd>
+                    <dt>Regla</dt><dd>@result.RuleVersionId</dd>
+                    <dt>Período</dt><dd>@result.PeriodId</dd>
+                    <dt>Origen</dt><dd>@result.OriginReference</dd>
+                    <dt>Política de evidencia</dt><dd>@result.EvidencePolicyVersionId</dd>
+                    <dt>Política de validación</dt><dd>@result.ValidationPolicyVersionId</dd>
+                    <dt>Vencimiento</dt><dd>@(result.DueAt?.ToString("O") ?? "Sin plazo de alta")</dd>
+                </dl>
+                @if (result.InputPayload is { } stored)
+                {
+                    <dl>
+                        @foreach (var field in stored.EnumerateObject().Where(p => p.Name != "taskCode"))
+                        { <dt>@IndexModel.ManualLabel(field.Name)</dt><dd>@(field.Value.ValueKind == System.Text.Json.JsonValueKind.Array ? string.Join(", ", field.Value.EnumerateArray().Select(v => v.GetString())) : field.Value.GetString())</dd> }
+                    </dl>
+                }
+                <a class="boton boton--secundario" href="/planificacion?isoYear=@Model.IsoYear&amp;isoWeek=@Model.IsoWeek&amp;from=@Model.From&amp;to=@Model.To&amp;generationRequestId=@result.GenerationRequestId#alta-manual">Consultar resultado</a>
+            </div>
+        }
+    }
+</section>

@@ -183,7 +183,7 @@ internal static class IdempotencyProtocol
         await Task.Delay(TimeSpan.FromMilliseconds(baseDelayMs + Random.Shared.Next(0, 16)), cancellationToken);
     }
 
-    private static string Canonicalize(JsonNode? node) => node switch
+    internal static string Canonicalize(JsonNode? node) => node switch
     {
         null => "null",
         JsonObject value => "{" + string.Join(',', value

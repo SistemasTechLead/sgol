@@ -1,0 +1,6 @@
+@model Sgol.Web.Pages.Planning.IndexModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+<input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+<input type="hidden" name="isoYear" value="@Model.IsoYear" /><input type="hidden" name="isoWeek" value="@Model.IsoWeek" />
+<input type="hidden" name="from" value="@Model.From" /><input type="hidden" name="to" value="@Model.To" />
+<input type="hidden" name="taskCode" value="@Model.ManualTaskCode" />
