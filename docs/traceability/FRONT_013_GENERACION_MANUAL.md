@@ -105,7 +105,7 @@ Una corrida completa anterior fue interrumpida; no se contabiliza como aprobada.
 
 Capturas sintéticas sanitizadas fuera del checkout: `C:\Users\josej\.codex\worktrees\front-013\front-013-evidence`. Se enmascara todo el encabezado. Hay 70 capturas: 35 de escritorio y 35 móviles, reunidas en FRONT-013-pantallas.html y manifest.json. Cada captura verifica html/body y ancho PNG de 1440 escritorio o 390 móvil. Se esperan respuestas nuevas de POST/GET; DOMContentLoaded se registra antes del clic. No se guardan cookies, claves, CSRF, contraseñas, TOTP ni otra identidad de sesión.
 
-Cierre local: build, pruebas enfocadas, categoría de navegador con reproducciones documentadas, revisión visual, dimensiones PNG, formato y diff revisados. Diff funcional y documental de 53 archivos, sin diagnósticos temporales; checkout principal y sus tres cambios preexistentes conservados. Commit y push autorizados y ejecutados con SistemasTechLead, autor local confirmado sistemas@lorettazapateria.com, sin cambiar configuración global. Pipeline remoto pendiente de comprobar para la cabeza final del PR; no se presume verde. Merge no ejecutado, sujeto a la segunda autorización original. La cuenta activa original javierjose201648-cmyk debe restaurarse al terminar la publicación. No se ejecutó suite integral ni demo CV-02 integral, por alcance proporcional. No se presume que datos legacy de una base real sean compatibles: la guarda se acredita con datos sintéticos, sin inspeccionar ni reparar datos reales.
+Cierre local: build, pruebas enfocadas, categoría de navegador con reproducciones documentadas, revisión visual, dimensiones PNG, formato y diff revisados. Diff funcional y documental de 58 archivos, sin diagnósticos temporales; checkout principal y sus tres cambios preexistentes conservados. Commit y push autorizados y ejecutados con SistemasTechLead, autor local confirmado sistemas@lorettazapateria.com, sin cambiar configuración global. Pipeline remoto pendiente de comprobar para la cabeza final del PR; no se presume verde. Merge no ejecutado, sujeto a la segunda autorización original. La cuenta activa original javierjose201648-cmyk debe restaurarse al terminar la publicación. No se ejecutó suite integral ni demo CV-02 integral, por alcance proporcional. No se presume que datos legacy de una base real sean compatibles: la guarda se acredita con datos sintéticos, sin inspeccionar ni reparar datos reales.
 ## Primer pipeline y corrección enfocada
 
 El run remoto `36590513659`, cabeza `eac3912f834648a214d22cff19709772d6faf751`, falló en `PostgreSqlPersistenceTests.Migrations_CreateOnlyTheApprovedTables`: el inventario histórico omitía `20260929005540_AddManualGenerationSnapshots`. El log mostró arquitectura 58/58, unitarias 744/744 e integración PostgreSQL 257/258; el navegador y la demo integral posterior no se ejecutaron. El error de subida de artefactos CV-04 fue derivado de esa demo omitida, no una causa independiente.
@@ -120,3 +120,27 @@ git diff --check
 ```
 
 El nuevo commit exige un pipeline válido para su SHA final; el run fallido se conserva como evidencia histórica.
+## Segundo pipeline y referencias de esquema vigente
+
+El run `36592334394`, cabeza `57ba94041acd2086fa86b870fe64cd6ce9b7d428`, pasó unitarias 744/744, arquitectura 58/58, PostgreSQL 258/258 y **FRONT_BROWSER completo 21/21** (6 m 48 s). Falló después en la demo integral CV-04, antes de iniciar sus escenarios. No se descargaron ni abrieron artefactos ZIP.
+
+La reproducción local produjo `CV04_DATABASE_CONTRACT_FAILED` en POSTGRESQL: DemoContract.LatestMigration seguía apuntando a la migración anterior de autenticación. La búsqueda selectiva encontró la misma expectativa de esquema vigente en CV-05 y en el descriptor/gate HU-035. Una prueba enfocada nueva reprodujo las cuatro discrepancias antes de editar (0/4). Se actualizaron sólo cinco literales en cuatro archivos; no se tocaron referencias históricas que exigen la presencia de una migración anterior.
+
+Archivos adicionales: `tests/Sgol.Cv04Demo/DemoContract.cs`, `tests/Sgol.Cv05Demo/DemoContract.cs`, `scripts/operations/invoke-hu-035-amd64-gate.ps1`, `tests/Sgol.OperationsIntegrationTests/FunctionalRecoveryAmd64GateTests.cs` y `tests/Sgol.ArchitectureTests/MigrationConsumerInventoryTests.cs`. La prueba compara los consumidores de esquema vigente con la última migración fuente, para impedir que este inventario vuelva a quedar desfasado.
+
+Validación posterior: build Release 0 errores/advertencias; arquitectura afectada 8/8; contrato CV-04 6/6; contrato puro CV-05 5/5; consumidor HU-035 condicionado compilado con SGOL_HU035_AMD64_TESTS=true; formato dirigido y diff-check correctos. El primer filtro NoDockerContractTests en CV-05 no encontró casos y no se contabiliza; se ejecutó después Cv05PureContractTests, su clase real.
+
+Demo CV-04 real con Kestrel HTTPS y PostgreSQL: **PASSED**, dos ciclos, cero evidencias fallidas, cleanup PASSED, 65.824 segundos. Informes sanitizados en `.artifacts/cv04/latest` y fallo previo conservado en `previous-failure`, fuera del commit. No cambian producto, UI, confianza, tiempos ni fixture. No se repite navegador local por estos literales de inventario; se conserva el pase completo remoto del producto. CV-05 integral y HU-035 integral no se ejecutaron localmente: esta corrección verifica sus referencias y compilación; el gate HU-035 exige su ejecución nativa Linux AMD64 en CI.
+
+```powershell
+./scripts/demo/run-cv04.ps1 -Mode Automated
+dotnet build --no-restore --configuration Release
+dotnet test tests/Sgol.ArchitectureTests/Sgol.ArchitectureTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~MigrationConsumerInventoryTests|FullyQualifiedName~Cv04|FullyQualifiedName~Cv05|FullyQualifiedName~Hu035'
+dotnet build tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj --no-restore --configuration Release -p:SGOL_HU035_AMD64_TESTS=true -p:BuildProjectReferences=false
+dotnet test tests/Sgol.Cv04Demo/Sgol.Cv04Demo.csproj --no-build --configuration Release --filter 'FullyQualifiedName~NoDockerContractTests'
+dotnet test tests/Sgol.Cv05Demo/Sgol.Cv05Demo.csproj --no-build --configuration Release --filter 'FullyQualifiedName~Cv05PureContractTests'
+dotnet format --no-restore --verify-no-changes --include tests/Sgol.ArchitectureTests/MigrationConsumerInventoryTests.cs tests/Sgol.Cv04Demo/DemoContract.cs tests/Sgol.Cv05Demo/DemoContract.cs tests/Sgol.OperationsIntegrationTests/FunctionalRecoveryAmd64GateTests.cs
+git diff --check
+```
+
+El nuevo commit requiere su propio check completo verde. Los pases parciales del segundo run no se presentan como éxito global del pipeline.

@@ -21,7 +21,7 @@ internal static class DemoContract
     public const string ManifestBucket = "cv05-portable-backups";
     public const string DatabasePrefix = "sgol_cv05_";
     public const string LoopbackAddress = "127.0.0.1";
-    public const string LatestMigration = "20260918001719_AddHostedAuthentication";
+    public const string LatestMigration = "20260929005540_AddManualGenerationSnapshots";
 
     public static readonly IReadOnlyList<string> Phases =
     [
