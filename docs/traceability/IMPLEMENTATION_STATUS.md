@@ -4,6 +4,21 @@ Este archivo permite iniciar cada tarea de forma incremental. Registra evidencia
 
 Una sección preparada en una rama de pull request es una propuesta de base aceptada. Sólo adquiere eficacia como `Terminada` cuando el registro y el commit implementado están incorporados en `master`, el PR consta como merged, el check requerido pasó para ese commit, existe aceptación humana y `Fuentes/` permaneció protegida.
 
+## Propuesta — optimización del pipeline `TECH-BASE-003`
+
+| Campo | Valor |
+|---|---|
+| Alcance | Optimización técnica autorizada fuera de las historias funcionales; no cambia construcción de tareas, seguridad ni cierre formal |
+| Contrato | `F07_ADENDA_52_OPTIMIZACION_DEL_PIPELINE_TECH_BASE_003.md`; orden del responsable: «Vamos con la ejecucion entera del plan» |
+| Base y rama | `9518597dcb4e4d321a82285f31a3b4c22773b536`; `codex/optimize-pr-gates` |
+| Implementación | Servidor y navegador en runners separados después de controles; operaciones después de ambas suites; imagen/TECH-OPS/HU-035 en un mismo job AMD64; check final estable y cerrado ante fallo, cancelación, omisión o SHA distinto |
+| Conservación | 32 pasos originales y experimento manual verificados por inventario; scripts funcionales/operativos, pruebas funcionales, dependencias, `AGENTS.md`, documentos congelados y `Fuentes/` intactos |
+| Validación local | Consolidador 47 casos; inventario 32 pasos; 7 mutaciones rechazadas; sintaxis PowerShell, contrato TECH-OPS y diff-check PASS. Gates .NET locales no verificados por SDK exacto ausente; PostgreSQL local a cargo del desarrollador según instrucciones de la conversación |
+| Evidencia | `docs/traceability/TECH_BASE_003_PIPELINE_OPTIMIZATION.md`; tiempos base 25–27 minutos. Ahorro real pendiente del pipeline remoto; no se acredita todavía reducción |
+| Commit implementado | `commit que contiene esta actualización` |
+| PR y check | `PR que incorpora esta actualización`; `TECH-BASE-003 / PR gates` para su cabeza exacta, pendiente |
+| Estado | Propuesta de integración; aprobación humana y merge pendientes. No declara la tarea Terminada ni habilita dependencias |
+
 ## Integración documental — planificación y backlog frontend
 
 | Campo | Valor |

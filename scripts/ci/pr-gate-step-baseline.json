@@ -1,0 +1,166 @@
+{
+  "baselineCommit": "9518597dcb4e4d321a82285f31a3b4c22773b536",
+  "manualJobSha256": "0456716a46543f670d858ec59efa8a227a622374cae19fec8e8f9a5d6ec7dfb6",
+  "steps": [
+    {
+      "name": "Checkout without persistent credentials",
+      "sha256": "5bdfa5e59524329a78c9ad282e1c053f6fa1c50a27b24bdb0eb7f12edf014475",
+      "copies": 5
+    },
+    {
+      "name": "Protect Fuentes",
+      "sha256": "b0fa54e774cb34f10869a75ac52753641a413260c92e9a51d3a0fa645a830826",
+      "copies": 1
+    },
+    {
+      "name": "Require public repository for CV-05 artifact strategy",
+      "sha256": "1b31d66d9d1d4bcea93db426ca5e5712965883eecda6d6b759c75203415dd138",
+      "copies": 1
+    },
+    {
+      "name": "Test CV-05 required and optional inventory cases",
+      "sha256": "8bf96ae9f692af9a0b555a0016a60431c979b5e55c9e144b8645e3c8527320fc",
+      "copies": 1
+    },
+    {
+      "name": "Scan secrets with pinned Gitleaks",
+      "sha256": "765e312ef6bf3d8040b127efb70eb01053c7bb23e4d4fe07bd8288a8b6411c04",
+      "copies": 1
+    },
+    {
+      "name": "Validate portable operations contract",
+      "sha256": "66c152ea497e108b70a5d6d68334dfaf74f664ca4f5f6cf642a5b2d7e0dcf1d3",
+      "copies": 1
+    },
+    {
+      "name": "Set up the pinned .NET SDK",
+      "sha256": "a1f778d49702ba07e992eddef7a723648d38cfae61b9e549e362ebbc0da1a17c",
+      "copies": 3
+    },
+    {
+      "name": "Verify the .NET SDK version",
+      "sha256": "785a110f24834c67f21ff9e0df34d1b900a2bb60f40799ae8be866d0f6ee56a6",
+      "copies": 3
+    },
+    {
+      "name": "Restore locked dependencies",
+      "sha256": "267de471e8aa77ed860d49a63b41d08011a9250084ae6177e45a857cb9739e75",
+      "copies": 3
+    },
+    {
+      "name": "Build Release with static analysis",
+      "sha256": "9bba67674ebc89e2350545e347ab29b517235d521fee29fd2934bbc4d3c48647",
+      "copies": 3
+    },
+    {
+      "name": "Install browsers and Linux dependencies for TECH-FRONT-004 smoke",
+      "sha256": "d7b3dd16495d1802e29b963b0edbd522c3fc9bf40a545e1294ef238ae93f45f3",
+      "copies": 1
+    },
+    {
+      "name": "Run unit, architecture and PostgreSQL integration tests",
+      "sha256": "d1c581cc11ae25db004b2ac561dd8757512caf3320408b574dc3f1db2013cbe8",
+      "copies": 1
+    },
+    {
+      "name": "TECH-FRONT-004 / isolated browser smoke",
+      "sha256": "4f8b2f2e6e9b70f4b3975bead95267f763f382f3c33af0a9c09dc8b70c6f69ef",
+      "copies": 1
+    },
+    {
+      "name": "TECH-E2E-CV-04 / integral hosted demo",
+      "sha256": "84dcc840dde69ad0fc8cf42e3fbc72b9da9b9c030e42ce145a77e9e35cba4061",
+      "copies": 1
+    },
+    {
+      "name": "Preserve sanitized TECH-E2E-CV-04 evidence",
+      "sha256": "f66e8a3cb736fe29fa2adb19b2127363b9536e83e05a94ba489ea7dccd4c62d9",
+      "copies": 1
+    },
+    {
+      "name": "Publish sanitized CV-04 evidence in free run summary and log",
+      "sha256": "89b09e8b2494860c2afe3f0d45b1707534d1dfe03f7a8b617e780ea0d5eec90b",
+      "copies": 1
+    },
+    {
+      "name": "Verify formatting",
+      "sha256": "3cbb13ed9750eac16f06cca9f72da350c9bf5c6de16f7c7e767facf581cd24b5",
+      "copies": 1
+    },
+    {
+      "name": "Reject vulnerable direct or transitive packages",
+      "sha256": "3b8ef48b68d81fe4c785e54cbcff016c91fe7101e8c72eb0dcfeaae57b558435",
+      "copies": 1
+    },
+    {
+      "name": "Build immutable OCI image with SBOM and provenance",
+      "sha256": "1eb1690352b6ec42357063e14fc19c66809426b847a94c4c8c16bc4887baf914",
+      "copies": 1
+    },
+    {
+      "name": "Scan OCI image for high and critical vulnerabilities",
+      "sha256": "38535530a714e7f0c168ab1df74896ef8e5a56804dd130ab570873bdb5684e83",
+      "copies": 1
+    },
+    {
+      "name": "Run integral TECH-OPS gate on native AMD64",
+      "sha256": "b367f4cd8f1a612c216d7b1d50e9d399d09d9b91772596d329884fe76dc04648",
+      "copies": 1
+    },
+    {
+      "name": "Dispose private TECH-OPS resources before HU-035",
+      "sha256": "b0dc7b2c58fffa715abae97d420243480f024f6078a7051b5e6dd4d92456a686",
+      "copies": 1
+    },
+    {
+      "name": "Run focused replica stream probe on native AMD64",
+      "sha256": "cffdeb13198489665201234ae0ce13512bf27aff072c975c95b77cad00398e0b",
+      "copies": 1
+    },
+    {
+      "name": "Run integral HU-035 recovery gate on native AMD64",
+      "sha256": "dd4285dc3bf1dba53e7e1b8ef6ade8f2d73f8b7b3a463220f2e2908ef8b71561",
+      "copies": 1
+    },
+    {
+      "name": "Preserve non-secret OCI, TECH-OPS and HU-035 evidence",
+      "sha256": "641cc148e9e08336838bc5e11b473a5370cabcb88ca8c62fdcad6d6b4e2b5c3c",
+      "copies": 1
+    },
+    {
+      "name": "TECH-E2E-CV-05 / integral hosted demo",
+      "sha256": "2a68af7e6b0b8c726831cf9ef63886bf07839f09d164dfba54d3987cfc15c74c",
+      "copies": 1
+    },
+    {
+      "name": "Validate CV-05 original evidence and optional diagnostic inventory",
+      "sha256": "19e653be77ad395ab5ffeaac657302ab01d9f16286201af343da053f3dfdd03d",
+      "copies": 1
+    },
+    {
+      "name": "Preserve original CV-04 reports for CV-05",
+      "sha256": "5b8b529338b9dcdc8a8cadbca7f730851c833e31a293dad6f2d198d4e3db5016",
+      "copies": 1
+    },
+    {
+      "name": "Preserve original OCI and operations evidence for CV-05",
+      "sha256": "7d68a153920c32cad505f1a456d1a1d4efa1c28f79964613588b65228052c1c2",
+      "copies": 1
+    },
+    {
+      "name": "Preserve original CV-05 reports and inventory",
+      "sha256": "f5c4ad108950e5642c10e30ed95f568847d0bf3894bdef1d99e7aeacc4dc608e",
+      "copies": 1
+    },
+    {
+      "name": "Verify exact SHA, digest and 14-day retention of CV-05 artifacts",
+      "sha256": "c3063b88def2f5fb853db1cbd2ef2bd2be749e385c279eba53f5134f2e23d32c",
+      "copies": 1
+    },
+    {
+      "name": "Publish CV-04 operational digests in free run summary and log",
+      "sha256": "ba8a6ea4e0d1bfaa586ed1d2c5785ec02df5178eea305a7bf10f113464a1dad4",
+      "copies": 1
+    }
+  ]
+}

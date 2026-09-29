@@ -1,6 +1,24 @@
 # Pipeline de pull request para TECH-BASE-003
 
-El workflow `.github/workflows/pull-request.yml` se ejecuta exclusivamente para `pull_request`. No despliega, publica imágenes ni accede a staging o producción. El job usa `permissions: contents: read`, no conserva credenciales de checkout y no recibe secretos del repositorio. El checkout fija `github.event.pull_request.head.sha`; todas las pruebas, etiquetas OCI y evidencias corresponden al commit implementado, no al merge sintético expuesto como `GITHUB_SHA` por el evento.
+El workflow `.github/workflows/pull-request.yml` ejecuta los gates de aceptación para `pull_request`. También conserva un `workflow_dispatch` aislado para el experimento A/B de red HU-035, que no acredita aceptación. No despliega, publica imágenes en un registro ni accede a staging o producción. Los jobs usan `permissions: contents: read`; únicamente operaciones requiere además `actions: read` para verificar artifacts CV-05. No conservan credenciales de checkout ni reciben secretos del repositorio. Cada checkout de PR fija y verifica `github.event.pull_request.head.sha`; todas las pruebas, etiquetas OCI y evidencias corresponden al commit implementado, no al merge sintético expuesto como `GITHUB_SHA` por el evento.
+
+## Organización de los jobs
+
+La reorganización de `F07_ADENDA_52_OPTIMIZACION_DEL_PIPELINE_TECH_BASE_003.md` conserva todos los gates anteriores:
+
+| Job | Dependencias | Gates |
+|---|---|---|
+| `controls` | Evento PR | SHA exacto, Fuentes, Gitleaks, contrato portátil y pruebas puras del consolidador/inventario |
+| `server` | `controls` | SDK exacto, restore bloqueado, build Release, suite general con EICAR, formato y vulnerabilidades NuGet |
+| `browser` | `controls` | SDK exacto, restore bloqueado, build Release, instalación Chromium/WebKit y categoría `FRONT_BROWSER` completa |
+| `operations` | `controls`, `server`, `browser` | SDK exacto, restore bloqueado, build Release, CV-04, OCI/SBOM/procedencia, Trivy, TECH-OPS, cleanup, probe, HU-035 y condiciones originales de evidencia/CV-05 |
+| `verify` | Los cuatro anteriores; `always()` para PR | Check estable `TECH-BASE-003 / PR gates`; exige `success` y el SHA exacto en cada output |
+
+Servidor y navegador corren en runners separados para evitar la interferencia de redes Docker documentada en TECH-FRONT-004. Operaciones espera ambas suites: CV-04 conserva su secuencia contractual y TECH-OPS/HU-035 usan la imagen construida en ese mismo job AMD64. La evidencia CV-04/CV-05 permanece en operaciones; no se transfieren ejecutables ni credenciales entre jobs. Las restauraciones y compilaciones adicionales son el costo explícito de este aislamiento.
+
+La concurrencia por PR cancela cabezas sustituidas; la cabeza nueva debe ejecutar todos sus gates. No se agregan reintentos, filtros por rutas, cachés de resultados, condiciones que omitan pruebas ni excepciones de aceptación. El experimento manual conserva su concurrencia propia.
+
+`assert-pr-gate-results.ps1` rechaza fallo, cancelación, omisión, estado desconocido, jobs ausentes/adicionales y SHA ausente/distinto. `test-pr-gate-results.ps1` verifica esos casos sintéticos sin recursos externos. `test-pr-workflow.ps1` contrasta los 32 pasos originales con el inventario de hashes de `9518597dcb4e4d321a82285f31a3b4c22773b536`, incluida multiplicidad deliberada de checkout/SDK/restore/build, y comprueba dependencias, permisos, orden y preservación del experimento manual. Cambiar un gate requiere revisar explícitamente ese inventario; no actualizarlo automáticamente para ocultar una regresión.
 
 ## Gates
 
