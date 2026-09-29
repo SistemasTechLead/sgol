@@ -4,10 +4,10 @@
 
 | Campo | Valor |
 |---|---|
-| Estado | **APROBADA ÍNTEGRAMENTE; IMPLEMENTADA LOCALMENTE** |
+| Estado | **APROBADA ÍNTEGRAMENTE; PUBLICADA EN RAMA, PENDIENTE DE MERGE** |
 | Historia exclusiva | FRONT-013 / UI-G01; HU-014/HU-015 y CAT-001..008 |
 | Base comprobada | `e87c64c3713fe53f572a4d4f4d8c4088022bca4a`, PR #78 integrado |
-| Numeración | 51, siguiente a la Adenda 50 en esta base; comprobar disponibilidad antes de publicación |
+| Numeración | 51, siguiente a la Adenda 50; disponibilidad confirmada con master remoto en la base verificada antes de publicación |
 | Aprobación recibida | «Lo autorizo»: lectura y diseño de FRONT_013_PROPUESTA_CONSUMIDOR.md y preparación de esta adenda |
 | Aprobación íntegra | El usuario confirmó «Si la apruebo» para todas las decisiones de esta adenda; autoriza implementar FRONT-013, sin publicar ni integrar |
 | Protección | Sin cambios a F00–F07 congelados ni Fuentes; commit/push/PR autorizados posteriormente mediante «Si autorizo»; merge requiere segunda autorización |
