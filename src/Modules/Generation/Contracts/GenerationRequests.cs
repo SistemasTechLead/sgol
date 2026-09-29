@@ -94,7 +94,7 @@ public sealed class WorkObligation
         Guid generationRequestId,
         string originReference,
         Guid? evidencePolicyVersionId = null,
-        Guid? validationPolicyVersionId = null)
+        Guid? validationPolicyVersionId = null, ManualObligationSnapshot? manual = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(originReference);
 
@@ -106,6 +106,14 @@ public sealed class WorkObligation
         OriginReference = originReference;
         EvidencePolicyVersionId = evidencePolicyVersionId;
         ValidationPolicyVersionId = validationPolicyVersionId;
+        if (manual is not null)
+        {
+            ManualTaskCode = manual.TaskCode;
+            ManualOriginKey = manual.OriginKey;
+            ParentObligationId = manual.ParentObligationId;
+            InputPayload = manual.Payload;
+            DueAt = manual.DueAt;
+        }
         ExecutionStatus = WorkObligationStatuses.Pending;
         RowVersion = 1;
     }
@@ -118,6 +126,9 @@ public sealed class WorkObligation
     public string OriginReference { get; private init; } = null!;
     public Guid? EvidencePolicyVersionId { get; private init; }
     public Guid? ValidationPolicyVersionId { get; private init; }
+    public string? ManualTaskCode { get; private init; }
+    public string? ManualOriginKey { get; private init; }
+    public Guid? ParentObligationId { get; private init; }
     public System.Text.Json.JsonDocument? InputPayload { get; private init; }
     public DateTimeOffset? DueAt { get; private init; }
     public string ExecutionStatus { get; private set; } = null!;
@@ -181,7 +192,7 @@ public sealed record CreateGenerationRequestCommand(
     Guid BranchId,
     Guid PeriodId,
     string OriginType,
-    string OriginReference);
+    string OriginReference, System.Text.Json.JsonElement? InputPayload = null);
 
 public sealed record GenerationRequestDetails(
     Guid GenerationRequestId,
@@ -195,7 +206,14 @@ public sealed record GenerationRequestDetails(
     DateTimeOffset RequestedAt,
     Guid? ObligationId,
     string? ErrorCode,
-    [property: JsonIgnore] int ResponseCode = 201);
+    [property: JsonIgnore] int ResponseCode = 201,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? SchemaVersion = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TaskCode = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? TaskDefinitionVersionId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? EvidencePolicyVersionId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? ValidationPolicyVersionId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DueAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] System.Text.Json.JsonElement? InputPayload = null);
 
 public interface IGenerationRequestService
 {
@@ -225,3 +243,17 @@ public sealed class GenerationRequestConflictAuditException(Exception innerExcep
 public sealed class GenerationRequestValidationException(string message) : Exception(message);
 public sealed class GenerationRequestNotAcceptedException() : Exception("Only an accepted generation request can be materialized.");
 public sealed class GenerationRequestAlreadyMaterializedException() : Exception("The generation request already points to a different obligation.");
+
+public sealed record ManualObligationSnapshot(string TaskCode, string OriginKey, Guid? ParentObligationId,
+    System.Text.Json.JsonDocument Payload, DateTimeOffset? DueAt);
+public static class GenerationRequestSerialization
+{
+    private static readonly System.Text.Json.JsonSerializerOptions Options = new(System.Text.Json.JsonSerializerDefaults.Web);
+    public static System.Text.Json.JsonElement Snapshot(GenerationRequestDetails details)
+    {
+        var node = System.Text.Json.JsonSerializer.SerializeToNode(details,
+            Options)!;
+        if (details.SchemaVersion == 2 && details.DueAt is null) node["dueAt"] = null;
+        return System.Text.Json.JsonSerializer.SerializeToElement(node);
+    }
+}

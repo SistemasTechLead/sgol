@@ -10,6 +10,7 @@ internal static class GenerationAuthorizationQuery
     public static Task<string?> GetCreatorRoleAsync(
         SgolDbContext dbContext,
         Guid actorUserId,
+        DateTimeOffset now,
         CancellationToken cancellationToken) =>
         (
             from user in dbContext.AppUsers.AsNoTracking()
@@ -19,11 +20,11 @@ internal static class GenerationAuthorizationQuery
                 user.Status == BootstrapContract.ActiveAccountStatus &&
                 role.BranchId == BranchScope.LorettaId &&
                 role.Status == BootstrapContract.ActiveRoleStatus &&
-                role.ValidTo == null &&
+                role.ValidFrom <= now && role.ValidTo == null &&
                 role.RoleCode != CanonicalRole.SalesFloor &&
                 employment.BranchId == BranchScope.LorettaId &&
                 employment.Status == EmploymentStatus.Active &&
-                employment.ValidTo == null
+                employment.ValidFrom <= now && employment.ValidTo == null
             select role.RoleCode)
         .SingleOrDefaultAsync(cancellationToken);
 }

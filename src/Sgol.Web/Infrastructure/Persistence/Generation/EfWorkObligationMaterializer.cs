@@ -93,6 +93,20 @@ public sealed class EfWorkObligationMaterializer(
         return result;
     }
 
+    // The caller owns the transaction and writes both audit events and the terminal replay snapshot.
+    internal static async Task<WorkObligation> MaterializeManualInTransactionAsync(SgolDbContext context,
+        GenerationRequest request, Guid obligationId, Guid taskVersionId, Guid evidenceId, Guid validationId,
+        ManualObligationSnapshot snapshot, CancellationToken token)
+    {
+        if (context.Database.CurrentTransaction is null) throw new InvalidOperationException("A transaction is required.");
+        var obligation = new WorkObligation(obligationId, taskVersionId, request.BranchId, request.PeriodId,
+            request.Id, request.OriginReference, evidenceId, validationId, snapshot);
+        context.WorkObligations.Add(obligation);
+        await context.SaveChangesAsync(token);
+        request.LinkObligation(obligation.Id);
+        return obligation;
+    }
+
     private AuditEvent NewAuditEvent(
         MaterializeWorkObligationCommand command,
         WorkObligation obligation,

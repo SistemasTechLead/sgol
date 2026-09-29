@@ -19,6 +19,17 @@ public sealed class WorkObligationConfiguration : IEntityTypeConfiguration<WorkO
             table =>
             {
                 table.HasCheckConstraint(
+                    "CK_work_obligation_manual_snapshot",
+                    "(manual_task_code IS NULL AND manual_origin_key IS NULL AND parent_obligation_id IS NULL AND COALESCE(input_payload->>'schemaVersion', '') <> '2') OR " +
+                    "(manual_task_code IS NOT NULL AND manual_task_code IN ('TAR-0007','TAR-0008','TAR-0011','TAR-0018','TAR-0092','TAR-0093') " +
+                    "AND manual_origin_key IS NOT NULL AND manual_origin_key ~ '^[0-9a-f]{64}$' AND input_payload IS NOT NULL " +
+                    "AND COALESCE((input_payload->>'schemaVersion') = '2', false) " +
+                    "AND COALESCE(input_payload->'input'->>'taskCode' = manual_task_code, false) " +
+                    "AND COALESCE(jsonb_typeof(input_payload->'originIdentity') = 'array', false) " +
+                    "AND COALESCE(jsonb_typeof(input_payload->'calendarDayVersionIds') = 'array', false) " +
+                    "AND ((manual_task_code = 'TAR-0093' AND parent_obligation_id IS NOT NULL AND parent_obligation_id <> id) " +
+                    "OR (manual_task_code <> 'TAR-0093' AND parent_obligation_id IS NULL)))");
+                table.HasCheckConstraint(
                     "CK_work_obligation_execution_status",
                     "execution_status IN ('PENDIENTE','CONCLUIDA')");
                 table.HasCheckConstraint(
@@ -44,6 +55,16 @@ public sealed class WorkObligationConfiguration : IEntityTypeConfiguration<WorkO
         builder.Property(obligation => obligation.OriginReference).HasColumnName("origin_reference");
         builder.Property(obligation => obligation.EvidencePolicyVersionId).HasColumnName("evidence_policy_version_id");
         builder.Property(obligation => obligation.ValidationPolicyVersionId).HasColumnName("validation_policy_version_id");
+        builder.Property(obligation => obligation.ManualTaskCode).HasColumnName("manual_task_code").HasMaxLength(8);
+        builder.Property(obligation => obligation.ManualOriginKey).HasColumnName("manual_origin_key").HasMaxLength(64);
+        builder.Property(obligation => obligation.ParentObligationId).HasColumnName("parent_obligation_id");
+        builder.HasOne<WorkObligation>().WithMany().HasForeignKey(item => item.ParentObligationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(item => new { item.BranchId, item.ManualTaskCode, item.ManualOriginKey }, "ManualPermanent")
+            .IsUnique().HasDatabaseName("UX_work_obligation_manual_permanent")
+            .HasFilter("manual_task_code IN ('TAR-0007','TAR-0011','TAR-0018','TAR-0093')");
+        builder.HasIndex(item => new { item.BranchId, item.ManualTaskCode, item.ManualOriginKey }, "ManualActive")
+            .IsUnique().HasDatabaseName("UX_work_obligation_manual_active")
+            .HasFilter("manual_task_code IN ('TAR-0008','TAR-0092') AND execution_status = 'PENDIENTE'");
         builder.Property(obligation => obligation.InputPayload).HasColumnName("input_payload").HasColumnType("jsonb");
         builder.Property(obligation => obligation.DueAt).HasColumnName("due_at").HasColumnType("timestamp with time zone");
         builder.Property(obligation => obligation.ExecutionStatus).HasColumnName("execution_status").HasMaxLength(16);

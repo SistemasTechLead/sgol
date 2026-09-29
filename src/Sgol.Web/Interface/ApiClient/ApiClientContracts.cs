@@ -28,7 +28,7 @@ public sealed record ApiResponse<T>(
     string? ETag,
     bool Replayed,
     string? ErrorCode,
-    ProblemDetailsPresentation? Error)
+    ProblemDetailsPresentation? Error, IReadOnlyList<ApiFieldError>? FieldErrors = null)
 {
     public bool IsSuccess => Error is null;
     public override string ToString() => $"ApiResponse(Status={Status}, CorrelationId={CorrelationId})";
@@ -70,3 +70,5 @@ public sealed class ApiProtocolException : Exception
 {
     public ApiProtocolException() : base("La respuesta de la API no cumple el contrato esperado.") { }
 }
+
+public sealed record ApiFieldError(string Path, string Code);

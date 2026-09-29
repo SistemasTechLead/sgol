@@ -9,9 +9,65 @@ public static class GenerationRequestApiEndpoints
 {
     public static IEndpointRouteBuilder MapGenerationRequestApi(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/v1/generation-requests", HandlePostAsync);
+        endpoints.MapPost("/api/v1/generation-requests", ReadPostAsync);
+        endpoints.MapGet("/api/v1/generation-requests/options", HandleOptionsAsync);
+        endpoints.MapGet("/api/v1/generation-requests/receipt-origins", HandleReceiptOriginsAsync);
         endpoints.MapGet("/api/v1/generation-requests/{id:guid}", HandleGetAsync);
         return endpoints;
+    }
+
+    private static async Task<IResult> ReadPostAsync(HttpContext context, IGenerationRequestService service, CancellationToken token)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        const int limit = 32 * 1024;
+        if (context.Request.ContentLength > limit)
+            return Problem(context, 413, "GENERATION_REQUEST_DEMASIADO_GRANDE", "La solicitud excede el tamaño permitido");
+        using var buffer = new MemoryStream();
+        var bytes = new byte[4096];
+        int count;
+        while ((count = await context.Request.Body.ReadAsync(bytes, token)) != 0)
+        {
+            if (buffer.Length + count > limit)
+                return Problem(context, 413, "GENERATION_REQUEST_DEMASIADO_GRANDE", "La solicitud excede el tamaño permitido");
+            buffer.Write(bytes, 0, count);
+        }
+        try
+        {
+            using var json = JsonDocument.Parse(buffer.ToArray());
+            return await HandlePostAsync(json.RootElement, context, service, token);
+        }
+        catch (JsonException) { return Problem(context, 400, "GENERATION_REQUEST_INVALIDA", "El cuerpo no es JSON válido"); }
+    }
+
+    public static async Task<IResult> HandleOptionsAsync(HttpContext context, IManualGenerationReader reader, CancellationToken token)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        if (!TryGetActor(context, out var actor, out var denied)) return denied;
+        if (context.Request.Query.Count != 0) return Problem(context, 400, "CONSULTA_ORIGEN_INVALIDA", "La consulta no admite parámetros");
+        try
+        {
+            var items = await reader.GetOptionsAsync(actor, token);
+            return Results.Ok(new { data = items, meta = new { count = items.Count, correlationId = context.GetCorrelationId() } });
+        }
+        catch (Exception e) { return MapException(context, e); }
+    }
+
+    public static async Task<IResult> HandleReceiptOriginsAsync(HttpContext context, IManualGenerationReader reader, CancellationToken token)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        if (!TryGetActor(context, out var actor, out var denied)) return denied;
+        var query = context.Request.Query;
+        var size = 25;
+        if (query.Any(q => q.Key is not ("receiptReference" or "cursor" or "pageSize") || q.Value.Count != 1) ||
+            (query.TryGetValue("pageSize", out var rawSize) && !int.TryParse(rawSize, out size)))
+            return Problem(context, 400, "CONSULTA_ORIGEN_INVALIDA", "La consulta de recepciones no es válida");
+        try
+        {
+            var page = await reader.GetReceiptOriginsAsync(actor, query.TryGetValue("receiptReference", out var filter) ? filter.ToString() : null,
+                query.TryGetValue("cursor", out var cursor) ? cursor.ToString() : null, size, token);
+            return Results.Ok(new { data = page.Items, meta = new { count = page.Items.Count, nextCursor = page.NextCursor, correlationId = context.GetCorrelationId() } });
+        }
+        catch (Exception e) { return MapException(context, e); }
     }
 
     public static async Task<IResult> HandlePostAsync(
@@ -51,11 +107,11 @@ public static class GenerationRequestApiEndpoints
                     body.BranchId,
                     body.PeriodId,
                     body.OriginType,
-                    body.OriginReference),
+                    body.OriginReference, body.InputPayload),
                 cancellationToken);
             return result.ResponseCode == StatusCodes.Status201Created
-                ? Results.Created($"/api/v1/generation-requests/{result.GenerationRequestId}", Envelope(context, result))
-                : Results.Ok(Envelope(context, result));
+                ? Results.Created($"/api/v1/generation-requests/{result.GenerationRequestId}", Envelope(context, GenerationRequestSerialization.Snapshot(result)))
+                : Results.Ok(Envelope(context, GenerationRequestSerialization.Snapshot(result)));
         }
         catch (Exception exception)
         {
@@ -76,8 +132,9 @@ public static class GenerationRequestApiEndpoints
 
         try
         {
+            context.Response.Headers.CacheControl = "no-store";
             var result = await service.GetAsync(actorUserId, CorrelationId(context), id, cancellationToken);
-            return Results.Ok(Envelope(context, result));
+            return Results.Ok(Envelope(context, GenerationRequestSerialization.Snapshot(result)));
         }
         catch (Exception exception)
         {
@@ -94,6 +151,18 @@ public static class GenerationRequestApiEndpoints
         }
 
         var properties = request.EnumerateObject().ToArray();
+        if (properties.Select(p => p.Name).Distinct(StringComparer.Ordinal).Count() != properties.Length) return false;
+        if (request.TryGetProperty("schemaVersion", out var version))
+        {
+            string[] allowed = ["schemaVersion", "ruleVersionId", "branchId", "periodId", "originType", "inputPayload"];
+            if (properties.Length != 6 || properties.Any(p => !allowed.Contains(p.Name)) ||
+                version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var v) || v != 2 ||
+                !TryGuid(properties, "ruleVersionId", out var rule) || !TryGuid(properties, "branchId", out var branch) ||
+                !TryGuid(properties, "periodId", out var period) || !TryString(properties, "originType", out var origin) ||
+                !request.TryGetProperty("inputPayload", out var input) || input.ValueKind != JsonValueKind.Object) return false;
+            body = new(rule, branch, period, origin, string.Empty, input.Clone());
+            return true;
+        }
         if (properties.Length != 5 ||
             !TryGuid(properties, "ruleVersionId", out var ruleVersionId) ||
             !TryGuid(properties, "branchId", out var branchId) ||
@@ -129,6 +198,8 @@ public static class GenerationRequestApiEndpoints
 
     private static IResult MapException(HttpContext context, Exception exception) => exception switch
     {
+        ManualGenerationException manual => Results.Problem(statusCode: manual.Status, title: "No se pudo completar la solicitud",
+            extensions: new Dictionary<string, object?> { ["code"] = manual.Code, ["correlationId"] = context.GetCorrelationId(), ["fieldErrors"] = manual.FieldErrors }),
         GenerationRequestAccessDeniedException => Problem(
             context, 403, "ACCESO_DENEGADO", $"Se requiere {GenerationRequestAuthorization.Create} para el alcance solicitado"),
         GenerationRequestNotFoundException or GenerationRequestRuleNotFoundException => Problem(
@@ -155,7 +226,7 @@ public static class GenerationRequestApiEndpoints
         value = default;
         return TryFind(properties, name, out var property) &&
             property.ValueKind == JsonValueKind.String &&
-            Guid.TryParse(property.GetString(), out value);
+            Guid.TryParseExact(property.GetString(), "D", out value) && value != Guid.Empty;
     }
 
     private static bool TryString(JsonProperty[] properties, string name, out string value)
@@ -209,5 +280,5 @@ public static class GenerationRequestApiEndpoints
         Guid BranchId,
         Guid PeriodId,
         string OriginType,
-        string OriginReference);
+        string OriginReference, JsonElement? InputPayload = null);
 }

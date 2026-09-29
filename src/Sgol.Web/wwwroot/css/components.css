@@ -957,3 +957,11 @@ summary:focus-visible {
         min-width: var(--ancho-formulario);
     }
 }
+
+.generacion-manual { min-width: 0; overflow-wrap: anywhere; }
+.generacion-manual dl { margin: 0; }
+.generacion-manual dd { margin: 0 0 var(--espacio-16); }/* WebKit includes the native selected text in its label's scroll overflow even when the select fits. */
+.generacion-manual .campo:has(select) {
+    overflow: clip;
+    overflow-clip-margin: var(--espacio-4);
+}

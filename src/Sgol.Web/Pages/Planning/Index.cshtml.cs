@@ -11,8 +11,8 @@ using Sgol.Web.Presentation.ProblemDetails;
 namespace Sgol.Web.Pages.Planning;
 
 [IgnoreAntiforgeryToken] // The shared bridge validates Razor antiforgery before forwarding CSRF.
-public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
-    RazorAntiforgeryBridge antiforgery) : PageModel
+public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
+    RazorAntiforgeryBridge antiforgery, Microsoft.AspNetCore.DataProtection.IDataProtectionProvider protection, Microsoft.AspNetCore.Antiforgery.IAntiforgery formAntiforgery) : PageModel
 {
     private static readonly TimeZoneInfo MexicoCity = TimeZoneInfo.FindSystemTimeZoneById(CalendarContract.TimeZone);
 
@@ -38,10 +38,12 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
         ? $"\"{value.RowVersion.ToString(CultureInfo.InvariantCulture)}\"" : null;
 
     public async Task<IActionResult> OnGetAsync(string? isoYear, string? isoWeek,
-        string? from, string? to, string? day, Guid? releaseId, CancellationToken cancellationToken)
+        string? from, string? to, string? day, Guid? releaseId, string? taskCode, string? generationRequestId, CancellationToken cancellationToken)
     {
         NoStore();
         SetFilters(isoYear, isoWeek, from, to, day, releaseId);
+        ManualTaskCode = taskCode;
+        ManualResultQuery = generationRequestId;
         return await LoadAsync(cancellationToken);
     }
 
@@ -212,12 +214,14 @@ public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient a
                     }
                 }
             }
+            await LoadManualAsync(cancellationToken);
             return Page();
         }
         catch (ApiProtocolException)
         {
             Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             CalendarError ??= new("No se pudo cargar la planificación", "Vuelve a consultar más tarde.", null);
+            await LoadManualAsync(cancellationToken);
             return Page();
         }
     }

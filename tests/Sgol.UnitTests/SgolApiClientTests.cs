@@ -268,6 +268,20 @@ public sealed class SgolApiClientTests
         Assert.Throws<ObjectDisposedException>(() => response!.Content.ReadAsStringAsync().GetAwaiter().GetResult());
     }
 
+    [Fact]
+    public async Task NullFieldErrorFailsAsAProtocolErrorWithoutRenderingInternalContent()
+    {
+        var body = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            status = 422,
+            code = "ORIGEN_INVALIDO",
+            correlationId = Correlation,
+            fieldErrors = new object?[] { null }
+        });
+        using var handler = new StubHandler(_ => Json(HttpStatusCode.UnprocessableEntity, body, "application/problem+json"));
+        await Assert.ThrowsAsync<ApiProtocolException>(() => CreateClient(handler).SendAsync<Item>(
+            new(HttpMethod.Get, "/api/v1/generation-requests/options", ApiResponseShape.Collection)));
+    }
     private static SgolApiClient CreateClient(StubHandler handler)
     {
         var context = new DefaultHttpContext();

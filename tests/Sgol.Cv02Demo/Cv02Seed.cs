@@ -113,6 +113,17 @@ internal static class Cv02Seed
             context.TaskDefinitionVersions.Add(taskVersion);
             context.EligibilityPolicyVersions.Add(policy);
             context.ActivationRuleVersions.Add(rule);
+            if (activation.Mode == ActivationModes.Manual)
+            {
+                var evidence = new EvidencePolicyVersion(database.UuidGenerator.NewUuid(), task.Id, taskVersionId, releaseId, null, 1);
+                evidence.ApplyPublished(Published(evidence.Id));
+                context.EvidencePolicyVersions.Add(evidence);
+                var matrix = ValidationPolicyCatalog.Require(taskCode);
+                var validation = new ValidationPolicyVersion(database.UuidGenerator.NewUuid(), task.Id, taskVersionId, releaseId, null, 1,
+                    true, matrix.ExecutorRole, ValidationPolicyValues.ImmediateSuperior, matrix.ValidatorRole, ValidationPolicyValues.AllowedResults);
+                validation.ApplyPublished(Published(validation.Id));
+                context.ValidationPolicyVersions.Add(validation);
+            }
             taskVersions[taskCode] = taskVersionId;
             policyIds[taskCode] = policyId;
             ruleIds[taskCode] = ruleId;
@@ -175,11 +186,36 @@ internal static class Cv02Seed
             BranchScope.LorettaId,
             configuration.PeriodId,
             ActivationOriginSchemas.ManualReference,
-            origin), cancellationToken);
+            origin, ManualInput(taskCode, origin)), cancellationToken);
         var obligation = await materializer.MaterializeAsync(new MaterializeWorkObligationCommand(
             request.GenerationRequestId,
             database.UuidGenerator.NewUuid()), cancellationToken);
         return (request, obligation);
+    }
+
+    public static JsonElement ManualInput(string taskCode, string origin)
+    {
+        var instant = Cv02Timeline.ConfigurationNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        return taskCode switch
+        {
+            "TAR-0007" => JsonSerializer.SerializeToElement(new
+            {
+                taskCode,
+                reservationReference = origin,
+                merchandiseReference = "CV02-MERCANCIA",
+                startedAt = instant,
+                expiresAt = Cv02Timeline.ConfigurationNow.AddHours(24).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture),
+                sourceReference = "CV02-DOCUMENTO"
+            }),
+            "TAR-0008" => JsonSerializer.SerializeToElement(new
+            {
+                taskCode,
+                operationReference = origin,
+                detectedAt = instant,
+                claimantReferences = (string[])["CV02-A", "CV02-B"]
+            }),
+            _ => throw new InvalidOperationException("CV-02 only seeds its approved manual TARs.")
+        };
     }
 
     public static string Hash(string value) => Convert.ToHexStringLower(
