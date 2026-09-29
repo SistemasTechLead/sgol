@@ -18,15 +18,21 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
   IMPLEMENTATION_SHA: ${{ github.event.pull_request.head.sha }}
 
+# Superseded PR heads cannot provide acceptance evidence for the current head.
+concurrency:
+  group: pr-gates-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  verify:
+  controls:
     if: github.event_name == 'pull_request'
-    name: TECH-BASE-003 / PR gates
+    name: TECH-BASE-003 / source controls
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 10
     permissions:
       contents: read
-      actions: read
+    outputs:
+      validated_sha: ${{ steps.identity.outputs.validated_sha }}
 
     steps:
       - name: Checkout without persistent credentials
@@ -35,6 +41,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact implementation checkout
+        id: identity
+        shell: bash
+        run: |
+          test "$IMPLEMENTATION_SHA" != ''
+          test "$(git rev-parse HEAD)" = "$IMPLEMENTATION_SHA"
+          echo "validated_sha=$IMPLEMENTATION_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Protect Fuentes
         shell: pwsh
@@ -79,6 +93,100 @@ jobs:
         shell: pwsh
         run: ./scripts/ci/validate-tech-ops.ps1
 
+      - name: Test PR gate consolidation rejects incomplete acceptance
+        shell: pwsh
+        run: |
+          ./scripts/ci/test-pr-gate-results.ps1
+          ./scripts/ci/test-pr-workflow.ps1
+          ./scripts/ci/test-pr-workflow-mutations.ps1
+
+  server:
+    if: github.event_name == 'pull_request'
+    needs: controls
+    name: TECH-BASE-003 / server
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    outputs:
+      validated_sha: ${{ steps.identity.outputs.validated_sha }}
+
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact implementation checkout
+        id: identity
+        shell: bash
+        run: |
+          test "$IMPLEMENTATION_SHA" != ''
+          test "$(git rev-parse HEAD)" = "$IMPLEMENTATION_SHA"
+          echo "validated_sha=$IMPLEMENTATION_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up the pinned .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.400
+
+      - name: Verify the .NET SDK version
+        shell: bash
+        run: |
+          actual_version="$(dotnet --version)"
+          if [[ "$actual_version" != "10.0.400" ]]; then
+            echo "::error::Expected .NET SDK 10.0.400, found ${actual_version}."
+            exit 1
+          fi
+          echo "PASS: .NET SDK ${actual_version}."
+
+      - name: Restore locked dependencies
+        run: dotnet restore --locked-mode
+
+      - name: Build Release with static analysis
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run unit, architecture and PostgreSQL integration tests
+        env:
+          SGOL_EVIDENCE_EICAR_TESTS: "true"
+        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER'
+
+      - name: Verify formatting
+        run: dotnet format --verify-no-changes
+
+      - name: Reject vulnerable direct or transitive packages
+        shell: pwsh
+        run: ./scripts/ci/Assert-NoVulnerablePackages.ps1
+
+  browser:
+    if: github.event_name == 'pull_request'
+    needs: controls
+    name: TECH-BASE-003 / browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    outputs:
+      validated_sha: ${{ steps.identity.outputs.validated_sha }}
+
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact implementation checkout
+        id: identity
+        shell: bash
+        run: |
+          test "$IMPLEMENTATION_SHA" != ''
+          test "$(git rev-parse HEAD)" = "$IMPLEMENTATION_SHA"
+          echo "validated_sha=$IMPLEMENTATION_SHA" >> "$GITHUB_OUTPUT"
+
       - name: Set up the pinned .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -104,13 +212,57 @@ jobs:
         shell: pwsh
         run: ./tests/Sgol.FrontendBrowserTests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium webkit
 
-      - name: Run unit, architecture and PostgreSQL integration tests
-        env:
-          SGOL_EVIDENCE_EICAR_TESTS: "true"
-        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER'
-
       - name: TECH-FRONT-004 / isolated browser smoke
         run: dotnet test tests/Sgol.FrontendBrowserTests/Sgol.FrontendBrowserTests.csproj --no-build --configuration Release --filter 'Category=FRONT_BROWSER'
+
+  operations:
+    if: github.event_name == 'pull_request'
+    needs: [controls, server, browser]
+    name: TECH-BASE-003 / operations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      validated_sha: ${{ steps.identity.outputs.validated_sha }}
+
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact implementation checkout
+        id: identity
+        shell: bash
+        run: |
+          test "$IMPLEMENTATION_SHA" != ''
+          test "$(git rev-parse HEAD)" = "$IMPLEMENTATION_SHA"
+          echo "validated_sha=$IMPLEMENTATION_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up the pinned .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.400
+
+      - name: Verify the .NET SDK version
+        shell: bash
+        run: |
+          actual_version="$(dotnet --version)"
+          if [[ "$actual_version" != "10.0.400" ]]; then
+            echo "::error::Expected .NET SDK 10.0.400, found ${actual_version}."
+            exit 1
+          fi
+          echo "PASS: .NET SDK ${actual_version}."
+
+      - name: Restore locked dependencies
+        run: dotnet restore --locked-mode
+
+      - name: Build Release with static analysis
+        run: dotnet build --no-restore --configuration Release
 
       - name: TECH-E2E-CV-04 / integral hosted demo
         shell: pwsh
@@ -129,13 +281,6 @@ jobs:
         if: success() && github.event.pull_request.number == 58
         shell: pwsh
         run: ./scripts/ci/publish-cv04-evidence.ps1 -ReportDirectory .artifacts/cv04/latest -ExpectedSha $env:IMPLEMENTATION_SHA
-
-      - name: Verify formatting
-        run: dotnet format --verify-no-changes
-
-      - name: Reject vulnerable direct or transitive packages
-        shell: pwsh
-        run: ./scripts/ci/Assert-NoVulnerablePackages.ps1
 
       - name: Build immutable OCI image with SBOM and provenance
         shell: bash
@@ -339,6 +484,36 @@ jobs:
         if: success() && github.event.pull_request.number == 58
         shell: pwsh
         run: ./scripts/ci/publish-cv04-operational-digests.ps1 -RunnerTemp $env:RUNNER_TEMP -ExpectedSha $env:IMPLEMENTATION_SHA
+
+  verify:
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [controls, server, browser, operations]
+    name: TECH-BASE-003 / PR gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact implementation checkout
+        id: identity
+        shell: bash
+        run: |
+          test "$IMPLEMENTATION_SHA" != ''
+          test "$(git rev-parse HEAD)" = "$IMPLEMENTATION_SHA"
+          echo "validated_sha=$IMPLEMENTATION_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Require every gate to succeed for the exact implementation SHA
+        shell: pwsh
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: ./scripts/ci/assert-pr-gate-results.ps1 -ExpectedSha $env:IMPLEMENTATION_SHA -NeedsJson $env:NEEDS_JSON
 
   hu035-network-ab:
     if: github.event_name == 'workflow_dispatch'

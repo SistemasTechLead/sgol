@@ -18,7 +18,7 @@ public sealed class SdkPinArchitectureTests
         Assert.Equal("disable", sdk.GetProperty("rollForward").GetString());
 
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "pull-request.yml"));
-        Assert.Equal(2, CountOccurrences(workflow, $"dotnet-version: {expectedVersion}"));
+        Assert.Equal(4, CountOccurrences(workflow, $"dotnet-version: {expectedVersion}"));
         Assert.Contains($"actual_version=\"$(dotnet --version)\"", workflow, StringComparison.Ordinal);
         Assert.Contains($"[[ \"$actual_version\" != \"{expectedVersion}\" ]]", workflow, StringComparison.Ordinal);
         Assert.Contains($"test \"$(dotnet --version)\" = '{expectedVersion}'", workflow, StringComparison.Ordinal);
