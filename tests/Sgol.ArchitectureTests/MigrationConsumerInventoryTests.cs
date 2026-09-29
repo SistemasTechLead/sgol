@@ -5,6 +5,7 @@ namespace Sgol.ArchitectureTests;
 public sealed class MigrationConsumerInventoryTests
 {
     [Theory]
+    [InlineData("src/Sgol.Operations/FunctionalSnapshotReader.cs", "private const string ExpectedLatestMigration = ", 1)]
     [InlineData("tests/Sgol.Cv04Demo/DemoContract.cs", "public const string LatestMigration = ", 1)]
     [InlineData("tests/Sgol.Cv05Demo/DemoContract.cs", "public const string LatestMigration = ", 1)]
     [InlineData("scripts/operations/invoke-hu-035-amd64-gate.ps1", "$expectedMigration = ", 1)]

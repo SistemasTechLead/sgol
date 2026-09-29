@@ -105,7 +105,7 @@ Una corrida completa anterior fue interrumpida; no se contabiliza como aprobada.
 
 Capturas sintéticas sanitizadas fuera del checkout: `C:\Users\josej\.codex\worktrees\front-013\front-013-evidence`. Se enmascara todo el encabezado. Hay 70 capturas: 35 de escritorio y 35 móviles, reunidas en FRONT-013-pantallas.html y manifest.json. Cada captura verifica html/body y ancho PNG de 1440 escritorio o 390 móvil. Se esperan respuestas nuevas de POST/GET; DOMContentLoaded se registra antes del clic. No se guardan cookies, claves, CSRF, contraseñas, TOTP ni otra identidad de sesión.
 
-Cierre local: build, pruebas enfocadas, categoría de navegador con reproducciones documentadas, revisión visual, dimensiones PNG, formato y diff revisados. Diff funcional y documental de 58 archivos, sin diagnósticos temporales; checkout principal y sus tres cambios preexistentes conservados. Commit y push autorizados y ejecutados con SistemasTechLead, autor local confirmado sistemas@lorettazapateria.com, sin cambiar configuración global. Pipeline remoto pendiente de comprobar para la cabeza final del PR; no se presume verde. Merge no ejecutado, sujeto a la segunda autorización original. La cuenta activa original javierjose201648-cmyk debe restaurarse al terminar la publicación. No se ejecutó suite integral ni demo CV-02 integral, por alcance proporcional. No se presume que datos legacy de una base real sean compatibles: la guarda se acredita con datos sintéticos, sin inspeccionar ni reparar datos reales.
+Cierre local: build, pruebas enfocadas, categoría de navegador con reproducciones documentadas, revisión visual, dimensiones PNG, formato y diff revisados. Diff funcional y documental de 59 archivos, sin diagnósticos temporales; checkout principal y sus tres cambios preexistentes conservados. Commit y push autorizados y ejecutados con SistemasTechLead, autor local confirmado sistemas@lorettazapateria.com, sin cambiar configuración global. Pipeline remoto pendiente de comprobar para la cabeza final del PR; no se presume verde. Merge no ejecutado, sujeto a la segunda autorización original. La cuenta activa original javierjose201648-cmyk debe restaurarse al terminar la publicación. No se ejecutó suite integral ni demo CV-02 integral, por alcance proporcional. No se presume que datos legacy de una base real sean compatibles: la guarda se acredita con datos sintéticos, sin inspeccionar ni reparar datos reales.
 ## Primer pipeline y corrección enfocada
 
 El run remoto `36590513659`, cabeza `eac3912f834648a214d22cff19709772d6faf751`, falló en `PostgreSqlPersistenceTests.Migrations_CreateOnlyTheApprovedTables`: el inventario histórico omitía `20260929005540_AddManualGenerationSnapshots`. El log mostró arquitectura 58/58, unitarias 744/744 e integración PostgreSQL 257/258; el navegador y la demo integral posterior no se ejecutaron. El error de subida de artefactos CV-04 fue derivado de esa demo omitida, no una causa independiente.
@@ -144,3 +144,19 @@ git diff --check
 ```
 
 El nuevo commit requiere su propio check completo verde. Los pases parciales del segundo run no se presentan como éxito global del pipeline.
+## Tercer pipeline y lector de captura de recuperación
+
+El run `36597628107`, cabeza `e3cb2447e00c5f7ea81787c2b3be1f63c021b77c`, pasó arquitectura 62/62, unitarias 744/744, PostgreSQL 258/258, **FRONT_BROWSER completo 21/21** (7 m 47 s), CV-04 integral, formato, dependencias, imagen OCI, TECH-OPS y la prueba de réplica. Falló en la preparación de referencias de HU-035: JOB_STATUS=SUCCEEDED y RECONCILIATION_STATUS=FAILED. La desconexión previa de gh run watch fue sólo del observador; el resultado del run se consultó directamente. CV-05 integral no llegó a ejecutarse.
+
+La reproducción enfocada `Hu035PostgreSqlFixture` falló 1/1 con `REFERENCE_VERSION_UNSUPPORTED`: `src/Sgol.Operations/FunctionalSnapshotReader.cs` conservaba ExpectedLatestMigration de autenticación. Este consumidor de producción faltaba en la búsqueda anterior de tests/scripts. Se actualizó únicamente ese literal al esquema FRONT-013 y se añadió a `MigrationConsumerInventoryTests` (cinco consumidores). Se conserva ContractBaselineMigration: es una referencia histórica del contrato de captura, no la última migración exigida. La proyección existente serializa las columnas del registro y esta migración no introduce tablas nuevas.
+
+Validación posterior: build Release 0 errores/advertencias; inventario 5/5; contratos HU-035 y captura PostgreSQL real 8/8 (18 s), incluyendo el caso antes fallido; formato dirigido y diff-check correctos. No se cambió UI, fixture, certificados, confianza ni tiempos. La verificación nativa integral HU-035 queda pendiente del nuevo SHA remoto; no se atribuye éxito global a los pases parciales. Los tres runs fallidos se conservan como evidencia histórica.
+
+```powershell
+dotnet test tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj --no-restore --configuration Release -p:SGOL_HU035_AMD64_TESTS=true -p:BuildProjectReferences=false --filter 'Category=Hu035PostgreSqlFixture'
+dotnet build --no-restore --configuration Release
+dotnet test tests/Sgol.OperationsIntegrationTests/Sgol.OperationsIntegrationTests.csproj --no-restore --configuration Release -p:SGOL_HU035_AMD64_TESTS=true -p:BuildProjectReferences=false --filter 'Category=Hu035PostgreSqlFixture|Category=Hu035Contract'
+dotnet test tests/Sgol.ArchitectureTests/Sgol.ArchitectureTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~MigrationConsumerInventoryTests|FullyQualifiedName~Hu035'
+dotnet format --no-restore --verify-no-changes --include src/Sgol.Operations/FunctionalSnapshotReader.cs tests/Sgol.ArchitectureTests/MigrationConsumerInventoryTests.cs
+git diff --check
+```
