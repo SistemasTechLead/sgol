@@ -141,7 +141,8 @@ public sealed record ObligationPage(
 public sealed record ObligationDetailPage(
     ObligationDetail Detail,
     string? HistoryNextCursor,
-    DateTimeOffset QueriedAt);
+    DateTimeOffset QueriedAt,
+    long RowVersion);
 
 public sealed record ObligationListRequest(
     Guid ActorUserId,

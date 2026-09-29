@@ -65,9 +65,14 @@ public sealed class ObligationQueryPersistenceTests : IAsyncLifetime
         var ownDetail = await reader.GetAsync(new(
             scenario.Sales.UserId, scenario.SalesObligationId, null, 25));
         Assert.Equal(scenario.SalesObligationId, ownDetail.Detail.ObligationId);
+        var persistedVersion = await context.WorkObligations.AsNoTracking()
+            .Where(item => item.Id == scenario.SalesObligationId)
+            .Select(item => item.RowVersion).SingleAsync();
+        Assert.Equal(persistedVersion, ownDetail.RowVersion);
         var lowerDetail = await reader.GetAsync(new(
             scenario.Administration.UserId, scenario.SalesObligationId, null, 25));
         Assert.Equal(scenario.SalesObligationId, lowerDetail.Detail.ObligationId);
+        Assert.Equal(persistedVersion, lowerDetail.RowVersion);
 
         await Assert.ThrowsAsync<ObligationQueryNotFoundException>(() => reader.GetAsync(new(
             scenario.Sales.UserId, scenario.DirectionObligationId, null, 25)));

@@ -147,7 +147,7 @@ public static class RolePermissionProjection
             return [];
         }
 
-        var permissions = new List<string> { "PER-BANDEJA-PROPIA", "PER-OBLIGACION-PROPIA-VER", "PER-PLAN-VER" };
+        var permissions = new List<string> { "PER-BANDEJA-PROPIA", "PER-OBLIGACION-PROPIA-VER", "PER-PLAN-VER", "PER-TAREA-VER" };
         if (RoleHierarchy.GrantsSupervisionView(roleCode))
         {
             permissions.Add("PER-SUPERVISION-VER");
@@ -162,6 +162,7 @@ public static class RolePermissionProjection
         if (roleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination)
         {
             permissions.Add("PER-OBLIGACION-CREAR");
+            permissions.AddRange(["PER-ASIGNACION-EXPLICAR", "PER-CARGA-VER", "PER-ASIGNACION-CORREGIR"]);
         }
 
         if (roleCode == CanonicalRole.Direction)

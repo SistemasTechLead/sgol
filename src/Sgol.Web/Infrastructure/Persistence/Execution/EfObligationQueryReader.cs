@@ -144,7 +144,7 @@ public sealed class EfObligationQueryReader(
             history);
 
         await transaction.CommitAsync(cancellationToken);
-        return new ObligationDetailPage(detail, nextCursor, queriedAt);
+        return new ObligationDetailPage(detail, nextCursor, queriedAt, row.RowVersion);
     }
 
     public async Task<SupervisionPage> ReadSupervisionAsync(

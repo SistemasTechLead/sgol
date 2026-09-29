@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
 using Microsoft.Extensions.Primitives;
+using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
 using Sgol.Execution.Contracts;
 using Sgol.Generation.Contracts;
@@ -92,6 +93,7 @@ public static class ObligationQueryApiEndpoints
         try
         {
             var page = await reader.GetAsync(request!, cancellationToken);
+            context.Response.Headers.ETag = VersionEtag.Format(page.RowVersion);
             return Results.Ok(new
             {
                 data = page.Detail,
