@@ -284,8 +284,8 @@ public sealed partial class IndexModel
         CursorProtector(section).Protect(JsonSerializer.Serialize(new CursorTrail(cursorActor, filter, cursor, previous)));
     private string? PreviousCursor(string section, string filter, string?[] previous) => previous.Length == 1 && previous[0] is null
         ? null : ProtectCursor(section, filter, previous[^1], previous[..^1]);
-    public string NextHistoryHref => AssignmentHref(ProtectCursor("history", AssignmentQuery ?? "", NextAssignmentHistoryCursor, [..previousHistoryCursors, currentHistoryCursor]));
-    public string NextLoadHref => LoadsHref(ProtectCursor("loads", LoadPersonQuery ?? "", NextLoadCursor, [..previousLoadCursors, currentLoadCursor]));
+    public string NextHistoryHref => AssignmentHref(ProtectCursor("history", AssignmentQuery ?? "", NextAssignmentHistoryCursor, [.. previousHistoryCursors, currentHistoryCursor]));
+    public string NextLoadHref => LoadsHref(ProtectCursor("loads", LoadPersonQuery ?? "", NextLoadCursor, [.. previousLoadCursors, currentLoadCursor]));
     public string AssignmentHref(string? historyCursor = null) => "/planificacion?obligationId=" +
         Uri.EscapeDataString(AssignmentQuery ?? "") + (historyCursor is null ? "" : "&assignmentHistoryCursor=" + Uri.EscapeDataString(historyCursor)) + "#asignaciones";
     public string LoadsHref(string? cursor = null) => "/planificacion?loadPersonId=" + Uri.EscapeDataString(LoadPersonQuery ?? "") +
@@ -297,10 +297,14 @@ public sealed partial class IndexModel
     private static ProblemDetailsPresentation ReadFailure() => new("No se pudo completar la operación", "Vuelve a consultar más tarde.", null);
     public static string ExclusionText(string reason) => reason switch
     {
-        "PERSONA_INACTIVA" => "Persona inactiva", "EMPLEO_NO_VIGENTE" => "Sin empleo vigente",
-        "SUCURSAL_NO_COINCIDE" => "La sucursal no coincide", "ROL_ACTIVO_AUSENTE" => "Sin rol activo",
-        "ROL_REQUERIDO_NO_COINCIDE" => "El rol no coincide con el requerido", "DISPONIBILIDAD_AUSENTE" => "Sin disponibilidad registrada",
-        "DISPONIBILIDAD_NO_POSITIVA" => "No disponible para la fecha evaluada", "TURNO_NO_COINCIDE" => "El turno no coincide",
+        "PERSONA_INACTIVA" => "Persona inactiva",
+        "EMPLEO_NO_VIGENTE" => "Sin empleo vigente",
+        "SUCURSAL_NO_COINCIDE" => "La sucursal no coincide",
+        "ROL_ACTIVO_AUSENTE" => "Sin rol activo",
+        "ROL_REQUERIDO_NO_COINCIDE" => "El rol no coincide con el requerido",
+        "DISPONIBILIDAD_AUSENTE" => "Sin disponibilidad registrada",
+        "DISPONIBILIDAD_NO_POSITIVA" => "No disponible para la fecha evaluada",
+        "TURNO_NO_COINCIDE" => "El turno no coincide",
         _ => "Razón no reconocida"
     };
     public static string? CorrectionMessage(int status, string? code) => (status, code) switch

@@ -318,9 +318,15 @@ public sealed class Front014PresentationTests : IClassFixture<WebApplicationFact
     { ["obligationId"] = Obligation.ToString("D"), ["evaluationId"] = Evaluation.ToString("D"), ["etag"] = "\"7\"", ["newResponsiblePersonId"] = Candidate.ToString("D"), ["reason"] = reason };
     private static string Intent(IServiceProvider services, Guid? actor = null, DateTimeOffset? expires = null) =>
         services.GetRequiredService<IDataProtectionProvider>().CreateProtector("SGOL.FRONT-014.correction-intention.v1").Protect(
-            JsonSerializer.Serialize(new { Actor = actor ?? Actor, ObligationId = Obligation, Key = Guid.CreateVersion7(),
-                ExpiresAt = expires ?? DateTimeOffset.UtcNow.AddHours(1), Etag = "\"7\"",
-                Body = new IndexModel.CorrectionBody(Candidate, Evaluation, "Motivo sintético de corrección") }));
+            JsonSerializer.Serialize(new
+            {
+                Actor = actor ?? Actor,
+                ObligationId = Obligation,
+                Key = Guid.CreateVersion7(),
+                ExpiresAt = expires ?? DateTimeOffset.UtcNow.AddHours(1),
+                Etag = "\"7\"",
+                Body = new IndexModel.CorrectionBody(Candidate, Evaluation, "Motivo sintético de corrección")
+            }));
     private static DefaultHttpContext Context(IServiceProvider services, string query = "")
     {
         var context = new DefaultHttpContext { RequestServices = services };
