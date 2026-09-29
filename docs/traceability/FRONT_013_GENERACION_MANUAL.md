@@ -1,6 +1,36 @@
 # FRONT-013 — UI-G01 y generación manual
 
-## Estado
+## Estado reconciliado
+
+**Integrada** mediante [PR #79](https://github.com/SistemasTechLead/sgol/pull/79): cabeza `c2b20e85ecc85a665ffd3d53f2b2ee2e7aa4ea16`, merge `0ab7dd3e977a3ec061476f5075bde8a5897d6bbe`, check `TECH-BASE-003 / PR gates` `SUCCESS` en [run 36609761032](https://github.com/SistemasTechLead/sgol/actions/runs/36609761032). Fuente: evidencia existente del corte 2026-09-29 en `SGOL-continuidad/CONTEXTO_Y_ESTADO.md` del respaldo local; no es una nueva consulta remota ni una repetición del pipeline.
+
+Reconciliación documental del 2026-09-29: se comprobó con `git merge-base --is-ancestor` (salida 0) que el merge es ancestro del HEAD local `54c2a05d5b16284f80f8885038836235658b8e4a`, rama `codex/migration-continuity`, y que la cabeza del PR es ancestro del merge. Esta reconciliación se conserva mediante commit local autorizado, sin publicación. No inicia FRONT-014 ni declara terminada la migración.
+
+### Validaciones realizadas en la computadora nueva
+
+Son ejecuciones previas de esta migración, distintas de la evidencia de integración y de los resultados históricos siguientes. No se repitieron para esta corrección documental.
+
+| Comprobación local | Resultado | Fallidas / omitidas | Salida |
+|---|---|---|---|
+| Restore bloqueado | Correcto, una sola ejecución | No aplica | 0 |
+| Build Release | Correcto, 0 errores y 0 advertencias | No aplica | 0 |
+| Arquitectura de portabilidad CV-03 | 2/2 | 0 / 0 | 0 |
+| Unitarias enfocadas FRONT-013 | 95/95 | 0 / 0 | 0 |
+| Arquitectura afectada FRONT-013 | 16/16 | 0 / 0 | 0 |
+| GenerationRequestPersistenceTests | 30/30 | 0 / 0 | 0 |
+| Front013BrowserTests | 4/4 | 0 / 0 | 0 |
+
+SDK privado 10.0.400; pruebas Release sin build ni restore y con filtros no vacíos. PostgreSQL desechable, Kestrel local y datos sintéticos; no son datos reales restaurados. Informes externos en `C:/Users/siste/Dev/SGOL-Migracion-20260929/Informe-validacion-FRONT-013-20260929.md` e `Informe-navegador-FRONT-013-20260929.md` de esa misma carpeta. Build y CV-03 constan en las salidas de la conversación de migración, resumidas en `CONTINUIDAD_EQUIPO_NUEVO.md`; no se inventa un informe previo separado. Se conservaron 70 PNG sanitizados nuevos en `C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/front-013-evidence`. La comprobación posterior al navegador no dejó certificados/PFX, contenedores/volúmenes nuevos ni Kestrel pendientes.
+
+### Límite HTTPS y pendientes
+
+`tests/Sgol.FrontendBrowserTests/Front013BrowserTests.cs:117` contiene `IgnoreHTTPSErrors = true`, ya presente en el commit trasladado. El cliente HTTP auxiliar de `BrowserFixture.cs:172–173` compara la huella SHA-256 del certificado exacto. No se modificaron estas opciones. La autorización inicial del certificado temporal en CurrentUser/Root no autorizaba ignorar TLS; tras señalar esa contradicción, el usuario respondió «Autorizar el fixture existente sin cambios», exclusivamente para la corrida local sintética. Su aceptación posterior del aviso de Windows se refiere al certificado. No es una autorización general para futuras ejecuciones ni producción. **No se valida HTTPS de producción ni el rechazo de certificados inválidos por el navegador.**
+
+Según la declaración del responsable, SGOL se utilizó únicamente para pruebas y demostraciones y no se identifican datos operativos por recuperar. Restaurar datos no es un requisito identificado para continuar el desarrollo. Se conservan los 44 respaldos sin restaurar ni eliminar; 43 tienen procedencia desconocida. No se inspeccionó su contenido. caryabackend queda excluido. No se atribuyen todos los volúmenes a SGOL ni se declara cerrada toda la migración. Persisten el corte final de cambios del equipo anterior, la adaptación de herramientas/rutas y las autenticaciones. Los 44 volúmenes anónimos, seis bases SQLite y sesiones de Codex son respaldos conservados, no importaciones/restauraciones realizadas. No se repitieron suites integrales, pipelines ni pruebas aprobadas. La integración de FRONT-013 no equivale al cierre integral frontend o de la migración.
+
+### Registro histórico anterior a la integración
+
+Los apartados siguientes conservan los resultados y fallos tal como se registraron. Sus frases de publicación/check/merge pendientes describen su momento histórico; el estado vigente es el de arriba. Las instrucciones operativas antiguas, incluida la cuenta de publicación, no son órdenes actuales.
 
 Publicada en la rama remota `codex/front-013` el 2026-09-29, tras su implementación y validación local. Commit de implementación: `1ed660ce00dedbd3769c65509a81976a5da48518`. El PR que incorpora esta actualización identifica la publicación; el check requerido debe validar su cabeza final y el merge requiere segunda autorización. La Adenda 51 fue aprobada íntegramente mediante «Si la apruebo». BR-API06 se resuelve por ese contrato consumidor; su única mención previa en la fila 86 no acreditaba una resolución efectiva. La categoría completa se ejecutó y sus casos afectados pasaron en reproducción enfocada; la verificación final de FRONT-013 terminó 4/4. Se conserva el límite de no disponer de un pase único verde de toda la categoría. En el cierre local no había commit, push, PR ni merge. El 2026-09-29 el usuario autorizó commit local, push y PR mediante «Si autorizo»; el merge sigue pendiente de una segunda autorización específica.
 
