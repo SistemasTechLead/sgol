@@ -965,3 +965,6 @@ summary:focus-visible {
     overflow: clip;
     overflow-clip-margin: var(--espacio-4);
 }
+.asignaciones { min-width: 0; overflow-wrap: anywhere; }
+.asignaciones dl { margin: 0; }
+.asignaciones dd { margin: 0 0 var(--espacio-16); }

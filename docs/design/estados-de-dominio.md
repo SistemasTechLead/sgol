@@ -73,3 +73,7 @@ Los dos badges van uno junto al otro, nunca uno reemplaza al otro. Ver `componen
 Aclaración consumidora aprobada durante FRONT-013. ACEPTADA y RECUPERADA se presentan sólo cuando el servidor las devuelve; recuperar conserva el ID y no significa otra creación. GET conserva el resultado persistido y no lo cambia a RECUPERADA porque la persona haya vuelto a consultar.
 
 Un rechazo HTTP no inventa una solicitud persistida RECHAZADA ni un ID. La interfaz comunica el intento rechazado con el mensaje aprobado. La presencia de obligationId confirmado permite mostrar el vínculo; su ausencia no se anuncia como obligación creada. Se conservan los badges, texto e iconos de «Solicitudes idempotentes»; no se agregan estados de dominio.
+
+## UI-G02/G03/G04 — composición consumidora aprobada
+
+El responsable aprobó íntegramente las secciones 2–7 de `docs/traceability/FRONT_014_PROPUESTA_CONSUMIDOR.md` mediante «La apruebo» el 2026-09-29. Esas secciones se incorporan por referencia como contrato operativo específico de estas unidades, exclusivamente para FRONT-014. La composición vive en `/planificacion`, conserva el snapshot confirmado, carga recibida y confirmación motivada con intención protegida. No incorpora bandeja ni asignación automática. Se reutilizan BR-D04/D13, tokens y estados existentes; el servidor decide elegibilidad y autoridad.

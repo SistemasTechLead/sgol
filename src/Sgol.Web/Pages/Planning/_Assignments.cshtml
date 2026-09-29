@@ -1,0 +1,168 @@
+@model Sgol.Web.Pages.Planning.IndexModel
+@using Sgol.Web.Pages.Planning
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@if (Model.CanViewAssignments && Model.CanExplainAssignment || Model.AssignmentObligation is not null || Model.AssignmentError is not null || Model.CorrectionError is not null)
+{
+<section id="asignaciones" class="planificacion__seccion asignaciones" aria-labelledby="assignments-title" aria-busy="false">
+    <h2 id="assignments-title" tabindex="-1">Asignaciones</h2>
+    @if (Model.AssignmentError is not null) { <div id="assignment-error" tabindex="-1" data-assignment-error><partial name="_ProblemAlert" model="Model.AssignmentError" /></div> }
+    @if (Model.CanViewAssignments && Model.CanExplainAssignment)
+    {
+        <form method="get" action="/planificacion#asignaciones" class="planificacion__formulario" data-progress-form data-assignment-read="asignaciones">
+            <label class="campo" for="obligation-id"><span class="campo__etiqueta">Identificador de obligación</span>
+                <input id="obligation-id" name="obligationId" class="campo__control" value="@Model.AssignmentQuery" required aria-describedby="assignment-selection-help" /></label>
+            <p id="assignment-selection-help">Consultar muestra la evaluación confirmada; no vuelve a calcular elegibilidad.</p>
+            <button class="boton boton--secundario" type="submit" data-progress-label="Consultando asignación…">Consultar asignación</button>
+        </form>
+    }
+    <div hidden data-assignment-loading="asignaciones" role="status"><p>Consultando asignación…</p><div class="esqueleto" aria-hidden="true"></div></div>
+    @if (Model.AssignmentObligation is { } obligation)
+    {
+        <h3>@obligation.Task.TaskCode — @obligation.Task.Name</h3>
+        <dl><dt>Obligación</dt><dd>@obligation.ObligationId</dd><dt>Período</dt><dd>@obligation.Period.IsoYear / semana @obligation.Period.IsoWeek</dd>
+            <dt>Estado</dt><dd><span class="badge @(obligation.ExecutionStatus == "PENDIENTE" ? "badge--advertencia" : "badge--exito")"><span aria-hidden="true">◷</span>@(obligation.ExecutionStatus == "PENDIENTE" ? "Pendiente" : "Concluida")</span></dd>
+            <dt>Responsable vigente</dt><dd>@(obligation.CurrentAssignment is { } current ? current.Responsible.StableCode + " — " + current.Responsible.DisplayName : "Esta obligación no tiene asignación vigente")</dd></dl>
+        <a class="boton boton--secundario" href="@Model.AssignmentHref()">Recargar asignación</a>
+        <h3>Historia de asignaciones</h3>
+        var assignmentHistory = obligation.History.Where(e => e.Assignment is not null).ToArray();
+        @if (assignmentHistory.Length == 0) { <div class="estado-vacio" role="status"><p>No hay asignaciones en esta página de historia</p></div> }
+        else
+        {
+            <div class="tabla-contenedor"><table class="tabla"><caption>Asignaciones recibidas del servidor</caption><thead class="tabla__encabezado"><tr><th scope="col">Responsable</th><th scope="col">Estado y tipo</th><th scope="col">Instante</th><th scope="col">Historia</th></tr></thead><tbody>
+                @foreach (var entry in assignmentHistory)
+                {
+                    var assignment = entry.Assignment!;
+                    <tr class="tabla__fila"><td>@assignment.Responsible.StableCode — @assignment.Responsible.DisplayName</td>
+                        <td><span class="badge @(assignment.Status == "VIGENTE" ? "badge--exito" : "badge--info")"><span aria-hidden="true">◷</span>@(assignment.Status == "VIGENTE" ? "Vigente" : "Sustituida")</span> @(assignment.AssignmentType == "CORRECCION" ? "Corrección" : "Automática")</td>
+                        <td><time datetime="@entry.OccurredAt.ToString("O")">@IndexModel.AssignmentTime(entry.OccurredAt)</time></td>
+                        <td><details><summary>Consultar versión</summary><dl><dt>Asignación</dt><dd>@assignment.AssignmentId</dd><dt>Sustituye</dt><dd>@(assignment.SupersedesAssignmentId?.ToString() ?? "—")</dd><dt>Actor</dt><dd>@(entry.ActorUserId?.ToString() ?? "Sistema")</dd><dt>Motivo confirmado</dt><dd>@(entry.Reason ?? "—")</dd></dl></details></td></tr>
+                }
+            </tbody></table></div>
+        }
+        <nav class="paginacion" aria-label="Paginación de historia de asignaciones">
+            @if (Model.PreviousHistoryHref is { } previousHistory) { <a class="boton boton--secundario" href="@previousHistory">Anterior</a> }
+            else { <span aria-disabled="true">Anterior</span> }
+            @if (Model.NextAssignmentHistoryCursor is not null) { <a class="boton boton--secundario" href="@Model.NextHistoryHref">Siguiente</a> }
+            else { <span aria-disabled="true">Siguiente</span> }
+        </nav>
+        <p>Hora de Ciudad de México (America/Mexico_City).</p>
+        <h3>Elegibilidad confirmada</h3>
+        @if (Model.EligibilityError is not null) { <div tabindex="-1" data-assignment-error><partial name="_ProblemAlert" model="Model.EligibilityError" /></div> }
+        @if (Model.AssignmentEligibility is { } evaluation)
+        {
+            <dl><dt>Evaluación</dt><dd>@evaluation.EvaluationId</dd><dt>Fecha de elegibilidad</dt><dd>@evaluation.EligibilityDate.ToString("yyyy-MM-dd")</dd>
+                <dt>Origen de fecha</dt><dd>@(evaluation.EligibilityDateSource == "MANUAL_REQUEST" ? "Solicitud manual" : "Ocurrencia programada")</dd>
+                <dt>Evaluada</dt><dd>@IndexModel.AssignmentTime(evaluation.EvaluatedAt)</dd><dt>Política exacta</dt><dd>@evaluation.PolicyVersionId</dd>
+                <dt>Rol requerido</dt><dd>@(SessionPresentation.RoleName(evaluation.RequiredRole) ?? "No informado")</dd><dt>Turno requerido</dt><dd>@(evaluation.RequiredShift ?? "Sin restricción")</dd></dl>
+            <p role="status"><span aria-hidden="true">ⓘ</span> @(evaluation.Result == "CANDIDATOS_ELEGIBLES" ? "Hay candidatos elegibles" : "No hay candidatos elegibles en esta evaluación")</p>
+            @if (evaluation.WinnerPersonId is { } winner) { <p>Responsable elegido en la evaluación: @winner.</p> }
+            @if (evaluation.Candidates.Count == 0) { <div class="estado-vacio" role="status"><p>Esta evaluación no contiene candidatos</p></div> }
+            else
+            {
+                <div class="tabla-contenedor"><table class="tabla"><caption>Candidatos y razones recibidos</caption><thead class="tabla__encabezado"><tr><th scope="col">Código</th><th scope="col">Condición</th><th scope="col">Razones y entradas</th></tr></thead><tbody>
+                    @foreach (var candidate in evaluation.Candidates)
+                    {
+                        <tr class="tabla__fila"><td>@candidate.StableCode</td><td><span class="badge @(candidate.IsEligible ? "badge--exito" : "badge--advertencia")"><span aria-hidden="true">@(candidate.IsEligible ? "✓" : "⊘")</span>@(candidate.IsEligible ? "Elegible" : "Excluido")</span></td><td>
+                            <ul>@foreach (var reason in candidate.Reasons) { <li>@IndexModel.ExclusionText(reason)</li> }</ul>
+                            <details><summary>Consultar entradas de evaluación</summary><dl><dt>Empleo</dt><dd>@(candidate.EmploymentVersionId?.ToString() ?? "No informado")</dd><dt>Puesto</dt><dd>@(candidate.PositionText ?? "No informado")</dd>
+                                <dt>Turno</dt><dd>@(candidate.ShiftText ?? "No informado")</dd><dt>Rol</dt><dd>@(candidate.ActiveRoleCode is { } role ? SessionPresentation.RoleName(role) ?? "No informado" : "Sin rol activo")</dd>
+                                <dt>Versión de rol</dt><dd>@(candidate.RoleAssignmentVersionId?.ToString() ?? "No informado")</dd><dt>Disponibilidad</dt><dd>@(candidate.IsAvailable is null ? "Sin disponibilidad registrada" : candidate.IsAvailable.Value ? "Disponible" : "No disponible")</dd>
+                                <dt>Versión de disponibilidad</dt><dd>@(candidate.AvailabilityVersionId?.ToString() ?? "No informado")</dd><dt>Carga del snapshot</dt><dd>@(candidate.ActiveLoad?.ToString() ?? "No informado")</dd>
+                                <dt>Última asignación automática</dt><dd>@(candidate.LastAutoAssignmentAt is { } last ? IndexModel.AssignmentTime(last) : "No informado")</dd><dt>Orden recibido</dt><dd>@(candidate.Rank?.ToString() ?? "No informado")</dd></dl></details>
+                        </td></tr>
+                    }
+                </tbody></table></div>
+            }
+        }
+        @if (Model.CanCorrectAssignment || Model.CorrectionError is not null || Model.CorrectionResult is not null)
+        {
+            <h3>Corrección motivada</h3>
+            @if (Model.CorrectionError is not null) { <div id="correction-error" tabindex="-1" data-assignment-error><partial name="_ProblemAlert" model="Model.CorrectionError" /></div> }
+            @if (Model.CanPrepareCorrection)
+            {
+                <form method="post" asp-page-handler="PrepareCorrection" asp-antiforgery="false" class="planificacion__formulario" data-progress-form>
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                    <input type="hidden" name="obligationId" value="@obligation.ObligationId" /><input type="hidden" name="etag" value="@Model.AssignmentEtag" /><input type="hidden" name="evaluationId" value="@Model.AssignmentEligibility?.EvaluationId" />
+                    <label class="campo" for="new-responsible"><span class="campo__etiqueta">Nuevo responsable</span><select id="new-responsible" name="newResponsiblePersonId" class="campo__control campo__control--select" required>
+                        <option value="">Selecciona un responsable</option>@foreach (var candidate in Model.CorrectionCandidates) { <option value="@candidate.PersonId" selected="@(candidate.PersonId == Model.SelectedResponsible)">@candidate.StableCode</option> }</select></label>
+                    <label class="campo" for="correction-reason"><span class="campo__etiqueta">Motivo</span><textarea id="correction-reason" name="reason" class="campo__control campo__control--textarea" required aria-invalid="@(Model.CorrectionFieldError is null ? "false" : "true")" aria-describedby="correction-reason-help correction-reason-error">@Model.CorrectionReason</textarea></label>
+                    <p id="correction-reason-help">Escribe un motivo de 10 a 500 caracteres después de normalizar espacios.</p>
+                    <p id="correction-reason-error" class="campo__mensaje-error" hidden="@(Model.CorrectionFieldError is null)">@Model.CorrectionFieldError</p>
+                    <button type="submit" class="boton boton--primario" data-progress-label="Preparando corrección…">Preparar otra corrección</button>
+                </form>
+            }
+            else if (Model.PreparedCorrection is null && !Model.CorrectionConflict && Model.CanCorrectAssignment)
+            {
+                <div class="estado-vacio" role="status"><p>@(obligation.ExecutionStatus != "PENDIENTE" ? "Esta obligación no admite corrección" : obligation.CurrentAssignment is null ? "Esta obligación no tiene asignación vigente" : "No hay otro responsable elegible en esta evaluación")</p></div>
+            }
+            @if (Model.PreparedCorrection is { } prepared && Model.CanCorrectAssignment)
+            {
+                <p>Responsable seleccionado: @(Model.CorrectionCandidates.FirstOrDefault(c => c.PersonId == prepared.NewResponsiblePersonId)?.StableCode ?? prepared.NewResponsiblePersonId.ToString()). La intención preparada conserva sus datos.</p>
+                @if (Model.OpenCorrectionConfirmation)
+                {
+                    <button type="button" class="boton boton--primario" data-dialog-open aria-controls="correction-confirm">Revisar corrección</button>
+                    <dialog id="correction-confirm" class="modal" aria-labelledby="correction-confirm-title" aria-describedby="correction-confirm-summary" data-correction-prepared="true">
+                        <form method="post" asp-page-handler="CorrectAssignment" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="correctionIntent" value="@Model.CorrectionIntentToken" />
+                            <h3 id="correction-confirm-title">Corregir asignación</h3><p id="correction-confirm-summary">@obligation.Task.TaskCode, obligación @obligation.ObligationId. Responsable anterior: @obligation.CurrentAssignment?.Responsible.StableCode. Nuevo: @(Model.CorrectionCandidates.FirstOrDefault(c => c.PersonId == prepared.NewResponsiblePersonId)?.StableCode ?? prepared.NewResponsiblePersonId.ToString()). La asignación anterior quedará en historia; la obligación seguirá pendiente.</p>
+                            <label class="campo" for="confirmed-reason"><span class="campo__etiqueta">Motivo</span><textarea id="confirmed-reason" class="campo__control campo__control--textarea" readonly>@prepared.Reason</textarea></label>
+                            <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button><button type="submit" class="boton boton--primario" data-progress-label="Corrigiendo asignación…">Corregir asignación</button></div>
+                        </form>
+                    </dialog>
+                }
+                @if (Model.CorrectionUncertain && !Model.CorrectionConflict)
+                {
+                    <form method="post" asp-page-handler="CorrectAssignment" asp-antiforgery="false" data-progress-form>
+                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="correctionIntent" value="@Model.CorrectionIntentToken" />
+                        <button class="boton boton--secundario" type="submit" data-progress-label="Recuperando corrección…">Recuperar la misma corrección</button>
+                    </form>
+                }
+                <a class="boton boton--secundario" href="@Model.AssignmentHref()">Recargar asignación</a>
+            }
+            @if (Model.CorrectionResult is { } result)
+            {
+                <div id="correction-result" role="status"><p><span aria-hidden="true">@(result.Result == "RECUPERADA" ? "↻" : "✓")</span>@(result.Result == "RECUPERADA" ? "Se recuperó la misma corrección; no se creó otra asignación" : "Asignación corregida; la anterior permanece en historia")</p>
+                    <dl><dt>Asignación confirmada</dt><dd>@result.AssignmentId</dd><dt>Sustituida</dt><dd>@result.PreviousAssignmentId</dd><dt>Nuevo responsable</dt><dd>@result.NewResponsiblePersonId</dd><dt>Estado</dt><dd>Vigente — Corrección</dd><dt>Instante</dt><dd>@IndexModel.AssignmentTime(result.AssignedAt)</dd></dl></div>
+            }
+        }
+    }
+    else if (Model.AssignmentError is null) { <div class="estado-vacio" role="status"><p>Selecciona una obligación para consultar su asignación</p></div> }
+    @if (Model.CorrectionError is not null && Model.AssignmentObligation is null) { <div tabindex="-1" data-assignment-error><partial name="_ProblemAlert" model="Model.CorrectionError" /></div> }
+    @if (Model.CorrectionResult is { } confirmed && Model.AssignmentObligation is null)
+    { <p role="status"><span aria-hidden="true">ⓘ</span>@(confirmed.Result == "RECUPERADA" ? "Se recuperó la misma corrección; no se creó otra asignación" : "Asignación corregida; la anterior permanece en historia"). Asignación @confirmed.AssignmentId.</p> }
+</section>
+}
+@if (Model.CanViewLoads || Model.LoadError is not null)
+{
+<section id="carga-activa" class="planificacion__seccion asignaciones" aria-labelledby="loads-title" aria-busy="false">
+    <h2 id="loads-title">Carga activa</h2><p>La carga cuenta obligaciones pendientes con asignación vigente.</p>
+    @if (Model.LoadError is not null) { <div id="loads-error" tabindex="-1" data-assignment-error><partial name="_ProblemAlert" model="Model.LoadError" /></div> }
+    @if (Model.CanViewLoads)
+    {
+        <form method="get" action="/planificacion#carga-activa" class="planificacion__formulario" data-progress-form data-assignment-read="carga-activa">
+            <input type="hidden" name="obligationId" value="@Model.AssignmentQuery" />
+            <label class="campo" for="load-person"><span class="campo__etiqueta">Identificador de persona (opcional)</span><input id="load-person" name="loadPersonId" class="campo__control" value="@Model.LoadPersonQuery" aria-invalid="@(Model.LoadError is null ? "false" : "true")" aria-describedby="@(Model.LoadError is null ? null : "loads-error")" /></label>
+            <button type="submit" class="boton boton--secundario" data-progress-label="Consultando carga activa…">Recargar carga</button>
+        </form>
+        @if (!string.IsNullOrEmpty(Model.LoadPersonQuery)) { <a class="boton boton--secundario" href="/planificacion#carga-activa">Quitar filtro</a> }
+    }
+    <div hidden data-assignment-loading="carga-activa" role="status"><p>Consultando carga activa…</p><div class="esqueleto" aria-hidden="true"></div></div>
+    @if (Model.LoadError is null)
+    {
+        @if (Model.ActiveLoads.Count == 0) { <div class="estado-vacio" role="status"><p>No hay personas visibles para esta consulta</p></div> }
+        else
+        {
+            <div class="tabla-contenedor"><table class="tabla"><caption>Carga activa recibida del servidor</caption><thead class="tabla__encabezado"><tr><th scope="col">Código</th><th scope="col">Persona</th><th scope="col">Obligaciones pendientes asignadas</th><th scope="col">Calculada</th></tr></thead><tbody>
+                @foreach (var load in Model.ActiveLoads) { <tr class="tabla__fila"><td>@load.Person.StableCode</td><td>@load.Person.DisplayName</td><td>@load.ActiveLoad</td><td><time datetime="@load.CalculatedAt.ToString("O")">@IndexModel.AssignmentTime(load.CalculatedAt)</time></td></tr> }
+            </tbody></table></div>
+            <p>Hora de Ciudad de México (America/Mexico_City).</p>
+        }
+        <nav class="paginacion" aria-label="Paginación de carga activa">
+            @if (Model.PreviousLoadHref is { } previousLoad) { <a class="boton boton--secundario" href="@previousLoad">Anterior</a> }
+            else { <span aria-disabled="true">Anterior</span> }
+            @if (Model.NextLoadCursor is not null) { <a class="boton boton--secundario" href="@Model.NextLoadHref">Siguiente</a> }
+            else { <span aria-disabled="true">Siguiente</span> }
+        </nav>
+    }
+</section>
+}

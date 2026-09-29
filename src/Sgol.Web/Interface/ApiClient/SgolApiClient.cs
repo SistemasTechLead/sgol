@@ -110,7 +110,15 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
                     replayed |= data.ValueKind == JsonValueKind.Object && data.TryGetProperty("result", out var result) &&
                         result.ValueKind == JsonValueKind.String && result.GetString() == "RECUPERADA";
                     ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
-                    return new(status, value, null, correlation!, null, null, etag, replayed, null, null);
+                    string? historyCursor = null;
+                    if (meta.TryGetProperty("historyNextCursor", out var history) && history.ValueKind != JsonValueKind.Null)
+                    {
+                        if (history.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(history.GetString()))
+                            throw new ApiProtocolException();
+                        historyCursor = history.GetString();
+                    }
+                    return new(status, value, null, correlation!, null, null, etag, replayed, null, null,
+                        HistoryNextCursor: historyCursor);
                 }
                 if (data.ValueKind != JsonValueKind.Array || !meta.TryGetProperty("count", out var countElement) ||
                     countElement.ValueKind != JsonValueKind.Number ||

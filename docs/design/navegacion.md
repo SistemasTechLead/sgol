@@ -119,3 +119,7 @@ La selección GET admite sólo una TAR canónica allowlisted mediante taskCode; 
 «Recuperar resultado» reenvía sólo la intención original conservada tras decisión explícita; no crea otra. «Preparar otra solicitud» no envía automáticamente. Un GET de resultado debe terminar antes de presentar el estado siguiente; el valor anterior al submit no acredita la nueva respuesta. La aprobación es de composición: los esquemas CAT y cambios funcionales pendientes requieren el contrato de Adenda 51.
 
 La aprobación íntegra posterior «Si la apruebo» da eficacia a Adenda 51 y resuelve la limitación de aprobación parcial descrita arriba para UI-G01.
+
+## UI-G02/G03/G04 — composición consumidora aprobada
+
+El responsable aprobó íntegramente las secciones 2–7 de `docs/traceability/FRONT_014_PROPUESTA_CONSUMIDOR.md` mediante «La apruebo» el 2026-09-29. Esas secciones se incorporan por referencia como contrato operativo específico de estas unidades, exclusivamente para FRONT-014. La composición vive en `/planificacion`, conserva el snapshot confirmado, carga recibida y confirmación motivada con intención protegida. No incorpora bandeja ni asignación automática. Se reutilizan BR-D04/D13, tokens y estados existentes; el servidor decide elegibilidad y autoridad.

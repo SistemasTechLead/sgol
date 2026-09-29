@@ -6,18 +6,25 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
-$expectedRoot = 'C:\Users\loret\Documents\ChatGPT\SGOL'
-
-if (-not [StringComparer]::OrdinalIgnoreCase.Equals($repositoryRoot, $expectedRoot)) {
-    throw 'CV-03 demo must run from the canonical SGOL checkout.'
-}
 
 if ($repositoryRoot -match '(?i)\\OneDrive\\') {
     throw 'CV-03 demo refuses OneDrive paths.'
 }
 
+$requiredRootFiles = @('SGOL.slnx', 'F07_BACKLOG_DE_IMPLEMENTACION.md')
+$hasExpectedRootName = [StringComparer]::OrdinalIgnoreCase.Equals(
+    (Split-Path -Leaf $repositoryRoot),
+    'SGOL')
+$hasRequiredRootFiles = -not ($requiredRootFiles | Where-Object {
+        -not (Test-Path -LiteralPath (Join-Path $repositoryRoot $_) -PathType Leaf)
+    })
+
+if (-not $hasExpectedRootName -or -not $hasRequiredRootFiles) {
+    throw 'CV-03 demo must run from the canonical SGOL checkout.'
+}
+
 $resolvedGitRoot = (& rtk git -C $repositoryRoot rev-parse --show-toplevel).Trim().Replace('/', '\')
-if (-not [StringComparer]::OrdinalIgnoreCase.Equals($resolvedGitRoot, $expectedRoot)) {
+if (-not [StringComparer]::OrdinalIgnoreCase.Equals($resolvedGitRoot, $repositoryRoot)) {
     throw 'Git resolved a different worktree.'
 }
 

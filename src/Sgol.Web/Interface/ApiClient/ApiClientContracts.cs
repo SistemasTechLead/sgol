@@ -28,7 +28,8 @@ public sealed record ApiResponse<T>(
     string? ETag,
     bool Replayed,
     string? ErrorCode,
-    ProblemDetailsPresentation? Error, IReadOnlyList<ApiFieldError>? FieldErrors = null)
+    ProblemDetailsPresentation? Error, IReadOnlyList<ApiFieldError>? FieldErrors = null,
+    string? HistoryNextCursor = null)
 {
     public bool IsSuccess => Error is null;
     public override string ToString() => $"ApiResponse(Status={Status}, CorrelationId={CorrelationId})";

@@ -107,7 +107,7 @@ public sealed class ObligationQueryTests
             []);
         var reader = new RecordingReader
         {
-            DetailResult = new ObligationDetailPage(detail, null, QueriedAt),
+            DetailResult = new ObligationDetailPage(detail, null, QueriedAt, 1),
         };
 
         _ = await ObligationQueryApiEndpoints.HandleListAsync(
@@ -165,7 +165,7 @@ public sealed class ObligationQueryTests
             [history]);
         var reader = new RecordingReader
         {
-            DetailResult = new ObligationDetailPage(detail, "history-next", QueriedAt),
+            DetailResult = new ObligationDetailPage(detail, "history-next", QueriedAt, 7),
         };
         var context = AuthenticatedContext();
         context.Request.QueryString = new QueryString("?historyLimit=1");
@@ -178,6 +178,7 @@ public sealed class ObligationQueryTests
 
         Assert.Equal(200, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         Assert.Equal(1, reader.DetailRequest?.HistoryLimit);
+        Assert.Equal("\"7\"", context.Response.Headers.ETag.ToString());
         var json = JsonSerializer.Serialize(
             Assert.IsAssignableFrom<IValueHttpResult>(result).Value,
             JsonSerializerOptions.Web);
@@ -186,6 +187,7 @@ public sealed class ObligationQueryTests
         Assert.Contains("\"generationRequest\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("audit", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("payload", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("rowVersion", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -222,6 +224,28 @@ public sealed class ObligationQueryTests
 
         Assert.Equal(404, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
         AssertProblem(result, "OBLIGACION_NO_ENCONTRADA");
+    }
+
+    [Theory]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(404)]
+    public async Task Detail_DoesNotExposeEtagWhenReadingIsDenied(int status)
+    {
+        var reader = new RecordingReader
+        {
+            Exception = status == 403
+                ? new ObligationQueryAccessDeniedException()
+                : new ObligationQueryNotFoundException(),
+        };
+        var context = status == 401 ? new DefaultHttpContext() : AuthenticatedContext();
+
+        var result = await ObligationQueryApiEndpoints.HandleDetailAsync(
+            context, Guid.CreateVersion7().ToString("D"), reader, CancellationToken.None);
+
+        Assert.Equal(status, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.False(context.Response.Headers.ContainsKey("ETag"));
+        if (status == 401) Assert.Null(reader.DetailRequest);
     }
 
     private static ObligationListItem Item()

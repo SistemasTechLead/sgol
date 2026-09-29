@@ -47,6 +47,28 @@ public sealed class SgolApiClientTests
     }
 
     [Fact]
+    public async Task ObligationDetailPreservesHistoryCursorSeparatelyFromCollectionCursor()
+    {
+        using var handler = new StubHandler(_ => Json(HttpStatusCode.OK,
+            $"{{\"data\":{{\"id\":1}},\"meta\":{{\"historyNextCursor\":\"opaque-history\",\"correlationId\":\"{Correlation}\"}}}}"));
+        var result = await CreateClient(handler).SendAsync<Item>(new(HttpMethod.Get, "/api/v1/obligations/1", ApiResponseShape.Item));
+        Assert.Equal("opaque-history", result.HistoryNextCursor);
+        Assert.Null(result.NextCursor);
+    }
+
+    [Theory]
+    [InlineData("42")]
+    [InlineData("\"\"")]
+    [InlineData("[]")]
+    public async Task InvalidHistoryCursorDoesNotBecomeNavigation(string cursor)
+    {
+        using var handler = new StubHandler(_ => Json(HttpStatusCode.OK,
+            $"{{\"data\":{{\"id\":1}},\"meta\":{{\"historyNextCursor\":{cursor},\"correlationId\":\"{Correlation}\"}}}}"));
+        await Assert.ThrowsAsync<ApiProtocolException>(() => CreateClient(handler).SendAsync<Item>(
+            new(HttpMethod.Get, "/api/v1/obligations/1", ApiResponseShape.Item)));
+    }
+
+    [Fact]
     public async Task ETagIfMatchAndIntent_AreExplicitAndStable_AndReplayIsNotNewSuccess()
     {
         var requests = new List<(string? IfMatch, string? Key, string? Csrf)>();

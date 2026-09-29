@@ -10,6 +10,8 @@
         <h1 id="planning-title" class="encabezado-pagina__titulo">Planificación de LOR-001</h1>
         <p class="encabezado-pagina__descripcion">Fechas locales de America/Mexico_City y semanas ISO.</p>
         @if (Model.CanCreateManual) { <a href="#alta-manual" class="boton boton--secundario">Alta manual</a> }
+        @if (Model.CanViewAssignments && Model.CanExplainAssignment) { <a href="#asignaciones" class="boton boton--secundario">Asignaciones</a> }
+        @if (Model.CanViewLoads) { <a href="#carga-activa" class="boton boton--secundario">Carga activa</a> }
     </header>
 
     @if (Model.CanViewWeek)
@@ -161,9 +163,11 @@
         </section>
     }
     @if (Model.CanCreateManual || Model.ManualError is not null) { <partial name="_ManualGeneration" model="Model" /> }
+    <partial name="_Assignments" model="Model" />
 </section>
 @section Scripts {
     <script src="~/js/manual-generation.js" asp-append-version="true"></script>
+    <script src="~/js/assignments.js" asp-append-version="true"></script>
     @if (Model.WeekError is not null) { <script>document.getElementById('week-error')?.focus();</script> }
     else if (Model.CalendarError is not null) { <script>document.getElementById('calendar-error')?.focus();</script> }
     else if (Model.DraftError is not null) { <script>document.getElementById('draft-error')?.focus();</script> }

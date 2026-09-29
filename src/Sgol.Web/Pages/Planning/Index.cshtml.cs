@@ -44,6 +44,10 @@ public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApi
         SetFilters(isoYear, isoWeek, from, to, day, releaseId);
         ManualTaskCode = taskCode;
         ManualResultQuery = generationRequestId;
+        AssignmentQuery = Request.Query["obligationId"].ToString();
+        LoadPersonQuery = Request.Query["loadPersonId"].ToString();
+        LoadCursor = Request.Query["loadCursor"].ToString();
+        AssignmentHistoryCursor = Request.Query["assignmentHistoryCursor"].ToString();
         return await LoadAsync(cancellationToken);
     }
 
@@ -215,6 +219,7 @@ public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApi
                 }
             }
             await LoadManualAsync(cancellationToken);
+            if (!await LoadAssignmentsAsync(cancellationToken)) return Redirect("/acceso");
             return Page();
         }
         catch (ApiProtocolException)
@@ -222,6 +227,7 @@ public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApi
             Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             CalendarError ??= new("No se pudo cargar la planificación", "Vuelve a consultar más tarde.", null);
             await LoadManualAsync(cancellationToken);
+            if (!await LoadAssignmentsAsync(cancellationToken)) return Redirect("/acceso");
             return Page();
         }
     }

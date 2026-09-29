@@ -49,6 +49,12 @@ public sealed class Cv03DemoArchitectureTests
 
         Assert.Contains("tests\\Sgol.Cv03Demo\\Sgol.Cv03Demo.csproj", script, StringComparison.Ordinal);
         Assert.Contains("--mode $Mode", script, StringComparison.Ordinal);
+        Assert.Contains("Join-Path $PSScriptRoot '..\\..'", script, StringComparison.Ordinal);
+        Assert.Contains("CV-03 demo refuses OneDrive paths.", script, StringComparison.Ordinal);
+        Assert.Contains("$resolvedGitRoot, $repositoryRoot", script, StringComparison.Ordinal);
+        Assert.Contains("SGOL.slnx", script, StringComparison.Ordinal);
+        Assert.Contains("F07_BACKLOG_DE_IMPLEMENTACION.md", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("C:\\Users\\", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("docker ", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("playwright install", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("dotnet tool install", script, StringComparison.OrdinalIgnoreCase);
