@@ -51,6 +51,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
     private const string PortableDataProtectionMigrationId = "20260912213000_AddPortableDataProtectionKeyRing";
     private const string RecoveryReconciliationMigrationId = "20260914210503_AddRecoveryReconciliation";
     private const string HostedAuthenticationMigrationId = "20260918001719_AddHostedAuthentication";
+    private const string ManualGenerationMigrationId = "20260929005540_AddManualGenerationSnapshots";
     private readonly PostgreSqlContainer _postgres = CreateContainerForTests();
 
     public Task InitializeAsync() => _postgres.StartAsync();
@@ -105,6 +106,7 @@ public sealed class PostgreSqlPersistenceTests : IAsyncLifetime
                 PortableDataProtectionMigrationId,
                 RecoveryReconciliationMigrationId,
                 HostedAuthenticationMigrationId,
+                ManualGenerationMigrationId,
             ],
             appliedMigrations);
 
