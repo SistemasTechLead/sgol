@@ -1,5 +1,9 @@
 # Estado de implementación
 
+## Diseño renovado — adaptación de pantallas existentes
+
+2026-09-30. Plan completo `docs/traceability/DISENO_RENOVADO_PLAN_DE_IMPLEMENTACION.md` aprobado mediante «Si apruebo el plan completo». Único hito local: layout/variables/componentes y pantallas existentes por grupos; implementación en curso. Evidencia incremental en `docs/traceability/DISENO_RENOVADO_ADAPTACION.md`. Se acepta la referencia documental aprobada y la evidencia previa, incluida FRONT-016. FRONT-017..020 no iniciadas; sin autorización de publicación, merge ni despliegue. Los registros documentales e históricos siguientes conservan su contexto de cierre.
+
 ## Referencia de diseño renovado — incorporación documental local
 
 Fecha: 2026-09-30. El responsable aprobó «Apruebo las secciones y la adenda»: §§3–9 de `docs/design/PLAN_DISENO_RENOVADO.md` y `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md`. Resultado: **referencia documentada, aprobada e incorporada localmente**; entrada oficial `docs/design/referencia-renovada.md` y seis documentos operativos relacionados. La aceptación final del paquete se solicita al entregarlo. No hay diseño renovado implementado en pantallas productivas ni publicación/integración remota de este paquete.
