@@ -12,7 +12,7 @@
         _ => "Acceso",
     };
 }
-<section class="acceso" aria-labelledby="acceso-titulo">
+<section class="panel-seccion acceso" aria-labelledby="acceso-titulo">
     <header class="encabezado-pagina">
         <h1 id="acceso-titulo" class="encabezado-pagina__titulo">@ViewData["Title"]</h1>
     </header>
@@ -20,14 +20,18 @@
     @if (Model.ErrorTitle is not null)
     {
         <div class="alerta alerta--peligro" role="alert" tabindex="-1" id="acceso-error">
+            <span class="alerta__icono" aria-hidden="true">!</span>
+            <div class="alerta__contenido">
             <strong>@Model.ErrorTitle</strong>
             <p>@Model.ErrorMessage</p>
+            </div>
         </div>
     }
 
     @if (Model.NoticeMessage is not null)
     {
         <div class="alerta @(Model.NoticeConfirmed ? "alerta--exito" : "alerta--peligro")" role="status" tabindex="-1" id="access-notice">
+            <span class="alerta__icono" aria-hidden="true">@(Model.NoticeConfirmed ? "✓" : "!")</span>
             <strong>@Model.NoticeMessage</strong>
         </div>
     }

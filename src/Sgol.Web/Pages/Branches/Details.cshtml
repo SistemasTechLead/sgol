@@ -10,12 +10,14 @@
     <p class="encabezado-pagina__descripcion">Alcance operativo único del MVP de SGOL.</p>
 </header>
 
+<div class="panel-seccion">
 @if (Model.Error is not null)
 {
     <partial name="_ProblemAlert" model="Model.Error" />
 }
 else if (Model.IsLoading)
 {
+    <div class="tabla-contenedor">
     <table class="tabla">
         <caption>Sucursal reconocida</caption>
         <thead class="tabla__encabezado">
@@ -25,6 +27,7 @@ else if (Model.IsLoading)
             <tr class="tabla__fila-esqueleto"><td colspan="4"><span class="esqueleto"></span></td></tr>
         </tbody>
     </table>
+    </div>
 }
 else if (Model.Branch is not null)
 {
@@ -54,3 +57,4 @@ else if (Model.EmptyState is not null)
 {
     <partial name="_EmptyState" model="Model.EmptyState" />
 }
+</div>

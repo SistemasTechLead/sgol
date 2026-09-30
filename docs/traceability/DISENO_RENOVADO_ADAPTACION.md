@@ -9,7 +9,7 @@ Estado: implementación en curso, local. Sin autorización de publicación, merg
 | Grupo | Referencia documentada | Diseño implementado / validación |
 |---|---|---|
 | Base compartida | Aprobada | Implementada localmente; build Release 0 errores/advertencias, arquitectura de diseño 9/9, render/sesión 33/33; revisión visual transversal pendiente del cierre del hito |
-| Acceso, entrada y sucursal | Aprobada | Pendiente |
+| Acceso, entrada y sucursal | Aprobada | Código adaptado; build Release PASS; validación visual enfocada en curso |
 | Personas y accesos | Aprobada | Pendiente |
 | Configuración | Aprobada | Pendiente |
 | Fechas y alta manual | Aprobada | Pendiente |

@@ -47,7 +47,8 @@ a {
 
 a:focus-visible,
 button:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+[tabindex="-1"]:focus-visible {
     outline: var(--grosor-foco) solid var(--color-acento);
     outline-offset: var(--desfase-foco);
 }
@@ -1022,7 +1023,8 @@ summary:focus-visible {
     font: var(--tipografia-media);
 }
 
-.panel-seccion .tabla-filtros {
+.panel-seccion .tabla-filtros,
+.panel-seccion form[method="get"].planificacion__formulario {
     padding: var(--espacio-16) var(--espacio-24);
     margin-block: var(--espacio-16);
     background: var(--color-superficie-elevada);
@@ -1089,6 +1091,28 @@ summary:focus-visible {
     margin-inline: auto;
 }
 
+.planificacion {
+    gap: var(--espacio-24);
+}
+
+.planificacion > .panel-seccion {
+    margin-block: 0;
+}
+
+.panel-seccion dl {
+    overflow-wrap: anywhere;
+}
+
+.panel-seccion dt {
+    color: var(--color-texto-secundario);
+    font: var(--tipografia-pequena);
+}
+
+.panel-seccion dd {
+    margin-inline-start: 0;
+    margin-block-end: var(--espacio-16);
+}
+
 .campo,
 .campo-credencial,
 .alerta__contenido,
@@ -1106,6 +1130,15 @@ a:not(.boton):not(.navegacion-lateral__item):not(.paginacion__boton) {
     text-underline-offset: var(--desfase-foco);
 }
 
+.contenido-principal a:not(.boton):not(.paginacion__boton),
+.contenido-principal summary {
+    display: inline-flex;
+    align-items: center;
+    min-width: var(--alto-control-minimo);
+    min-height: var(--alto-control-minimo);
+    padding: var(--espacio-4);
+}
+
 @media (max-width: 48rem) {
     .encabezado-pagina__titulo {
         font: var(--tipografia-titulo-compacto);
@@ -1116,6 +1149,7 @@ a:not(.boton):not(.navegacion-lateral__item):not(.paginacion__boton) {
     }
 
     .panel-seccion .tabla-filtros,
+    .panel-seccion form[method="get"].planificacion__formulario,
     .tabla__fila td:has(.badge),
     .tabla__fila td:has(.tabla__acciones) {
         padding: var(--espacio-12);
