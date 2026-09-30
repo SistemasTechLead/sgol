@@ -1,5 +1,15 @@
 # estados-y-mensajes.md — SGOL / Loretta Zapatería
 
+## Referencia renovada — conservación y precedencia aprobadas
+
+[Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) incorpora la renovación de presentación descrita en [componentes.md](componentes.md) y [referencia-renovada.md](referencia-renovada.md). Conserva literalmente los catálogos consumidores y sus consecuencias; no añade textos funcionales por copiar la maqueta.
+
+Error y vacío son obligatorios en cada pantalla. El vacío distingue ausencia de datos, filtros sin coincidencias e historia sin registros según su catálogo, con icono/texto y sólo acción autorizada. Se presenta dentro del panel compartido, sin simular un resultado. Un error usa alerta con par semántico, texto, icono, radio y padding por variables; resumen enfocable y asociación al campo se conservan. Éxito usa `role="status"`, nunca presupone una operación nueva ante replay ni archivo vinculado durante escaneo.
+
+Carga usa `aria-busy` regional y mensajes aprobados. Tabla reserva filas con esqueleto; una operación puntual usa progreso en su botón. `prefers-reduced-motion` elimina animación y conserva información textual. Los seis estados y sus «No aplica» por componente son los de componentes.md.
+
+**Precedencia:** el catálogo común aprobado de TECH-FRONT-002 y los catálogos consumidores prevalecen sobre ejemplos genéricos antiguos de Problem Details, traceId/consola o acciones de conflicto. No se renderizan `title`, `detail`, `instance`, `errors` ni respuestas crudas por arrastre; desconocidos usan mensaje seguro y `correlationId` cuando existe. Los ejemplos no autorizan «Ver qué cambió», borrado, reenvío automático ni una acción ajena al contrato. La conservación de ejemplos históricos no los convierte en mensajes operativos nuevos.
+
 ## UI-E01/E02/E03 — BR-M10 aprobada para FRONT-016
 
 El catálogo completo de §6 de `docs/traceability/FRONT_016_PLAN_DE_IMPLEMENTACION.md` queda incorporado por Adenda 54, aprobado mediante «Bueno sigue con la tarea, apruebo la adenda integramente». Distingue vacío propio, filtro sin coincidencias, avisos e historia, errores de filtros, denegación base y 404 convergente. MARKED_READ dice «Aviso marcado como leído. La tarea no cambió»; ALREADY_READ dice «Este aviso ya estaba leído. La tarea no cambió». Marcación incierta exige consultar, no reintentar automáticamente. Sólo se reflejan resultados confirmados y correlationId seguro; no title/detail crudos. La tarea relacionada no disponible no revela nombre ni vínculo. BR-M10 queda resuelta sólo para esta consumidora.
@@ -186,11 +196,11 @@ Nunca un spinner central que salta el layout de una tabla: filas esqueleto del m
 ```css
 .esqueleto {
   display: block;
-  height: 14px;
+  height: var(--alto-esqueleto);
   border-radius: var(--radio-control);
   background: linear-gradient(90deg, var(--color-borde) 25%, var(--color-superficie-elevada) 50%, var(--color-borde) 75%);
   background-size: 200% 100%;
-  animation: esqueleto-pulso 1.4s ease-in-out infinite;
+  animation: esqueleto-pulso var(--duracion-esqueleto) ease-in-out infinite;
 }
 @keyframes esqueleto-pulso {
   0% { background-position: 200% 0; }

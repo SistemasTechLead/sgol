@@ -1,5 +1,13 @@
 # Estado de implementación
 
+## Referencia de diseño renovado — incorporación documental local
+
+Fecha: 2026-09-30. El responsable aprobó «Apruebo las secciones y la adenda»: §§3–9 de `docs/design/PLAN_DISENO_RENOVADO.md` y `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md`. Resultado: **referencia documentada, aprobada e incorporada localmente**; entrada oficial `docs/design/referencia-renovada.md` y seis documentos operativos relacionados. La aceptación final del paquete se solicita al entregarlo. No hay diseño renovado implementado en pantallas productivas ni publicación/integración remota de este paquete.
+
+FRONT-017..020 y cualquier pantalla pendiente consumen la referencia mediante componentes compartidos y CSS propio con variables, dentro de sus contratos/brechas/dependencias. Las pantallas existentes conservan implementación hasta el hito posterior; no se exige migración completa previa. No se modifica ni repite evidencia/gates de FRONT-016: su registro vigente permanece debajo.
+
+Verificaciones, archivos y límites en `docs/traceability/DISENO_RENOVADO_REFERENCIA.md`; siguiente chat y prompt completo en `docs/traceability/DISENO_RENOVADO_SIGUIENTE_HITO.md`. Sin vistas/CSS productivo/JS/backend/dependencias/pruebas funcionales; Fuentes y congelados protegidos. Aceptación final del paquete pendiente, sin autorización para push/PR/merge/despliegue o para ejecutar el hito siguiente.
+
 ## Estado vigente — FRONT-016
 
 Registro local posterior a la base `master` `6036f4f7be7e15d8bc01a261a068ffb652842cf5`. Se acepta la evidencia aportada por el responsable: FRONT-015 integrada mediante PR #82 y documento operativo FRONT integrado mediante PR #83. Las menciones antiguas de documentación aún no publicada o FRONT-016 no iniciada son históricas y no sustituyen este registro. No se repitieron sus gates.

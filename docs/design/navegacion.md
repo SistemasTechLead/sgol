@@ -1,5 +1,15 @@
 # Navegación del frontend SGOL
 
+## Diseño renovado — suplemento de presentación aprobado
+
+[Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) y [referencia-renovada.md](referencia-renovada.md) complementan la presentación sin cambiar rutas, grupos, sesión, permisos, destinos ni filtros. Encabezado blanco, columna lateral blanca de `--ancho-navegacion`, área de trabajo cálida y main con `--ancho-contenido`. El orden DOM sigue salto al contenido, identidad/sesión/logout, navegación y main; no se cambia tabulación para replicar la maqueta.
+
+Items normales conservan texto/icono, activo usa acento, superficie elevada, peso medio, borde y `aria-current`; foco y área mínima usan variables de tokens.md. Un grupo sin hijos implementados/visibles no aparece. No se muestran nuevas rutas por decoración.
+
+En viewport estrecho se conserva el panel modal de navegación existente: disparador, foco contenido, Escape y retorno. Identidad, rol, expiración y logout refluyen y permanecen disponibles. La navegación abierta en línea y la ocultación del pie de la maqueta no son reglas oficiales. El encabezado de página sólo muestra contexto confirmado y acciones autorizadas; no añade breadcrumbs, períodos supuestos ni conteos globales a partir de una página con cursor.
+
+La aprobación documental no migra las pantallas existentes. Tareas pendientes consumen esta referencia y materializan sólo lo necesario; la adaptación general tiene su propio hito, sin convertirse en dependencia artificial de FRONT-017..020. Los registros funcionales e históricos siguientes conservan su contexto.
+
 ## FRONT-016 — Mi trabajo
 
 Adenda 54 incorpora §§4–6 del plan aprobado: `/mi-trabajo` materializa UI-E01/E02 y consulta HU-023 con PER-BANDEJA-PROPIA/PER-TAREA-VER respectivamente. Hijo visible «Mi trabajo» para cuatro roles con permiso vigente; detalle GET `/mi-trabajo/tareas/{obligationId:guid}` reautoriza por API. Los períodos se seleccionan desde filas autorizadas; no se consulta GET /weeks ni se materializa semana. La descripción de anfitrión vacío de FRONT-002 abajo es histórica. UI-E04..E08 permanecen pendientes. Marcación es POST separado del logout; abrir, filtrar o navegar no marca avisos ni cambia ejecución.

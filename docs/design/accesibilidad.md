@@ -2,6 +2,16 @@
 
 Reglas de accesibilidad del sistema. La norma de aceptación de SGOL es WCAG 2.2 nivel AA, conforme a `F06_ESTRATEGIA_DE_PRUEBAS.md`.
 
+## Renovación aprobada y límites de evidencia
+
+[Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) incorpora las reglas de [referencia-renovada.md](referencia-renovada.md). Se conserva la paleta y todos los pares siguientes. El nuevo uso de superficie elevada como fondo de trabajo sólo admite los pares aprobados; paneles/controles permanecen blancos. No se intercambian colores decorativos y operativos.
+
+Foco y área mínima se expresan mediante `--grosor-foco`, `--desfase-foco` y `--alto-control-minimo`. Enlaces de contenido llevan subrayado visible. Los estados usan texto e icono, y controles deshabilitados no conservan hover activo; los datos necesarios para leer una pantalla siguen legibles. `prefers-reduced-motion` elimina pulsación y animaciones de carga sin eliminar su mensaje.
+
+Durante la implementación se verifica teclado, foco sin recortes, asociación de etiquetas/errores, área mínima, contraste efectivo, texto ampliado y reflow a 320 px CSS. Sólo el contenedor de tabla desplaza horizontalmente; filtros/acciones/diálogos refluyen. No se oculta overflow de html/body para aparentar cumplimiento. La navegación móvil continúa modal con Escape, foco contenido y retorno; la maqueta móvil abierta no reemplaza ese contrato.
+
+La comprobación documental de valores no acredita contraste renderizado ni WCAG integral. Capturas externas son evidencia de maqueta; las mediciones productivas y revisión visual corresponden al hito que materialice el diseño. Se conserva el área mínima del proyecto, aunque la norma permita excepciones menores.
+
 ## Norma de aceptación y verificación
 
 Las relaciones de contraste de este documento se calculan sobre los valores de `tokens.md` con la fórmula de luminancia relativa conservada por WCAG 2.2. La tabla existente no basta por sí sola para declarar conformidad: cada cambio de token o componente debe volver a verificar contraste, foco visible, operación por teclado, área mínima, etiquetas y asociación de errores contra WCAG 2.2 AA.
@@ -48,7 +58,7 @@ Estos son los únicos pares de texto/fondo permitidos en la interfaz. Cualquier 
 
 ## Foco visible por teclado
 
-Todo control interactivo usa `:focus-visible` (nunca `:focus` a secas, para no mostrar el anillo en un clic de mouse): `outline: 2px solid var(--color-acento)` con `outline-offset: 2px`. En botones destructivos el anillo usa `--color-peligro` en vez de `--color-acento`, para no confundir visualmente una acción irreversible con un control normal — ver `componentes.md`, botón destructivo.
+Todo control interactivo usa `:focus-visible` (nunca `:focus` a secas, para no mostrar el anillo en un clic de mouse): `outline: var(--grosor-foco) solid var(--color-acento)` con `outline-offset: var(--desfase-foco)`. En botones destructivos el anillo usa `--color-peligro` en vez de `--color-acento`, para no confundir visualmente una acción irreversible con un control normal — ver `componentes.md`, botón destructivo.
 
 El anillo nunca se suprime con `outline: none` sin reemplazo. Si un componente necesita un indicador de foco distinto al anillo por razones de layout (por ejemplo, una fila de tabla completa), el reemplazo mantiene el mismo contraste mínimo de 3:1 contra el fondo adyacente.
 
