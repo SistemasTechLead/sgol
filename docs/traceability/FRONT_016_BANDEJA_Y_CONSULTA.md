@@ -1,0 +1,120 @@
+# FRONT-016 — Bandeja, avisos y consulta de tareas
+
+## Estado y autorización
+
+**Publicada** en `codex/front-016`, desde `master` `6036f4f7be7e15d8bc01a261a068ffb652842cf5`. Implementación local `9dd111ced98b8b7d82e167f909fa7e3b311878fb`; commit vigente: el que contiene este informe. Fecha de trabajo: 2026-09-29, America/Mexico_City.
+
+## Publicación autorizada — estado vigente
+
+El responsable autorizó «Autorizo la publicacion, push y el PR». El push inicial está confirmado en origin/codex/front-016. PR que incorpora esta actualización; se verificará su cabeza exacta y cada nuevo pipeline. No autoriza merge ni despliegue.
+
+Preflight de publicación: árbol y Fuentes limpios, cabeza local `9dd111c`, SDK exigido 10.0.400 y sesión gh autenticada. `dotnet test tests/Sgol.IntegrationTests --no-build --configuration Release --filter 'FullyQualifiedName~AssignmentCorrectionPersistenceTests|FullyQualifiedName~ObligationQueryPersistenceTests'`: **PASS 12/12**, sin omisiones, PostgreSQL/Testcontainers real; snapshots completos de invariancia incluidos. No se repitieron gates de FRONT-013/015.
+
+Navegador enfocado en ejecución para FRONT-016, sesión/logout y shell afectados. Capturas opcionales del harness se guardan únicamente cuando se define SGOL_FRONT016_PREVIEW_DIR, fuera de Fuentes y con datos sintéticos; ninguna captura incluye cookies, credenciales ni HTML oculto. El código de capturas compila con cero errores/advertencias. `dotnet format --verify-no-changes --no-restore`: PASS integral en este hito. Gates remotos y resultados de navegador siguen pendientes hasta evidencia efectiva.
+
+Las secciones de validación diferida y espera conservadas al final documentan el cierre local anterior a esta autorización; este registro vigente las sustituye sólo donde hay ejecución acreditada. La autorización continúa para reparar defectos del hito y publicar correcciones al mismo PR, con seguimiento automático si el turno termina pendiente.
+
+## Diagnóstico del gate de concurrencia — estado vigente del PR #84
+
+Run `36760994312`, cabeza `a9ccb6d98e80de46eb9e8715cca7512d5a086d1f`: controles, servidor y navegador SUCCESS; escaneo OCI corregido, TECH-OPS integral y prueba de stream de réplica PASS. HU-035 integral falla en Invoke-ConcurrentReconciliation con mensaje genérico, sin conservar el exit code ni el código seguro recibido; consolidación FAILURE derivada. No se atribuye causa funcional ni intermitencia sin evidencia.
+
+Se conecta el formatter cerrado ya existente Format-Hu035ReconcileFailure al rechazo concurrente: publica únicamente CASE=concurrency, EXIT numérico y ERROR de lista permitida/UNKNOWN. Conserva exactamente un MATCHED y un LOCK_BUSY y el replay inmutable; no acepta respuestas nuevas ni expone stdout/stderr originales. Es un diagnóstico indispensable para reparar el pipeline del hito, sin cambios de dominio.
+
+Preflight PASS (SDK 10.0.400, árbol inicialmente limpio). Comprobaciones enfocadas: test-hu-035-private-network.ps1 **89 aserciones PASS**; test-hu-035-server-diagnostics.ps1 **217 aserciones PASS**, incluidas privacidad, parser, procesos y cleanup; git diff --check PASS. El verificador histórico validate-hu-035.ps1 falla por exigir literalmente la migración AddHostedAuthentication en FunctionalSnapshotReader, cuya versión vigente usa AddManualGenerationSnapshots; no valida este cambio ni se altera para conseguir verde. El gate integral requiere host Linux x64 según su guard y no se ejecuta desde PowerShell Windows; reproducción remota pendiente con diagnóstico seguro. No se presenta el fallo de concurrencia como resuelto. Se continúa el seguimiento del mismo PR hasta evidencia o decisión necesaria.
+
+## Corrección de seguridad de la imagen — registro de la cabeza anterior
+
+Run `36757877161`, cabeza `e21bc2ecd1db9bfce65fb896b9785803e44e4b68`: servidor, navegador y controles SUCCESS; operations y consolidación FAILURE. Trivy detectó CVE-2026-84782 en openssl/libssl3t64 3.0.13-0ubuntu3.15, dos hallazgos HIGH. El aviso oficial https://ubuntu.com/security/CVE-2026-84782 identifica 3.0.13-0ubuntu3.16 como versión corregida para Ubuntu noble. No es un fallo funcional de FRONT-016.
+
+Corrección indispensable para publicar el mismo hito: Dockerfile instala explícitamente ambos paquetes corregidos, conservando los digests de SDK/runtime, usuario, comandos y gate HIGH/CRITICAL. Sin excepciones del escáner, cambios de SDK ni alcance funcional adicional.
+
+Validación local: preflight PASS con SDK 10.0.400 y árbol inicialmente limpio; arquitectura TechOps/SdkPin **5/5 PASS**. `scripts/operations/build-tech-ops-image.ps1 -Tag sgol:front-016-openssl-fixed`: **PASS**, imagen linux/amd64, Worker/pg_dump/age, UID, puerto, etiquetas, SBOM y provenance. Imagen local `sha256:c92f264de26ce8127e53c34342321f1cca4238342c643e78ba1c2fa284855cb3`, marcada dirty correctamente antes del commit. dpkg-query confirma ambos paquetes 3.0.13-0ubuntu3.16. Trivy **0.70.0**, imagen del escáner por digest `sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e`, con `image --scanners vuln --severity HIGH,CRITICAL --exit-code 1`: **PASS**, cero hallazgos en OS y bibliotecas. Evidencias fuera del repositorio; no se incorporan secretos ni binarios.
+
+Los gates remotos de la cabeza que contiene esta corrección siguen pendientes; los resultados anteriores no la validan. Se conserva el seguimiento del mismo PR y chat, sin merge ni despliegue autorizados. Las capturas ya entregadas siguen representando la interfaz sin cambios visuales.
+
+## Correcciones del primer pipeline — PR #84
+
+Run `36658472583`, cabeza exacta `b3902d87df20edf877aa92aa888db010ca61f228`: FAILURE. Controles PASS; servidor PASS con unitarias 853/853, arquitectura 64/64 y PostgreSQL 265/265, formato y vulnerabilidades correctos. Navegador 18/23, cinco fallos; operations omitido y consolidación fallida. Esta evidencia pertenece sólo a esa cabeza, no valida la corrección posterior.
+
+Defectos reproducidos y corregidos dentro de FRONT-016:
+
+- La semilla concluía por SQL sin snapshot de evidencia completa ni ExecutionResult; PostgreSQL rechazó OBLIGATION_CONCLUSION_INCOHERENT. El harness reutiliza ObligationConclusionTestData e InternalNoticeTestData mediante Compile Link, sin paquetes ni cambios de backend. Autentica las cuentas antes de sembrar para conservar usuario/MFA real de prueba; no deshabilita triggers ni restricciones.
+- ShellBrowserSmokeTests esperaba el foco inicial anterior. Ahora exige el foco en el error de consulta y mantiene salto al contenido y teclado. Las dos pruebas antiguas FRONT-005/006 exigían tres enlaces de Dirección; ahora exigen cuatro y el enlace Mi trabajo explícito. No amplían sus historias ni relajan controles de autorización.
+- El navegador local encontró que el fragmento del formulario podía sobreescribir el foco de confirmación. MyWork restaura el foco al terminar load. WebKit espera explícitamente la navegación del handler, evitando afirmar éxito sobre el documento anterior; la prueba sigue exigiendo la confirmación, desaparición por filtro, foco de avisos e invariancia completa de taskRows.
+- Se añade comprobación real de contraste WCAG 4.5:1 de badges, etiquetas, captions, th/scope, IDs únicos, foco visible y avisos READ sin botón de marcación. Capturas adicionales por sección facilitan revisión sin presentar la previsualización como validación integral.
+
+Build de corrección y formato integral PASS, sin errores/advertencias. Un intento de recompilar mientras testhost tenía la DLL abierta falló por MSB3027/MSB3021; se volvió a compilar después de cerrar la ejecución anterior, con resultado correcto. No se interpreta el fallo de copia como una validación aprobada.
+
+Validación local de navegador **PASS 6/6**, cero omisiones, para FRONT-016, FRONT-002, shell y expectativas de navegación FRONT-005/006: `dotnet test tests/Sgol.FrontendBrowserTests --no-build --configuration Release --filter 'FullyQualifiedName~Front016BrowserTests|FullyQualifiedName~Front002BrowserTests|FullyQualifiedName~ShellBrowserSmokeTests|FullyQualifiedName~Front005BrowserTests|FullyQualifiedName~Front006BrowserTests'`. Incluye los cuatro puestos en Chromium escritorio y WebKit móvil, foco/reflow y contraste medidos, tarea ajena ausente y detalle denegado, marcación y GET posteriores sin cambio de taskRows; cleanup PASS. Cabeza corregida: commit que contiene esta actualización; sus gates remotos se comprobarán después del push. Seguimiento heartbeat `seguimiento-front-016-pr-84` activo y verificado, vinculado a este mismo chat; silencio sin novedades accionables, sin autorización de merge/despliegue.
+
+El responsable ordenó «Bueno sigue con la tarea, apruebo la adenda integramente». Se aprobó íntegramente `FRONT_016_PLAN_DE_IMPLEMENTACION.md` §§2–8, incorporado por `F07_ADENDA_54_CONTRATO_CONSUMIDOR_FRONT_016.md` y las extensiones operativas de docs/design. Publicación, merge y despliegue no están autorizados.
+
+Se leyó primero IMPLEMENTATION_STATUS y su tabla de tareas insertadas; preflight fue la única comprobación inicial del entorno. Se acepta FRONT-013 integrada, FRONT-015 integrada por PR #82 y documento FRONT integrado por PR #83 conforme a la evidencia previa del responsable. Las menciones premerge o de FRONT-016 no iniciada en resúmenes antiguos son históricas. No se reconstruyeron análisis ni gates de esas tareas.
+
+## Alcance y fuentes
+
+FRONT-016, fila 94 de `F07_ADENDA_45_BACKLOG_FRONTEND_DEFINITIVO.md`; HU-023/HU-030, CA-023/030 y CP-023-P/N/030-P/N; UI-E01/E02/E03. Adendas 15/22 conservan sus contratos backend. BR-D13 se consume, BR-N04 se aplica y BR-M10 se incorpora exclusivamente para esta historia.
+
+Las lecturas se localizaron mediante docs/INDICE_IDS. Se leyeron los cinco documentos obligatorios: tokens, componentes, estados-y-mensajes, estados-de-dominio y accesibilidad. No se modifican Fuentes, documentos congelados, backend, permisos, migraciones, NuGet, global.json ni CI. FRONT-017..020 siguen no iniciadas.
+
+## Resultado funcional y permisos
+
+- `/mi-trabajo` compone Mis tareas, Mis avisos y Tareas que puedo consultar, conserva sesión y logout. Los cuatro puestos reciben sólo bandeja y avisos propios con PER-BANDEJA-PROPIA.
+- Con PER-TAREA-VER, la consulta y `/mi-trabajo/tareas/{obligationId:guid}` usan el alcance vigente del servidor: Piso propio; Subcoordinación propio/Piso; Administración propio/Subcoordinación/Piso; Dirección todo LOR-001, incluidas tareas sin asignación. No se calcula jerarquía en navegador ni se ocultan filas después de consultar una colección amplia.
+- Futura, Disponible, Vencida y Concluida son clasificaciones recibidas, sin estados persistidos nuevos. Pendiente conserva su badge junto al informativo. No se infieren vencimientos ausentes; Concluida no significa validada. Origen recurrente se muestra como Programada.
+- Filtros cerrados de estado personal, lectura, TAR de las ocho permitidas, ejecución y condición. Período se selecciona desde una fila autorizada; los filtros adicionales contractuales sólo se admiten en enlaces validados. Semana actual retira el período explícito; ningún GET /weeks materializa períodos.
+- Cursores personales de tareas/avisos, consulta e historia son independientes y protegidos por actor, sección y filtros. Anterior conserva el recorrido sin números de página inventados. Cambiar un filtro reinicia su cursor; marcar leído reinicia el de avisos porque cambia su orden.
+- Aviso leído requiere CSRF validado por Razor y API. POST API sin cuerpo, If-Match ni Idempotency-Key. MARKED_READ/ALREADY_READ confirman Leído y el readAt recibido; no hay actualización optimista ni reintento automático. Aviso unavailable omite datos/vínculos de tarea.
+- Detalle usa GET y sólo los cuatro hechos de historia permitidos; motivo sólo para ASIGNACION_CORREGIDA. Ajena e inexistente comparten el mismo mensaje 404 sin filas ni historia. Enlaces de retorno sólo locales con filtros permitidos y contexto protegido por actor.
+- Normal, foco, deshabilitado, cargando, error y vacío están compuestos con primitivas aprobadas. Tablas semánticas, controles etiquetados, badges de texto e icono decorativo del parcial existente, alertas seguras y mensajes específicos; carga con esqueleto/aria-busy. Tras marcar, foco al estado Leído o al encabezado de avisos si desaparece la fila. No se imprimen mensajes internos, JSON ni cursores en alertas.
+
+GET no marca avisos ni ejecuta generación, ensure, publicación o comandos de tarea. No se ofrecen aportación, descarga, revisión, conclusión, validación ni reapertura.
+
+## Archivos cambiados
+
+| Conjunto | Archivos |
+|---|---|
+| Contrato y diseño aprobado | Adenda 54; `docs/design/componentes.md`, `estados-de-dominio.md`, `estados-y-mensajes.md`, `navegacion.md` |
+| Composición y detalle | `src/Sgol.Web/Pages/MyWork/Index.cshtml`, `Index.cshtml.cs`, `Index.Inbox.cs`, `_Inbox.cshtml`, `_Notices.cshtml`, `_Obligations.cshtml`, `_WorkPagination.cshtml`, `Details.cshtml`, `Details.cshtml.cs` |
+| Presentación cerrada | `src/Sgol.Web/Interface/MyWork/MyWorkPresentation.cs`, `MyWorkQuery.cs`, `MyWorkCursor.cs`, `MyWorkReturnContext.cs` |
+| Navegación y estados | `Interface/Navigation/NavigationItem.cs`, `Pages/Shared/_Layout.cshtml`, `wwwroot/css/components.css`, `wwwroot/js/my-work.js`; sólo espaciado mediante token existente |
+| Unitarias y arquitectura | `Front016PresentationTests.cs`, `Front002Tests.cs`; `Front016ArchitectureTests.cs`, `InboxArchitectureTests.cs`, `ObligationQueryArchitectureTests.cs`, `InterfaceDesignRulesTests.cs` |
+| Persistencia y navegador | `Front016NoEffectSnapshot.cs`, `AssignmentCorrectionPersistenceTests.cs`, `ObligationQueryPersistenceTests.cs`; `BrowserFixture.MyWork.cs`, `Front016BrowserTests.cs`, `Front002BrowserTests.cs`, `ShellBrowserSmokeTests.cs` |
+| Trazabilidad | Plan aprobado, este informe, IMPLEMENTATION_STATUS y complemento de INDICE_IDS |
+
+Los inventarios antiguos que prohibían estas vistas se acotan a las dos rutas consumidoras ahora aprobadas; conservan prohibiciones en otras superficies y comandos. No se elimina ni deshabilita una prueba.
+
+## Criterios y evidencia
+
+| Criterio | Evidencia local ejecutada | Evidencia preparada, ejecución diferida |
+|---|---|---|
+| CA-030 / CP-030-P | Consumo Item con dos colecciones; cuatro estados y badges; fecha nula sin inferencia; filtros cerrados; GET permitido para cuatro roles; vacío y respuesta inconsistente sin datos parciales | Recorrido real de cuatro roles con semilla propia Disponible/Vencida/Concluida/Futura en Chromium escritorio y WebKit móvil |
+| CP-030-N | Permiso ausente no llama API; aviso unavailable con datos filtrados falla cerrado; CSRF inválido no envía POST; error no confirma lectura ni reintenta | Filas/avisos ajenos ausentes para cuatro roles; invariancia persistida de tarea/asignación/evidencia/plan y readAt original de la repetición |
+| CA-023 / CP-023-P | Consulta GET con filtros canónicos, detalle tipado y nombres de historia cerrados; cursores ligados a actor/sección/filtros; contexto de retorno local | Backend real con jerarquía vigente, historia permitida y paginación; huellas completas antes/después de detalle/historia |
+| CP-023-N | Respuesta 404 de detalle no produce recurso/historia; mensaje seguro ajena/inexistente; 401 retira datos y termina sesión | Matriz de superiores/pares/antiguos responsables ya cubierta por tests backend afectados, más rechazo de tarea de Dirección desde los otros tres puestos en navegador |
+| GET sin escrituras | PageModels sin acceso a DB y solicitudes funcionales exclusivamente GET de inbox/obligations; arquitectura prohíbe /weeks, evidencia y conclusión | Comparación de filas persistidas de obligaciones, asignaciones, períodos, evidencia/versiones/snapshots, resultados, planes/versiones/vínculos, idempotencia, outbox, jobs, avisos y auditoría |
+| Marcar leído no cambia tarea | Único POST aprobado, cuerpo/Intent/IfMatch nulos y CSRF presente; confirmación cerrada y hora original; error/CSRF no anuncia lectura | Prueba existente reforzada: primera/repetida/ajena, una auditoría y taskRows idénticas; navegador compara invariancia y foco tras filtrar Sin leer |
+
+La cobertura local acredita el consumidor, no sustituye la ejecución transaccional o de navegador. Las pruebas PostgreSQL y navegador se compilaron; sus resultados no se presentan como aprobados.
+
+## Validación local
+
+SDK exigido **10.0.400**, `rollForward=disable`, mediante instalación aislada `C:\Users\siste\.codex\tmp\sgol-sdk-10.0.400\dotnet.exe`. Se antepuso su directorio al PATH de cada proceso de validación; no se cambió global.json ni se usó 10.0.401.
+
+| Comando | Resultado |
+|---|---|
+| `dotnet build --no-restore --configuration Release` | PASS, 0 errores/advertencias; incluye compilación de pruebas PostgreSQL/navegador |
+| `dotnet test tests/Sgol.UnitTests --no-build --configuration Release --filter 'FullyQualifiedName~Front016PresentationTests\|FullyQualifiedName~Front002Tests\|FullyQualifiedName~InboxApiEndpointTests\|FullyQualifiedName~ObligationQueryTests\|FullyQualifiedName~TechFront003Tests'` | PASS 118/118, 0 omitidas |
+| `dotnet test tests/Sgol.ArchitectureTests --no-build --configuration Release --filter 'FullyQualifiedName~Front016ArchitectureTests\|FullyQualifiedName~InterfaceDesignRulesTests\|FullyQualifiedName~ObligationQueryArchitectureTests\|FullyQualifiedName~InboxArchitectureTests'` | PASS 14/14, 0 omitidas |
+| `dotnet format whitespace SGOL.slnx --no-restore --include <archivos C# afectados>` | Aplicado y comprobado sobre archivos afectados; sin ejecutar formato integral |
+| `git diff --check` y comprobación de paths afectados | PASS; sin cambios de Fuentes ni documentos congelados |
+
+No se necesitó restore ni cambiaron locks/dependencias. Durante el desarrollo se corrigieron advertencias de analizadores en código/pruebas nuevas antes de la compilación verde; no se suprimieron analizadores. EF1003 del snapshot de navegador se resolvió construyendo SQL desde la lista fija de tablas del modelo en variable local; ninguna entrada de usuario participa.
+
+## Validación diferida y siguiente punto de espera
+
+PostgreSQL/Testcontainers y navegador hospedado/TLS se reservan para el hito de publicación conforme al §8 aprobado. No existe incompatibilidad AMD64 documentada ni se alega ausencia de Docker. Causa: agrupación de validaciones costosas autorizada, no bloqueo del entorno. Foco, reflow, contraste medido y transacciones reales quedan pendientes de ejecución.
+
+Filtros enfocados previstos al publicar: `AssignmentCorrectionPersistenceTests|ObligationQueryPersistenceTests` en integración; `Front016BrowserTests|Front002BrowserTests|ShellBrowserSmokeTests` en navegador. Suites integrales, formato completo, escáneres y controles remotos permanecen en los gates del hito.
+
+Se espera autorización de publicación antes de push/PR. No hay pipeline pendiente ni automatización remota por activar ahora. Esa autorización futura incluye corregir defectos de este hito y subirlos al mismo PR; cada pipeline debe corresponder a la cabeza actual. Las capturas sintéticas y explicación por puesto se entregarán mientras corra el pipeline. El seguimiento en este chat se configurará y verificará antes de terminar un turno con pipeline pendiente. Merge y despliegue requieren autorización expresa separada.

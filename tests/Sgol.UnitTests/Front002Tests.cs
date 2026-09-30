@@ -28,7 +28,7 @@ public sealed class Front002Tests
 
         var bridge = new RazorAntiforgeryBridge(services.GetRequiredService<IAntiforgery>(),
             new StubApi(204, false, false), anonymous);
-        var protectedPage = new IndexModel(anonymous, bridge, notice)
+        var protectedPage = new IndexModel(anonymous, bridge, notice, new StubApi(204, false, false), services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>())
         { PageContext = new PageContext { HttpContext = context } };
         Assert.Equal("/acceso", Assert.IsType<RedirectResult>(await protectedPage.OnGetAsync(CancellationToken.None)).Url);
 
@@ -37,12 +37,12 @@ public sealed class Front002Tests
         entry = new Sgol.Web.Pages.EntryModel(valid, notice)
         { PageContext = new PageContext { HttpContext = context } };
         Assert.Equal("/mi-trabajo", Assert.IsType<RedirectResult>(await entry.OnGetAsync(CancellationToken.None)).Url);
-        protectedPage = new IndexModel(valid, bridge, notice)
+        protectedPage = new IndexModel(valid, bridge, notice, new StubApi(204, false, false), services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>())
         { PageContext = new PageContext { HttpContext = context } };
         Assert.IsType<PageResult>(await protectedPage.OnGetAsync(CancellationToken.None));
 
         valid.Invalidate();
-        protectedPage = new IndexModel(valid, bridge, notice)
+        protectedPage = new IndexModel(valid, bridge, notice, new StubApi(204, false, false), services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>())
         { PageContext = new PageContext { HttpContext = context } };
         var redirect = Assert.IsType<RedirectResult>(await protectedPage.OnGetAsync(CancellationToken.None));
         Assert.Equal(AccessNoticeKind.Ended,
@@ -106,7 +106,7 @@ public sealed class Front002Tests
         var token = bridge.Issue(get);
         var csrfCookie = get.Response.Headers.SetCookie.ToString().Split(';')[0];
         var post = FormContext(services, "__Host-SGOL-Session=synthetic; " + csrfCookie, token);
-        var model = new IndexModel(state, bridge, notice) { PageContext = new PageContext { HttpContext = post } };
+        var model = new IndexModel(state, bridge, notice, api, services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>()) { PageContext = new PageContext { HttpContext = post } };
 
         var result = await model.OnPostAsync(CancellationToken.None);
 
@@ -144,7 +144,7 @@ public sealed class Front002Tests
         var csrfCookie = get.Response.Headers.SetCookie.ToString().Split(';')[0];
         var post = FormContext(services, "__Host-SGOL-Session=synthetic; " + csrfCookie, "");
         var notice = new AccessNotice(services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>());
-        var model = new IndexModel(state, bridge, notice) { PageContext = new PageContext { HttpContext = post } };
+        var model = new IndexModel(state, bridge, notice, api, services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>()) { PageContext = new PageContext { HttpContext = post } };
 
         Assert.IsType<PageResult>(await model.OnPostAsync(CancellationToken.None));
         Assert.Equal(0, api.Calls);

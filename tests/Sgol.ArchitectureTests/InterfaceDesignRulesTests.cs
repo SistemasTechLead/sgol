@@ -82,7 +82,9 @@ public sealed partial class InterfaceDesignRulesTests
         Assert.Contains("<dialog id=\"navegacion-movil\"", layout, StringComparison.Ordinal);
         Assert.Contains("method=\"dialog\"", layout, StringComparison.Ordinal);
         var myWork = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Sgol.Web", "Pages", "MyWork", "Index.cshtml"));
-        Assert.Contains("Aún no hay secciones disponibles", myWork, StringComparison.Ordinal);
+        Assert.Contains("<partial name=\"_Inbox\"", myWork, StringComparison.Ordinal);
+        Assert.Contains("<partial name=\"_Notices\"", myWork, StringComparison.Ordinal);
+        Assert.Contains("<partial name=\"_Obligations\"", myWork, StringComparison.Ordinal);
         Assert.DoesNotContain("IsInRole", layout, StringComparison.Ordinal);
     }
 

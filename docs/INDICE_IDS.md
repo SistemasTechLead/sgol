@@ -368,3 +368,14 @@ El índice apunta a la definición canónica de cada identificador, no a sus men
 | `TOOL-PLAN-001` | `F07_ADENDA_05_PLANTILLA_DE_TAREA_VIGENTE.md` | 7 | 7 |
 | `TOOL-PLAN-002` | `F07_ADENDA_03_NUCLEO_DE_VERSIONADO.md` | 7 | 7 |
 | `TOOL-PLAN-004` | `F07_ADENDA_04_CRITERIO_DE_INTERFAZ.md` | 10 | 10 |
+
+## Complemento consumidor aprobado de FRONT-016
+
+Actualización incremental: 2026-09-29. Se conserva la definición canónica FRONT-016 en fila 94 de Adenda 45. La resolución consumidora de BR-D13/M10/N04 y su autorización se localizan en:
+
+| Referencia | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| FRONT-016 — contrato consumidor y autorización | `F07_ADENDA_54_CONTRATO_CONSUMIDOR_FRONT_016.md` | 3 | 11 |
+| FRONT-016 — plan íntegramente aprobado | `docs/traceability/FRONT_016_PLAN_DE_IMPLEMENTACION.md` | 5 | 7 |
+
+La Adenda 54 incorpora por referencia los §§2–8 del plan; el informe `docs/traceability/FRONT_016_BANDEJA_Y_CONSULTA.md` registra implementación y validaciones vigentes, no sustituye contratos congelados.

@@ -64,8 +64,10 @@ public sealed class ShellBrowserSmokeTests
                     Assert.Equal(1, await page.Locator("nav[aria-label='Navegación principal']").CountAsync());
                     Assert.Equal(1, await page.Locator(".navegacion-lateral--escritorio a[href='/configuracion']").CountAsync());
                     Assert.Equal(1, await page.Locator(".navegacion-lateral--escritorio a[href='/planificacion']").CountAsync());
-                    Assert.Equal(0, await page.GetByRole(AriaRole.Link, new() { Name = "Mi trabajo" }).CountAsync());
-                    Assert.Equal("Aún no hay secciones disponibles", await page.Locator(".estado-vacio__titulo").InnerTextAsync());
+                    Assert.Equal(1, await page.Locator(".navegacion-lateral--escritorio a[href='/mi-trabajo']").CountAsync());
+                    // This shell fixture has no weekly period; FRONT-016 must fail closed without materializing it.
+                    Assert.Contains("No se pudo consultar tu bandeja", await page.Locator("main").InnerTextAsync());
+                    Assert.Equal("No hay tareas disponibles en esta consulta", await page.Locator(".estado-vacio__titulo").InnerTextAsync());
                     Assert.Equal(1, await page.Locator(".encabezado-aplicacion__sesion").CountAsync());
                     Assert.Equal($"Persona sintética {account.Role}", await page.Locator(".encabezado-aplicacion__sesion").InnerTextAsync());
                     Assert.Equal(account.Role switch
@@ -90,10 +92,10 @@ public sealed class ShellBrowserSmokeTests
                     var navigationHeight = viewport.Mobile
                         ? (await page.Locator(".barra-lateral").BoundingBoxAsync())?.Height ?? 0 : 0;
                     Assert.InRange(Math.Abs(mainBox.Y - headerBox.Y - headerBox.Height - navigationHeight), 0, 2);
-                    if (viewport.Mobile)
-                        await page.Locator(".salto-contenido").FocusAsync();
-                    else
-                        await page.Keyboard.PressAsync("Tab");
+                    // FRONT-016 focuses the query error; the skip-link remains independently keyboard accessible.
+                    Assert.True(await page.Locator("[data-work-error]").EvaluateAsync<bool>(
+                        "el => document.activeElement === el"));
+                    await page.Locator(".salto-contenido").FocusAsync();
                     Assert.True(await page.Locator(".salto-contenido").EvaluateAsync<bool>(
                         "el => document.activeElement === el && getComputedStyle(el).transform === 'none'"));
                     await page.Keyboard.PressAsync("Enter");

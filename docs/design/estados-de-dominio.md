@@ -1,5 +1,9 @@
 # estados-de-dominio.md — SGOL / Loretta Zapatería
 
+## UI-E01/E02 — variantes aprobadas para FRONT-016
+
+Adenda 54 incorpora §6 del plan FRONT-016 aprobado íntegramente. FUTURA: «Futura», calendario, par info. DISPONIBLE: «Disponible», círculo informativo, par info. Ambas acompañan «Pendiente», sin reemplazar executionStatus. VENCIDA conserva la bandera peligro junto a Pendiente. CONCLUIDA conserva el badge exito. UNREAD: «Sin leer», sobre cerrado, par info. READ: «Leído», sobre abierto, texto-secundario/superficie-elevada. Todo lleva texto e icono; son presentación de valores recibidos, no estados persistidos nuevos. Programada es procedencia; Concluida no significa Validada.
+
 ## Plan semanal PUBLICADO
 
 Para UI-G05/G06, aprobado por la sección 7 de `F07_ADENDA_53_PROPUESTA_CONSUMIDOR_FRONT_015.md`, PUBLICADO se presenta como «Publicado», icono de documento con check y `--color-info` / `--color-info-fondo`. Indica al menos una publicación efectiva, sin afirmar validación, conclusión o publicación de todos los niveles. BORRADOR, VIGENTE y SUSTITUIDA conservan texto, iconos y tokens existentes. Se incorpora sólo presentación de un estado ya persistido.

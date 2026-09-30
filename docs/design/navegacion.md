@@ -1,5 +1,9 @@
 # Navegación del frontend SGOL
 
+## FRONT-016 — Mi trabajo
+
+Adenda 54 incorpora §§4–6 del plan aprobado: `/mi-trabajo` materializa UI-E01/E02 y consulta HU-023 con PER-BANDEJA-PROPIA/PER-TAREA-VER respectivamente. Hijo visible «Mi trabajo» para cuatro roles con permiso vigente; detalle GET `/mi-trabajo/tareas/{obligationId:guid}` reautoriza por API. Los períodos se seleccionan desde filas autorizadas; no se consulta GET /weeks ni se materializa semana. La descripción de anfitrión vacío de FRONT-002 abajo es histórica. UI-E04..E08 permanecen pendientes. Marcación es POST separado del logout; abrir, filtrar o navegar no marca avisos ni cambia ejecución.
+
 ## UI-G05 y UI-G06
 
 Adenda 53 §§6/7 aprobadas el 2026-09-29: ambas unidades viven en `/planificacion`. UI-G05 es visible a los cuatro roles con PER-PLAN-VER, incluido Piso expresamente. Publicar se presenta sólo con PER-PLAN-PUBLICAR proyectado; la API reautoriza. La historia selecciona publicaciones del mismo plan sin ruta web adicional ni enlaces a pantallas de FRONT-016. Año, semana y cursores son filtros GET; ninguna navegación publica o crea el plan.

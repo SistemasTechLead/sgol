@@ -1,5 +1,9 @@
 # estados-y-mensajes.md — SGOL / Loretta Zapatería
 
+## UI-E01/E02/E03 — BR-M10 aprobada para FRONT-016
+
+El catálogo completo de §6 de `docs/traceability/FRONT_016_PLAN_DE_IMPLEMENTACION.md` queda incorporado por Adenda 54, aprobado mediante «Bueno sigue con la tarea, apruebo la adenda integramente». Distingue vacío propio, filtro sin coincidencias, avisos e historia, errores de filtros, denegación base y 404 convergente. MARKED_READ dice «Aviso marcado como leído. La tarea no cambió»; ALREADY_READ dice «Este aviso ya estaba leído. La tarea no cambió». Marcación incierta exige consultar, no reintentar automáticamente. Sólo se reflejan resultados confirmados y correlationId seguro; no title/detail crudos. La tarea relacionada no disponible no revela nombre ni vínculo. BR-M10 queda resuelta sólo para esta consumidora.
+
 ## UI-G05 y UI-G06 aprobadas para FRONT-015
 
 La tabla completa de mensajes y los seis estados de la sección 7 de `F07_ADENDA_53_PROPUESTA_CONSUMIDOR_FRONT_015.md` quedó aprobada íntegramente mediante «Apruebo íntegramente las secciones 2–8» el 2026-09-29 y se incorpora por referencia como catálogo operativo consumidor. Los vacíos distinguen plan inexistente, ausencia de obligaciones visibles e historia sin publicaciones visibles. Los resultados confirmados no crean estados de dominio. PUBLICADO no implica publicación de todos los niveles. Un 412 exige recarga y nueva intención; un resultado incierto sólo permite reenviar la misma intención original. La confirmación no exige motivo ni selecciona nivel u obligaciones.

@@ -1,5 +1,6 @@
 @page "/mi-trabajo"
 @model Sgol.Web.Pages.MyWork.IndexModel
+@using Sgol.Web.Presentation.MyWork
 @{
     ViewData["Title"] = "Mi trabajo";
 }
@@ -14,8 +15,33 @@
     }
     else
     {
-        <div class="estado-vacio" role="status">
-            <p class="estado-vacio__titulo">Aún no hay secciones disponibles</p>
-        </div>
+        @if (Model.CanViewTasks) { <p><a class="boton boton--secundario" href="#consulta-tareas">Consultar tareas</a></p> }
+        @if (Model.NoticeError is not null)
+        { <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="Model.NoticeError" /></div> }
+        @if (Model.NoticeSuccess is not null)
+        {
+            <div role="status" aria-live="polite"><span aria-hidden="true">ⓘ</span> @Model.NoticeSuccess
+                <time datetime="@Model.ReadNoticeAt?.ToString("O")">@MyWorkPresentation.Time(Model.ReadNoticeAt)</time> — Hora de Ciudad de México
+            </div>
+        }
+        @if (Model.CanViewInbox)
+        {
+            @if (Model.InboxError is not null)
+            {
+                <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="Model.InboxError" /></div>
+                <a class="boton boton--secundario" href="@Model.Query.Href("mis-tareas", ("taskCursor", null), ("noticeCursor", null))">Recargar consulta</a>
+            }
+            else
+            {
+                <partial name="_Inbox" model="Model" />
+                <partial name="_Notices" model="Model" />
+            }
+        }
+        @if (Model.CanViewTasks) { <partial name="_Obligations" model="Model" /> }
+        @if (!Model.CanViewInbox && !Model.CanViewTasks)
+        { <partial name="_EmptyState" model="@(new EmptyStateViewModel("No tienes permiso para consultar tu bandeja"))" /> }
     }
 </section>
+@section Scripts {
+    <script src="~/js/my-work.js" asp-append-version="true" data-work-focus="@Model.FocusId"></script>
+}

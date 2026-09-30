@@ -1,0 +1,43 @@
+@model Sgol.Web.Pages.MyWork.IndexModel
+@using Sgol.Web.Presentation.MyWork
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+<section class="mi-trabajo__seccion" id="avisos" aria-labelledby="avisos-title">
+    <h2 id="avisos-title" tabindex="-1">Mis avisos</h2>
+    <form method="get" action="/mi-trabajo#avisos" class="tabla-filtros" data-work-query="avisos">
+        @foreach (var pair in Model.Query.HiddenExcept("noticeStatus", "noticeCursor")) { <input type="hidden" name="@pair.Key" value="@pair.Value" /> }
+        <label class="campo"><span class="campo__etiqueta">Lectura de avisos</span><select class="campo__control" name="noticeStatus">
+            <option value="ALL" selected="@(Model.Query["noticeStatus"] is null or "ALL")">Todos</option>
+            <option value="UNREAD" selected="@(Model.Query["noticeStatus"] == "UNREAD")">Sin leer</option>
+            <option value="READ" selected="@(Model.Query["noticeStatus"] == "READ")">Leídos</option>
+        </select></label>
+        <button class="boton boton--secundario" type="submit">Aplicar filtros</button>
+        <a class="boton boton--secundario" href="@Model.Query.Href("avisos", ("noticeStatus", null), ("noticeCursor", null))">Quitar filtro de lectura</a>
+    </form>
+    <div class="tabla-contenedor"><table class="tabla"><caption>Avisos internos propios</caption>
+        <thead class="tabla__encabezado"><tr><th scope="col">Aviso</th><th scope="col">Fecha</th><th scope="col">Lectura</th><th scope="col">Tarea relacionada</th><th scope="col">Acción</th></tr></thead><tbody>
+        @foreach (var notice in Model.Inbox?.Notices.Items ?? [])
+        {
+            <tr class="tabla__fila" data-own-notice="@notice.NoticeId"><td>Tarea asignada</td><td><time datetime="@notice.CreatedAt.ToString("O")">@MyWorkPresentation.Time(notice.CreatedAt)</time></td>
+                <td><span id="notice-state-@notice.NoticeId.ToString("N")" tabindex="-1"><partial name="_StatusBadge" model="@MyWorkPresentation.Badge(notice.Status)" /></span>
+                    @if (notice.ReadAt is not null) { <time datetime="@notice.ReadAt.Value.ToString("O")">@MyWorkPresentation.Time(notice.ReadAt)</time> }
+                </td>
+                <td>@if (notice.Resource.Available && notice.Resource.ObligationId is { } id && Model.CanViewTasks)
+                    { <a class="boton boton--secundario tabla__accion" href="@Model.DetailHref(id)">@notice.Resource.TaskCode · @notice.Resource.TaskName — Ver tarea</a> }
+                    else if (!notice.Resource.Available) { <p>La tarea relacionada ya no está disponible en tu bandeja</p> }
+                </td>
+                <td>@if (notice.Status == "UNREAD" && notice.AllowedActions.Contains("MARK_NOTICE_READ"))
+                    {
+                        <form method="post" action="@Model.NoticePostHref" asp-antiforgery="false" data-progress-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                            <input type="hidden" name="noticeId" value="@notice.NoticeId.ToString("D")" />
+                            <button class="boton boton--secundario" type="submit" data-progress-label="Marcando aviso…">Marcar como leído</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody></table></div>
+    @if (Model.Inbox?.Notices.IsEmpty == true)
+    { <partial name="_EmptyState" model="@(new EmptyStateViewModel("No hay avisos en esta consulta", ActionLabel: "Quitar filtro de lectura", ActionHref: Model.Query.Href("avisos", ("noticeStatus", null), ("noticeCursor", null))))" /> }
+    @if (Model.NoticePagination is not null) { <partial name="_WorkPagination" model="Model.NoticePagination" /> }
+</section>

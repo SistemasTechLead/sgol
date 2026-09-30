@@ -33,6 +33,8 @@ RUN apt-get update \
     && echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" > /etc/apt/sources.list.d/postgresql.list \
     && apt-get update \
     && apt-get install --yes --no-install-recommends \
+        libssl3t64=3.0.13-0ubuntu3.16 \
+        openssl=3.0.13-0ubuntu3.16 \
         age=1.1.1-1ubuntu0.24.04.3 \
         postgresql-client-18=18.6-1.pgdg24.04+2 \
         tzdata \

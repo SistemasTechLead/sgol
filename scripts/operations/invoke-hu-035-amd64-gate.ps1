@@ -568,7 +568,9 @@ function Invoke-ConcurrentReconciliation([object]$caseDescriptor, [string]$runti
         $output = @($stdout.GetAwaiter().GetResult(), $stderr.GetAwaiter().GetResult()) -join "`n"
         if ($process.ExitCode -eq 0 -and $output -match 'FUNCTIONAL_RECOVERY_MATCHED') { $matched++ }
         elseif ($process.ExitCode -eq 1 -and $output -match 'LOCK_BUSY') { $busy++ }
-        else { throw 'Concurrent HU-035 reconciliation returned an unexpected result.' }
+        else {
+            throw (Format-Hu035ReconcileFailure 'concurrency' $process.ExitCode ($output -split '\r?\n'))
+        }
         $process.Dispose()
     }
     if ($matched -ne 1 -or $busy -ne 1) {
