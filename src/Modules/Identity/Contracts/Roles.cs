@@ -162,6 +162,7 @@ public static class RolePermissionProjection
         if (roleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination)
         {
             permissions.Add("PER-OBLIGACION-CREAR");
+            permissions.Add("PER-PLAN-PUBLICAR");
             permissions.AddRange(["PER-ASIGNACION-EXPLICAR", "PER-CARGA-VER", "PER-ASIGNACION-CORREGIR"]);
         }
 

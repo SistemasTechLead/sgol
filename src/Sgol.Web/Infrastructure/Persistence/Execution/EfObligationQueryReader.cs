@@ -20,9 +20,9 @@ using Sgol.Web.Infrastructure.Persistence.Bootstrap;
 
 namespace Sgol.Web.Infrastructure.Persistence.Execution;
 
-public sealed class EfObligationQueryReader(
+public sealed partial class EfObligationQueryReader(
     SgolDbContext dbContext,
-    IClock clock) : IObligationQueryReader, IHierarchySupervisionReader, IIndicatorReader
+    IClock clock) : IObligationQueryReader, IHierarchySupervisionReader, IIndicatorReader, IPlanQueryReader
 {
     private const int CursorVersion = 1;
     private const int MaximumCursorLength = 2048;

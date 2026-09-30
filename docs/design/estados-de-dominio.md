@@ -1,5 +1,9 @@
 # estados-de-dominio.md — SGOL / Loretta Zapatería
 
+## Plan semanal PUBLICADO
+
+Para UI-G05/G06, aprobado por la sección 7 de `F07_ADENDA_53_PROPUESTA_CONSUMIDOR_FRONT_015.md`, PUBLICADO se presenta como «Publicado», icono de documento con check y `--color-info` / `--color-info-fondo`. Indica al menos una publicación efectiva, sin afirmar validación, conclusión o publicación de todos los niveles. BORRADOR, VIGENTE y SUSTITUIDA conservan texto, iconos y tokens existentes. Se incorpora sólo presentación de un estado ya persistido.
+
 Estos son los estados que aparecen en casi cualquier pantalla del sistema.
 
 **Regla obligatoria, sin excepción: ningún estado se comunica solo por color.** Todo badge de estado lleva texto en español visible y un ícono. El color es refuerzo, no el mensaje. Un usuario con daltonismo, o una captura de pantalla en escala de grises impresa para revisión, tiene que poder leer el estado igual.

@@ -220,6 +220,7 @@ public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApi
             }
             await LoadManualAsync(cancellationToken);
             if (!await LoadAssignmentsAsync(cancellationToken)) return Redirect("/acceso");
+            if (!await LoadPlansAsync(cancellationToken)) return Redirect("/acceso");
             return Page();
         }
         catch (ApiProtocolException)
@@ -228,6 +229,7 @@ public sealed partial class IndexModel(IRazorSessionState sessionState, ISgolApi
             CalendarError ??= new("No se pudo cargar la planificación", "Vuelve a consultar más tarde.", null);
             await LoadManualAsync(cancellationToken);
             if (!await LoadAssignmentsAsync(cancellationToken)) return Redirect("/acceso");
+            if (!await LoadPlansAsync(cancellationToken)) return Redirect("/acceso");
             return Page();
         }
     }

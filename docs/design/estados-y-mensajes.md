@@ -1,5 +1,9 @@
 # estados-y-mensajes.md — SGOL / Loretta Zapatería
 
+## UI-G05 y UI-G06 aprobadas para FRONT-015
+
+La tabla completa de mensajes y los seis estados de la sección 7 de `F07_ADENDA_53_PROPUESTA_CONSUMIDOR_FRONT_015.md` quedó aprobada íntegramente mediante «Apruebo íntegramente las secciones 2–8» el 2026-09-29 y se incorpora por referencia como catálogo operativo consumidor. Los vacíos distinguen plan inexistente, ausencia de obligaciones visibles e historia sin publicaciones visibles. Los resultados confirmados no crean estados de dominio. PUBLICADO no implica publicación de todos los niveles. Un 412 exige recarga y nueva intención; un resultado incierto sólo permite reenviar la misma intención original. La confirmación no exige motivo ni selecciona nivel u obligaciones.
+
 Este sistema niega mucho por diseño: roles distintos, validaciones, control de acceso. La forma en que comunica esos límites es parte del sistema de diseño, no un detalle menor.
 
 ## Tono general

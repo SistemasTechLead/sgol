@@ -1,0 +1,120 @@
+@model Sgol.Web.Pages.Planning.IndexModel
+@using Sgol.Web.Pages.Planning
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@if (Model.CanViewPlan || Model.PlanError is not null || Model.PlanOperationError is not null)
+{
+<section id="plan-semanal" class="planificacion__seccion" aria-labelledby="plan-title" aria-busy="false">
+    <h2 id="plan-title">Plan semanal</h2>
+    <p role="status" aria-live="polite" hidden data-plan-loading>Consultando plan…</p>
+    <form method="get" action="/planificacion#plan-semanal" class="planificacion__formulario" data-progress-form data-plan-read>
+        <label class="campo" for="plan-year"><span class="campo__etiqueta">Año ISO</span><input id="plan-year" class="campo__control" name="isoYear" value="@Model.IsoYear" inputmode="numeric" required aria-describedby="plan-error" aria-invalid="@(Model.PlanError is null ? "false" : "true")" /></label>
+        <label class="campo" for="plan-week"><span class="campo__etiqueta">Semana ISO</span><input id="plan-week" class="campo__control" name="isoWeek" value="@Model.IsoWeek" inputmode="numeric" required aria-describedby="plan-error" aria-invalid="@(Model.PlanError is null ? "false" : "true")" /></label>
+        <button class="boton boton--secundario" type="submit" data-progress-label="Consultando plan…">Consultar plan</button>
+    </form>
+    <div id="plan-error" tabindex="-1" data-plan-error>
+        @if (Model.PlanError is not null) { <partial name="_ProblemAlert" model="Model.PlanError" /> }
+        @if (Model.PlanOperationError is not null) { <partial name="_ProblemAlert" model="Model.PlanOperationError" /> }
+    </div>
+    @if (Model.PlanSuccess is not null)
+    {
+        <div id="plan-result" role="status" tabindex="-1"><p><span aria-hidden="true">✓</span> @Model.PlanSuccess</p>
+            @if (Model.EnsuredPlan is { } ensured) { <p>Plan confirmado: @ensured.PlanId</p> }
+            @if (Model.PublishedPlan is { } published)
+            { <p>Publicación confirmada: @published.PublicationId. Versión @published.VersionNo. @IndexModel.AssignmentTime(published.PublishedAt) — Hora de Ciudad de México.</p> }
+        </div>
+    }
+    @if (Model.CanViewPlan && Model.PlanError is null)
+    {
+        @if (Model.WeeklyPlan is { } plan)
+        {
+            <dl><dt>Sucursal</dt><dd>@plan.BranchCode</dd><dt>Plan</dt><dd>@plan.PlanId</dd><dt>Semana ISO</dt><dd>@plan.IsoYear / @plan.IsoWeek</dd><dt>Estado</dt><dd>
+                <span class="badge @(plan.Status == "PUBLICADO" ? "badge--info" : "badge--neutro")"><span aria-hidden="true">@(plan.Status == "PUBLICADO" ? "▤✓" : "✎")</span> @(plan.Status == "PUBLICADO" ? "Publicado" : "Borrador")</span>
+            </dd></dl>
+            @if (plan.Status == "PUBLICADO") { <p>Publicado indica al menos una publicación efectiva; no asegura publicación de todos los niveles.</p> }
+            <h3>Obligaciones actuales</h3><p>Contenido actual permitido por tu alcance. No es el snapshot de una publicación.</p>
+            @if (Model.PlanItemsError is not null) { <partial name="_ProblemAlert" model="Model.PlanItemsError" /> }
+            else if (Model.PlanObligations.Count == 0) { <div class="estado-vacio" role="status"><p><span aria-hidden="true">ⓘ</span> No hay obligaciones visibles en este plan</p></div> }
+            else
+            {
+                <div class="tabla-contenedor"><table class="tabla"><caption>Obligaciones actuales autorizadas del plan semanal</caption><thead class="tabla__encabezado"><tr><th scope="col">TAR</th><th scope="col">Identificador</th><th scope="col">Estado de ejecución</th><th scope="col">Responsable vigente</th></tr></thead><tbody>
+                @foreach (var item in Model.PlanObligations)
+                { <tr class="tabla__fila"><td>@item.Task.TaskCode</td><td>@item.ObligationId</td><td><span aria-hidden="true">@(item.ExecutionStatus == "CONCLUIDA" ? "✓" : "◷")</span> @(item.ExecutionStatus == "CONCLUIDA" ? "Concluida" : "Pendiente")</td><td>@(item.CurrentAssignment?.Responsible.DisplayName ?? "Sin asignación")</td></tr> }
+                </tbody></table></div>
+                <nav class="paginacion" aria-label="Paginación de obligaciones actuales">
+                    @if (Model.PreviousPlanItemsHref is { } previous) { <a class="boton boton--secundario" href="@previous">Anterior</a> } else { <span aria-disabled="true">Anterior</span> }
+                    @if (Model.NextPlanItemsHref is { } next) { <a class="boton boton--secundario" href="@next">Siguiente</a> } else { <span aria-disabled="true">Siguiente</span> }
+                </nav>
+            }
+        }
+        else { <div class="estado-vacio" role="status"><p><span aria-hidden="true">ⓘ</span> Aún no existe un plan para esta semana</p></div> }
+        @if (Model.EnsurePlanToken is not null && !Model.PlanUncertain)
+        {
+            <form method="post" asp-page-handler="EnsurePlan" asp-antiforgery="false" data-progress-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="planIntent" value="@Model.EnsurePlanToken" />
+                <button type="submit" class="boton boton--secundario" data-progress-label="Preparando plan…">Crear o recuperar plan</button>
+            </form>
+        }
+        <section class="planificacion__seccion" aria-labelledby="plan-publications-title">
+            <h3 id="plan-publications-title">Publicaciones del plan</h3>
+            @if (Model.PlanHistoryError is not null) { <div tabindex="-1" data-plan-error><partial name="_ProblemAlert" model="Model.PlanHistoryError" /></div> }
+            else if (Model.PlanVersions.Count == 0) { <div class="estado-vacio" role="status"><p><span aria-hidden="true">ⓘ</span> No hay publicaciones visibles en tu alcance</p></div> }
+            else
+            {
+                <div class="tabla-contenedor"><table class="tabla"><caption>Historia de publicaciones visibles</caption><thead class="tabla__encabezado"><tr><th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Alcance</th><th scope="col">Instante</th><th scope="col">Actor</th><th scope="col">Contenido</th></tr></thead><tbody>
+                @foreach (var version in Model.PlanVersions)
+                {
+                    <tr class="tabla__fila"><td>@version.VersionNo</td><td><span class="badge @(version.VersionStatus == "VIGENTE" ? "badge--exito" : "badge--info")"><span aria-hidden="true">@(version.VersionStatus == "VIGENTE" ? "✓" : "◷")</span> @(version.VersionStatus == "VIGENTE" ? "Vigente" : "Sustituida")</span></td><td>@Sgol.Web.Presentation.Navigation.SessionPresentation.RoleName(version.ScopeRole)</td><td>@IndexModel.AssignmentTime(version.PublishedAt) — Hora de Ciudad de México</td><td>@version.PublishedBy</td><td><a class="boton boton--secundario tabla__accion" href="@Model.PlanHref(version.PublicationId.ToString("D"))">Ver contenido publicado de la versión @version.VersionNo</a></td></tr>
+                }
+                </tbody></table></div>
+                <nav class="paginacion" aria-label="Paginación de publicaciones">
+                    @if (Model.PreviousPlanVersionsHref is { } previous) { <a class="boton boton--secundario" href="@previous">Anterior</a> } else { <span aria-disabled="true">Anterior</span> }
+                    @if (Model.NextPlanVersionsHref is { } next) { <a class="boton boton--secundario" href="@next">Siguiente</a> } else { <span aria-disabled="true">Siguiente</span> }
+                </nav>
+            }
+            @if (Model.SelectedPlanPublication is { } snapshot && Model.PlanHistoryError is null)
+            {
+                <h4>Contenido publicado — Versión @snapshot.Publication.VersionNo</h4><p>Sólo se muestra el contenido permitido por tu alcance actual. Las referencias de asignación son las congeladas al publicar.</p>
+                <div class="tabla-contenedor"><table class="tabla"><caption>Referencias históricas de la publicación seleccionada</caption><thead class="tabla__encabezado"><tr><th scope="col">Obligación</th><th scope="col">Asignación publicada</th></tr></thead><tbody>
+                    @foreach (var pair in snapshot.Obligations) { <tr class="tabla__fila"><td>@pair.ObligationId</td><td>@pair.AssignmentVersionId</td></tr> }
+                </tbody></table></div>
+                <nav class="paginacion" aria-label="Paginación de contenido publicado">
+                    @if (Model.PreviousPlanSnapshotHref is { } previous) { <a class="boton boton--secundario" href="@previous">Anterior</a> } else { <span aria-disabled="true">Anterior</span> }
+                    @if (Model.NextPlanSnapshotHref is { } next) { <a class="boton boton--secundario" href="@next">Siguiente</a> } else { <span aria-disabled="true">Siguiente</span> }
+                </nav>
+            }
+            @if (Model.CanPublishPlan)
+            {
+                <p>Tu alcance de publicación: @Model.PlanScope.</p>
+                @if (Model.WeeklyPlan is { } publishable && !Model.PlanConflict && !Model.PlanUncertain && !Model.PlanConfirmation)
+                {
+                    <form method="post" asp-page-handler="PreparePlanPublication" asp-antiforgery="false" data-progress-form>
+                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="isoYear" value="@Model.IsoYear" /><input type="hidden" name="isoWeek" value="@Model.IsoWeek" /><input type="hidden" name="planId" value="@publishable.PlanId" /><input type="hidden" name="etag" value="@Model.PlanEtag" />
+                        <button class="boton boton--primario" type="submit" data-progress-label="Consultando publicaciones…">Preparar publicación</button>
+                    </form>
+                }
+                else if (Model.WeeklyPlan is null || Model.PlanConflict) { <button type="button" class="boton boton--primario" disabled>Publicar alcance</button> }
+                @if (Model.PlanConfirmation)
+                {
+                    <button type="button" class="boton boton--primario" data-dialog-open aria-controls="plan-confirm">Revisar publicación</button>
+                    <dialog id="plan-confirm" class="modal" open aria-labelledby="plan-confirm-title" aria-describedby="plan-confirm-summary" data-plan-confirm>
+                        <form method="post" asp-page-handler="PublishPlan" asp-antiforgery="false" data-progress-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="planIntent" value="@Model.PublishPlanToken" />
+                            <h3 id="plan-confirm-title">Publicar alcance</h3><p id="plan-confirm-summary">Plan @Model.WeeklyPlan?.PlanId, semana @Model.IsoYear / @Model.IsoWeek. Alcance: @Model.PlanScope. Se publicarán las obligaciones aplicables a tu nivel y niveles inferiores. El servidor volverá a comprobar tu autoridad y las asignaciones.</p>
+                            <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button><button type="submit" class="boton boton--primario" data-progress-label="Publicando alcance…">Publicar alcance</button></div>
+                            <noscript><a class="boton boton--secundario" href="@Model.PlanHref()">Cancelar</a></noscript>
+                        </form>
+                    </dialog>
+                }
+            }
+        </section>
+    }
+    @if (Model.PlanUncertain && !Model.PlanConflict && Model.CanViewPlan && (!Model.PlanUncertainPublication || Model.CanPublishPlan))
+    {
+        <form method="post" asp-page-handler="@(Model.PlanUncertainPublication ? "PublishPlan" : "EnsurePlan")" asp-antiforgery="false" data-progress-form>
+            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="planIntent" value="@(Model.PlanUncertainPublication ? Model.PublishPlanToken : Model.EnsurePlanToken)" />
+            <button class="boton boton--secundario" type="submit" data-progress-label="Preparando plan…">Reenviar la misma solicitud</button>
+        </form>
+    }
+    <a class="boton boton--secundario" href="@Model.PlanHref()">Recargar plan</a>
+</section>
+}
