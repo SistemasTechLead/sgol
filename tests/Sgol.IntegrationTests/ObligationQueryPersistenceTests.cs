@@ -102,6 +102,7 @@ public sealed class ObligationQueryPersistenceTests : IAsyncLifetime
         var scenario = await ResetAndSeedAsync();
         await using var context = CreateContext();
         var before = await CountsAsync(context);
+        var beforeRows = await Front016NoEffectSnapshot.ReadAsync(context);
         var reader = Reader(context);
 
         var manual = await reader.GetAsync(new(
@@ -144,6 +145,7 @@ public sealed class ObligationQueryPersistenceTests : IAsyncLifetime
         Assert.NotNull(concluded.Detail.Dates.ConcludedAt);
 
         Assert.Equal(before, await CountsAsync(context));
+        Assert.Equal(beforeRows, await Front016NoEffectSnapshot.ReadAsync(context));
         Assert.Empty(context.ChangeTracker.Entries());
     }
 

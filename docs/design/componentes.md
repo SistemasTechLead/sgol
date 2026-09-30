@@ -1,5 +1,9 @@
 # componentes.md — SGOL / Loretta Zapatería
 
+## UI-E01/E02/E03 — FRONT-016 aprobada
+
+Adenda 54 incorpora íntegramente §§4–6 de `docs/traceability/FRONT_016_PLAN_DE_IMPLEMENTACION.md`, aprobados mediante «Bueno sigue con la tarea, apruebo la adenda integramente». Son la composición operativa de bandeja propia y avisos en `/mi-trabajo`, consulta separada por alcance y detalle GET con historia en `/mi-trabajo/tareas/{obligationId:guid}`. Reutiliza tabla/cursor, filtros GET, alertas, badges, vacío y foco; conserva seis estados y responsive. Marcación individual sin diálogo ni motivo, botón ocupado y foco a Leído o al encabezado si desaparece la fila. Carga de consultas usa esqueleto de tabla y aria-busy. No incluye evidencia aportable ni conclusión. BR-D13 se consume; BR-N04 se aplica.
+
 ## UI-G05 y UI-G06 aprobadas para FRONT-015
 
 El responsable aprobó íntegramente las secciones 2–8 de `F07_ADENDA_53_PROPUESTA_CONSUMIDOR_FRONT_015.md` mediante «Apruebo íntegramente las secciones 2–8» el 2026-09-29. Sus §§6/7 se incorporan como composición operativa específica: plan semanal actual e historia de snapshots, tablas con cursor, filtros de año/semana y confirmación contextual de publicación sin motivo. La variante del dialog base omite textarea porque el comando sólo admite cuerpo vacío; conserva Cancelar como foco inicial, Escape, retorno al disparador y acción primaria. UI-G05 se presenta a los cuatro roles con PER-PLAN-VER; UI-G06 sólo ofrece publicar con PER-PLAN-PUBLICAR. Se conservan los seis estados, tokens y accesibilidad existentes.

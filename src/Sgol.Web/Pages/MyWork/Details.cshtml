@@ -1,0 +1,45 @@
+@page "/mi-trabajo/tareas/{obligationId:guid}"
+@model Sgol.Web.Pages.MyWork.DetailsModel
+@using Sgol.Web.Presentation.MyWork
+@{ ViewData["Title"] = "Detalle de tarea"; }
+<h1 class="encabezado-pagina__titulo">Detalle de tarea</h1>
+<p><a class="boton boton--secundario" href="@Model.BackHref">Volver a Mi trabajo</a></p>
+@if (Model.Error is not null)
+{
+    <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div>
+    <a class="boton boton--secundario" href="@Model.ReloadHref">Recargar consulta</a>
+}
+else if (Model.Detail is { } item)
+{
+    <section class="mi-trabajo__seccion" aria-labelledby="tarea-title">
+        <h2 id="tarea-title">@item.Task.TaskCode · @item.Task.Name</h2>
+        <p><partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.ExecutionStatus)" />
+            @if (item.Condition == "VENCIDA") { <partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.Condition)" /> }
+        </p>
+        <dl><dt>Procedencia</dt><dd>@MyWorkPresentation.Origin(item.Origin.Kind)</dd><dt>Referencia</dt><dd>@item.Origin.Reference</dd>
+            <dt>Versión TAR</dt><dd>@item.Task.Version.VersionNo · @item.Task.Version.Status</dd>
+            <dt>Período</dt><dd>@MyWorkPresentation.Period(item.Period.IsoYear, item.Period.IsoWeek, item.Period.StartsOn, item.Period.EndsOn)</dd>
+            <dt>Solicitud</dt><dd><time datetime="@item.GenerationRequest.RequestedAt.ToString("O")">@MyWorkPresentation.Time(item.GenerationRequest.RequestedAt)</time></dd>
+            <dt>Vencimiento</dt><dd><time datetime="@item.Dates.DueAt?.ToString("O")">@MyWorkPresentation.Time(item.Dates.DueAt)</time></dd>
+            <dt>Conclusión</dt><dd><time datetime="@item.Dates.ConcludedAt?.ToString("O")">@MyWorkPresentation.Time(item.Dates.ConcludedAt)</time></dd>
+            <dt>Responsable actual</dt><dd>@(item.CurrentAssignment?.Responsible.DisplayName ?? "Sin asignación vigente")</dd>
+        </dl><p>Hora de Ciudad de México. Concluida no significa validada.</p>
+    </section>
+    <section class="mi-trabajo__seccion" id="historia" aria-labelledby="historia-title">
+        <h2 id="historia-title">Historia de esta tarea</h2>
+        <div class="tabla-contenedor"><table class="tabla"><caption>Hechos permitidos de la tarea</caption><thead class="tabla__encabezado"><tr><th scope="col">Fecha</th><th scope="col">Hecho</th><th scope="col">Responsable o publicación</th><th scope="col">Motivo autorizado</th></tr></thead><tbody>
+            @foreach (var ev in item.History)
+            {
+                <tr class="tabla__fila"><td><time datetime="@ev.OccurredAt.ToString("O")">@MyWorkPresentation.Time(ev.OccurredAt)</time></td><td>@MyWorkPresentation.HistoryName(ev.EventType)</td>
+                    <td>@if (ev.Assignment is { } assignment) { <span>@assignment.Responsible.DisplayName · @(assignment.Status == "VIGENTE" ? "Vigente" : "Sustituida")</span> }
+                        else if (ev.Publication is { } publication) { <span>Versión @publication.VersionNo · @SessionPresentation.RoleName(publication.ScopeRole)</span> }
+                        else { <span>@(ev.ActorType == "SYSTEM" ? "Sistema" : "Persona")</span> }
+                    </td><td>@(ev.EventType == "ASIGNACION_CORREGIDA" ? ev.Reason : null)</td>
+                </tr>
+            }
+        </tbody></table></div>
+        @if (item.History.Count == 0) { <partial name="_EmptyState" model="@(new EmptyStateViewModel("No hay eventos disponibles en esta consulta", ActionLabel: "Volver al detalle", ActionHref: Model.ReloadHref))" /> }
+        @if (Model.Pagination is not null) { <partial name="_WorkPagination" model="Model.Pagination" /> }
+    </section>
+}
+@section Scripts { <script src="~/js/my-work.js" asp-append-version="true"></script> }

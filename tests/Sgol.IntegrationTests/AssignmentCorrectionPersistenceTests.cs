@@ -160,6 +160,8 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
         var countingClock = new CountingClock(readAt);
         var beforeReadAuditCount = await context.AuditEvents.CountAsync();
         var beforeSnapshotCount = await context.EvidenceReviewSnapshots.CountAsync();
+        var beforeReadRows = await Front016NoEffectSnapshot.ReadAsync(context);
+        var taskRows = await Front016NoEffectSnapshot.ReadAsync(context, includeNoticesAndAudit: false);
         var inbox = await new EfInboxReader(context, countingClock).ReadAsync(new(
             candidate.User.Id,
             await context.WeekPeriods.Select(item => (Guid?)item.Id).SingleAsync(),
@@ -175,6 +177,7 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
         Assert.Equal(InternalNoticeStatuses.Unread, inbox.Notices.Items[0].Status);
         Assert.Equal(beforeReadAuditCount, await context.AuditEvents.CountAsync());
         Assert.Equal(beforeSnapshotCount, await context.EvidenceReviewSnapshots.CountAsync());
+        Assert.Equal(beforeReadRows, await Front016NoEffectSnapshot.ReadAsync(context));
 
         var noticeService = new EfInternalNoticeService(context, new FixedClock(readAt), new TestUuidGenerator());
 
@@ -191,6 +194,7 @@ public sealed class AssignmentCorrectionPersistenceTests : IAsyncLifetime
             noticeService.MarkReadAsync(new(actor.User.Id, notice.Id, Guid.CreateVersion7())));
         Assert.Equal(WorkObligationStatuses.Pending, await context.WorkObligations.AsNoTracking()
             .Where(item => item.Id == obligationId).Select(item => item.ExecutionStatus).SingleAsync());
+        Assert.Equal(taskRows, await Front016NoEffectSnapshot.ReadAsync(context, includeNoticesAndAudit: false));
     }
 
     [Fact]

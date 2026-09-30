@@ -1,0 +1,47 @@
+@model Sgol.Web.Pages.MyWork.IndexModel
+@using Sgol.Web.Presentation.MyWork
+<section class="mi-trabajo__seccion" id="consulta-tareas" aria-labelledby="consulta-tareas-title">
+    <h2 id="consulta-tareas-title">Tareas que puedo consultar</h2>
+    <form method="get" action="/mi-trabajo#consulta-tareas" class="tabla-filtros" data-work-query="consulta-tareas">
+        @foreach (var pair in Model.Query.HiddenExcept("taskCode", "executionStatus", "condition", "cursor")) { <input type="hidden" name="@pair.Key" value="@pair.Value" /> }
+        <label class="campo"><span class="campo__etiqueta">TAR</span><select class="campo__control" name="taskCode"><option value="">Todas</option>
+            @foreach (var code in new[] { "TAR-0005", "TAR-0007", "TAR-0008", "TAR-0011", "TAR-0018", "TAR-0026", "TAR-0092", "TAR-0093" })
+            { <option value="@code" selected="@(Model.Query["taskCode"] == code)">@code</option> }
+        </select></label>
+        <label class="campo"><span class="campo__etiqueta">Ejecución</span><select class="campo__control" name="executionStatus"><option value="">Todas</option>
+            @foreach (var state in new[] { "PENDIENTE", "CONCLUIDA" }) { <option value="@state" selected="@(Model.Query["executionStatus"] == state)">@MyWorkPresentation.Badge(state).Text</option> }
+        </select></label>
+        <label class="campo"><span class="campo__etiqueta">Condición</span><select class="campo__control" name="condition"><option value="">Todas</option>
+            <option value="VENCIDA" selected="@(Model.Query["condition"] == "VENCIDA")">Vencida</option><option value="NO_VENCIDA" selected="@(Model.Query["condition"] == "NO_VENCIDA")">No vencida</option>
+        </select></label>
+        <button class="boton boton--secundario" type="submit">Aplicar filtros</button>
+        <a class="boton boton--secundario" href="@Model.Query.Href("consulta-tareas", ("taskCode", null), ("executionStatus", null), ("condition", null), ("responsiblePersonId", null), ("queryPeriodId", null), ("cursor", null))">Limpiar filtros</a>
+        <a class="boton boton--secundario" href="@Model.Query.Href("consulta-tareas", ("queryPeriodId", null), ("cursor", null))">Todos los períodos</a>
+    </form>
+    @if (Model.QueryError is not null)
+    { <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="Model.QueryError" /></div> }
+    else
+    {
+        <div class="tabla-contenedor"><table class="tabla"><caption>Tareas autorizadas por tu alcance vigente</caption><thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Período</th><th scope="col">Responsable actual</th><th scope="col">Origen</th><th scope="col">Ejecución</th><th scope="col">Vencimiento</th><th scope="col">Consulta</th></tr></thead><tbody>
+            @foreach (var item in Model.Obligations)
+            {
+                <tr class="tabla__fila" data-visible-task="@item.ObligationId"><td>@item.Task.TaskCode · @item.Task.Name</td>
+                    <td>@MyWorkPresentation.Period(item.Period.IsoYear, item.Period.IsoWeek, item.Period.StartsOn, item.Period.EndsOn)</td>
+                    <td>@(item.CurrentAssignment?.Responsible.DisplayName ?? "Sin asignación vigente")</td><td>@MyWorkPresentation.Origin(item.Origin.Kind)</td>
+                    <td><partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.ExecutionStatus)" />
+                        @if (item.Condition == "VENCIDA") { <partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.Condition)" /> }
+                    </td>
+                    <td><time datetime="@item.Dates.DueAt?.ToString("O")">@MyWorkPresentation.Time(item.Dates.DueAt)</time></td>
+                    <td><div class="tabla__acciones">
+                        <a class="boton boton--secundario tabla__accion" href="@Model.DetailHref(item.ObligationId)">Ver tarea</a>
+                        <a class="boton boton--secundario tabla__accion" href="@Model.Query.Href("consulta-tareas", ("queryPeriodId", item.Period.PeriodId.ToString("D")), ("cursor", null))">Consultar este período</a>
+                        @if (Model.CanViewInbox) { <a class="boton boton--secundario tabla__accion" href="@Model.Query.Href("mis-tareas", ("periodId", item.Period.PeriodId.ToString("D")), ("taskCursor", null))">Ver este período en mi bandeja</a> }
+                    </div></td>
+                </tr>
+            }
+        </tbody></table></div>
+        @if (Model.Obligations.Count == 0)
+        { <partial name="_EmptyState" model="@(new EmptyStateViewModel("No hay tareas disponibles en esta consulta", ActionLabel: "Limpiar filtros", ActionHref: "/mi-trabajo#consulta-tareas"))" /> }
+        @if (Model.QueryPagination is not null) { <partial name="_WorkPagination" model="Model.QueryPagination" /> }
+    }
+</section>

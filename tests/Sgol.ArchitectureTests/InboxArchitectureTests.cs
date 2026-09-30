@@ -56,6 +56,7 @@ public sealed class InboxArchitectureTests
 
         var ui = Directory.EnumerateFiles(web, "*Inbox*", SearchOption.AllDirectories)
             .Where(path => Path.GetExtension(path) is ".cshtml" or ".razor" or ".css" or ".js")
+            .Where(path => !path.Equals(Path.Combine(web, "Pages", "MyWork", "_Inbox.cshtml"), StringComparison.OrdinalIgnoreCase))
             .ToArray();
         Assert.Empty(ui);
     }

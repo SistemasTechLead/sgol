@@ -36,7 +36,7 @@ public sealed partial class ObligationQueryArchitectureTests
     }
 
     [Fact]
-    public void Hu023AddsOnlyTheTwoApprovedGetRoutesAndNoUserInterface()
+    public void Hu023KeepsOnlyTheTwoApprovedGetRoutesWithFront016Consumer()
     {
         var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
         var endpoints = File.ReadAllText(Path.Combine(
@@ -60,6 +60,7 @@ public sealed partial class ObligationQueryArchitectureTests
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .Where(path => Path.GetFileName(path).Contains("Obligation", StringComparison.OrdinalIgnoreCase))
             .Where(path => Path.GetExtension(path) is ".cshtml" or ".razor" or ".css" or ".js")
+            .Where(path => !path.Equals(Path.Combine(root, "src", "Sgol.Web", "Pages", "MyWork", "_Obligations.cshtml"), StringComparison.OrdinalIgnoreCase))
             .ToArray();
         Assert.Empty(hu023InterfaceFiles);
     }

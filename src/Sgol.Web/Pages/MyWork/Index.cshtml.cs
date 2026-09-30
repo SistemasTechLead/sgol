@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.DataProtection;
 using Sgol.Web.Presentation.ApiClient;
 using Sgol.Web.Presentation.Authentication;
 using Sgol.Web.Presentation.Navigation;
@@ -7,10 +8,10 @@ using Sgol.Web.Presentation.Navigation;
 namespace Sgol.Web.Pages.MyWork;
 
 [IgnoreAntiforgeryToken] // The shared bridge validates this Razor form and the API validates the same pair again.
-public sealed class IndexModel(
+public sealed partial class IndexModel(
     IRazorSessionState sessionState,
     RazorAntiforgeryBridge antiforgery,
-    AccessNotice accessNotice) : PageModel
+    AccessNotice accessNotice, ISgolApiClient apiClient, IDataProtectionProvider protection) : PageModel
 {
     public string? ErrorTitle { get; private set; }
     public string? ErrorMessage { get; private set; }
@@ -20,7 +21,7 @@ public sealed class IndexModel(
         NoStore();
         var hadSession = Request.Cookies.ContainsKey("__Host-SGOL-Session");
         var session = await sessionState.GetAsync(cancellationToken);
-        if (session is not null) return Page();
+        if (session is not null) return await LoadWorkAsync(session, cancellationToken);
         if (hadSession && sessionState.IsInvalid) return Access(AccessNoticeKind.Ended);
         if (!hadSession) return Redirect("/acceso");
         Response.StatusCode = StatusCodes.Status503ServiceUnavailable;

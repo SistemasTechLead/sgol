@@ -4,6 +4,9 @@
     var title = ViewData["Title"] as string ?? "SGOL";
     var navigationItems = new[]
     {
+        new NavigationItem("Mi trabajo", "/mi-trabajo",
+            new HashSet<string>(["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION", "PISO_VENTAS"], StringComparer.Ordinal),
+            new HashSet<string>(["PER-BANDEJA-PROPIA"], StringComparer.Ordinal)),
         new NavigationItem("Personas y accesos", "/personas-y-accesos",
             new HashSet<string>(["DIRECCION"], StringComparer.Ordinal),
             new HashSet<string>(["PER-PERSONA-ADMIN"], StringComparer.Ordinal)),
