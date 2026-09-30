@@ -14,6 +14,16 @@ Navegador enfocado en ejecución para FRONT-016, sesión/logout y shell afectado
 
 Las secciones de validación diferida y espera conservadas al final documentan el cierre local anterior a esta autorización; este registro vigente las sustituye sólo donde hay ejecución acreditada. La autorización continúa para reparar defectos del hito y publicar correcciones al mismo PR, con seguimiento automático si el turno termina pendiente.
 
+## Corrección de seguridad de la imagen — estado vigente del PR #84
+
+Run `36757877161`, cabeza `e21bc2ecd1db9bfce65fb896b9785803e44e4b68`: servidor, navegador y controles SUCCESS; operations y consolidación FAILURE. Trivy detectó CVE-2026-84782 en openssl/libssl3t64 3.0.13-0ubuntu3.15, dos hallazgos HIGH. El aviso oficial https://ubuntu.com/security/CVE-2026-84782 identifica 3.0.13-0ubuntu3.16 como versión corregida para Ubuntu noble. No es un fallo funcional de FRONT-016.
+
+Corrección indispensable para publicar el mismo hito: Dockerfile instala explícitamente ambos paquetes corregidos, conservando los digests de SDK/runtime, usuario, comandos y gate HIGH/CRITICAL. Sin excepciones del escáner, cambios de SDK ni alcance funcional adicional.
+
+Validación local: preflight PASS con SDK 10.0.400 y árbol inicialmente limpio; arquitectura TechOps/SdkPin **5/5 PASS**. `scripts/operations/build-tech-ops-image.ps1 -Tag sgol:front-016-openssl-fixed`: **PASS**, imagen linux/amd64, Worker/pg_dump/age, UID, puerto, etiquetas, SBOM y provenance. Imagen local `sha256:c92f264de26ce8127e53c34342321f1cca4238342c643e78ba1c2fa284855cb3`, marcada dirty correctamente antes del commit. dpkg-query confirma ambos paquetes 3.0.13-0ubuntu3.16. Trivy **0.70.0**, imagen del escáner por digest `sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e`, con `image --scanners vuln --severity HIGH,CRITICAL --exit-code 1`: **PASS**, cero hallazgos en OS y bibliotecas. Evidencias fuera del repositorio; no se incorporan secretos ni binarios.
+
+Los gates remotos de la cabeza que contiene esta corrección siguen pendientes; los resultados anteriores no la validan. Se conserva el seguimiento del mismo PR y chat, sin merge ni despliegue autorizados. Las capturas ya entregadas siguen representando la interfaz sin cambios visuales.
+
 ## Correcciones del primer pipeline — PR #84
 
 Run `36658472583`, cabeza exacta `b3902d87df20edf877aa92aa888db010ca61f228`: FAILURE. Controles PASS; servidor PASS con unitarias 853/853, arquitectura 64/64 y PostgreSQL 265/265, formato y vulnerabilidades correctos. Navegador 18/23, cinco fallos; operations omitido y consolidación fallida. Esta evidencia pertenece sólo a esa cabeza, no valida la corrección posterior.
