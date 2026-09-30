@@ -71,6 +71,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IAssignmentCorrectionService, EfAssignmentCorrectionService>();
         services.AddScoped<IActiveLoadReader, EfActiveLoadReader>();
         services.AddScoped<IObligationQueryReader, EfObligationQueryReader>();
+        services.AddScoped<IPlanQueryReader>(provider =>
+            (IPlanQueryReader)provider.GetRequiredService<IObligationQueryReader>());
         services.AddScoped<IHierarchySupervisionReader>(provider =>
             provider.GetRequiredService<IObligationQueryReader>() as IHierarchySupervisionReader
             ?? throw new InvalidOperationException("The obligation reader must provide hierarchical supervision."));

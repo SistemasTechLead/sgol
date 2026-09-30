@@ -102,6 +102,7 @@ app.MapValidationPolicyApi();
 app.MapWeekApi();
 app.MapWorkPlanApi();
 app.MapPlanPublicationApi();
+app.MapPlanQueryApi();
 app.MapGenerationRequestApi();
 app.MapEligibilityEvaluationApi();
 app.MapAssignmentCorrectionApi();

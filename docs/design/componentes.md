@@ -1,5 +1,9 @@
 # componentes.md — SGOL / Loretta Zapatería
 
+## UI-G05 y UI-G06 aprobadas para FRONT-015
+
+El responsable aprobó íntegramente las secciones 2–8 de `F07_ADENDA_53_PROPUESTA_CONSUMIDOR_FRONT_015.md` mediante «Apruebo íntegramente las secciones 2–8» el 2026-09-29. Sus §§6/7 se incorporan como composición operativa específica: plan semanal actual e historia de snapshots, tablas con cursor, filtros de año/semana y confirmación contextual de publicación sin motivo. La variante del dialog base omite textarea porque el comando sólo admite cuerpo vacío; conserva Cancelar como foco inicial, Escape, retorno al disparador y acción primaria. UI-G05 se presenta a los cuatro roles con PER-PLAN-VER; UI-G06 sólo ofrece publicar con PER-PLAN-PUBLICAR. Se conservan los seis estados, tokens y accesibilidad existentes.
+
 Inventario de componentes base. La densidad es intencional: quien usa este sistema viene de Excel y espera ver muchas filas y controles compactos, no tarjetas espaciadas de sitio de marketing. Todo el marcado usa exclusivamente las variables de `tokens.md` — cero valores sueltos.
 
 Todo control interactivo debe tener foco visible por teclado (`:focus-visible`, nunca solo `:focus`, para no mostrar el anillo en un clic de mouse) y todo estado de error debe ir acompañado de texto, no solo de un borde rojo — ver `estados-y-mensajes.md`.

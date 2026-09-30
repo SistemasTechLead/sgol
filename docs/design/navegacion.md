@@ -1,5 +1,9 @@
 # Navegación del frontend SGOL
 
+## UI-G05 y UI-G06
+
+Adenda 53 §§6/7 aprobadas el 2026-09-29: ambas unidades viven en `/planificacion`. UI-G05 es visible a los cuatro roles con PER-PLAN-VER, incluido Piso expresamente. Publicar se presenta sólo con PER-PLAN-PUBLICAR proyectado; la API reautoriza. La historia selecciona publicaciones del mismo plan sin ruta web adicional ni enlaces a pantallas de FRONT-016. Año, semana y cursores son filtros GET; ninguna navegación publica o crea el plan.
+
 ## Control
 
 Esta fuente operativa materializa las decisiones aprobadas por la Adenda 46. Describe presentación y navegación; no concede autorización, no crea endpoints y no declara implementada una página. SGOL reconoce cuatro roles canónicos: `DIRECCION`, `ADMINISTRACION`, `SUBCOORDINACION` y `PISO_VENTAS`.

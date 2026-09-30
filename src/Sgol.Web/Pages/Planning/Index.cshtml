@@ -164,10 +164,12 @@
     }
     @if (Model.CanCreateManual || Model.ManualError is not null) { <partial name="_ManualGeneration" model="Model" /> }
     <partial name="_Assignments" model="Model" />
+    <partial name="_Plans" model="Model" />
 </section>
 @section Scripts {
     <script src="~/js/manual-generation.js" asp-append-version="true"></script>
     <script src="~/js/assignments.js" asp-append-version="true"></script>
+    <script src="~/js/plans.js" asp-append-version="true"></script>
     @if (Model.WeekError is not null) { <script>document.getElementById('week-error')?.focus();</script> }
     else if (Model.CalendarError is not null) { <script>document.getElementById('calendar-error')?.focus();</script> }
     else if (Model.DraftError is not null) { <script>document.getElementById('draft-error')?.focus();</script> }
