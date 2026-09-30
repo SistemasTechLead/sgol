@@ -97,9 +97,9 @@
                 {
                     <button type="button" class="boton boton--primario" data-dialog-open aria-controls="plan-confirm">Revisar publicación</button>
                     <dialog id="plan-confirm" class="modal" open aria-labelledby="plan-confirm-title" aria-describedby="plan-confirm-summary" data-plan-confirm>
-                        <form method="post" asp-page-handler="PublishPlan" asp-antiforgery="false" data-progress-form>
+                        <form method="post" asp-page-handler="PublishPlan" asp-antiforgery="false" class="modal__contenido" data-progress-form>
                             <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="planIntent" value="@Model.PublishPlanToken" />
-                            <h3 id="plan-confirm-title">Publicar alcance</h3><p id="plan-confirm-summary">Plan @Model.WeeklyPlan?.PlanId, semana @Model.IsoYear / @Model.IsoWeek. Alcance: @Model.PlanScope. Se publicarán las obligaciones aplicables a tu nivel y niveles inferiores. El servidor volverá a comprobar tu autoridad y las asignaciones.</p>
+                            <h3 id="plan-confirm-title" class="modal__titulo">Publicar alcance</h3><p id="plan-confirm-summary" class="modal__texto">Plan @Model.WeeklyPlan?.PlanId, semana @Model.IsoYear / @Model.IsoWeek. Alcance: @Model.PlanScope. Se publicarán las obligaciones aplicables a tu nivel y niveles inferiores. El servidor volverá a comprobar tu autoridad y las asignaciones.</p>
                             <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button><button type="submit" class="boton boton--primario" data-progress-label="Publicando alcance…">Publicar alcance</button></div>
                             <noscript><a class="boton boton--secundario" href="@Model.PlanHref()">Cancelar</a></noscript>
                         </form>
