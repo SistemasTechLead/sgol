@@ -86,6 +86,8 @@ No registres secretos, contraseñas, TOTP, códigos de recuperación, cookies, U
 
 ## Trabajo local y publicación por hitos
 
+Para las tareas `FRONT-*`, lee y aplica además `INSTRUCCIONES_EJECUCION_TAREAS_FRONT.md`, aprobado por el responsable e incorporado después del merge de FRONT-015. Define plan y aprobación, implementación y commit local, autorización de publicación, capturas con explicación para el usuario y seguimiento del pipeline. La autorización de publicación de ese hito incluye corregir sus defectos, validar y subir las correcciones al mismo PR sin nuevas confirmaciones; mantén el seguimiento hasta solicitar aprobación expresa de merge con la cabeza actual validada o informar una decisión necesaria. Si el turno termina con el pipeline pendiente, configura y verifica el seguimiento en este mismo chat. No hagas merge ni despliegue por la autorización de publicación. Este complemento se aplica sólo a `FRONT-*`; las demás tareas conservan el flujo general siguiente.
+
 1. El modo predeterminado es local. Implementa y valida varios endpoints sin crear un PR, ejecutar un pipeline ni publicar cada versión en GitHub.
 2. La autorización para implementar una tarea permite editar archivos y, si ayuda a conservar puntos recuperables, crear commits locales coherentes. No pidas una autorización adicional para cada commit local.
 3. No hagas `push`, abras PR ni inicies checks remotos por defecto, y no interrumpas cada tarea para preguntar si debe publicarse. Acumula cambios coherentes hasta que el usuario solicite publicar un hito.
