@@ -1,6 +1,6 @@
 # FRONT-015 — Plan semanal y publicaciones
 
-Fecha: 2026-09-29, America/Mexico_City. **Implementada localmente** en `codex/front-015`, base `9b1c2f07d83b7c2370326b3e817d63a533900b4e`. Commit implementado: el que contiene esta actualización. No se declara Publicada, Integrada o Terminada.
+Fecha: 2026-09-29, America/Mexico_City. **Implementada localmente** en `codex/front-015`, base `9b1c2f07d83b7c2370326b3e817d63a533900b4e`. Commit implementado: el que contiene esta actualización. Registro inicial local; publicación posterior acreditada en la sección siguiente. No se declara Integrada o Terminada.
 
 ## Contrato y autorización
 
@@ -70,3 +70,9 @@ La sección 8 de Adenda 53 aprobada y el flujo de validación local proporcional
 - Suite completa, dotnet format --verify-no-changes, escáneres, demo integral y gates remotos. No forman parte del cierre local por tarea.
 
 Los pendientes no equivalen a éxito. Este estado local permite continuar dependencias conforme a AGENTS.md. No se realizó push, PR, merge, despliegue ni revisión remota.
+
+## Publicación autorizada
+
+El responsable autorizó la publicación mediante «Apruebo su publicacion». Se publicó la rama remota `codex/front-015` en `https://github.com/SistemasTechLead/sgol`, con la implementación `b18c75133cf1a82406f95733a30f0dca4f150c10`. La rama parte de master `9b1c2f07d83b7c2370326b3e817d63a533900b4e`, coincidente con origin/master al preparar el hito.
+
+Estado: **Publicada**. PR: el que incorpora esta actualización. Cabeza final: la resuelta por dicho PR; cualquier check debe corresponder a esa cabeza exacta. Pipeline y revisión pendientes de verificación; no se atribuye éxito a las validaciones diferidas. La publicación activa los gates de pull_request existentes sin modificar el workflow. Merge y despliegue no autorizados ni realizados. El registro anterior conserva la evidencia del cierre local previo a esta publicación.
