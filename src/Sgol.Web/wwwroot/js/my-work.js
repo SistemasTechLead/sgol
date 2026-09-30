@@ -25,5 +25,7 @@
     });
     const script = document.querySelector("script[data-work-focus]");
     const target = document.querySelector("[data-work-error], #session-error") || document.getElementById(script?.dataset.workFocus || "");
-    target?.focus();
+    // Restore focus after the browser has navigated to the submitted fragment.
+    if (document.readyState === "complete") target?.focus();
+    else window.addEventListener("load", () => target?.focus(), { once: true });
 })();

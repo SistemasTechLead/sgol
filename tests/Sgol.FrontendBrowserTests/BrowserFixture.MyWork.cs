@@ -7,6 +7,7 @@ using Sgol.Assignment.Contracts;
 using Sgol.BuildingBlocks.Versioning;
 using Sgol.Configuration.Contracts;
 using Sgol.Generation.Contracts;
+using Sgol.IntegrationTests;
 using Sgol.Notifications.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
@@ -67,7 +68,7 @@ internal sealed partial class BrowserFixture
                 var notice = new InternalNotice(Guid.CreateVersion7(), account.UserId, assignment.Id, assignment.AssignedAt);
                 db.AssignmentVersions.Add(assignment); db.InternalNotices.Add(notice); await db.SaveChangesAsync();
                 if (state == "VENCIDA") await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE work_obligation SET due_at = {now.AddMinutes(-5)} WHERE id = {obligation.Id}");
-                if (state == "CONCLUIDA") await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE work_obligation SET execution_status = 'CONCLUIDA', concluded_at = {now.AddSeconds(-5)}, concluded_by = {account.UserId}, row_version = row_version + 1 WHERE id = {obligation.Id}");
+                if (state == "CONCLUIDA") await ObligationConclusionTestData.ConcludeAsync(db, obligation.Id, now.AddSeconds(-5));
                 tasks.Add(new(obligation.Id, notice.Id, account.UserId, period.Id, state));
             }
         }

@@ -92,10 +92,10 @@ public sealed class ShellBrowserSmokeTests
                     var navigationHeight = viewport.Mobile
                         ? (await page.Locator(".barra-lateral").BoundingBoxAsync())?.Height ?? 0 : 0;
                     Assert.InRange(Math.Abs(mainBox.Y - headerBox.Y - headerBox.Height - navigationHeight), 0, 2);
-                    if (viewport.Mobile)
-                        await page.Locator(".salto-contenido").FocusAsync();
-                    else
-                        await page.Keyboard.PressAsync("Tab");
+                    // FRONT-016 focuses the query error; the skip-link remains independently keyboard accessible.
+                    Assert.True(await page.Locator("[data-work-error]").EvaluateAsync<bool>(
+                        "el => document.activeElement === el"));
+                    await page.Locator(".salto-contenido").FocusAsync();
                     Assert.True(await page.Locator(".salto-contenido").EvaluateAsync<bool>(
                         "el => document.activeElement === el && getComputedStyle(el).transform === 'none'"));
                     await page.Keyboard.PressAsync("Enter");

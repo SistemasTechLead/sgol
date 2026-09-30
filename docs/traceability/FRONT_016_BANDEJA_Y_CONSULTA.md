@@ -14,6 +14,21 @@ Navegador enfocado en ejecución para FRONT-016, sesión/logout y shell afectado
 
 Las secciones de validación diferida y espera conservadas al final documentan el cierre local anterior a esta autorización; este registro vigente las sustituye sólo donde hay ejecución acreditada. La autorización continúa para reparar defectos del hito y publicar correcciones al mismo PR, con seguimiento automático si el turno termina pendiente.
 
+## Correcciones del primer pipeline — PR #84
+
+Run `36658472583`, cabeza exacta `b3902d87df20edf877aa92aa888db010ca61f228`: FAILURE. Controles PASS; servidor PASS con unitarias 853/853, arquitectura 64/64 y PostgreSQL 265/265, formato y vulnerabilidades correctos. Navegador 18/23, cinco fallos; operations omitido y consolidación fallida. Esta evidencia pertenece sólo a esa cabeza, no valida la corrección posterior.
+
+Defectos reproducidos y corregidos dentro de FRONT-016:
+
+- La semilla concluía por SQL sin snapshot de evidencia completa ni ExecutionResult; PostgreSQL rechazó OBLIGATION_CONCLUSION_INCOHERENT. El harness reutiliza ObligationConclusionTestData e InternalNoticeTestData mediante Compile Link, sin paquetes ni cambios de backend. Autentica las cuentas antes de sembrar para conservar usuario/MFA real de prueba; no deshabilita triggers ni restricciones.
+- ShellBrowserSmokeTests esperaba el foco inicial anterior. Ahora exige el foco en el error de consulta y mantiene salto al contenido y teclado. Las dos pruebas antiguas FRONT-005/006 exigían tres enlaces de Dirección; ahora exigen cuatro y el enlace Mi trabajo explícito. No amplían sus historias ni relajan controles de autorización.
+- El navegador local encontró que el fragmento del formulario podía sobreescribir el foco de confirmación. MyWork restaura el foco al terminar load. WebKit espera explícitamente la navegación del handler, evitando afirmar éxito sobre el documento anterior; la prueba sigue exigiendo la confirmación, desaparición por filtro, foco de avisos e invariancia completa de taskRows.
+- Se añade comprobación real de contraste WCAG 4.5:1 de badges, etiquetas, captions, th/scope, IDs únicos, foco visible y avisos READ sin botón de marcación. Capturas adicionales por sección facilitan revisión sin presentar la previsualización como validación integral.
+
+Build de corrección y formato integral PASS, sin errores/advertencias. Un intento de recompilar mientras testhost tenía la DLL abierta falló por MSB3027/MSB3021; se volvió a compilar después de cerrar la ejecución anterior, con resultado correcto. No se interpreta el fallo de copia como una validación aprobada.
+
+Validación local de navegador **PASS 6/6**, cero omisiones, para FRONT-016, FRONT-002, shell y expectativas de navegación FRONT-005/006: `dotnet test tests/Sgol.FrontendBrowserTests --no-build --configuration Release --filter 'FullyQualifiedName~Front016BrowserTests|FullyQualifiedName~Front002BrowserTests|FullyQualifiedName~ShellBrowserSmokeTests|FullyQualifiedName~Front005BrowserTests|FullyQualifiedName~Front006BrowserTests'`. Incluye los cuatro puestos en Chromium escritorio y WebKit móvil, foco/reflow y contraste medidos, tarea ajena ausente y detalle denegado, marcación y GET posteriores sin cambio de taskRows; cleanup PASS. Cabeza corregida: commit que contiene esta actualización; sus gates remotos se comprobarán después del push. Seguimiento heartbeat `seguimiento-front-016-pr-84` activo y verificado, vinculado a este mismo chat; silencio sin novedades accionables, sin autorización de merge/despliegue.
+
 El responsable ordenó «Bueno sigue con la tarea, apruebo la adenda integramente». Se aprobó íntegramente `FRONT_016_PLAN_DE_IMPLEMENTACION.md` §§2–8, incorporado por `F07_ADENDA_54_CONTRATO_CONSUMIDOR_FRONT_016.md` y las extensiones operativas de docs/design. Publicación, merge y despliegue no están autorizados.
 
 Se leyó primero IMPLEMENTATION_STATUS y su tabla de tareas insertadas; preflight fue la única comprobación inicial del entorno. Se acepta FRONT-013 integrada, FRONT-015 integrada por PR #82 y documento FRONT integrado por PR #83 conforme a la evidencia previa del responsable. Las menciones premerge o de FRONT-016 no iniciada en resúmenes antiguos son históricas. No se reconstruyeron análisis ni gates de esas tareas.

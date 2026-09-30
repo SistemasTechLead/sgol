@@ -16,5 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Sgol.Web\Sgol.Web.csproj" />
+    <Compile Include="..\Sgol.IntegrationTests\ObligationConclusionTestData.cs" Link="SharedFixtures\ObligationConclusionTestData.cs" />
+    <Compile Include="..\Sgol.IntegrationTests\InternalNoticeTestData.cs" Link="SharedFixtures\InternalNoticeTestData.cs" />
   </ItemGroup>
 </Project>
