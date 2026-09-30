@@ -14,7 +14,15 @@ Navegador enfocado en ejecución para FRONT-016, sesión/logout y shell afectado
 
 Las secciones de validación diferida y espera conservadas al final documentan el cierre local anterior a esta autorización; este registro vigente las sustituye sólo donde hay ejecución acreditada. La autorización continúa para reparar defectos del hito y publicar correcciones al mismo PR, con seguimiento automático si el turno termina pendiente.
 
-## Corrección de seguridad de la imagen — estado vigente del PR #84
+## Diagnóstico del gate de concurrencia — estado vigente del PR #84
+
+Run `36760994312`, cabeza `a9ccb6d98e80de46eb9e8715cca7512d5a086d1f`: controles, servidor y navegador SUCCESS; escaneo OCI corregido, TECH-OPS integral y prueba de stream de réplica PASS. HU-035 integral falla en Invoke-ConcurrentReconciliation con mensaje genérico, sin conservar el exit code ni el código seguro recibido; consolidación FAILURE derivada. No se atribuye causa funcional ni intermitencia sin evidencia.
+
+Se conecta el formatter cerrado ya existente Format-Hu035ReconcileFailure al rechazo concurrente: publica únicamente CASE=concurrency, EXIT numérico y ERROR de lista permitida/UNKNOWN. Conserva exactamente un MATCHED y un LOCK_BUSY y el replay inmutable; no acepta respuestas nuevas ni expone stdout/stderr originales. Es un diagnóstico indispensable para reparar el pipeline del hito, sin cambios de dominio.
+
+Preflight PASS (SDK 10.0.400, árbol inicialmente limpio). Comprobaciones enfocadas: test-hu-035-private-network.ps1 **89 aserciones PASS**; test-hu-035-server-diagnostics.ps1 **217 aserciones PASS**, incluidas privacidad, parser, procesos y cleanup; git diff --check PASS. El verificador histórico validate-hu-035.ps1 falla por exigir literalmente la migración AddHostedAuthentication en FunctionalSnapshotReader, cuya versión vigente usa AddManualGenerationSnapshots; no valida este cambio ni se altera para conseguir verde. El gate integral requiere host Linux x64 según su guard y no se ejecuta desde PowerShell Windows; reproducción remota pendiente con diagnóstico seguro. No se presenta el fallo de concurrencia como resuelto. Se continúa el seguimiento del mismo PR hasta evidencia o decisión necesaria.
+
+## Corrección de seguridad de la imagen — registro de la cabeza anterior
 
 Run `36757877161`, cabeza `e21bc2ecd1db9bfce65fb896b9785803e44e4b68`: servidor, navegador y controles SUCCESS; operations y consolidación FAILURE. Trivy detectó CVE-2026-84782 en openssl/libssl3t64 3.0.13-0ubuntu3.15, dos hallazgos HIGH. El aviso oficial https://ubuntu.com/security/CVE-2026-84782 identifica 3.0.13-0ubuntu3.16 como versión corregida para Ubuntu noble. No es un fallo funcional de FRONT-016.
 
