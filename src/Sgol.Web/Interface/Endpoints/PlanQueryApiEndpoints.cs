@@ -14,9 +14,26 @@ public static class PlanQueryApiEndpoints
     private static readonly HashSet<string> VersionParameters = new(["publicationId", "cursor", "limit"], StringComparer.Ordinal);
     public static IEndpointRouteBuilder MapPlanQueryApi(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/v1/plans/{isoYear}/{isoWeek}", HandlePlanAsync);
-        endpoints.MapGet("/api/v1/plans/{planId}/versions", HandleVersionsAsync);
+        endpoints.MapGet("/api/v1/plans/{isoYear}/{isoWeek}", HandlePlanRequestAsync);
+        endpoints.MapGet("/api/v1/plans/{planId}/versions", HandleVersionsRequestAsync);
         return endpoints;
+    }
+
+    private static Task<IResult> HandlePlanRequestAsync(string isoYear, string isoWeek,
+        HttpContext context, CancellationToken cancellationToken)
+    {
+        if (!TryActor(context, out _, out var failure)) return Task.FromResult(failure!);
+        return HandlePlanAsync(isoYear, isoWeek, context,
+            context.RequestServices.GetRequiredService<IPlanQueryReader>(), cancellationToken);
+    }
+
+    private static Task<IResult> HandleVersionsRequestAsync(string planId,
+        HttpContext context, CancellationToken cancellationToken)
+    {
+        if (!TryActor(context, out _, out var failure)) return Task.FromResult(failure!);
+        return HandleVersionsAsync(planId, context,
+            context.RequestServices.GetRequiredService<IPlanQueryReader>(),
+            context.RequestServices.GetRequiredService<IDataProtectionProvider>(), cancellationToken);
     }
 
     public static async Task<IResult> HandlePlanAsync(string isoYear, string isoWeek, HttpContext context,

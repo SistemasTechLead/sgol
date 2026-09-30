@@ -76,3 +76,23 @@ Los pendientes no equivalen a éxito. Este estado local permite continuar depend
 El responsable autorizó la publicación mediante «Apruebo su publicacion». Se publicó la rama remota `codex/front-015` en `https://github.com/SistemasTechLead/sgol`, con la implementación `b18c75133cf1a82406f95733a30f0dca4f150c10`. La rama parte de master `9b1c2f07d83b7c2370326b3e817d63a533900b4e`, coincidente con origin/master al preparar el hito.
 
 Estado: **Publicada**. PR: el que incorpora esta actualización. Cabeza final: la resuelta por dicho PR; cualquier check debe corresponder a esa cabeza exacta. Pipeline y revisión pendientes de verificación; no se atribuye éxito a las validaciones diferidas. La publicación activa los gates de pull_request existentes sin modificar el workflow. Merge y despliegue no autorizados ni realizados. El registro anterior conserva la evidencia del cierre local previo a esta publicación.
+
+## Corrección del pipeline del PR #82
+
+El responsable pidió «Corrige el problema y sube la corrección». Run `36648697320`, sobre cabeza `20ac2cb17e3bdf9284a75a36b0b987130de0bd44`, terminó FAILURE: la prueba histórica WorkPlanEnsureRequiresAuthenticationAndGetRemainsOutsideHu020 esperaba 404 para una lectura ahora existente, pero recibió 500. Se reprodujo localmente 1/1 fallida antes de editar.
+
+La resolución anticipada de IPlanQueryReader al enlazar el endpoint intentaba construir la persistencia sin su configuración antes de entrar al control de autenticación. Ambas rutas GET de FRONT-015 ahora comprueban autenticación/identidad antes de resolver el lector y la protección de cursor, siguiendo el patrón existente de ensure. Los handlers públicos y la autorización de recursos conservan sus contratos. No se cambian reglas de negocio, modelo, dependencias, diseño ni Fuentes.
+
+HostSmokeTests separa ensure de las lecturas y reemplaza la expectativa de inexistencia por cuatro casos hospedados: plan, versiones y ambas rutas con parámetros inválidos, todos sin sesión. Exigen 401 AUTENTICACION_REQUERIDA, application/problem+json y X-Correlation-ID aun sin persistencia disponible.
+
+Validación local de la corrección con SDK aislado 10.0.400:
+
+```powershell
+dotnet build --no-restore --configuration Release -verbosity quiet
+dotnet test tests/Sgol.UnitTests/Sgol.UnitTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~HostSmokeTests|FullyQualifiedName~PlanQueryApiEndpointTests|FullyQualifiedName~Front015PresentationTests' --logger 'console;verbosity=minimal'
+git diff --check
+```
+
+Resultado: build PASS, cero errores/advertencias; pruebas enfocadas 66/66; diff-check PASS. Archivos productivo/prueba: src/Sgol.Web/Interface/Endpoints/PlanQueryApiEndpoints.cs y tests/Sgol.UnitTests/HostSmokeTests.cs, además de esta trazabilidad y IMPLEMENTATION_STATUS.md.
+
+Evidencia del primer run, no transferible a una cabeza posterior: source controls SUCCESS, arquitectura 63/63, PostgreSQL 265/265, navegador 21/21 y unitarias 809 aprobadas/1 fallida. Operations SKIPPED y PR gates FAILURE. Las suites remotas aprobadas acreditan sus casos existentes, sin afirmar recorrido específico de FRONT-015 en navegador ni autenticación/TLS completa. Los siete nuevos casos PostgreSQL sí están incluidos en los 265 aprobados. La corrección requiere nuevos gates sobre el commit que contiene esta actualización; no se declara pipeline verde, merge ni despliegue.

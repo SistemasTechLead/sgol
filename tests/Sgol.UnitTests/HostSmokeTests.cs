@@ -123,14 +123,28 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact]
-    public async Task WorkPlanEnsureRequiresAuthenticationAndGetRemainsOutsideHu020()
+    public async Task WorkPlanEnsureRequiresAuthentication()
     {
         using var ensure = await _client.PostAsync("/api/v1/plans/2026/36/ensure", content: null);
-        using var get = await _client.GetAsync("/api/v1/plans/2026/36");
 
         Assert.Equal(HttpStatusCode.Unauthorized, ensure.StatusCode);
         Assert.Equal("application/problem+json", ensure.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/v1/plans/2026/36")]
+    [InlineData("/api/v1/plans/019d9400-0000-7000-8000-000000000011/versions")]
+    [InlineData("/api/v1/plans/invalid/week")]
+    [InlineData("/api/v1/plans/invalid/versions?cursor=invalid")]
+    public async Task PlanReadsRequireAuthenticationBeforeResolvingPersistence(string path)
+    {
+        using var response = await _client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.True(response.Headers.Contains("X-Correlation-ID"));
+        using var payload = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("AUTENTICACION_REQUERIDA", payload.RootElement.GetProperty("code").GetString());
     }
 
     [Theory]
