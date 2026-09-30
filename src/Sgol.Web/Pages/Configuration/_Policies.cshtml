@@ -6,7 +6,7 @@
 {
     @if (Model.CanManageActivation || Model.ActivationError is not null)
     {
-        <section id="activation-policy" aria-labelledby="activation-policy-title">
+        <section class="panel-seccion" id="activation-policy" aria-labelledby="activation-policy-title">
             <h3 id="activation-policy-title">Activación de @task.TaskCode</h3>
             @if (Model.ActivationError is not null)
             {
@@ -88,7 +88,7 @@
     }
     @if (Model.CanManageEligibility || Model.EligibilityError is not null)
     {
-        <section id="eligibility-policy" aria-labelledby="eligibility-policy-title">
+        <section class="panel-seccion" id="eligibility-policy" aria-labelledby="eligibility-policy-title">
             <h3 id="eligibility-policy-title">Elegibilidad de @task.TaskCode</h3>
             @if (Model.EligibilityError is not null)
             {

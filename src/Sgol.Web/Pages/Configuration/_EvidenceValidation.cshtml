@@ -6,7 +6,7 @@
 {
     @if (Model.CanManageEvidence || Model.EvidenceError is not null)
     {
-        <section id="evidence-policy" class="seccion-politicas" aria-labelledby="evidence-policy-title">
+        <section id="evidence-policy" class="panel-seccion seccion-politicas" aria-labelledby="evidence-policy-title">
             <h3 id="evidence-policy-title">Evidencia de @task.TaskCode</h3>
             @if (Model.EvidenceError is not null)
             {
@@ -97,7 +97,7 @@
     }
     @if (Model.CanManageValidation || Model.ValidationError is not null)
     {
-        <section id="validation-policy" class="seccion-politicas" aria-labelledby="validation-policy-title">
+        <section id="validation-policy" class="panel-seccion seccion-politicas" aria-labelledby="validation-policy-title">
             <h3 id="validation-policy-title">Validación de @task.TaskCode</h3>
             @if (Model.ValidationError is not null)
             {

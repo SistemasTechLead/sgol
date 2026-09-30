@@ -3,8 +3,8 @@
 @using Sgol.BuildingBlocks.Versioning
 @using Sgol.Configuration.Contracts
 
-<section id="task-definitions" class="seccion-definiciones" aria-labelledby="task-definitions-title">
-    <h2 id="task-definitions-title">Definiciones TAR del MVP</h2>
+<section id="task-definitions" class="panel-seccion seccion-definiciones" aria-labelledby="task-definitions-title">
+    <header class="panel-seccion__cabecera"><h2 id="task-definitions-title">Definiciones TAR del MVP</h2></header>
     <p>Ocho definiciones aprobadas. Las versiones anteriores y las obligaciones ya generadas permanecen en su historia.</p>
     @if (Model.TaskDefinitionsError is not null)
     {
@@ -54,7 +54,7 @@
 
         @if (Model.SelectedTask is { } selected)
         {
-            <section id="task-detail" class="seccion-definiciones__detalle" aria-labelledby="task-detail-title">
+            <section id="task-detail" class="panel-seccion seccion-definiciones__detalle" aria-labelledby="task-detail-title">
                 <h3 id="task-detail-title" tabindex="-1">@selected.TaskCode — @selected.Name</h3>
                 @if (selected.Current is { } current)
                 {
@@ -116,7 +116,7 @@
 
         @if (Model.CanManageTaskDefinitions && !Model.TaskConflict)
         {
-            <section id="task-new-version" class="formulario-persona" aria-labelledby="task-new-version-title">
+            <section id="task-new-version" class="panel-seccion formulario-persona" aria-labelledby="task-new-version-title">
                 <h3 id="task-new-version-title">Crear versión en borrador</h3>
                 <p>Esquema aprobado: <code>schemaVersion=1</code> y <code>taskPayload={}</code>. No hay campos de definición editables.</p>
                 @if (!Model.Releases.Any(release => release.Status == VersionStatuses.Draft))

@@ -11,7 +11,7 @@ Estado: implementación en curso, local. Sin autorización de publicación, merg
 | Base compartida | Aprobada | Implementada localmente; build Release 0 errores/advertencias, arquitectura de diseño 9/9, render/sesión 33/33; revisión visual transversal pendiente del cierre del hito |
 | Acceso, entrada y sucursal | Aprobada | Código adaptado; build Release PASS; validación visual enfocada en curso |
 | Personas y accesos | Aprobada | Código adaptado; build Release PASS; validación visual enfocada en curso |
-| Configuración | Aprobada | Pendiente |
+| Configuración | Aprobada | Código adaptado; build Release PASS; validación visual enfocada en curso |
 | Fechas y alta manual | Aprobada | Pendiente |
 | Asignaciones, carga y plan | Aprobada | Pendiente |
 | Mi trabajo | Aprobada | Pendiente |
