@@ -66,7 +66,8 @@ public sealed partial class IndexModel
         {
             CanonicalRole.Direction => "Dirección, Administración, Subcoordinación y Piso",
             CanonicalRole.Administration => "Administración, Subcoordinación y Piso",
-            CanonicalRole.Subcoordination => "Subcoordinación y Piso", _ => ""
+            CanonicalRole.Subcoordination => "Subcoordinación y Piso",
+            _ => ""
         };
         if (!CanViewPlan) return true;
         if (Week is null)
@@ -226,7 +227,8 @@ public sealed partial class IndexModel
                     {
                         "PUBLICADA_INICIAL" => "Primera publicación de tu alcance confirmada",
                         "PUBLICADA_INCREMENTAL" => "Nueva versión de tu alcance publicada",
-                        "RECUPERADA" => "Se recuperó la publicación ya confirmada", _ => null
+                        "RECUPERADA" => "Se recuperó la publicación ya confirmada",
+                        _ => null
                     };
                 }
                 else OperationFailure(result, true);

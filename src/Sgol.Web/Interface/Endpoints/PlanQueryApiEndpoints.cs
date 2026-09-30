@@ -83,9 +83,17 @@ public static class PlanQueryApiEndpoints
             ReadHeaders(context, result.RowVersion);
             var nextCursor = result.NextCursor is null ? null : protector.Protect(JsonSerializer.Serialize(result.NextCursor));
             object data = result.Snapshot is { } snapshot ? snapshot : result.Versions;
-            return Results.Ok(new { data, meta = new { nextCursor,
-                count = result.Snapshot?.Obligations.Count ?? result.Versions.Count,
-                queriedAt = result.QueriedAt, correlationId = context.GetCorrelationId() } });
+            return Results.Ok(new
+            {
+                data,
+                meta = new
+                {
+                    nextCursor,
+                    count = result.Snapshot?.Obligations.Count ?? result.Versions.Count,
+                    queriedAt = result.QueriedAt,
+                    correlationId = context.GetCorrelationId()
+                }
+            });
         }
         catch (WorkPlanException exception) { return Problem(context, exception.ResponseCode, exception.ErrorCode); }
         catch (PlanPublicationException exception) { return Problem(context, exception.ResponseCode, exception.ErrorCode); }

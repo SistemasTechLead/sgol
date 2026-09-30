@@ -96,3 +96,13 @@ git diff --check
 Resultado: build PASS, cero errores/advertencias; pruebas enfocadas 66/66; diff-check PASS. Archivos productivo/prueba: src/Sgol.Web/Interface/Endpoints/PlanQueryApiEndpoints.cs y tests/Sgol.UnitTests/HostSmokeTests.cs, además de esta trazabilidad y IMPLEMENTATION_STATUS.md.
 
 Evidencia del primer run, no transferible a una cabeza posterior: source controls SUCCESS, arquitectura 63/63, PostgreSQL 265/265, navegador 21/21 y unitarias 809 aprobadas/1 fallida. Operations SKIPPED y PR gates FAILURE. Las suites remotas aprobadas acreditan sus casos existentes, sin afirmar recorrido específico de FRONT-015 en navegador ni autenticación/TLS completa. Los siete nuevos casos PostgreSQL sí están incluidos en los 265 aprobados. La corrección requiere nuevos gates sobre el commit que contiene esta actualización; no se declara pipeline verde, merge ni despliegue.
+
+## Corrección automática de formato durante el seguimiento
+
+El heartbeat detectó FAILURE del run `36650531795` para `5a57c0fe306d3704fb764726e565b8b492720ca5`. La corrección de autenticación pasó: unitarias 814/814, arquitectura 63/63, PostgreSQL 265/265 y browser job SUCCESS. El fallo primario fue Verify formatting (WHITESPACE), exclusivamente en PlanQueryApiEndpoints.cs (objeto de respuesta anidado) e Index.Plans.cs (brazos de switch); operations y vulnerabilidades no se ejecutaron, y PR gates falló por dependencia.
+
+Se reprodujeron los mismos diagnósticos con el SDK 10.0.400 y `dotnet format whitespace src/Sgol.Web/Sgol.Web.csproj --no-restore --verify-no-changes --include src/Sgol.Web/Interface/Endpoints/PlanQueryApiEndpoints.cs src/Sgol.Web/Pages/Planning/Index.Plans.cs --verbosity minimal`. Se aplicó el formato sólo a esos archivos quitando --verify-no-changes y la verificación posterior pasó. Los cambios son exclusivamente espacios/saltos de línea; no alteran contratos, reglas ni pantalla visible.
+
+Comprobación final: build Release --no-restore PASS, cero errores/advertencias; tests enfocados HostSmokeTests, PlanQueryApiEndpointTests y Front015PresentationTests 66/66; git diff --check PASS, Fuentes intacta. Una ejecución inicial solapada de build/tests produjo avisos MSB3026 por archivos bloqueados; se repitió secuencialmente y el resultado final indicado quedó limpio.
+
+Corrección publicada bajo autorización vigente en el mismo PR #82, referenciada por el commit que contiene esta actualización. Una nueva cabeza necesita su propio pipeline; no se transfiere el verde parcial anterior. Seguimiento automático permanece activo. INSTRUCCIONES_EJECUCION_TAREAS_FRONT.md y AGENTS.md no se incorporan ni modifican durante esta corrección, conforme a la orden de esperar hasta después del merge. Merge y despliegue siguen sin autorización.
