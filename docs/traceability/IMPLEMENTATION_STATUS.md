@@ -6,15 +6,15 @@ Registro local posterior a la base `master` `6036f4f7be7e15d8bc01a261a068ffb6528
 
 | Campo | Valor |
 |---|---|
-| Estado | `Implementada localmente`; rama `codex/front-016`; commit implementado: el que contiene esta actualización |
+| Estado | `Publicada` en rama `codex/front-016`; implementación local `9dd111ced98b8b7d82e167f909fa7e3b311878fb`; commit vigente: el que contiene esta actualización |
 | Aprobación | «Bueno sigue con la tarea, apruebo la adenda integramente»; plan `FRONT_016_PLAN_DE_IMPLEMENTACION.md` §§2–8 incorporado por Adenda 54 |
 | Alcance | Fila 94 de Adenda 45; HU-023/HU-030, CA/CP-023/030; UI-E01/E02/E03: bandeja y avisos propios, consulta autorizada, detalle e historia; sin FRONT-017 |
 | Dependencias | FRONT-013/015 aceptadas; BR-D13 consumida, BR-N04 aplicada y BR-M10 resuelta en diseño operativo aprobado |
 | Implementación | Cuatro estados informativos, filtros cerrados y cursores independientes protegidos; marcación individual CSRF naturalmente idempotente; ninguna consulta usa /weeks ni comandos de tarea; historia limitada al contrato existente |
 | Validación local | SDK exacto 10.0.400 aislado, global.json intacto; build Release 0 errores/advertencias, unitarias/contrato afectadas 118/118 y arquitectura enfocada 14/14; formato de archivos C# afectados y diff-check correctos |
-| Validación diferida | PostgreSQL/Testcontainers y navegador Chromium/WebKit con cuatro puestos, foco/reflow/contraste medidos, suites integrales y gates remotos se agrupan en el hito de publicación conforme al plan aprobado; preparados y compilados, sin acreditar su ejecución |
+| Validación del hito | PostgreSQL/Testcontainers enfocado 12/12 PASS, incluidos snapshots de no-efecto; navegador Chromium/WebKit con cuatro puestos en validación. Suites integrales y gates remotos pendientes de la cabeza publicada; no se acreditan por resultados de otra cabeza |
 | Evidencia | `docs/traceability/FRONT_016_BANDEJA_Y_CONSULTA.md`; protección de Fuentes conservada |
-| Publicación | Sin push, PR, pipeline, merge ni despliegue; espera autorización de publicación. No hay pipeline pendiente ni seguimiento remoto que activar |
+| Publicación | Autorizada mediante «Autorizo la publicacion, push y el PR»; push inicial `9dd111c` confirmado. PR que incorpora esta actualización y checks de su cabeza exacta: por verificar. La autorización incluye capturas sintéticas, seguimiento en este chat y correcciones del mismo hito sin nueva confirmación de publicación. Merge y despliegue no autorizados |
 
 Los registros históricos siguientes conservan su contexto de cierre formal. Para el trabajo cotidiano rige el flujo local-first de AGENTS.md y, para FRONT-*, INSTRUCCIONES_EJECUCION_TAREAS_FRONT.md.
 

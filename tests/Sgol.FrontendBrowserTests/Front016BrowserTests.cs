@@ -46,6 +46,7 @@ public sealed class Front016BrowserTests
                 Assert.Contains("Vencida", await page.Locator("#mis-tareas").InnerTextAsync());
                 Assert.Contains("Concluida", await page.Locator("#mis-tareas").InnerTextAsync());
                 Assert.Contains("Incompleta", await page.Locator("#mis-tareas").InnerTextAsync());
+                await CaptureAsync(page, account.Role, mobile, "bandeja");
                 var future = tasks.Single(t => t.UserId == account.UserId && t.State == "FUTURA");
                 await page.Locator($"[data-visible-task='{future.Id}']").GetByRole(AriaRole.Link, new() { Name = "Ver este período en mi bandeja" }).ClickAsync();
                 Assert.Equal(1, await page.Locator("[data-own-task]").CountAsync());
@@ -54,6 +55,7 @@ public sealed class Front016BrowserTests
                 Assert.Contains("Manual", await page.Locator("main").InnerTextAsync());
                 Assert.Contains("Generación solicitada", await page.Locator("#historia").InnerTextAsync());
                 Assert.Contains("Asignación automática", await page.Locator("#historia").InnerTextAsync());
+                await CaptureAsync(page, account.Role, mobile, "detalle");
                 Assert.Equal(before, await fixture.MyWorkRowsAsync());
                 await page.GetByRole(AriaRole.Link, new() { Name = "Volver a Mi trabajo" }).ClickAsync();
                 await page.Locator("#avisos select").SelectOptionAsync("UNREAD");
@@ -65,6 +67,7 @@ public sealed class Front016BrowserTests
                 Assert.Contains("Aviso marcado como leído. La tarea no cambió", await page.Locator("main").InnerTextAsync());
                 Assert.Equal(0, await page.Locator($"[data-own-notice='{future.NoticeId}']").CountAsync());
                 Assert.True(await page.Locator("#avisos-title").EvaluateAsync<bool>("e => e === document.activeElement"));
+                await CaptureAsync(page, account.Role, mobile, "aviso-leido");
                 Assert.Equal(beforeTasks, await fixture.MyWorkRowsAsync(includeNoticeAndAudit: false));
                 var dimensions = await page.EvaluateAsync<int[]>("() => [innerWidth, document.documentElement.scrollWidth]");
                 Assert.True(dimensions[1] <= dimensions[0]);
@@ -79,5 +82,21 @@ public sealed class Front016BrowserTests
             }
         }
         finally { await fixture.DisposeAsync(); Assert.True(fixture.CleanupComplete); }
+    }
+
+    private static async Task CaptureAsync(IPage page, string role, bool mobile, string screen)
+    {
+        var directory = Environment.GetEnvironmentVariable("SGOL_FRONT016_PREVIEW_DIR");
+        if (string.IsNullOrEmpty(directory)) return;
+        var path = Path.GetFullPath(directory);
+        if (path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Contains("Fuentes", StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Preview output cannot use Fuentes.");
+        Directory.CreateDirectory(path);
+        await page.ScreenshotAsync(new()
+        {
+            Path = Path.Combine(path, $"{role}-{(mobile ? "movil" : "escritorio")}-{screen}.png"),
+            FullPage = true
+        });
     }
 }

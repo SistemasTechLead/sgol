@@ -2,7 +2,17 @@
 
 ## Estado y autorización
 
-**Implementada localmente** en `codex/front-016`, desde `master` `6036f4f7be7e15d8bc01a261a068ffb652842cf5`. Commit implementado: el que contiene este informe. Fecha de trabajo: 2026-09-29, America/Mexico_City.
+**Publicada** en `codex/front-016`, desde `master` `6036f4f7be7e15d8bc01a261a068ffb652842cf5`. Implementación local `9dd111ced98b8b7d82e167f909fa7e3b311878fb`; commit vigente: el que contiene este informe. Fecha de trabajo: 2026-09-29, America/Mexico_City.
+
+## Publicación autorizada — estado vigente
+
+El responsable autorizó «Autorizo la publicacion, push y el PR». El push inicial está confirmado en origin/codex/front-016. PR que incorpora esta actualización; se verificará su cabeza exacta y cada nuevo pipeline. No autoriza merge ni despliegue.
+
+Preflight de publicación: árbol y Fuentes limpios, cabeza local `9dd111c`, SDK exigido 10.0.400 y sesión gh autenticada. `dotnet test tests/Sgol.IntegrationTests --no-build --configuration Release --filter 'FullyQualifiedName~AssignmentCorrectionPersistenceTests|FullyQualifiedName~ObligationQueryPersistenceTests'`: **PASS 12/12**, sin omisiones, PostgreSQL/Testcontainers real; snapshots completos de invariancia incluidos. No se repitieron gates de FRONT-013/015.
+
+Navegador enfocado en ejecución para FRONT-016, sesión/logout y shell afectados. Capturas opcionales del harness se guardan únicamente cuando se define SGOL_FRONT016_PREVIEW_DIR, fuera de Fuentes y con datos sintéticos; ninguna captura incluye cookies, credenciales ni HTML oculto. El código de capturas compila con cero errores/advertencias. `dotnet format --verify-no-changes --no-restore`: PASS integral en este hito. Gates remotos y resultados de navegador siguen pendientes hasta evidencia efectiva.
+
+Las secciones de validación diferida y espera conservadas al final documentan el cierre local anterior a esta autorización; este registro vigente las sustituye sólo donde hay ejecución acreditada. La autorización continúa para reparar defectos del hito y publicar correcciones al mismo PR, con seguimiento automático si el turno termina pendiente.
 
 El responsable ordenó «Bueno sigue con la tarea, apruebo la adenda integramente». Se aprobó íntegramente `FRONT_016_PLAN_DE_IMPLEMENTACION.md` §§2–8, incorporado por `F07_ADENDA_54_CONTRATO_CONSUMIDOR_FRONT_016.md` y las extensiones operativas de docs/design. Publicación, merge y despliegue no están autorizados.
 
