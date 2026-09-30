@@ -1,7 +1,7 @@
 @model Sgol.Web.Pages.MyWork.IndexModel
 @using Sgol.Web.Presentation.MyWork
-<section class="mi-trabajo__seccion" id="mis-tareas" aria-labelledby="mis-tareas-title">
-    <h2 id="mis-tareas-title">Mis tareas</h2>
+<section class="panel-seccion mi-trabajo__seccion" id="mis-tareas" aria-labelledby="mis-tareas-title">
+    <header class="panel-seccion__cabecera"><h2 id="mis-tareas-title">Mis tareas</h2></header>
     @if (Model.Inbox?.Period is { } period)
     { <p>@MyWorkPresentation.Period(period.IsoYear, period.IsoWeek, period.StartsOn, period.EndsOn) — Hora de Ciudad de México</p> }
     <form method="get" action="/mi-trabajo#mis-tareas" class="tabla-filtros" data-work-query="mis-tareas">

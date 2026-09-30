@@ -1,7 +1,7 @@
 @model Sgol.Web.Pages.MyWork.IndexModel
 @using Sgol.Web.Presentation.MyWork
-<section class="mi-trabajo__seccion" id="consulta-tareas" aria-labelledby="consulta-tareas-title">
-    <h2 id="consulta-tareas-title">Tareas que puedo consultar</h2>
+<section class="panel-seccion mi-trabajo__seccion" id="consulta-tareas" aria-labelledby="consulta-tareas-title">
+    <header class="panel-seccion__cabecera"><h2 id="consulta-tareas-title">Tareas que puedo consultar</h2></header>
     <form method="get" action="/mi-trabajo#consulta-tareas" class="tabla-filtros" data-work-query="consulta-tareas">
         @foreach (var pair in Model.Query.HiddenExcept("taskCode", "executionStatus", "condition", "cursor")) { <input type="hidden" name="@pair.Key" value="@pair.Value" /> }
         <label class="campo"><span class="campo__etiqueta">TAR</span><select class="campo__control" name="taskCode"><option value="">Todas</option>

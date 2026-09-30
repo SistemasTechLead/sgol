@@ -1,8 +1,8 @@
 @model Sgol.Web.Pages.MyWork.IndexModel
 @using Sgol.Web.Presentation.MyWork
 @inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
-<section class="mi-trabajo__seccion" id="avisos" aria-labelledby="avisos-title">
-    <h2 id="avisos-title" tabindex="-1">Mis avisos</h2>
+<section class="panel-seccion mi-trabajo__seccion" id="avisos" aria-labelledby="avisos-title">
+    <header class="panel-seccion__cabecera"><h2 id="avisos-title" tabindex="-1">Mis avisos</h2></header>
     <form method="get" action="/mi-trabajo#avisos" class="tabla-filtros" data-work-query="avisos">
         @foreach (var pair in Model.Query.HiddenExcept("noticeStatus", "noticeCursor")) { <input type="hidden" name="@pair.Key" value="@pair.Value" /> }
         <label class="campo"><span class="campo__etiqueta">Lectura de avisos</span><select class="campo__control" name="noticeStatus">
