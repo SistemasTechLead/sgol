@@ -13,7 +13,7 @@ Estado: implementación en curso, local. Sin autorización de publicación, merg
 | Personas y accesos | Aprobada | Código adaptado; build Release PASS; validación visual enfocada en curso |
 | Configuración | Aprobada | Código adaptado; build Release PASS; validación visual enfocada en curso |
 | Fechas y alta manual | Aprobada | Código adaptado; build Release PASS; validación visual enfocada en curso |
-| Asignaciones, carga y plan | Aprobada | Pendiente |
+| Asignaciones, carga y plan | Aprobada | Código adaptado; build Release PASS; validación visual enfocada en curso |
 | Mi trabajo | Aprobada | Pendiente |
 
 ## Entorno y límites

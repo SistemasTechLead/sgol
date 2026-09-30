@@ -3,8 +3,8 @@
 @inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
 @if (Model.CanViewPlan || Model.PlanError is not null || Model.PlanOperationError is not null)
 {
-<section id="plan-semanal" class="planificacion__seccion" aria-labelledby="plan-title" aria-busy="false">
-    <h2 id="plan-title">Plan semanal</h2>
+<section id="plan-semanal" class="panel-seccion planificacion__seccion" aria-labelledby="plan-title" aria-busy="false">
+    <header class="panel-seccion__cabecera"><h2 id="plan-title">Plan semanal</h2></header>
     <p role="status" aria-live="polite" hidden data-plan-loading>Consultando plan…</p>
     <form method="get" action="/planificacion#plan-semanal" class="planificacion__formulario" data-progress-form data-plan-read>
         <label class="campo" for="plan-year"><span class="campo__etiqueta">Año ISO</span><input id="plan-year" class="campo__control" name="isoYear" value="@Model.IsoYear" inputmode="numeric" required aria-describedby="plan-error" aria-invalid="@(Model.PlanError is null ? "false" : "true")" /></label>
@@ -54,7 +54,7 @@
                 <button type="submit" class="boton boton--secundario" data-progress-label="Preparando plan…">Crear o recuperar plan</button>
             </form>
         }
-        <section class="planificacion__seccion" aria-labelledby="plan-publications-title">
+        <section class="panel-seccion planificacion__seccion" aria-labelledby="plan-publications-title">
             <h3 id="plan-publications-title">Publicaciones del plan</h3>
             @if (Model.PlanHistoryError is not null) { <div tabindex="-1" data-plan-error><partial name="_ProblemAlert" model="Model.PlanHistoryError" /></div> }
             else if (Model.PlanVersions.Count == 0) { <div class="estado-vacio" role="status"><p><span aria-hidden="true">ⓘ</span> No hay publicaciones visibles en tu alcance</p></div> }

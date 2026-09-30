@@ -3,8 +3,8 @@
 @inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
 @if (Model.CanViewAssignments && Model.CanExplainAssignment || Model.AssignmentObligation is not null || Model.AssignmentError is not null || Model.CorrectionError is not null)
 {
-<section id="asignaciones" class="planificacion__seccion asignaciones" aria-labelledby="assignments-title" aria-busy="false">
-    <h2 id="assignments-title" tabindex="-1">Asignaciones</h2>
+<section id="asignaciones" class="panel-seccion planificacion__seccion asignaciones" aria-labelledby="assignments-title" aria-busy="false">
+    <header class="panel-seccion__cabecera"><h2 id="assignments-title" tabindex="-1">Asignaciones</h2></header>
     @if (Model.AssignmentError is not null) { <div id="assignment-error" tabindex="-1" data-assignment-error><partial name="_ProblemAlert" model="Model.AssignmentError" /></div> }
     @if (Model.CanViewAssignments && Model.CanExplainAssignment)
     {
@@ -134,8 +134,8 @@
 }
 @if (Model.CanViewLoads || Model.LoadError is not null)
 {
-<section id="carga-activa" class="planificacion__seccion asignaciones" aria-labelledby="loads-title" aria-busy="false">
-    <h2 id="loads-title">Carga activa</h2><p>La carga cuenta obligaciones pendientes con asignación vigente.</p>
+<section id="carga-activa" class="panel-seccion planificacion__seccion asignaciones" aria-labelledby="loads-title" aria-busy="false">
+    <header class="panel-seccion__cabecera"><h2 id="loads-title">Carga activa</h2></header><p>La carga cuenta obligaciones pendientes con asignación vigente.</p>
     @if (Model.LoadError is not null) { <div id="loads-error" tabindex="-1" data-assignment-error><partial name="_ProblemAlert" model="Model.LoadError" /></div> }
     @if (Model.CanViewLoads)
     {
