@@ -1,5 +1,9 @@
 # Estado de implementación
 
+## Estilo v2 — referencia documentada y revisión visual
+
+2026-09-30. Base v2 aceptada por el responsable salvo las correcciones solicitadas, presentadas fuera del repositorio para revisión previa a implementación. Adenda 55 §5 y docs/design/ESTILO_VISUAL_V2.md precisan las reglas operativas; documentos de diseño y complemento del único plan sincronizados. Estado: **Referencia documentada localmente; correcciones productivas pendientes de revisión visual**. La adaptación anterior conserva su evidencia debajo, no se reetiqueta como v2. FRONT-017..020 no iniciadas. Sin publicación, merge o despliegue; detalle en DISENO_RENOVADO_V2_REVISION.md.
+
 ## Diseño renovado — adaptación de pantallas existentes
 
 2026-09-30. Plan completo `docs/traceability/DISENO_RENOVADO_PLAN_DE_IMPLEMENTACION.md` aprobado mediante «Si apruebo el plan completo». Único hito **Implementado localmente**, con **Validación diferida** del recorrido hospedado por espera del almacén de certificados de Windows antes de Kestrel. Layout, variables, componentes y pantallas existentes adaptados por grupos. Build Release 0 errores/advertencias; presentación/render enfocados 109/109 y arquitectura 10/10. Evidencia y capturas Razor sintéticas en `docs/traceability/DISENO_RENOVADO_ADAPTACION.md`; no acreditan integración HTTPS ni persistencia. Se acepta la referencia documental aprobada y la evidencia previa, incluida FRONT-016. FRONT-017..020 no iniciadas; sin autorización de publicación, merge ni despliegue. Los registros documentales e históricos siguientes conservan su contexto de cierre.

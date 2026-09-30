@@ -1,5 +1,9 @@
 # SGOL — Plan documental de diseño renovado con CSS propio
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+
 ## 1. Control, evidencia y alcance
 
 Fecha: 2026-09-30. Estado: **PLAN APROBADO — INCORPORADO DOCUMENTALMENTE EN LOCAL**.
@@ -52,15 +56,15 @@ Conservar todos los valores actuales de colores de marca, superficies, bordes, t
 | `--peso-medio` | Nuevo: `500` | Nombre de registro, navegación y encabezados de columna |
 | `--peso-fuerte` | Nuevo: `600` | Jerarquía puntual de valores y títulos |
 
-Las restantes tipografías permanecen sin cambio. `--tipografia-grande` corresponde a h2 de sección y `--tipografia-media` a h3; texto primario para contenido y secundario para contexto. No se requiere carga o lectura de fuentes congeladas ni recurso remoto; se conserva fallback.
+Las restantes tipografías permanecen sin cambio. `--tipografia-grande` corresponde a h2 de sección y `--tipografia-media` a h3; texto primario para contenido y secundario para contexto. La precisión v2 carga Poppins y The Seasons locales aportadas fuera de Fuentes; conserva fallback y no introduce recursos remotos.
 
 Uso nuevo de `--color-superficie-elevada`: fondo general del área autenticada. Navegación, encabezado de sesión, paneles y tablas usan `--color-superficie`. La superficie cálida puede reforzar navegación activa, encabezados de tabla o hover. Marca decorativa sólo en identidad; nunca controles. No se colorea un panel entero según el estado de una obligación.
 
-Las propiedades visuales consumidoras se expresan mediante variables, incluyendo las nuevas primitivas de borde, foco y área. No se importan anchos por columna, mínimo universal de tabla, avatar, tracking o tiempos de la maqueta. La excepción documentada de `@media` en `48rem` se conserva, porque CSS no admite variables como umbral de media query.
+Las propiedades visuales consumidoras se expresan mediante variables, incluyendo las nuevas primitivas de borde, foco y área. No se importa un mínimo universal de tabla, anchos por columna ni tiempos de muestra. La precisión v2 documenta avatar decorativo y ancho propio de bandeja en tokens.md. La excepción documentada de `@media` en `48rem` se conserva, porque CSS no admite variables como umbral de media query.
 
 ## 4. Layout, navegación y encabezados — aprobado
 
-Composición de escritorio: encabezado de sesión compartido, columna lateral y área de trabajo con ancho máximo `--ancho-contenido`. Preservar el orden semántico vigente: salto al contenido, identidad/sesión/logout, navegación y main. La posición visual no altera tabulación ni lectura. Acceso y MFA siguen fuera del shell, con `--ancho-formulario`.
+Composición de escritorio: encabezado de sesión compartido, columna lateral y área de trabajo con ancho máximo `--ancho-contenido`. Preservar el orden semántico vigente: salto al contenido, identidad/sesión/logout, navegación y main. La posición visual no altera tabulación ni lectura. Acceso y MFA siguen fuera del shell, con composición `--ancho-acceso` y límites internos de `--ancho-formulario`, conforme a ESTILO_VISUAL_V2.md.
 
 Área de trabajo: padding `--espacio-32` en escritorio y `--espacio-16` en estrecho. Navegación: ancho `--ancho-navegacion`, fondo blanco, separador `--color-borde`. Los items conservan texto, icono, área mínima, acento y `aria-current` para activo, con señal adicional de borde. No se agregan enlaces, permisos, roles, datos de sucursal ni consultas sólo para decorar.
 

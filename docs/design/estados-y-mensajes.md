@@ -1,5 +1,9 @@
 # estados-y-mensajes.md — SGOL / Loretta Zapatería
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+
 ## Referencia renovada — conservación y precedencia aprobadas
 
 [Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) incorpora la renovación de presentación descrita en [componentes.md](componentes.md) y [referencia-renovada.md](referencia-renovada.md). Conserva literalmente los catálogos consumidores y sus consecuencias; no añade textos funcionales por copiar la maqueta.

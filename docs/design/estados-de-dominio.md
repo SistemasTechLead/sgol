@@ -1,5 +1,9 @@
 # estados-de-dominio.md — SGOL / Loretta Zapatería
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+
 ## Referencia renovada — semántica conservada
 
 [Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) adopta [referencia-renovada.md](referencia-renovada.md) exclusivamente para presentación. Todos los valores persistidos, etiquetas, iconos, pares semánticos y significados aprobados de este documento se conservan. No hay estado nuevo, permiso ni transición de negocio.

@@ -1,5 +1,9 @@
 # SGOL — Referencia oficial de diseño renovado
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+
 ## Aprobación y fuente operativa
 
 **Referencia documentada, aprobada e incorporada localmente el 2026-09-30.** El responsable aprobó «Apruebo las secciones y la adenda», cubriendo §§3–9 de [PLAN_DISENO_RENOVADO.md](PLAN_DISENO_RENOVADO.md) y [Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md). La elección es exclusivamente CSS propio renovado. La aceptación final del paquete se solicita al entregar; no supone autorización de publicación ni implementación del hito posterior.

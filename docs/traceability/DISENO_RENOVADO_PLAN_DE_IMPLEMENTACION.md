@@ -150,3 +150,15 @@ Agrupar el hito en un único PR y pipeline final; adjuntar el PR al chat. La aut
 Seguir la cabeza real y su pipeline. Si el turno termina con checks pendientes, configurar o reutilizar y verificar heartbeat en este mismo chat, con PR/rama/SHA/run/plan/autorizaciones y silencio ante estado sin cambios. No crear seguimiento remoto antes de autorización ni reutilizar el de FRONT-016 como seguimiento de este hito.
 
 Con cabeza vigente verde y requisitos previos cubiertos, solicitar aprobación expresa de merge indicando PR, SHA completo, run/evidencia y límites. No hacer merge o despliegue por autorización de publicación. La ejecución local se detiene para revisión al cerrar el hito sin pedir publicar cada grupo.
+
+## Complemento v2 al único hito — revisión 2026-09-30
+
+Base visual aceptada mediante «Todas las demas pantallas están correctas». Orden expresa de actualizar la referencia operativa; incorporada documentalmente en ESTILO_VISUAL_V2.md y Adenda 55 §5. Correcciones externas presentadas para revisión: Detalle de persona (padding, ancho y grid), ocho variantes del componente único TAR (gap selector/acción), Conflicto de plan y Resultado incierto (gap mensaje), nueve pasos de Acceso (marca centrada, versión del ensamblado, Delicias visible). No son nuevas historias o rutas.
+
+Una vez revisadas y aprobadas las correcciones: G0, variables, fuentes locales, marca/iconos y layout compartido; G1, Acceso/Entry y personas/cuentas/roles; G2, Configuración y TAR reutilizable; G3, Planificación y plan; G4, Mi trabajo/detalle y sucursal existente. Son los mismos grupos y el mismo hito de adaptación, ampliados visualmente a la base v2 aceptada, no a capacidades pendientes.
+
+Archivos previstos: wwwroot/css/tokens.css y components.css, fuentes/licencia y logo local, Pages/Shared/_Layout.cshtml y parciales compartidos; vistas actuales de Access, People, Configuration, Planning, MyWork, Entry y Branches sólo donde exija presentación. Mantener modelos, handlers, name/id/aria, rutas, contratos, mensajes, permisos, CSRF, If-Match, intenciones y cursores. No trasladar datos sintéticos ni enlaces externos de maquetas a producción. Versión de ensamblado mostrada sin sufijo técnico de commit. No cambiar la zona operativa.
+
+Validar build/pruebas de presentación afectadas y navegador sintético proporcional por grupo, escritorio/móvil/seis estados, teclado/foco/retorno, contraste, 44px, texto ampliado/reflow y movimiento reducido. Reusar evidencia histórica sin reaprobar tareas. Crear commits pequeños locales; trazabilidad por grupo. Publicación/PR/pipeline final sólo por autorización expresa; merge y despliegue separados.
+
+Pendiente antes del código: aprobación de estas vistas corregidas, como ordenó el responsable. Para publicación de The Seasons, obtener documento de derechos web verificable; prototipo privado no acredita licencia. No se declara una nueva implementación productiva en este complemento.

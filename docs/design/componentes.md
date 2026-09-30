@@ -1,5 +1,9 @@
 # componentes.md — SGOL / Loretta Zapatería
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+
 ## Referencia renovada aprobada — composición compartida
 
 [Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) incorpora §§3–9 del [plan aprobado](PLAN_DISENO_RENOVADO.md) mediante «Apruebo las secciones y la adenda». Las reglas siguientes son operativas para las tareas pendientes y el hito de adaptación. Las composiciones funcionales específicas, los seis estados y el catálogo de mensajes se conservan. La [guía](referencia-renovada.md) define la transición; esta documentación no acredita implementación productiva.
@@ -8,7 +12,7 @@
 
 El shell combina encabezado de sesión, columna lateral y main con ancho máximo `--ancho-contenido`. Conserva el orden DOM: salto al contenido, identidad/sesión/logout, navegación y main. La posición visual no reordena tabulación. Fondo de trabajo `--color-superficie-elevada`; encabezado, navegación y paneles `--color-superficie`. Main usa padding `--espacio-32`, en estrecho `--espacio-16`. Navegación usa `--ancho-navegacion`, separador `--grosor-borde`/`--color-borde` y comportamiento móvil modal de [navegacion.md](navegacion.md).
 
-Encabezado de página: un h1 en `--tipografia-titulo` (estrecho: `--tipografia-titulo-compacto`), descripción ya aprobada si existe, contexto opcional confirmado y acciones autorizadas. No inventa breadcrumb, textos decorativos, período ni totales: el conteo de una página con cursor sólo acredita los elementos recibidos. Acceso/MFA siguen fuera del shell con `--ancho-formulario`.
+Encabezado de página: un h1 en `--tipografia-titulo` (estrecho: `--tipografia-titulo-compacto`), descripción ya aprobada si existe, contexto opcional confirmado y acciones autorizadas. No inventa breadcrumb, textos decorativos, período ni totales: el conteo de una página con cursor sólo acredita los elementos recibidos. Acceso/MFA siguen fuera del shell; composición de marca/formulario con `--ancho-acceso` y límites internos de `--ancho-formulario`, conforme a ESTILO_VISUAL_V2.md.
 
 Panel de sección: fondo blanco, borde decorativo por variables, `--radio-tarjeta` y `--sombra-baja`. Cabecera con h2 en `--tipografia-grande`, ayuda y acciones, padding `--espacio-24`; h3 usa `--tipografia-media`. Banda de filtros con gap `--espacio-12`, padding vertical `--espacio-16` y horizontal `--espacio-24`. En estrecho cabecera/filtros usan `--espacio-16` y wrap. Separación entre secciones `--espacio-24`; del encabezado al contenido `--espacio-32`.
 
@@ -20,7 +24,7 @@ Se conservan primario, secundario y destructivo con una acción primaria por blo
 
 La variante de botón **textual** es auxiliar: fondo transparente, texto en acento, mismo padding `--espacio-8`/`--espacio-16`, radio y área mínima que los demás botones. Hover en superficie elevada, foco completo; deshabilitado usa texto deshabilitado sin hover, ocupado usa mensaje aprobado/spinner y prevención de segundo envío. Error y vacío corresponden a su región consumidora. Usar enlace para navegar y botón para una operación; nunca cambiar su semántica para obtener el aspecto visual.
 
-Tablas mantienen caption, th/scope, columnas y cursor Anterior/Siguiente; encabezado cálido, texto secundario y divisores suaves. Celdas simples usan padding vertical `--espacio-8` y horizontal `--espacio-12`; celdas con varios datos `--espacio-16`, en estrecho `--espacio-12`. Acciones siempre conservan área mínima. Código/contexto puede usar tipografía pequeña; nombre usa base y `--peso-medio`; metadatos son secundarios. Agrupar datos en una celda requiere mantener etiquetas, asociación y todos los valores. No se truncan datos esenciales ni convierten filas a tarjetas.
+Tablas mantienen caption, th/scope, columnas y cursor Anterior/Siguiente; encabezado blanco, texto secundario y divisores suaves. Celdas simples usan padding vertical `--espacio-8` y horizontal `--espacio-12`; celdas con varios datos `--espacio-16`, en estrecho `--espacio-12`. Acciones siempre conservan área mínima. Código/contexto puede usar tipografía pequeña; nombre usa base y `--peso-medio`; metadatos son secundarios. Agrupar datos en una celda requiere mantener etiquetas, asociación y todos los valores. No se truncan datos esenciales ni convierten filas a tarjetas.
 
 Badges conservan pastilla, par semántico, texto e icono; los grupos usan wrap y gap `--espacio-8`. Estado base y bandera siguen separados. Alertas conservan icono/texto, par semántico, `--radio-tarjeta` y padding `--espacio-16`. Diálogos conservan superficie blanca, sombra alta, radio y anchos vigentes, Cancelar inicial, Escape y retorno; motivo sólo si el contrato lo exige. Subida conserva progreso, cuarentena y estados de escaneo; sólo LIMPIO habilita el vínculo contractual.
 
@@ -188,10 +192,10 @@ Una sola acción primaria por pantalla o por bloque — nunca dos botones primar
 
 | Estado | Descripción visual | Tokens |
 |---|---|---|
-| Normal | Fondo transparente, borde y texto en acento. | `--color-acento` (borde y texto), `--color-superficie` (fondo) |
-| Hover | Fondo superficie-elevada, borde acento-hover. | `--color-superficie-elevada`, `--color-acento-hover` |
+| Normal | Fondo superficie-elevada, texto primario, contorno transparente. | `--color-superficie-elevada`, `--color-texto-primario` |
+| Hover | Fondo marca-arena, texto primario; sin contorno rojo. | `--color-marca-arena`, `--color-texto-primario` |
 | Foco visible | Anillo de acento. | `--color-acento` |
-| Deshabilitado | Borde y texto deshabilitados. | `--color-borde`, `--color-texto-deshabilitado` |
+| Deshabilitado | Fondo superficie-elevada y texto deshabilitado; sin hover. | `--color-superficie-elevada`, `--color-texto-deshabilitado` |
 | Cargando | Igual patrón que el primario: spinner + texto de progreso, `aria-busy`. | `--color-acento` |
 
 ```html
@@ -220,7 +224,7 @@ Componente central del sistema — la mayoría de las pantallas son variaciones 
 
 | Estado | Descripción visual | Tokens |
 |---|---|---|
-| Normal | Encabezado en superficie-elevada, texto secundario en mayúsculas pequeñas, filas en superficie con borde inferior sutil. | `--color-superficie-elevada`, `--color-texto-secundario`, `--color-borde` |
+| Normal | Encabezado en superficie blanca, texto secundario en peso medio, filas en superficie con borde inferior sutil. | `--color-superficie-elevada`, `--color-texto-secundario`, `--color-borde` |
 | Fila hover | Fondo superficie-elevada. | `--color-superficie-elevada` |
 | Fila con foco (navegación por teclado, si la tabla es interactiva) | Anillo interno de acento en la celda activa. | `--color-acento` |
 | Encabezado ordenable, foco visible | Anillo de acento en el botón de la columna. | `--color-acento` |

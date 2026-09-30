@@ -1,5 +1,9 @@
 # tokens.md — SGOL / Loretta Zapatería
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+
 Variables CSS del sistema de diseño, organizadas por el rol que cumplen en la interfaz. Ningún nombre de variable usa el nombre del color: se nombran por función, para que un cambio de paleta futuro no obligue a renombrar nada.
 
 Referencia renovada aprobada e incorporada localmente por [Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md), mediante «Apruebo las secciones y la adenda», §§3–9 del [plan](PLAN_DISENO_RENOVADO.md). La [guía de adopción](referencia-renovada.md) distingue referencia documentada de implementación productiva. Estos valores se materializan únicamente en el alcance de un hito o tarea aprobado; las pantallas existentes conservan su implementación hasta su adaptación.
@@ -8,7 +12,7 @@ Referencia renovada aprobada e incorporada localmente por [Adenda 55](../../F07_
 
 El área de trabajo autenticada usa `--color-superficie-elevada` como fondo cálido; encabezado de sesión, navegación, paneles y tablas usan `--color-superficie`. El mismo fondo cálido puede reforzar encabezados de tabla, hover y navegación activa. Las tablas permanecen claras y densas; ningún panel completo adopta el color del estado de una obligación. Los colores de marca siguen siendo decorativos y los pares accesibles siguen los de `accesibilidad.md`.
 
-Un h1 operativo usa `--tipografia-titulo`, en viewport estrecho `--tipografia-titulo-compacto`; h2 de sección usa `--tipografia-grande` y h3 `--tipografia-media`. El título de bienvenida o vacío de marca usa `--tipografia-titulo-compacto` y puede sustituir su familia por `--fuente-marca`. Controles y celdas nunca heredan el tamaño de un título. No se agregan fuentes remotas ni se leen originales congelados.
+Un h1 operativo usa `--tipografia-titulo`, en viewport estrecho `--tipografia-titulo-compacto`; h2 de sección usa `--tipografia-grande` y h3 `--tipografia-media`. El título de bienvenida usa `--tipografia-bienvenida` con `--fuente-marca`; el vacío de marca conserva `--tipografia-titulo-compacto` con esa familia. Controles y celdas nunca heredan el tamaño de un título. No se agregan fuentes remotas ni se leen originales congelados.
 
 ## Colores de marca (decorativos)
 
@@ -59,11 +63,11 @@ Cada uno con su versión de texto (para usar sobre `--color-superficie` o sobre 
 
 ## Tipografía
 
-Poppins es la tipografía base de toda la interfaz operativa: formularios, tablas, botones, navegación. The Seasons se reserva exclusivamente para `--tipografia-titulo-compacto` en pantallas de bienvenida o estados vacíos de marca; nunca en tablas, formularios ni badges.
+Poppins es la tipografía base de toda la interfaz operativa: formularios, tablas, botones, navegación. The Seasons se reserva para `--tipografia-bienvenida` en bienvenida y `--tipografia-titulo-compacto` en estados vacíos de marca; nunca en tablas, formularios ni badges.
 
 | Token | Valor | Cuándo usarlo |
 |---|---|---|
-| `--fuente-marca` | `"The Seasons", Georgia, "Times New Roman", serif` | Solo `--tipografia-titulo-compacto` en pantallas de bienvenida o vacíos de marca — nunca en tablas, formularios ni badges. |
+| `--fuente-marca` | `"The Seasons", Georgia, "Times New Roman", serif` | Solo `--tipografia-bienvenida` en bienvenida o `--tipografia-titulo-compacto` en vacíos de marca — nunca en tablas, formularios ni badges. |
 | `--fuente-base` | `"Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif` | Toda la interfaz operativa: texto, tablas, controles, navegación. |
 | `--tipografia-micro` | `400 11px/16px var(--fuente-base)` | Timestamps, contadores, texto auxiliar mínimo dentro de celdas. |
 | `--tipografia-pequena` | `400 12px/16px var(--fuente-base)` | Celdas de tabla, etiquetas de formulario, texto secundario de listas. |
@@ -211,5 +215,36 @@ Las hojas consumidoras usan variables también para borde, foco y área mínima.
   --duracion-esqueleto: 1.4s;
   --peso-medio: 500;
   --peso-fuerte: 600;
+
+  /* Estilo v2 aceptado: composición y marca */
+  --alto-encabezado: 88px;
+  --diametro-avatar: 40px;
+  --ancho-logo: 176px;
+  --ancho-logo-bienvenida: 256px;
+  --alto-bienvenida: 680px;
+  --ancho-acceso: 1040px;
+  --grosor-icono: 1.65;
+  --ancho-filtro: 192px;
+  --ancho-tabla-bandeja: 840px;
+  --tipografia-bienvenida: 400 48px/56px var(--fuente-marca);
 }
 ```
+
+## Primitivas del estilo v2
+
+Base aceptada; valores de ESTILO_VISUAL_V2.md. No son evidencia de implementación.
+
+| Variable | Valor | Uso |
+|---|---|---|
+| `--alto-encabezado` | `88px` | Cabecera escritorio; en estrecho altura automática |
+| `--diametro-avatar` | `40px` | Iniciales decorativas de sesión |
+| `--ancho-logo` | `176px` | Marca lateral; max-width:100% |
+| `--ancho-logo-bienvenida` | `256px` | Marca centrada de acceso; max-width:100% |
+| `--alto-bienvenida` | `680px` | Composición de acceso escritorio; no mínimo fijo móvil |
+| `--ancho-acceso` | `1040px` | Máximo de composición marca/formulario |
+| `--grosor-icono` | `1.65` | Trazo SVG |
+| `--ancho-filtro` | `192px` | Filtro compacto, ancho disponible en móvil |
+| `--ancho-tabla-bandeja` | `840px` | Sólo tabla de bandeja agrupada, scroll propio |
+| `--tipografia-bienvenida` | `400 48px/56px var(--fuente-marca)` | Bienvenida de marca, nunca operativo |
+
+Poppins local 400/500/600 y The Seasons Regular conforme a procedencia y límites de ESTILO_VISUAL_V2.md. Mantener fallback y font-display:swap. No leer fuentes congeladas.

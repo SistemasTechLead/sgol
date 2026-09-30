@@ -1,0 +1,13 @@
+# Estilo v2 — incorporación documental y correcciones externas
+
+2026-09-30. Base b54d49db86a8f36c8cfe358c0c99593c988fb2ad, codex/diseno-renovado, árbol inicial limpio. Preflight ejecutado como única comprobación inicial: Fuentes limpias; SDK exacto 10.0.400 no resuelto frente a 10.0.401 instalado. No se modifica global.json ni diagnostica más el entorno.
+
+El responsable aceptó las demás pantallas v2 y solicitó corregir Detalle de persona, selector release TAR, mensajes de plan y Acceso. Ordenó actualizar adenda y reglas antes de implementación. Se actualiza Adenda 55 §5, ocho documentos operativos de docs/design y el complemento del único plan. Las reglas autocontenidas están en ESTILO_VISUAL_V2.md. Correcciones de interfaz productiva pendientes de aprobación visual; propuesta externa corregida. No se repiten gates anteriores ni se inicia FRONT-017..020.
+
+Interferencias resueltas: secundario con borde rojo; Access limitado a formulario único; familia de marca limitada al título compacto; exclusión antigua de avatar; encabezado de tabla cálido frente a blanco de v2. Mensajes, estados de dominio, navegación/DOM funcional y zona America/Mexico_City conservados. Selección TAR única por query y plantilla existente; alta de novena TAR excluida. Versión técnica observada en artefacto local: 1.0.0.0/1.0.0+sufijo; propuesta muestra 1.0.0 y en implementación leerá metadatos, sin inventar versión comercial.
+
+Fuentes consultadas: índice IDs; Adenda 45 filas 59,66–68,78,88; F05 CA/CP-002/003; ADR-001/002/009; diseño y vistas/contratos consumidores directamente afectados. Evidencia histórica aceptada.
+
+Validación documental: diff-check, revisión de referencias y consistencia de tokens/reglas. Capturas y medidas externas en la carpeta privada de propuesta visual. .NET no requerido para cambios de Markdown; compilación y pruebas productivas quedan para implementación aprobada. No hay nuevo diseño Implementado localmente, push, PR, pipeline, merge ni despliegue por este registro. Licencia web de The Seasons pendiente de soporte documental antes de publicación.
+
+Validación externa de correcciones: 20 variantes/40 capturas y 60 comprobaciones de viewport a 1440,390,320px sin overflow de página o imágenes rotas. 68 medidas enfocadas sin fallos: padding/ancho de persona, gap TAR y mensaje, marca centrada, versión única/ubicación visible, 44px, teclado y retorno, texto CSS 200%. Revisión visual representativa escritorio/móvil; no acredita zoom nativo, lector de pantalla, integración ni cobertura exhaustiva de estados. Informes privados correcciones-visual.json y correcciones-medidas.json; galería sólo corregidas correcciones.html.

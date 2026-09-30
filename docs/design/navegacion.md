@@ -1,5 +1,9 @@
 # Navegación del frontend SGOL
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+
 ## Diseño renovado — suplemento de presentación aprobado
 
 [Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) y [referencia-renovada.md](referencia-renovada.md) complementan la presentación sin cambiar rutas, grupos, sesión, permisos, destinos ni filtros. Encabezado blanco, columna lateral blanca de `--ancho-navegacion`, área de trabajo cálida y main con `--ancho-contenido`. El orden DOM sigue salto al contenido, identidad/sesión/logout, navegación y main; no se cambia tabulación para replicar la maqueta.
