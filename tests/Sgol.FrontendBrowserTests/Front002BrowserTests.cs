@@ -34,7 +34,7 @@ public sealed class Front002BrowserTests
                 Assert.Equal(0, await page.Locator(".encabezado-aplicacion__sesion").CountAsync());
                 await page.GotoAsync(new Uri(fixture.BaseAddress, "/").AbsoluteUri);
                 Assert.EndsWith("/mi-trabajo", page.Url, StringComparison.Ordinal);
-                Assert.Equal("Mi trabajo", await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).InnerTextAsync());
+                Assert.Equal("Mis tareas", await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).InnerTextAsync());
                 Assert.Equal(viewport.Account == 0 ? 4 : 3,
                     await page.Locator(".navegacion-lateral--escritorio a").CountAsync());
 
@@ -59,7 +59,7 @@ public sealed class Front002BrowserTests
                 await page.GetByRole(AriaRole.Button, new() { Name = "Cerrar sesión" }).ClickAsync();
                 await redirect;
                 Assert.Equal("/acceso", new Uri(page.Url).AbsolutePath);
-                Assert.Equal("Sesión cerrada.", await page.Locator("#access-notice").InnerTextAsync());
+                Assert.Equal("Sesión cerrada.", await page.Locator("#access-notice > strong").InnerTextAsync());
                 Assert.True(await page.Locator("#access-notice").EvaluateAsync<bool>(
                     "element => document.activeElement === element"));
                 Assert.DoesNotContain(await context.CookiesAsync(), item => item.Name is
@@ -79,7 +79,7 @@ public sealed class Front002BrowserTests
                 await page.GotoAsync(new Uri(fixture.BaseAddress, "/mi-trabajo").AbsoluteUri);
                 Assert.Equal("/acceso", new Uri(page.Url).AbsolutePath);
                 Assert.Equal("Tu sesión terminó. Inicia sesión nuevamente.",
-                    await page.Locator("#access-notice").InnerTextAsync());
+                    await page.Locator("#access-notice > strong").InnerTextAsync());
                 Assert.Equal(0, await page.Locator(".encabezado-aplicacion__sesion").CountAsync());
                 Assert.DoesNotContain(await context.CookiesAsync(), item => item.Name == "__Host-SGOL-Session");
                 await context.ClearCookiesAsync();

@@ -181,7 +181,7 @@ public sealed class ShellBrowserSmokeTests
         Assert.Equal((int)HttpStatusCode.Unauthorized, invalid.Status);
         await page.GotoAsync(new Uri(fixture.BaseAddress, ShellPath).AbsoluteUri);
         Assert.Contains("/acceso?notice=", page.Url, StringComparison.Ordinal);
-        Assert.Equal("Tu sesión terminó. Inicia sesión nuevamente.", await page.Locator("#access-notice").InnerTextAsync());
+        Assert.Equal("Tu sesión terminó. Inicia sesión nuevamente.", await page.Locator("#access-notice > strong").InnerTextAsync());
         Assert.Equal(0, await page.Locator(".encabezado-aplicacion__sesion").CountAsync());
         Assert.DoesNotContain(await context.CookiesAsync(), item => item.Name == "__Host-SGOL-Session");
         await context.ClearCookiesAsync();

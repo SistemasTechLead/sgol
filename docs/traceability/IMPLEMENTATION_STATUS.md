@@ -2,7 +2,7 @@
 
 ## Diseño v2 — pantallas aprobadas y publicación autorizada
 
-2026-09-30. «Apruebo las pantallas, ahora vamos a agregar esto al repositorio, apruebo commit, push y abrir el PR». Autoriza commits y un único PR/pipeline del hito, con seguimiento y correcciones al mismo PR; merge/despliegue no autorizados. Preparación local de publicación; Georgia aprobada y The Seasons excluida del archivo y del historial enviado, conforme a Adenda 55 §7. Pipeline remoto pendiente. Evidencia y registro en DISENO_RENOVADO_V2_IMPLEMENTACION.md. Los estados anteriores conservan la secuencia histórica, no describen una espera vigente de aprobación de pantallas.
+2026-09-30. «Apruebo las pantallas, ahora vamos a agregar esto al repositorio, apruebo commit, push y abrir el PR». Autoriza commits y un único PR/pipeline del hito, con seguimiento y correcciones al mismo PR; merge/despliegue no autorizados. **Publicada** en [PR #85](https://github.com/SistemasTechLead/sgol/pull/85), no Integrada; Georgia aprobada y The Seasons excluida del archivo y del historial enviado, conforme a Adenda 55 §7. Run inicial 36794989105: controles y servidor PASS; navegador 23/25, dos expectativas visuales antiguas corregidas en el mismo hito; nuevo pipeline pendiente. Evidencia y registro en DISENO_RENOVADO_V2_IMPLEMENTACION.md. Los estados anteriores conservan la secuencia histórica, no describen una espera vigente de aprobación de pantallas.
 
 ## Estilo v2 — implementación local para revisión
 
