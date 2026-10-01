@@ -796,6 +796,7 @@ button.navegacion-movil__abrir,
 .modal__titulo,
 .modal__texto {
     margin: 0;
+    overflow-wrap: anywhere;
 }
 
 .modal__titulo {

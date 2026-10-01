@@ -26,7 +26,15 @@ public sealed partial class Front018BrowserTests
         Assert.Equal(200, initial!.Status);
         var code = mobile ? "DOCUMENTO_RECEPCION" : "EXPEDIENTE";
         await page.Locator("#versiones-evidencia tr").Filter(new() { HasText = code }).GetByRole(AriaRole.Button, new() { Name = "Preparar sustitución" }).ClickAsync();
-        await page.Locator("textarea[name=reason]").FillAsync("Sustitución binaria sintética autorizada");
+        var csrfBeforeUpload = await CsrfAsync(page); var selection = await page.Locator("input[name=replacement]").InputValueAsync();
+        var invalidBefore = await fixture.MyWorkRowsAsync();
+        var invalidReason = await context.APIRequest.PostAsync(path + "?handler=PrepareUpload", new() { Form = context.APIRequest.CreateFormData()
+            .Set("__RequestVerificationToken", csrfBeforeUpload).Set("replacement", selection).Set("requirementCode", code).Set("reason", new string('x', 501))
+            .Set("originalFileName", "sintetico.pdf").Set("declaredMediaType", "application/pdf").Set("sizeBytes", EvidenceCorpus.Pdf().Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .Set("sha256", Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(EvidenceCorpus.Pdf()))).Set("documentSubtype", mobile ? "FACTURA" : "") });
+        Assert.Equal(422, invalidReason.Status); Assert.Equal(invalidBefore, await fixture.MyWorkRowsAsync());
+        var boundaryReason = "MOTIVO-SINTETICO-" + new string('x', 500 - "MOTIVO-SINTETICO-".Length);
+        await page.Locator("textarea[name=reason]").FillAsync(mobile ? boundaryReason : "Sustitución binaria sintética autorizada");
         if (mobile) await page.Locator("select[name=documentSubtype]").SelectOptionAsync("FACTURA");
         var before = await fixture.EvidenceCountsAsync(task.Id);
         await page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload { Name = "sustitucion-sintetica.pdf", MimeType = "application/pdf", Buffer = EvidenceCorpus.Pdf() });
@@ -43,6 +51,7 @@ public sealed partial class Front018BrowserTests
         await page.Locator("[data-upload-refresh]").ClickAsync(); await Assertions.Expect(page.Locator("[data-upload-contribute]")).ToBeEnabledAsync();
         await page.Locator("[data-upload-contribute]").ClickAsync(); await Assertions.Expect(page.Locator("dialog[open] button").First).ToBeFocusedAsync();
         await Assertions.Expect(page.Locator("dialog[open]")).ToContainTextAsync((mobile ? "TAR-0092" : "TAR-0008") + " · " + code + " · Versión 1");
+        Assert.True(await page.Locator("dialog[open]").EvaluateAsync<bool>("e => e.scrollWidth <= e.clientWidth"));
         await page.Keyboard.PressAsync("Escape"); await Assertions.Expect(page.Locator("[data-upload-contribute]")).ToBeFocusedAsync();
         Assert.Equal(before.Versions, (await fixture.EvidenceCountsAsync(task.Id)).Versions);
         await page.Locator("[data-upload-contribute]").ClickAsync(); await page.Locator("dialog[open] button").Last.ClickAsync();
