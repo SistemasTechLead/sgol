@@ -1,6 +1,12 @@
 # Estado de implementación
 
-## FRONT-017 — Publicada; pendiente de validación remota y merge
+## FRONT-017 — Integrada; siguiente tarea efectiva FRONT-018
+
+2026-10-01. PR [#86](https://github.com/SistemasTechLead/sgol/pull/86) MERGED, cabeza validada `1913347a3c6e27649b2fb3af881ec4c06c55c1f2`, merge `5dfd5557b948d742fa61790a346466acb29ba0fb`; [pipeline final 36905844511, intento 2](https://github.com/SistemasTechLead/sgol/actions/runs/36905844511/attempts/2) SUCCESS para todos los checks requeridos. Aprobación expresa «Apruebo el merge» y ascendencia de la cabeza en origin/master verificadas. Sin despliegue. Heartbeat pausado. Esta evidencia supera la espera histórica de merge debajo; no reabre gates anteriores ni convierte validaciones diferidas en PASS.
+
+Siguiente tarea efectiva: FRONT-018, fila 96 de Adenda45; planificación habilitada por FRONT-017. Comprobar BR-API04 y BR-D04/M08, sin presumir su cierre ni contrato de descarga. Errores evitables del pipeline, incidencia de instalación del navegador y prompt de transición en [FRONT_018_SIGUIENTE_TAREA_Y_LECCIONES.md](FRONT_018_SIGUIENTE_TAREA_Y_LECCIONES.md). Documento local para incorporación en el próximo hito, sin PR administrativo; FRONT-018 sin implementación iniciada.
+
+## FRONT-017 — Registro histórico de publicación anterior al merge
 
 2026-10-01. Publicación autorizada mediante «Autorizo su publicación» y realizada en el PR que incorpora esta actualización, rama `codex/front-017`. Estado **Publicada**, no Integrada ni Terminada. Pipeline `Pull request gates` / `TECH-BASE-003 / PR gates`: resultado vigente resoluble en los checks de la cabeza de ese PR, pendiente de validación. La autorización incluye seguimiento y correcciones del mismo hito sin nuevas confirmaciones de publicación; merge y despliegue requieren aprobación expresa. La evidencia anterior de implementación y revisión visual se conserva debajo. Primer pipeline: controles y navegador 27/27 PASS; servidor FAIL por expectativa histórica que prohibía la UI de evidencia ya aprobada. Corrección: lista cerrada de archivos FRONT-017, sin eliminar controles funcionales; build, arquitectura 65/65, formato y diff PASS localmente. Nueva cabeza requiere pipeline propio. Detalle en FRONT_017_CARGA_Y_APORTE.md.
 
