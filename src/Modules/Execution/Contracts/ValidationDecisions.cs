@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Sgol.Validation.Contracts;
 
@@ -46,7 +47,8 @@ public static class ValidationText
         var normalized = value?.Normalize(NormalizationForm.FormC).Trim();
         if (string.IsNullOrEmpty(normalized) || normalized.Length > maximum ||
             normalized.Any(character => character is '<' or '>' or '\r' or '\n' ||
-                char.IsControl(character) && character != '\t'))
+                char.IsControl(character) && character != '\t') ||
+            Regex.IsMatch(normalized, @"(?i)\b[a-z][a-z0-9+.-]*://|\b(?:www\.|mailto:|file:)|(?:[a-z]:\\|\\\\|/[^\s]+/)|\b[^\s]+\.(?:jpe?g|png|pdf)\b|\b[a-f0-9]{64}\b", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)))
         {
             throw new ValidationDecisionException(code);
         }
@@ -149,7 +151,9 @@ public sealed record ValidationDecisionDetails(Guid DecisionVersionId, int Versi
     string? Reason, Guid? SupersedesDecisionVersionId, Guid EvidenceReviewSnapshotId,
     IReadOnlyList<Guid> EvidenceVersionIds);
 public sealed record ValidationHistoryDetails(Guid ObligationId, string ExecutionStatus, long RowVersion,
-    ValidationRequirementDetails? ValidationRequirement, IReadOnlyList<ValidationDecisionDetails> Decisions);
+    ValidationRequirementDetails? ValidationRequirement, IReadOnlyList<ValidationDecisionDetails> Decisions,
+    ValidationActions? ValidationActions = null);
+public sealed record ValidationActions(string? IssueAuthority, bool CanReplace);
 public sealed record ValidationMutationResult(ValidationHistoryDetails History, ValidationDecisionDetails Decision, bool Replayed);
 
 public interface IValidationDecisionService

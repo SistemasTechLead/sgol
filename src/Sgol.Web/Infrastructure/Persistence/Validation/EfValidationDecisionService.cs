@@ -41,7 +41,7 @@ public sealed class EfValidationDecisionService(
         {
             return await ExecuteAsync(
                 "VALIDATION_DECISION_CREATE",
-                () => IssueOnceAsync(normalized, cancellationToken),
+                attempt => IssueOnceAsync(normalized, attempt, cancellationToken),
                 cancellationToken);
         }
         catch (ValidationDecisionException exception) when (exception.Code == "IDEMPOTENCY_CONFLICT")
@@ -62,7 +62,7 @@ public sealed class EfValidationDecisionService(
         {
             return await ExecuteAsync(
                 "VALIDATION_DECISION_REPLACE",
-                () => ReplaceOnceAsync(normalized, cancellationToken),
+                _ => ReplaceOnceAsync(normalized, cancellationToken),
                 cancellationToken);
         }
         catch (ValidationDecisionException exception) when (exception.Code == "IDEMPOTENCY_CONFLICT")
@@ -78,6 +78,8 @@ public sealed class EfValidationDecisionService(
     {
         if (query.ActorUserId == Guid.Empty || query.CorrelationId == Guid.Empty || query.ObligationId == Guid.Empty)
             throw new ArgumentException("Validation history identifiers are required.");
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY", cancellationToken);
         var at = clock.UtcNow;
         var actor = await LoadActorAsync(query.ActorUserId, at, cancellationToken);
         var obligation = await dbContext.WorkObligations.AsNoTracking()
@@ -89,10 +91,26 @@ public sealed class EfValidationDecisionService(
         var targetRole = await LoadResponsibleRoleAsync(assignment.PersonId, at, cancellationToken);
         if (!RoleHierarchy.CanAccess(actor.RoleCode, targetRole.RoleCode, actor.PersonId == assignment.PersonId))
             throw new ValidationObligationNotFoundException();
-        return await ProjectAsync(obligation, cancellationToken);
+        var history = await ProjectAsync(obligation, cancellationToken);
+        string? issue = null;
+        if (obligation.ExecutionStatus == WorkObligationStatuses.Concluded && history.Decisions.Count == 0)
+        {
+            try
+            {
+                var policy = await LoadPolicyAsync(obligation, cancellationToken);
+                issue = ValidationDecisionAuthorization.Issue(actor.RoleCode, targetRole.RoleCode, policy.ExecutorRole,
+                    policy.ValidatorRole, actor.PersonId == assignment.PersonId);
+            }
+            catch (ValidationDecisionException exception) when (exception.Code == "POLITICA_VALIDACION_NO_DISPONIBLE") { }
+        }
+        var current = history.Decisions.SingleOrDefault(d => d.Status == ValidationStatuses.Current);
+        var replace = current is not null && ValidationDecisionAuthorization.Replace(actor.RoleCode, targetRole.RoleCode,
+            current.ValidatorRole, actor.UserId == current.ValidatorUserId, actor.PersonId == assignment.PersonId) is not null;
+        await transaction.CommitAsync(cancellationToken);
+        return history with { ValidationActions = new(issue, replace) };
     }
 
-    private async Task<ValidationMutationResult> IssueOnceAsync(IssueValidationDecisionCommand command, CancellationToken token)
+    private async Task<ValidationMutationResult> IssueOnceAsync(IssueValidationDecisionCommand command, int attempt, CancellationToken token)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
         var preflightActor = await LoadActorAsync(command.ActorUserId, clock.UtcNow, token);
@@ -117,6 +135,10 @@ public sealed class EfValidationDecisionService(
         {
             AuthorizeVisible(actor, responsible, assignment.PersonId);
             var recovered = await RecoverAsync(replay, obligation, command.ActorUserId, token);
+            var replayPolicy = await LoadPolicyAsync(obligation, token);
+            if (recovered.Decision.ValidatorRole != actor.RoleCode ||
+                IssueAuthority(actor, responsible, assignment.PersonId, replayPolicy, command.EscalationReason) != recovered.Decision.AuthorityType)
+                throw new ValidationObligationNotFoundException();
             await transaction.CommitAsync(token); return recovered;
         }
         if (obligation.ExecutionStatus != WorkObligationStatuses.Concluded) throw new ValidationDecisionException("OBLIGACION_NO_CONCLUIDA");
@@ -128,7 +150,7 @@ public sealed class EfValidationDecisionService(
         var expected = requirement?.RowVersion ?? obligation.RowVersion;
         if (expected != command.ExpectedRowVersion) throw new ValidationDecisionException("VERSION_CONFLICT");
         if (requirement is not null && await dbContext.ValidationDecisionVersions.AnyAsync(x => x.RequirementId == requirement.Id && x.Status == ValidationStatuses.Current, token))
-            throw new ValidationDecisionException("DECISION_VALIDACION_YA_EXISTE");
+            throw new ValidationDecisionException(attempt > 1 ? "VERSION_CONFLICT" : "DECISION_VALIDACION_YA_EXISTE");
         requirement ??= new ValidationRequirement(uuidGenerator.NewUuid(), obligation.Id, policy.Id, obligation.ConcludedAt!.Value);
         if (dbContext.Entry(requirement).State == EntityState.Detached) dbContext.ValidationRequirements.Add(requirement);
         var review = await evidenceReview.ReviewAsync(new(command.ActorUserId, command.CorrelationId, obligation.Id, decidedAt), token);
@@ -176,11 +198,16 @@ public sealed class EfValidationDecisionService(
         {
             AuthorizeVisible(actor, responsible, assignment.PersonId);
             var recovered = await RecoverAsync(replay, obligation, command.ActorUserId, token);
+            if (recovered.Decision.ValidatorRole != actor.RoleCode ||
+                ReplacementAuthority(actor, responsible, assignment.PersonId, route.decision) != recovered.Decision.AuthorityType)
+                throw new ValidationDecisionNotFoundException();
             await transaction.CommitAsync(token); return recovered;
         }
         var requirement = await dbContext.ValidationRequirements
             .FromSqlInterpolated($"SELECT * FROM validation_requirement WHERE id = {route.requirement.Id} FOR UPDATE")
             .SingleAsync(token);
+        _ = ReplacementAuthority(actor, responsible, assignment.PersonId, route.decision);
+        if (requirement.RowVersion != command.ExpectedRowVersion) throw new ValidationDecisionException("VERSION_CONFLICT");
         var current = await dbContext.ValidationDecisionVersions
             .FromSqlInterpolated($"SELECT * FROM validation_decision_version WHERE requirement_id = {requirement.Id} AND status = {ValidationStatuses.Current} FOR UPDATE")
             .SingleOrDefaultAsync(token);
@@ -205,11 +232,11 @@ public sealed class EfValidationDecisionService(
         return response;
     }
 
-    private async Task<T> ExecuteAsync<T>(string operationName, Func<Task<T>> operation, CancellationToken token)
+    private async Task<T> ExecuteAsync<T>(string operationName, Func<int, Task<T>> operation, CancellationToken token)
     {
         for (var attempt = 1; attempt <= MaximumAttempts; attempt++)
         {
-            try { return await operation(); }
+            try { return await operation(attempt); }
             catch (Exception exception) when (Retryable(exception) && attempt < MaximumAttempts)
             {
                 dbContext.ChangeTracker.Clear();
@@ -263,11 +290,15 @@ public sealed class EfValidationDecisionService(
 
     private async Task<Actor> LoadResponsibleRoleAsync(Guid personId, DateTimeOffset at, CancellationToken token)
     {
+        if (!await dbContext.EmploymentVersions.AsNoTracking().AnyAsync(x => x.PersonId == personId &&
+            x.BranchId == BranchScope.LorettaId && x.Status == EmploymentStatus.Active && x.ValidFrom <= at &&
+            (x.ValidTo == null || at < x.ValidTo), token)) throw new ValidationObligationNotFoundException();
         var user = await dbContext.AppUsers.AsNoTracking().SingleOrDefaultAsync(x => x.PersonId == personId && x.Status == AccountStatus.Active, token)
             ?? throw new ValidationObligationNotFoundException();
         var role = await dbContext.RoleAssignmentVersions.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == user.Id &&
             x.BranchId == BranchScope.LorettaId && x.Status == RoleAssignmentStatus.Active && x.ValidFrom <= at && (x.ValidTo == null || at < x.ValidTo), token)
             ?? throw new ValidationObligationNotFoundException();
+        if (!CanonicalRole.IsDefined(role.RoleCode)) throw new ValidationObligationNotFoundException();
         return new(user.Id, personId, role.RoleCode);
     }
 
@@ -279,33 +310,24 @@ public sealed class EfValidationDecisionService(
         {
             if (!RoleHierarchy.CanSelfValidateAsDirection(actor.RoleCode, samePerson)) throw new ValidationDecisionException("AUTOVALIDACION_NO_PERMITIDA");
             if (escalationReason is not null) throw new ValidationDecisionException("SOLICITUD_VALIDACION_INVALIDA");
-            return ValidationAuthorityTypes.DirectionSelfValidation;
+            return ValidationDecisionAuthorization.Issue(actor.RoleCode, responsible.RoleCode, policy.ExecutorRole, policy.ValidatorRole, true)!;
         }
         if (responsible.RoleCode != policy.ExecutorRole) throw new ValidationObligationNotFoundException();
         if (escalationReason is not null && actor.RoleCode == policy.ValidatorRole)
             throw new ValidationDecisionException("SOLICITUD_VALIDACION_INVALIDA");
-        if (escalationReason is null && RoleHierarchy.CanIssueValidationOrdinarily(actor.RoleCode, responsible.RoleCode,
-            policy.ExecutorRole, policy.ValidatorRole, samePerson))
-            return ValidationAuthorityTypes.Ordinary;
-        if (escalationReason is null && RoleHierarchy.IsStrictlySuperior(actor.RoleCode, policy.ValidatorRole) &&
-            RoleHierarchy.IsStrictlySuperior(actor.RoleCode, responsible.RoleCode))
+        var authority = ValidationDecisionAuthorization.Issue(actor.RoleCode, responsible.RoleCode,
+            policy.ExecutorRole, policy.ValidatorRole, samePerson);
+        if (escalationReason is null && authority == ValidationAuthorityTypes.Ordinary) return authority;
+        if (escalationReason is null && authority == ValidationAuthorityTypes.Escalation)
             throw new ValidationDecisionException("MOTIVO_REQUERIDO");
-        if (escalationReason is not null && RoleHierarchy.CanEscalateValidation(actor.RoleCode, responsible.RoleCode,
-            policy.ValidatorRole, samePerson))
-            return ValidationAuthorityTypes.Escalation;
+        if (escalationReason is not null && authority == ValidationAuthorityTypes.Escalation) return authority;
         throw new ValidationObligationNotFoundException();
     }
 
     private static string ReplacementAuthority(Actor actor, Actor responsible, Guid responsiblePersonId, ValidationDecisionVersion current)
     {
-        var sameResponsiblePerson = actor.PersonId == responsiblePersonId;
-        if (RoleHierarchy.CanReplaceValidationAsOriginal(actor.RoleCode, responsible.RoleCode, current.ValidatorRole,
-            actor.UserId == current.ValidatorUserId, sameResponsiblePerson))
-            return ValidationAuthorityTypes.OriginalReplacement;
-        if (RoleHierarchy.CanReplaceValidationAsSuperior(actor.RoleCode, responsible.RoleCode, current.ValidatorRole,
-            sameResponsiblePerson))
-            return ValidationAuthorityTypes.SuperiorReplacement;
-        throw new ValidationDecisionNotFoundException();
+        return ValidationDecisionAuthorization.Replace(actor.RoleCode, responsible.RoleCode, current.ValidatorRole,
+            actor.UserId == current.ValidatorUserId, actor.PersonId == responsiblePersonId) ?? throw new ValidationDecisionNotFoundException();
     }
 
     private static void AuthorizeVisible(Actor actor, Actor responsible, Guid responsiblePersonId)
