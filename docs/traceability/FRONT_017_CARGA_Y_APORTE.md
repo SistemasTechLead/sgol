@@ -1,6 +1,6 @@
 # FRONT-017 — Carga privada y primera aportación de evidencia
 
-Fecha: 2026-09-30. Estado: **Implementada localmente**, con revisión visual del responsable aprobada el 2026-10-01 y validaciones diferidas enumeradas. Rama `codex/front-017`, base integrada de PR #85 `754029d7f3fce8f5eec9961824ad336930d235dc`. Sin publicación, PR, checks remotos, merge o despliegue de FRONT-017.
+Fecha: 2026-09-30. Estado: **Publicada**, pendiente de validación remota y merge, con revisión visual del responsable aprobada el 2026-10-01 y validaciones diferidas enumeradas. Rama `codex/front-017`, base integrada de PR #85 `754029d7f3fce8f5eec9961824ad336930d235dc`. Publicación autorizada el 2026-10-01 mediante «Autorizo su publicación»; evidencia en el PR que incorpora esta actualización y sus checks de cabeza. Sin merge ni despliegue autorizados.
 
 2026-10-01. El responsable revisó pantallas y mensajes y aprobó la implementación mediante «Ya revisé las pantallas y sus mensajes, apruebo su implementación», sobre el código local `60c9ed9`. La revisión visual queda aprobada; las validaciones diferidas conservan sus causas. Esta aprobación no autoriza publicación, checks remotos, merge ni despliegue.
 
@@ -67,6 +67,6 @@ Revisión proporcional PASS: normal, foco, deshabilitado, error, ocupado y vací
 - PUT firmado de WebKit Windows frente al S3 local HTTP desde página HTTPS: no obtuvo respuesta HTTP (HTTP observado 0; no evento RequestFailed); terminó como resultado no confirmado. No se relajó la firma ni se retransmitió. Validación diferida con proveedor TLS compatible; no se atribuye una causa raíz adicional ni compatibilidad Safari demostrada. `SGOL_FRONT017_WEBKIT=true` conserva el recorrido opt-in para esa comprobación.
 - INFECTADO/ERROR_ESCANEO tienen mensajes/estados cerrados y pruebas de presentación/infraestructura; no se afirma un recorrido visual físico de cada veredicto o timeout real de 30 s.
 - CORS SeaweedFS y privilegios gruesos conservan la limitación residual de Adenda 18 §25: la prueba local no demuestra aislamiento productivo completo.
-- Pipeline remoto y suites integrales reservados para publicación expresamente autorizada. No hay checks remotos pendientes ni heartbeat de publicación que activar en este cierre local.
+- Publicación autorizada: pipeline remoto y suites integrales del PR en seguimiento; resultado resoluble en los checks de su cabeza. Si el turno termina con checks pendientes, activar y verificar heartbeat en este mismo chat. No se consideran aprobados antes de obtener el resultado vigente.
 
 Revisión visual y autorización de publicación siguen siendo decisiones distintas. No se solicita ni ejecuta despliegue.
