@@ -29,7 +29,9 @@ public sealed record ApiResponse<T>(
     bool Replayed,
     string? ErrorCode,
     ProblemDetailsPresentation? Error, IReadOnlyList<ApiFieldError>? FieldErrors = null,
-    string? HistoryNextCursor = null, DateTimeOffset? QueriedAt = null)
+    string? HistoryNextCursor = null, DateTimeOffset? QueriedAt = null,
+    Sgol.Auditing.Contracts.AuditSnapshot? AuditSnapshot = null,
+    Sgol.Auditing.Contracts.AuditCompleteness? AuditCompleteness = null)
 {
     public bool IsSuccess => Error is null;
     public override string ToString() => $"ApiResponse(Status={Status}, CorrelationId={CorrelationId})";

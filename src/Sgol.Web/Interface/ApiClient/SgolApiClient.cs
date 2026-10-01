@@ -118,8 +118,29 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
                             throw new ApiProtocolException();
                         historyCursor = history.GetString();
                     }
-                    return new(status, value, null, correlation!, null, null, etag, replayed, null, null,
-                        HistoryNextCursor: historyCursor);
+                    DateTimeOffset? itemAt = null;
+                    string? itemCursor = null;
+                    int? itemCount = null;
+                    if (request.Path.Split('?', 2)[0] is "/api/v1/indicators" or "/api/v1/direction/overview")
+                    {
+                        if (etag is not null || !meta.TryGetProperty("queriedAt", out var atElement) ||
+                            atElement.ValueKind != JsonValueKind.String || !atElement.TryGetDateTimeOffset(out var at) || at.Offset != TimeSpan.Zero ||
+                            !meta.TryGetProperty("count", out var countValue) || countValue.ValueKind != JsonValueKind.Number || !countValue.TryGetInt32(out var number) || number is < 0 or > 100 ||
+                            !data.TryGetProperty("activeLoadByPerson", out var load) || load.ValueKind != JsonValueKind.Object || !load.TryGetProperty("items", out var rows) ||
+                            rows.ValueKind != JsonValueKind.Array || rows.GetArrayLength() != number) throw new ApiProtocolException();
+                        itemAt = at; itemCount = number;
+                        if (meta.TryGetProperty("nextCursor", out var next) && next.ValueKind != JsonValueKind.Null)
+                        {
+                            if (next.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(next.GetString())) throw new ApiProtocolException();
+                            itemCursor = next.GetString();
+                        }
+                    }
+                    if (request.Method == HttpMethod.Post && request.Path == "/api/v1/continuity/reconciliations" && status == 201 &&
+                        (!data.TryGetProperty("reconciliationId", out var identifier) || identifier.ValueKind != JsonValueKind.String ||
+                         !Guid.TryParseExact(identifier.GetString(), "D", out var id) ||
+                         response.Headers.Location?.OriginalString != $"/api/v1/continuity/reconciliations/{id:D}")) throw new ApiProtocolException();
+                    return new(status, value, null, correlation!, itemCursor, itemCount, etag, replayed, null, null,
+                        HistoryNextCursor: historyCursor, QueriedAt: itemAt);
                 }
                 if (data.ValueKind != JsonValueKind.Array || !meta.TryGetProperty("count", out var countElement) ||
                     countElement.ValueKind != JsonValueKind.Number ||
@@ -132,14 +153,26 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
                 }
                 var items = Deserialize<List<T>>(data);
                 DateTimeOffset? queriedAt = null;
-                if (request.Path.Split('?', 2)[0] is "/api/v1/validations/pending" or "/api/v1/supervision/obligations")
+                if (request.Path.Split('?', 2)[0] is "/api/v1/validations/pending" or "/api/v1/supervision/obligations" or "/api/v1/audit-events")
                 {
                     if (!meta.TryGetProperty("queriedAt", out var queried) || queried.ValueKind != JsonValueKind.String ||
                         !queried.TryGetDateTimeOffset(out var at) || at.Offset != TimeSpan.Zero || etag is not null || count > 100) throw new ApiProtocolException();
                     queriedAt = at;
                 }
                 ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
-                return new(status, default, items, correlation!, cursor, count, etag, replayed, null, null, QueriedAt: queriedAt);
+                Sgol.Auditing.Contracts.AuditSnapshot? auditSnapshot = null;
+                Sgol.Auditing.Contracts.AuditCompleteness? completeness = null;
+                if (request.Path.Split('?', 2)[0] == "/api/v1/audit-events")
+                {
+                    if (!meta.TryGetProperty("snapshot", out var fence) || fence.ValueKind != JsonValueKind.Object) throw new ApiProtocolException();
+                    auditSnapshot = Deserialize<Sgol.Auditing.Contracts.AuditSnapshot>(fence);
+                    if (auditSnapshot.UpperOccurredAt.HasValue != auditSnapshot.UpperEventId.HasValue ||
+                        auditSnapshot.UpperOccurredAt is { Offset: var offset } && offset != TimeSpan.Zero || auditSnapshot.UpperEventId == Guid.Empty) throw new ApiProtocolException();
+                    if (meta.TryGetProperty("completeness", out var complete) && complete.ValueKind != JsonValueKind.Null)
+                        completeness = Deserialize<Sgol.Auditing.Contracts.AuditCompleteness>(complete);
+                }
+                return new(status, default, items, correlation!, cursor, count, etag, replayed, null, null, QueriedAt: queriedAt,
+                    AuditSnapshot: auditSnapshot, AuditCompleteness: completeness);
             }
             if (!ErrorStatuses.Contains(status) || !root.TryGetProperty("status", out var problemStatus) ||
                 problemStatus.ValueKind != JsonValueKind.Number ||

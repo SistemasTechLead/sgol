@@ -1,0 +1,43 @@
+@page "/auditoria"
+@model Sgol.Web.Pages.Audit.IndexModel
+@using Sgol.Web.Presentation.Auditing
+@{ ViewData["Title"] = "Auditoría"; }
+<header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo" tabindex="-1">Auditoría</h1></header>
+<section class="panel-seccion" id="audit"><header class="panel-seccion__cabecera"><h2>Eventos y traza de obligación</h2></header><div class="evidencia__contenido">
+@if (Model.Error is not null) { <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div> }
+@if (Model.Allowed)
+{
+<form method="get" class="tabla-filtros" data-work-query="audit">
+    <label class="campo"><span class="campo__etiqueta">Modo de consulta</span><select class="campo__control" name="mode"><option value="events" selected="@(Model.Query.Mode == "events")">Eventos</option><option value="trace" selected="@(Model.Query.Mode == "trace")">Traza de obligación</option></select></label>
+    @foreach (var field in AuditQuery.Fields.Where(f => f is not ("cursor" or "mode")))
+    {
+        var label = field switch { "from" => "Desde (UTC, incluido)", "to" => "Hasta (UTC, excluido)", "actorUserId" => "ID de actor", "resourceType" => "Tipo de recurso", "resourceId" => "ID de recurso", "action" => "Acción", "outcome" => "Resultado", "correlationId" => "ID de correlación", "level" => "Nivel del sujeto", "traceObligationId" => "Traza de obligación (ID)", _ => "Filas por página" };
+        <label class="campo"><span class="campo__etiqueta">@label</span><input class="campo__control" name="@field" value="@(Model.Query.Value(field) ?? (field == "limit" ? "25" : null))" required="@(field is "from" or "to")" aria-describedby="audit-filter-help" /></label>
+    }
+    <button class="boton boton--primario" type="submit">Consultar auditoría</button>
+</form>
+<p id="audit-filter-help">UTC: 2026-10-01T00:00:00Z. Traza de obligación no admite filtros de actor, recurso, correlación o nivel; puede combinarse con acción y resultado.</p>
+<p role="status" hidden data-front-query-status>Consultando auditoría…</p>
+@if (Model.Error is null)
+{
+    @if (!Model.Query.Selected) { <partial name="_EmptyState" model='@(new EmptyStateViewModel("Indica un intervalo UTC de hasta 31 días para consultar auditoría."))' /> }
+    else
+    {
+        <p>Consulta UTC: @Model.QueriedAt?.ToString("O") · Cerca UTC: @Model.Snapshot?.UpperOccurredAt?.ToString("O") · @Model.Snapshot?.UpperEventId</p>
+        @if (Model.Completeness is { } complete)
+        {
+            <h3>Traza de obligación</h3>
+            @foreach (var row in new[] { ("Configuración", complete.Configuration), ("Asignación", complete.Assignment), ("Evidencia", complete.Evidence), ("Validación", complete.Validation) }) { <p>@row.Item1: @(row.Item2 ? "Con hechos registrados" : "Sin hechos registrados en la consulta")</p> }
+            @if (!complete.Configuration || !complete.Assignment || !complete.Evidence || !complete.Validation) { <p role="status">La consulta no contiene hechos de todas las etapas. No se han creado registros para completar la historia.</p> }
+        }
+        <div class="tabla-contenedor"><table class="tabla"><caption>@(Model.Completeness is null ? "Eventos" : "Traza de obligación")</caption><thead class="tabla__encabezado"><tr><th scope="col">Fecha y hora (UTC)</th><th scope="col">Actor</th><th scope="col">Acción</th><th scope="col">Recurso</th><th scope="col">Alcance</th><th scope="col">Resultado</th><th scope="col">Detalle</th></tr></thead><tbody>
+        @foreach (var item in Model.Items) { <tr class="tabla__fila"><td>@item.OccurredAt.ToString("O")</td><td>@item.Actor.Type · @(item.Actor.UserId?.ToString("D") ?? "No informado")</td><td>@item.Action</td><td>@item.Resource.Type · @item.Resource.Id</td><td>@item.Scope.SubjectPersonId · @item.Scope.SubjectLevel · @item.Scope.Relation</td><td>@item.Outcome</td><td><a class="boton boton--textual" id="event-@item.Id.ToString("D")" href="@Model.DetailHref(item.Id)">Detalle</a></td></tr> }
+        </tbody></table></div>
+        @if (Model.Items.Count == 0) { <partial name="_EmptyState" model='@(new EmptyStateViewModel("No hay eventos en el intervalo y alcance consultados."))' /> }
+        @if (Model.Pagination is not null) { <partial name="/Pages/MyWork/_WorkPagination.cshtml" model="Model.Pagination" /> }
+    }
+}
+@if (Model.Query.Selected) { <a class="boton boton--secundario" href="@Model.Query.Reset()">Quitar filtros</a> }
+}
+</div></section>
+@section Scripts { <script src="~/js/my-work.js" asp-append-version="true"></script><script src="~/js/validations.js" asp-append-version="true"></script> }

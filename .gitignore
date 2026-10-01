@@ -12,6 +12,8 @@ TestResults/
 .artifacts/front-017/
 .artifacts/front-018/
 .artifacts/front-019/
+.artifacts/front-020/
+.artifacts/front020-*
 *.user
 *.suo
 *.nupkg

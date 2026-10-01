@@ -5,6 +5,8 @@
             const section = document.getElementById(form.dataset.workQuery);
             section?.setAttribute("aria-busy", "true");
             const status = section?.querySelector("[data-front-query-status]"); if (status) status.hidden = false;
+            const button = form.querySelector('button[type="submit"]');
+            if (button) button.disabled = true;
             const body = section?.querySelector("tbody");
             if (!body) return;
             const columns = section.querySelectorAll("thead th").length;
@@ -20,8 +22,6 @@
                 skeleton.className = "esqueleto";
                 cell.append(skeleton); row.append(cell); body.append(row);
             }
-            const button = form.querySelector('button[type="submit"]');
-            if (button) button.disabled = true;
         });
     });
     const script = document.querySelector("script[data-work-focus]");

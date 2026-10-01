@@ -1,0 +1,69 @@
+@model Sgol.Web.Pages.Continuity.IndexModel
+@using Sgol.Web.Presentation.Continuity
+@if (Model.Error is not null) { <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div> }
+@if (Model.Success is not null) { <p role="status" data-front-success>@Model.Success</p> }
+@if (Model.Allowed)
+{
+<p>Cada consulta de una reconciliación queda registrada en auditoría.</p>
+@if (Model.Data is { } data)
+{
+<section class="panel-seccion"><header class="panel-seccion__cabecera"><h2>Resultado de reconciliación</h2></header><div class="evidencia__contenido">
+<partial name="_StatusBadge" model="ContinuityPresentation.Badge(data.Status)" />
+<dl><dt>ID de reconciliación</dt><dd>@data.ReconciliationId</dd><dt>Solicitud (UTC)</dt><dd>@data.RequestedAt.ToString("O")</dd><dt>Objetivo de recuperación (UTC)</dt><dd>@(data.TargetRecoveryAt?.ToString("O") ?? "No informado")</dd><dt>Secuencia</dt><dd>@data.Sequence</dd><dt>Hash raíz de referencia</dt><dd>@(data.ReferenceRootSha256 ?? "No informado")</dd><dt>Hash raíz actual</dt><dd>@(data.ActualRootSha256 ?? "No informado")</dd><dt>Diferencias</dt><dd>@data.DifferenceCount</dd><dt>RPO observado (segundos)</dt><dd>@(data.ObservedRpoSeconds?.ToString() ?? "No informado")</dd><dt>RTO observado (segundos)</dt><dd>@(data.ObservedRtoSeconds?.ToString() ?? "No informado")</dd><dt>Aprobación (UTC)</dt><dd>@(data.ApprovedAt?.ToString("O") ?? "No informado") · @data.ApprovedBy</dd></dl>
+@if (data.DifferencesTruncated) { <p role="alert">El reporte de diferencias está incompleto. No acredita una comparación completa y no puede aprobarse.</p> }
+@if (data.Status == "DIFFERENT") { <p role="alert">Se detectaron diferencias. Esta reconciliación no puede aprobarse.</p> }
+else if (data.Status == "FAILED") { <p role="alert">La reconciliación falló. Este resultado no acredita una recuperación correcta.</p> }
+else if (data.Status == "MATCHED") { <p>No se detectaron diferencias. La aceptación de Dirección sigue pendiente.</p> }
+else if (data.Status == "APPROVED") { <p>No se detectaron diferencias. La aceptación de Dirección está registrada.</p> }
+else { <p>La comparación aún no tiene un resultado confirmado.</p> }
+<div class="tabla-contenedor"><table class="tabla"><caption>Diferencias</caption><thead class="tabla__encabezado"><tr><th scope="col">Orden</th><th scope="col">Grupo</th><th scope="col">Recurso</th><th scope="col">Clave estable</th><th scope="col">Campo</th><th scope="col">Clase</th><th scope="col">Hash esperado</th><th scope="col">Hash actual</th></tr></thead><tbody>
+@foreach (var row in data.Differences) { <tr class="tabla__fila"><td>@row.Ordinal</td><td>@row.Group</td><td>@row.ResourceType</td><td>@row.StableKey</td><td>@(row.Field ?? "No informado")</td><td>@row.Kind</td><td>@(row.ExpectedSha256 ?? "No informado")</td><td>@(row.ActualSha256 ?? "No informado")</td></tr> }
+</tbody></table></div>
+@if (data.Differences.Count == 0) { <partial name="_EmptyState" model='@(new EmptyStateViewModel(data.Status is "MATCHED" or "APPROVED" ? "No hay diferencias registradas en este reporte." : "No hay filas de diferencias disponibles en este estado. Esto no confirma una recuperación correcta."))' /> }
+<a class="boton boton--secundario" href="@Model.DetailHref">Recargar reconciliación</a>
+</div></section>
+}
+@if (Model.Conflict) { <a class="boton boton--secundario" href="@(Context.Request.Path)">Recargar reconciliación</a> }
+@if (Model.Prepared is not null && Model.Intention is { } intention)
+{
+    var approval = intention.Resource is not null;
+    <section class="panel-seccion"><header class="panel-seccion__cabecera"><h2>@(approval ? "Aprobar reconciliación" : "Solicitar reconciliación")</h2></header><div class="evidencia__contenido">
+    @if (Model.Uncertain)
+    { <form method="post" asp-page-handler="Send"><input type="hidden" name="intention" value="@Model.Prepared" /><input type="hidden" name="recovery" value="true" /><button type="submit" class="boton boton--primario">Recuperar resultado</button></form> }
+    else
+    {
+    <div data-continuity-confirm class="modal__contenido">
+    <h2 class="modal__titulo">@(approval ? "Aprobar reconciliación" : "Solicitar reconciliación")</h2>
+    <p class="modal__texto">@(approval ? "Se registrará tu aceptación del resultado mostrado. Los datos reconciliados y su historia no se modificarán." : "Se registrará la solicitud y se iniciará la captura de referencia mediante el proceso existente. Esto no confirma una recuperación ni autoriza un despliegue.")</p>
+    @if (approval) { <p class="modal__texto">@intention.Resource · @ContinuityPresentation.Badge(intention.Report!.Status).Text · Secuencia @intention.Report?.Sequence</p> }
+    <p class="modal__texto">Motivo: @intention.Reason</p>
+    <div class="modal__acciones">
+    <form method="post" asp-page-handler="Cancel"><input type="hidden" name="intention" value="@Model.Prepared" /><button type="submit" class="boton boton--secundario" data-initial-focus>Cancelar</button></form>
+    <form method="post" asp-page-handler="Send" data-continuity-send><input type="hidden" name="intention" value="@Model.Prepared" /><button type="submit" class="boton boton--primario">@(approval ? "Aprobar reconciliación" : "Solicitar reconciliación")</button></form>
+    </div>
+    </div>
+    }
+    </div></section>
+}
+else if (!Model.Conflict)
+{
+    @if (Model.ApprovalToken is not null || !Context.Request.Path.StartsWithSegments("/continuidad/reconciliaciones") && Model.Data is null)
+    {
+    <section class="panel-seccion"><header class="panel-seccion__cabecera"><h2>@(Model.ApprovalToken is null ? "Solicitar reconciliación" : "Aprobar reconciliación")</h2></header><div class="evidencia__contenido">
+    <form method="post" asp-page-handler="Prepare">
+    @if (Model.ApprovalToken is not null) { <input type="hidden" name="approvalToken" value="@Model.ApprovalToken" /> }
+    <label class="campo"><span class="campo__etiqueta">Motivo</span><textarea class="campo__control" name="reason" required maxlength="500" aria-invalid="@(Model.ReasonError ? "true" : "false")" aria-describedby="@(Model.ReasonError ? "reason-help reason-error" : "reason-help")">@Model.ReasonValue</textarea></label>
+    <p id="reason-help">Explica el motivo sin incluir contraseñas, credenciales, enlaces privados ni contenido de evidencia.</p>
+    @if (Model.ReasonError) { <p class="campo__mensaje-error" id="reason-error">Escribe un motivo de 1 a 500 caracteres en una sola línea, sin los signos &lt; y &gt;.</p> }
+    <button type="submit" class="boton boton--primario" id="prepare-continuity" data-continuity-cancelled="@(Model.Cancelled ? "true" : "false")">@(Model.ApprovalToken is null ? "Preparar solicitud" : "Preparar aprobación")</button></form>
+    </div></section>
+    }
+}
+@if (!Context.Request.Path.StartsWithSegments("/continuidad/reconciliaciones") && Model.Prepared is null)
+{
+<section class="panel-seccion" id="continuity"><header class="panel-seccion__cabecera"><h2>Consultar reconciliación</h2></header><div class="evidencia__contenido">
+<form method="get" action="/continuidad" class="tabla-filtros" data-work-query="continuity"><label class="campo"><span class="campo__etiqueta">ID de reconciliación</span><input class="campo__control" name="reconciliationId" required /></label><button class="boton boton--primario" type="submit">Consultar reconciliación</button></form><p role="status" hidden data-front-query-status>Consultando reconciliación…</p>
+@if (Model.Data is null && Model.Error is null) { <partial name="_EmptyState" model='@(new EmptyStateViewModel("Indica el ID de una reconciliación para consultar su resultado."))' /> }
+</div></section>
+}
+}

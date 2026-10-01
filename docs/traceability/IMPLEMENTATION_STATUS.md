@@ -1,5 +1,29 @@
 # Estado de implementación
 
+## FRONT-020 — Implementada localmente; revisión visual pendiente
+
+2026-10-01. Plan único aprobado íntegramente mediante «Apruebo integramente el plan», decisiones consumidoras incorporadas por Adenda 59 antes del código. UI-R01/R02/U01/U02/K01..K03 y CA/CP-029/032/033/035 implementadas en `/indicadores`, `/auditoria` y `/continuidad`: cinco indicadores y dos universos, auditoría jerárquica minimizada/traza/cursor/regreso, continuidad por ID con VIEWED, solicitud/aceptación motivadas y confirmación/idempotencia/ETag. Preparar/Cancelar sin API ni efectos; consultas de indicadores/auditoría puras. Sin TECH-FRONT-005, funcionalidades posteriores, dependencias, restore, migraciones o cambios en originales/Fuentes.
+
+Build Release SDK aislado 10.0.400 PASS, 0 errores/advertencias; unitarias enfocadas 209/209, arquitectura 20/20, PostgreSQL real 17/17, navegador final FRONT-020 2/2 y los tres inventarios FRONT-002/005/006 3/3 PASS. Sin omisiones en esos filtros. Diff de trabajo y staged PASS. Informe con comandos, incidencias y límites en [FRONT_020_INDICADORES_AUDITORIA_CONTINUIDAD.md](FRONT_020_INDICADORES_AUDITORIA_CONTINUIDAD.md); [50 capturas sintéticas](FRONT_020_CAPTURAS.md), escritorio Chromium/móvil WebKit y alternativa sin JS. Última ampliación sólo de pruebas de permisos/destinos; no requiere repetir navegador/persistencia.
+
+Rama `codex/front-020`; commit implementado: commit que contiene esta actualización. Revisión visual expresa pendiente. Sin push/PR/checks remotos/heartbeat/merge/despliegue: no Publicada ni Integrada ni Terminada formal. Diferidos anteriores conservados con su causa (zoom nativo/lector/dispositivos, PUT/S3 Windows WebKit anterior, SeaweedFS productivo y carrera evidencia/emisión no reensayada); ensayo extremo de navegador con 100000 diferencias diferido por costo, colección completa verificada unitariamente. No se acredita nuevamente el simulacro backend ni el isolated network histórico SKIPPED.
+
+Registro histórico de planificación anterior a la aprobación:
+
+### FRONT-020 — Plan único propuesto; aprobación íntegra pendiente en aquel momento
+
+2026-10-01. Solicitud limitada a preparar [FRONT_020_PLAN_DE_IMPLEMENTACION.md](FRONT_020_PLAN_DE_IMPLEMENTACION.md), UI-R01/R02/U01/U02/K01..K03, HU-029/HU-032/HU-033/HU-035; sin código. BR-API05/D10..D12/M11/M12 comprobadas y resoluciones consumidoras propuestas, todavía no aprobadas ni incorporadas a diseño operativo. Incluye los dos universos de indicadores, auditoría jerárquica/traza íntegra y continuidad por ID con consulta auditada, solicitud y aprobación contractuales. TECH-E2E-CV-05 Terminada aceptada; ninguna dependencia real de código pendiente identificada. TECH-FRONT-005 excluida; BR-API04 global permanece abierta.
+
+Rama local codex/front-020 creada desde el merge aceptado c5097010d75d90db40cfc5e1146974ace5617a3a; árbol inicial limpio, cambios ajenos preservados. Preflight como única comprobación inicial: SDK de PATH 10.0.401 incompatible con global.json 10.0.400; implementación posterior usará el SDK aislado indicado sin diagnósticos adicionales. Sólo documentación autorizada; sin implementación, commit administrativo, restore, build/pruebas de código, push/PR/checks remotos/heartbeat/merge/despliegue de FRONT-020. Esperar aprobación íntegra del plan antes de código. Los límites de validación anteriores se conservan y no se convierten en PASS.
+
+## FRONT-019 — Integrada; evidencia aceptada para FRONT-020
+
+2026-10-01. Evidencia expresa del responsable: [PR #88](https://github.com/SistemasTechLead/sgol/pull/88), cabeza validada `577d7d53914fe85b4db383b0a0f2f3f0e85b3b3a`, merge `c5097010d75d90db40cfc5e1146974ace5617a3a`; [pipeline final correcto, intento 1](https://github.com/SistemasTechLead/sgol/actions/runs/36935208368/attempts/1). Plan, capturas, commits, publicación y merge aprobados expresamente. Source controls, server, browser, operations y TECH-BASE-003 / PR gates correctos; unitarias 973/973, arquitectura 68/68, integración 273/273, navegador 33/33. HU-035 isolated network opcional SKIPPED. Seguimiento pausado y verificado según evidencia aportada; sin despliegue autorizado. Objeto del merge verificado localmente y base de codex/front-020.
+
+Los textos de revisión/publicación/checks/merge pendientes siguientes y las filas históricas de tareas insertadas son registros superados por esta evidencia. No bloquean FRONT-020 ni obligan a repetir gates aceptados. Zoom nativo, lector, dispositivos físicos, WebKit Windows PUT/S3 HTTP local y aislamiento productivo SeaweedFS conservan sus causas; la carrera específica evidencia contra emisión no reensayada en FRONT-019 sigue sin nuevo PASS. Este registro se incorpora al trabajo documental de FRONT-020, sin commit sólo para hashes resolubles. La autorización de FRONT-019 no se extiende a FRONT-020.
+
+Registros históricos anteriores a la integración aceptada:
+
 ## FRONT-019 — Publicación autorizada; revisión visual aprobada
 
 Seguimiento del PR #88: primer run 36933073312/attempts/1 sobre 9e797614f56cbf5a099cbb0a084400f1c986f0d8 falló en browser por tres inventarios antiguos de navegación (30/33); source controls/server SUCCESS, operations requerido SKIPPED y PR gates FAILURE. Corrección limitada a Front002/005/006BrowserTests: enlace /validaciones obligatorio, Dirección cinco enlaces y Administración cuatro; se mantienen aserciones de acceso, sesión y CSRF. Reproducción local detectó además una carrera de la prueba móvil FRONT-006 al enfocar antes del cierre de navegación; se espera cierre y retorno de foco sin relajar la aserción. Validación y detalles en FRONT_019_VALIDACION_Y_SUPERVISION.md. Sólo la cabeza corregida y sus nuevos checks pueden acreditar el hito; merge/despliegue no autorizados.

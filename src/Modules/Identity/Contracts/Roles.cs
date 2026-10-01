@@ -175,6 +175,8 @@ public static class RolePermissionProjection
             permissions.AddRange(["PER-PERSONA-ADMIN", "PER-DISPONIBILIDAD-ADMIN", "PER-USUARIO-ADMIN", "PER-ROL-ADMIN", "PER-CONFIG-ADMIN", "PER-CALENDARIO-ADMIN", "PER-DEFINICION-ADMIN", "PER-ACTIVACION-ADMIN", "PER-POLITICA-ADMIN", "PER-EVIDENCIA-CONFIG", "PER-VALIDACION-CONFIG", "PER-CONTINUIDAD-VER"]);
         }
 
+        permissions.AddRange(["PER-INDICADOR-VER", "PER-AUDITORIA-VER"]);
+        if (roleCode == CanonicalRole.Direction) permissions.Add("PER-DIRECCION-VER");
         return permissions;
     }
 }
