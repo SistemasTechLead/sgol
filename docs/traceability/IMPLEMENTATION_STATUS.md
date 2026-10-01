@@ -1,5 +1,15 @@
 # Estado de implementación
 
+## Diseño v2 — pantallas aprobadas y publicación autorizada
+
+2026-09-30. «Apruebo las pantallas, ahora vamos a agregar esto al repositorio, apruebo commit, push y abrir el PR». Autoriza commits y un único PR/pipeline del hito, con seguimiento y correcciones al mismo PR; merge/despliegue no autorizados. Preparación local de publicación, pendiente documentación de derechos web de The Seasons conforme al requisito del plan. Evidencia y registro en DISENO_RENOVADO_V2_IMPLEMENTACION.md. Los estados anteriores conservan la secuencia histórica, no describen una espera vigente de aprobación de pantallas.
+
+## Estilo v2 — implementación local para revisión
+
+2026-09-30. Correcciones y complemento aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». G0–G4 **Implementada localmente** en el único hito de pantallas existentes FRONT-001..016, conforme a ESTILO_VISUAL_V2.md y Adenda 55 §6. Build 0 errores/advertencias; presentación 135/135, arquitectura 10/10 y HTTPS/PostgreSQL Chromium/WebKit 2/2 PASS; 354 combinaciones visuales, 254 comprobaciones de interacción/texto y 39 de concordancia PASS. Evidencia y límites en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](DISENO_RENOVADO_V2_IMPLEMENTACION.md): 167 capturas sintéticas. Sin nuevo commit, push, PR, pipeline, merge o despliegue, conforme a la condición vigente de revisión/aprobación expresa posterior. FRONT-017..020 no iniciadas. Evidencia histórica de historias terminadas aceptada y conservada. Zoom nativo/lector/dispositivos y gates integrales/remotos diferidos por las causas exactas del informe; derechos web de The Seasons pendientes antes de publicación.
+
+Los registros documentales anteriores siguientes describen su momento histórico; su implementación pendiente quedó superada por esta fila vigente. No sustituyen ni reabren la evidencia de FRONT-016.
+
 ## Estilo v2 — referencia documentada y revisión visual
 
 2026-09-30. Base v2 aceptada por el responsable salvo las correcciones solicitadas, presentadas fuera del repositorio para revisión previa a implementación. Adenda 55 §5 y docs/design/ESTILO_VISUAL_V2.md precisan las reglas operativas; documentos de diseño y complemento del único plan sincronizados. Estado: **Referencia documentada localmente; correcciones productivas pendientes de revisión visual**. La adaptación anterior conserva su evidencia debajo, no se reetiqueta como v2. FRONT-017..020 no iniciadas. Sin publicación, merge o despliegue; detalle en DISENO_RENOVADO_V2_REVISION.md.

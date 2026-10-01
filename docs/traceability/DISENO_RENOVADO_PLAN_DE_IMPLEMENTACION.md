@@ -162,3 +162,13 @@ Archivos previstos: wwwroot/css/tokens.css y components.css, fuentes/licencia y 
 Validar build/pruebas de presentación afectadas y navegador sintético proporcional por grupo, escritorio/móvil/seis estados, teclado/foco/retorno, contraste, 44px, texto ampliado/reflow y movimiento reducido. Reusar evidencia histórica sin reaprobar tareas. Crear commits pequeños locales; trazabilidad por grupo. Publicación/PR/pipeline final sólo por autorización expresa; merge y despliegue separados.
 
 Pendiente antes del código: aprobación de estas vistas corregidas, como ordenó el responsable. Para publicación de The Seasons, obtener documento de derechos web verificable; prototipo privado no acredita licencia. No se declara una nueva implementación productiva en este complemento.
+
+## Aprobación de implementación y límite vigente — 2026-09-30
+
+Respuesta literal: «Apruebo las correcciones y el complemento del plan para implementar, ahora haz la implementacion en el repositorio siguiendo estrictamente el diseño que hicimos fuera del repositorio». Se autoriza ejecutar los grupos G0–G4 de este único hito. La misma instrucción pide revisión de capturas implementadas para dar después «mi aprobacion explicita para hacer el commit, push y PR de todas las pantallas y del documento de diseño». Esta condición más reciente prevalece: no crear nuevos commits, push ni PR antes de esa aprobación. Los commits previos permanecen intactos. No habilita FRONT-017..020, merge o despliegue.
+
+Ejecución y concordancia documentadas en DISENO_RENOVADO_V2_IMPLEMENTACION.md. El SDK exacto se usa desde la ruta aislada previamente disponible; no se modifica global.json ni se ejecuta restore. Los límites iniciales y la secuencia histórica anteriores se conservan como evidencia de su momento.
+
+## Autorización de publicación del único hito — 2026-09-30
+
+«Apruebo las pantallas, ahora vamos a agregar esto al repositorio, apruebo commit, push y abrir el PR». Supera la espera de revisión anterior y autoriza commits, push y PR únicos del hito, seguimiento y correcciones del pipeline. Merge y despliegue siguen sujetos a autorización expresa propia. La licencia web de The Seasons conserva su requisito documental previo a publicación.

@@ -1,0 +1,299 @@
+[
+  {
+    "width": 1440,
+    "file": "People-Details-normal",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "People-Details-normal",
+    "name": "Padding persona",
+    "value": "24px",
+    "expected": "24px",
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "People-Details-normal",
+    "name": "Gap empleo",
+    "value": "24px",
+    "expected": "24px",
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "People-Details-normal",
+    "name": "Panel sin max-width de credenciales",
+    "value": "none",
+    "expected": "none",
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "Configuration-Index-normal",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "Configuration-Index-normal",
+    "name": "Gap release TAR",
+    "value": "24px",
+    "expected": "24px",
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "planes-conflict",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "planes-conflict",
+    "name": "Gap mensaje plan",
+    "value": "24px",
+    "expected": "24px",
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "planes-uncertain",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "planes-uncertain",
+    "name": "Gap mensaje plan",
+    "value": "24px",
+    "expected": "24px",
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "Access-Index-empty",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "Access-Index-empty",
+    "name": "Seasons bienvenida",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "Access-Index-empty",
+    "name": "Logo centrado",
+    "value": "center",
+    "expected": "center",
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "Access-Index-empty",
+    "name": "Marca encima en móvil",
+    "value": 2,
+    "expected": 2,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "Access-Index-empty",
+    "name": "Delicias y versión",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "MyWork-Index-normal",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 1440,
+    "file": "MyWork-Index-normal",
+    "name": "Semana y rango legibles",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "People-Details-normal",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "People-Details-normal",
+    "name": "Padding persona",
+    "value": "16px",
+    "expected": "16px",
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "People-Details-normal",
+    "name": "Gap empleo",
+    "value": "16px",
+    "expected": "16px",
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "People-Details-normal",
+    "name": "Panel sin max-width de credenciales",
+    "value": "none",
+    "expected": "none",
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "Configuration-Index-normal",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "Configuration-Index-normal",
+    "name": "Gap release TAR",
+    "value": "16px",
+    "expected": "16px",
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "planes-conflict",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "planes-conflict",
+    "name": "Gap mensaje plan",
+    "value": "24px",
+    "expected": "24px",
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "planes-uncertain",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "planes-uncertain",
+    "name": "Gap mensaje plan",
+    "value": "24px",
+    "expected": "24px",
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "Access-Index-empty",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "Access-Index-empty",
+    "name": "Seasons bienvenida",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "Access-Index-empty",
+    "name": "Logo centrado",
+    "value": "center",
+    "expected": "center",
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "Access-Index-empty",
+    "name": "Marca encima en móvil",
+    "value": 1,
+    "expected": 1,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "Access-Index-empty",
+    "name": "Delicias y versión",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "MyWork-Index-normal",
+    "name": "Poppins operación",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "width": 390,
+    "file": "MyWork-Index-normal",
+    "name": "Semana y rango legibles",
+    "value": true,
+    "expected": true,
+    "ok": true
+  },
+  {
+    "name": "Recurso aprobado fonts/Poppins-Regular.ttf",
+    "ok": true,
+    "sha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba"
+  },
+  {
+    "name": "Recurso aprobado fonts/Poppins-Medium.ttf",
+    "ok": true,
+    "sha256": "90373e7d838d32468438fc3e152dca0bdb12edcab99ea639f158790b1ba1fd05"
+  },
+  {
+    "name": "Recurso aprobado fonts/Poppins-SemiBold.ttf",
+    "ok": true,
+    "sha256": "d3bf1bdaf0550e83da9ac0b1d1d9fe6db086835a83aa28578e609a394b9a0286"
+  },
+  {
+    "name": "Recurso aprobado fonts/The-Seasons-Regular.ttf",
+    "ok": true,
+    "sha256": "235245939e668145a4621486a15b9323b784c7775e70909edb3bc9e3e64ed1e2"
+  },
+  {
+    "name": "Recurso aprobado images/loretta.svg",
+    "ok": true,
+    "sha256": "6b4c706cbbbfff90c55a66457a775337e72b5c9dacd79278c8de68cf941f7d06"
+  }
+]

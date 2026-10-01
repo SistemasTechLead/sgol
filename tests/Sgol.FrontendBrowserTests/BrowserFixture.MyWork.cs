@@ -19,7 +19,7 @@ internal sealed record BrowserWorkTask(Guid Id, Guid NoticeId, Guid UserId, Guid
 
 internal sealed partial class BrowserFixture
 {
-    public async Task<IReadOnlyList<BrowserWorkTask>> SeedMyWorkAsync()
+    public async Task<IReadOnlyList<BrowserWorkTask>> SeedMyWorkAsync(bool enrolledUsers = false)
     {
         await using var db = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connectionString).Options);
         var now = DateTimeOffset.UtcNow;
@@ -48,6 +48,16 @@ internal sealed partial class BrowserFixture
         }
         var current = Period(local.DateTime); var future = Period(local.DateTime.AddDays(7));
         db.WeekPeriods.AddRange(current, future); await db.SaveChangesAsync();
+        // The visual fixture needs active, MFA-enrolled synthetic evidence authors.
+        if (enrolledUsers)
+        {
+            foreach (var account in Accounts)
+            {
+                var user = await db.AppUsers.SingleAsync(item => item.Id == account.UserId);
+                user.MfaEnrolledAt ??= now.AddDays(-1);
+            }
+            await db.SaveChangesAsync();
+        }
         var tasks = new List<BrowserWorkTask>();
         foreach (var account in Accounts)
         {

@@ -27,8 +27,8 @@ public sealed class RenewedDesignBrowserTests
             await fixture.StartAsync();
             var direction = fixture.Accounts[0];
             var ticket = await fixture.AuthenticateAsync(direction);
-            var tasks = await fixture.SeedMyWorkAsync();
-            var inferior = tasks.First(t => t.UserId == fixture.Accounts[3].UserId && t.State == "DISPONIBLE");
+            var tasks = await fixture.SeedMyWorkAsync(enrolledUsers: true);
+            var ownTask = tasks.First(t => t.UserId == direction.UserId && t.State == "DISPONIBLE");
             using var playwright = await Playwright.CreateAsync();
             await using var browser = await (mobile ? playwright.Webkit : playwright.Chromium)
                 .LaunchAsync(new() { Headless = true });
@@ -56,18 +56,27 @@ public sealed class RenewedDesignBrowserTests
                 ("personas", "/personas-y-accesos"),
                 ("persona-detalle", $"/personas-y-accesos/personas/{direction.PersonId:D}"),
                 ("configuracion", "/configuracion?taskCode=TAR-0008"),
-                ("planificacion", $"/planificacion?obligationId={inferior.Id:D}&taskCode=TAR-0008"),
+                ("planificacion", "/planificacion"),
                 ("mi-trabajo", "/mi-trabajo"),
-                ("tarea-detalle", $"/mi-trabajo/tareas/{inferior.Id:D}"),
+                ("tarea-detalle", $"/mi-trabajo/tareas/{ownTask.Id:D}"),
                 ("sucursal", "/branches/LOR-001"),
             };
             foreach (var route in routes)
             {
-                Assert.Equal(200, (await page.GotoAsync(new Uri(fixture.BaseAddress, route.Path).AbsoluteUri))?.Status);
+                var routeResponse = await page.GotoAsync(new Uri(fixture.BaseAddress, route.Path).AbsoluteUri);
+                if (routeResponse?.Status != 200) await CaptureAsync(page, route.Name + "-http-diagnostico", mobile);
+                Assert.True(routeResponse?.Status == 200, route.Name + " HTTP " + routeResponse?.Status + ": " + string.Join("; ", await page.Locator(".alerta__contenido").AllTextContentsAsync()));
                 await VerifyAsync(page, route.Name, mobile);
                 // These pages only read existing data; opening the renewed composition must not mutate business rows.
                 Assert.Equal(before, await fixture.MyWorkRowsAsync());
             }
+            // This fixture has assignments but no confirmed eligibility evaluation.
+            // Preserve the server rejection and verify its visual error state explicitly.
+            var missingEvaluation = await page.GotoAsync(new Uri(fixture.BaseAddress,
+                $"/planificacion?obligationId={ownTask.Id:D}").AbsoluteUri);
+            Assert.Equal(404, missingEvaluation?.Status);
+            await VerifyAsync(page, "asignacion-sin-evaluacion", mobile);
+            Assert.Equal(before, await fixture.MyWorkRowsAsync());
             await page.GotoAsync(new Uri(fixture.BaseAddress, "/planificacion").AbsoluteUri);
             await page.GetByRole(AriaRole.Button, new() { Name = "Crear o recuperar plan", Exact = true }).ClickAsync();
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -114,7 +123,10 @@ public sealed class RenewedDesignBrowserTests
     private static async Task VerifyAsync(IPage page, string screen, bool mobile)
     {
         Assert.Equal(1, await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).CountAsync());
-        Assert.Empty(await page.EvaluateAsync<string[]>(AccessibilityCheck));
+        await page.EvaluateAsync("() => document.fonts.ready");
+        var accessibilityFailures = await page.EvaluateAsync<string[]>(AccessibilityCheck);
+        if (accessibilityFailures.Length > 0) await CaptureAsync(page, screen + "-diagnostico", mobile);
+        Assert.True(accessibilityFailures.Length == 0, screen + ": " + string.Join("; ", accessibilityFailures));
         await page.Locator(".salto-contenido").FocusAsync();
         Assert.True(await page.Locator(".salto-contenido").EvaluateAsync<bool>(
             "el => getComputedStyle(el).outlineStyle !== 'none' && parseFloat(getComputedStyle(el).outlineWidth) >= 2"));
@@ -124,7 +136,7 @@ public sealed class RenewedDesignBrowserTests
         Assert.True(await page.Locator(".esqueleto").EvaluateAllAsync<bool>(
             "els => els.every(el => getComputedStyle(el).animationName === 'none')"));
         await CaptureAsync(page, screen, mobile);
-        var initialText = await page.Locator("main").InnerTextAsync();
+        var initialText = await page.Locator("main").TextContentAsync();
         await page.SetViewportSizeAsync(320, 844);
         Assert.False(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth > document.documentElement.clientWidth"), screen + " reflow at 320px");
         // Text-only enlargement measures fonts before changing any ancestor, so each element is enlarged once.
@@ -138,7 +150,7 @@ public sealed class RenewedDesignBrowserTests
               }
             }
             """);
-        Assert.Equal(initialText, await page.Locator("main").InnerTextAsync());
+        Assert.Equal(initialText, await page.Locator("main").TextContentAsync());
         Assert.False(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth > document.documentElement.clientWidth"), screen + " enlarged text");
         await CaptureAsync(page, screen + "-texto-ampliado", mobile);
         await page.SetViewportSizeAsync(mobile ? 390 : 1440, mobile ? 844 : 900);
@@ -163,7 +175,7 @@ public sealed class RenewedDesignBrowserTests
     private const string AccessibilityCheck = """
         () => {
           const failures = [];
-          const visible = el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
+          const visible = el => !el.closest('dialog:not([open]), [hidden]') && [...el.getClientRects()].some(r => r.width > 0 && r.height > 0) && getComputedStyle(el).visibility !== 'hidden';
           const ids = [...document.querySelectorAll('[id]')].map(el => el.id);
           if (new Set(ids).size !== ids.length) failures.push('duplicate id');
           for (const table of document.querySelectorAll('main table')) {
@@ -190,8 +202,10 @@ public sealed class RenewedDesignBrowserTests
             while (background === 'rgba(0, 0, 0, 0)' && ancestor.parentElement) {
               ancestor = ancestor.parentElement; background = getComputedStyle(ancestor).backgroundColor;
             }
+            // A transparent root is composited over the browser's white canvas, never black.
+            if (background === 'rgba(0, 0, 0, 0)') background = 'rgb(255, 255, 255)';
             const a = luminance(s.color), b = luminance(background);
-            if ((Math.max(a,b)+.05)/(Math.min(a,b)+.05) < 4.5) failures.push('text contrast: .' + el.className);
+            if ((Math.max(a,b)+.05)/(Math.min(a,b)+.05) < 4.5) failures.push('text contrast: .' + el.className + ' fg=' + s.color + ' bg=' + background + ' ratio=' + ((Math.max(a,b)+.05)/(Math.min(a,b)+.05)));
           }
           return failures;
         }
