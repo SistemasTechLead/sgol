@@ -25,7 +25,11 @@ else if (Model.Detail is { } item)
             <dt>Responsable actual</dt><dd>@(item.CurrentAssignment?.Responsible.DisplayName ?? "Sin asignación vigente")</dd>
         </dl><p>Hora de Ciudad de México. Concluida no significa validada.</p>
     </section>
-    <partial name="_EvidenceContribution" model="Model" />
+    <partial name="_EvidenceVersions" model="Model" />
+    <partial name="_EvidenceReview" model="Model" />
+    @if (Model.Replacement is null && Model.PreparedReplacement is null) { <partial name="_EvidenceContribution" model="Model" /> }
+    <partial name="_EvidenceReplacement" model="Model" />
+    <partial name="_Conclusion" model="Model" />
     <section class="panel-seccion mi-trabajo__seccion" id="historia" aria-labelledby="historia-title">
         <header class="panel-seccion__cabecera"><h2 id="historia-title">Historia de esta tarea</h2></header>
         <div class="tabla-contenedor"><table class="tabla"><caption>Hechos permitidos de la tarea</caption><thead class="tabla__encabezado"><tr><th scope="col">Fecha</th><th scope="col">Hecho</th><th scope="col">Responsable o publicación</th><th scope="col">Motivo autorizado</th></tr></thead><tbody>

@@ -10,6 +10,7 @@ TestResults/
 .artifacts/cv05/
 .artifacts/tech-front-004/
 .artifacts/front-017/
+.artifacts/front-018/
 *.user
 *.suo
 *.nupkg

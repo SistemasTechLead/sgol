@@ -1,0 +1,38 @@
+@model Sgol.Web.Pages.MyWork.DetailsModel
+@using Sgol.Web.Presentation.MyWork
+<section class="panel-seccion mi-trabajo__seccion" id="versiones-evidencia" aria-labelledby="versions-title">
+    <header class="panel-seccion__cabecera"><h2 id="versions-title" tabindex="-1">Versiones de evidencia</h2></header>
+    <div class="evidencia__contenido">
+    <form method="get" action="@Context.Request.Path#versiones-evidencia" class="acciones-formulario" data-work-query="versiones-evidencia">
+        @if (Model.ReturnToken is not null) { <input type="hidden" name="returnToken" value="@Model.ReturnToken" /> }
+        @if (Context.Request.Query["historyCursor"].Count == 1) { <input type="hidden" name="historyCursor" value="@Context.Request.Query["historyCursor"]" /> }
+        <label class="campo" for="versions-requirement"><span class="campo__etiqueta">Requisito</span><select class="campo__control" id="versions-requirement" name="evidenceRequirement">
+            <option value="">Todas</option>@foreach (var r in Model.Detail?.EvidencePolicy?.Requirements ?? []) { <option value="@r.RequirementCode" selected="@(Model.EvidenceRequirement == r.RequirementCode)">@r.RequirementCode</option> }
+        </select></label>
+        <label class="campo" for="versions-status"><span class="campo__etiqueta">Estado de versión</span><select class="campo__control" id="versions-status" name="evidenceStatus">
+            <option value="">Todas</option><option value="VIGENTE" selected="@(Model.EvidenceStatus == "VIGENTE")">Vigente</option><option value="SUSTITUIDA" selected="@(Model.EvidenceStatus == "SUSTITUIDA")">Sustituida</option>
+        </select></label>
+        <button class="boton boton--secundario" type="submit">Consultar versiones</button><a class="boton boton--textual" href="@Model.ReloadHref#versiones-evidencia">Quitar filtros</a>
+        <span role="status" data-front-query-status hidden>Consultando versiones…</span>
+    </form>
+    @if (Model.VersionsError is not null) { <div tabindex="-1" data-front-error><partial name="_ProblemAlert" model="Model.VersionsError" /></div> }
+    else if (Model.Versions.Count == 0) { <partial name="_EmptyState" model='@(new EmptyStateViewModel(Model.EvidenceRequirement is null && Model.EvidenceStatus is null ? "Aún no hay versiones de evidencia registradas" : "No hay versiones que coincidan con estos filtros"))' /> }
+    else
+    {
+        <div class="tabla-contenedor" tabindex="0" role="region" aria-label="Versiones conservadas de esta tarea"><table class="tabla"><caption>Versiones conservadas de esta tarea</caption><thead class="tabla__encabezado"><tr><th scope="col">Requisito y tipo</th><th scope="col">Versión y estado</th><th scope="col">Fecha y aportante</th><th scope="col">Evidencia</th><th scope="col">Motivo</th><th scope="col">Acción</th></tr></thead><tbody>
+        @foreach (var item in Model.Versions)
+        {
+            <tr class="tabla__fila"><td>@item.Requirement.RequirementCode · @item.Requirement.Kind</td><td>@item.Version.VersionNo <partial name="_StatusBadge" model="@EvidenceReviewPresentation.VersionBadge(item.Version.Status)" />
+                @if (item.Version.SupersedesEvidenceVersionId is { } previous) { <p>Versión anterior: @previous</p> }</td>
+                <td><time datetime="@item.Version.SubmittedAt.ToString("O")">@MyWorkPresentation.Time(item.Version.SubmittedAt)</time><p>Identificador del aportante: @item.Version.SubmittedByUserId</p></td>
+                <td>@if (item.File is { } file) { <p>@file.OriginalFileName · @file.MediaType · @file.SizeBytes bytes @file.DocumentSubtype</p> }
+                    else if (item.StructuredPayload is { } payload) { <dl>@foreach (var field in EvidenceContributionPresentation.Inputs(item.Requirement.RequirementCode)) { <dt>@field.Label</dt><dd>@EvidenceReviewPresentation.Value(payload.RootElement, field)</dd> }</dl> }</td>
+                <td>@item.Version.Reason</td><td>@if (Model.CanReplace && item.Version.Status == "VIGENTE")
+                { <form method="post" asp-page-handler="SelectReplacement" asp-route-returnToken="@Model.ReturnToken"><input type="hidden" name="itemId" value="@item.EvidenceItemId" /><input type="hidden" name="requirementCode" value="@item.Requirement.RequirementCode" /><button type="submit" class="boton boton--secundario">Preparar sustitución</button></form> }</td>
+            </tr>
+        }
+        </tbody></table></div>
+        @if (Model.EvidencePagination is not null) { <partial name="_WorkPagination" model="Model.EvidencePagination" /> }
+    }
+    </div>
+</section>

@@ -4,6 +4,12 @@ public static class EvidenceAuthorization
 {
     public const string Contribute = "PER-EVIDENCIA-APORTAR";
     public const string Replace = "PER-EVIDENCIA-SUSTITUIR";
+    public static bool CanReplace(string status, bool owns, bool strictlySuperior) => status switch
+    {
+        "PENDIENTE" => owns,
+        "CONCLUIDA" => strictlySuperior,
+        _ => false
+    };
 }
 
 public static class EvidenceFileStatuses

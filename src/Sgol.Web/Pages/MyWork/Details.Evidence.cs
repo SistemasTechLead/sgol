@@ -32,7 +32,7 @@ public sealed partial class DetailsModel
         var session = await sessionState.GetAsync(token);
         CanContribute = session is not null && Detail?.ExecutionStatus == "PENDIENTE" &&
             Detail.CurrentAssignment?.Responsible.PersonId == session.PersonId && session.Permissions.Contains(EvidenceAuthorization.Contribute);
-        if (!CanContribute || Detail?.EvidencePolicy is not { } policy) return;
+        if ((!CanContribute && !CanReplace) || Detail?.EvidencePolicy is not { } policy) return;
         var canonical = Sgol.Configuration.Contracts.EvidencePolicyCatalog.Require(Detail.Task.TaskCode);
         if (policy.EvidencePolicyVersionId == Guid.Empty || policy.Requirements is null || policy.Requirements.Count != canonical.Count ||
             policy.Requirements.Where((r, i) => r.RequirementVersionId == Guid.Empty || r.RequirementCode != canonical[i].Code ||
@@ -57,6 +57,7 @@ public sealed partial class DetailsModel
                     r => r.RequirementVersionId == item.Requirement.RequirementVersionId && r.RequirementCode == item.Requirement.RequirementCode))
                     throw new ApiProtocolException();
                 ExistingRequirements.Add(item.Requirement.RequirementCode);
+                if (ExistingRequirements.Count > policy.Requirements.Count) throw new ApiProtocolException();
                 if (item.Requirement.RequirementCode == "F_ENT_001" && item.StructuredPayload is { } payload &&
                     StructuredEvidencePayloadValidator.TryResolveDifferenceOrDamage(payload.RootElement, out var applies)) DifferenceOrDamage = applies;
                 item.StructuredPayload?.Dispose();
@@ -168,8 +169,15 @@ public sealed partial class DetailsModel
         var form = await EvidenceFormAsync(cancellationToken);
         if (form is null) return EvidenceFailure(400, "CSRF_INVALIDO");
         await OnGetAsync(obligationId, cancellationToken);
-        if (Error is not null || !CanContribute || EvidenceError is not null) return EvidenceFailure(Response.StatusCode is >= 400 ? Response.StatusCode : 403, "ACCESO_DENEGADO");
-        ChooseRequirement(form["requirementCode"]);
+        var session = await sessionState.GetAsync(cancellationToken);
+        if (session is null) return EvidenceFailure(401, "AUTENTICACION_REQUERIDA");
+        var replacing = form.ContainsKey("replacement");
+        if (Error is not null || (!CanContribute && !replacing) || EvidenceError is not null || Detail is null) return EvidenceFailure(Response.StatusCode is >= 400 ? Response.StatusCode : 403, "ACCESO_DENEGADO");
+        if (replacing)
+        {
+            if (!RestoreReplacement(form, session.UserId, Detail.ObligationId)) return EvidenceFailure(404, "OBLIGACION_NO_ENCONTRADA");
+        }
+        else ChooseRequirement(form["requirementCode"]);
         if (SelectedRequirement is null || !IsBinary || EvidenceError is not null || Detail is null) return EvidenceFailure(422, "REQUISITO_EVIDENCIA_INVALIDO");
         if (!long.TryParse(form["sizeBytes"], NumberStyles.None, CultureInfo.InvariantCulture, out var size) || size < 1) return EvidenceFailure(400, "SOLICITUD_EVIDENCIA_INVALIDA");
         if (size > 15728640) return EvidenceFailure(413, "ARCHIVO_DEMASIADO_GRANDE");
@@ -186,8 +194,25 @@ public sealed partial class DetailsModel
             sha256 = hash,
             documentSubtype = subtype
         });
-        var session = (await sessionState.GetAsync(cancellationToken))!;
-        return new JsonResult(new { intention = Intentions.Protect(NewIntention(session, Detail.ObligationId, SelectedRequirement.RequirementCode, "upload", body)) });
+        var allowed = new HashSet<string>(["__RequestVerificationToken", "requirementCode", "originalFileName", "declaredMediaType", "sizeBytes", "sha256", "documentSubtype"], StringComparer.Ordinal);
+        if (replacing) allowed.UnionWith(["replacement", "reason"]);
+        if (form.Keys.Any(k => !allowed.Contains(k))) return EvidenceFailure(400, "SOLICITUD_EVIDENCIA_INVALIDA");
+        var intention = NewIntention(session, Detail.ObligationId, SelectedRequirement.RequirementCode, "upload", body);
+        if (replacing)
+        {
+            try
+            {
+                intention = intention with
+                {
+                    ReplacementItem = Replacement!.Item,
+                    ReplacementRowVersion = Replacement.RowVersion,
+                    ReplacementVersionNo = Replacement.VersionNo,
+                    Reason = NormalizeReplacementReason(form["reason"].ToString(), ReplacementNeedsReason)
+                };
+            }
+            catch (EvidenceRequestInvalidException) { return EvidenceFailure(422, "MOTIVO_REQUERIDO"); }
+        }
+        return new JsonResult(new { intention = Intentions.Protect(intention) });
     }
 
     public Task<IActionResult> OnPostUploadAsync(string obligationId, CancellationToken cancellationToken) => FileOperationAsync(obligationId, "upload", cancellationToken);
@@ -200,7 +225,7 @@ public sealed partial class DetailsModel
         var form = await EvidenceFormAsync(token);
         var session = await sessionState.GetAsync(token);
         if (session is null) return EvidenceFailure(401, "AUTENTICACION_REQUERIDA");
-        if (form is null || !MyWorkQuery.CanonicalId(obligationId, out var id)) return EvidenceFailure(400, "CSRF_INVALIDO");
+        if (form is null || form.Keys.Any(k => k is not ("__RequestVerificationToken" or "intention")) || !MyWorkQuery.CanonicalId(obligationId, out var id)) return EvidenceFailure(400, "CSRF_INVALIDO");
         var intention = Intentions.Read(form["intention"].ToString(), session.UserId, id, operation == "upload" ? "upload" : "file", DateTimeOffset.UtcNow);
         if (intention is null || operation != "upload" && intention.FileId is null) return EvidenceFailure(400, "SOLICITUD_EVIDENCIA_INVALIDA");
         try
@@ -219,17 +244,19 @@ public sealed partial class DetailsModel
                 "upload" => "/api/v1/files/upload-intents",
                 "complete" => $"/api/v1/files/{intention.FileId:D}/complete",
                 "status" => $"/api/v1/files/{intention.FileId:D}/status",
-                _ => $"/api/v1/obligations/{id:D}/evidence"
+                _ => intention.ReplacementItem is not null ? ReplacementPath(id, intention) : $"/api/v1/obligations/{id:D}/evidence"
             };
             var body = operation switch
             {
                 "upload" => intention.Body,
                 "complete" => JsonSerializer.SerializeToElement(new { }),
-                _ => JsonSerializer.SerializeToElement(new { requirementCode = intention.Requirement, fileId = intention.FileId })
+                _ => intention.ReplacementItem is not null ? JsonSerializer.SerializeToElement(new { fileId = intention.FileId, reason = intention.Reason }) :
+                    JsonSerializer.SerializeToElement(new { requirementCode = intention.Requirement, fileId = intention.FileId })
             };
             var response = operation == "status" ? await apiClient.SendAsync<JsonElement>(new(HttpMethod.Get, path, ApiResponseShape.Item), token) :
                 await SendEvidenceMutationAsync<JsonElement>(form, path, body, operation == "upload" ? intention.Key :
-                    operation == "complete" ? intention.CompleteKey : intention.ContributionKey, token);
+                    operation == "complete" ? intention.CompleteKey : intention.ContributionKey, token,
+                    operation == "contribute" && intention.ReplacementItem is not null ? ReplacementETag(intention) : null);
             if (!response.IsSuccess) return EvidenceFailure(response.Status, response.ErrorCode, response.CorrelationId);
             var data = response.Data;
             if (operation == "upload")
@@ -242,9 +269,14 @@ public sealed partial class DetailsModel
             }
             if (operation == "contribute")
             {
-                ConfirmContribution(data, intention.Requirement);
+                if (intention.ReplacementItem is not null) ConfirmReplacement(data, intention);
+                else ConfirmContribution(data, intention.Requirement);
                 if (data.GetProperty("file").GetProperty("fileId").GetGuid() != intention.FileId) throw new ApiProtocolException();
-                return new JsonResult(new { message = response.Replayed || linked ? "Se recuperó la aportación registrada." : "Se aportó la evidencia. Se guardó su primera versión." });
+                return new JsonResult(new
+                {
+                    message = intention.ReplacementItem is not null ? "Sustitución confirmada. La versión anterior permanece en historia" :
+                    response.Replayed || linked ? "Se recuperó la aportación registrada." : "Se aportó la evidencia. Se guardó su primera versión."
+                });
             }
             if (data.GetProperty("fileId").GetGuid() != intention.FileId) throw new ApiProtocolException();
             var state = data.GetProperty("status").GetString()!;
@@ -258,8 +290,8 @@ public sealed partial class DetailsModel
         new(session.UserId, obligation, requirement, operation, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
             session.IdleExpiresAt < session.AbsoluteExpiresAt ? session.IdleExpiresAt : session.AbsoluteExpiresAt, body);
 
-    private Task<ApiResponse<T>> SendEvidenceMutationAsync<T>(IFormCollection form, string path, JsonElement body, Guid key, CancellationToken token) =>
-        apiClient.SendAsync<T>(new(HttpMethod.Post, path, ApiResponseShape.Item, body, Intent: ApiMutationIntent.FromKey(key),
+    private Task<ApiResponse<T>> SendEvidenceMutationAsync<T>(IFormCollection form, string path, JsonElement body, Guid key, CancellationToken token, string? ifMatch = null) =>
+        apiClient.SendAsync<T>(new(HttpMethod.Post, path, ApiResponseShape.Item, body, IfMatch: ifMatch, Intent: ApiMutationIntent.FromKey(key),
             CsrfToken: form["__RequestVerificationToken"].ToString()), token);
 
     private void ConfirmContribution(JsonElement data, string requirement)
@@ -272,6 +304,6 @@ public sealed partial class DetailsModel
     private JsonResult EvidenceFailure(int status, string? code, string? correlation = null)
     {
         if (status == 401) { sessionState.Invalidate(); ApiCookieBridge.Clear(HttpContext); }
-        return new JsonResult(new { message = EvidenceContributionPresentation.Message(status, code), correlationId = correlation }) { StatusCode = status };
+        return new JsonResult(new { message = EvidenceReviewPresentation.Error(status, code, correlation).Title, correlationId = correlation }) { StatusCode = status };
     }
 }

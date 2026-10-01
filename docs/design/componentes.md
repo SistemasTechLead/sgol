@@ -542,3 +542,7 @@ El responsable aprobó íntegramente las secciones 2–7 de `docs/traceability/F
 ## FRONT-017 — composición consumidora aprobada
 
 Adenda 56 incorpora íntegramente FRONT_017_PLAN_DE_IMPLEMENTACION.md, aprobado mediante «Apruebo integramente el plan, recuerda seguir los documentos de diseño para crear las pantallas a como están diseñadas las anteriores». §§3–7 definen BR-D07/D08, los 18 formularios cerrados, etiquetas, mensajes, estados y navegación dentro del detalle de tarea. Se conserva estilo v2, CSS propio/variables/componentes compartidos. Sólo primera aportación; LIMPIO permite aportar, no confirma evidencia. Sin preview/descarga/sustitución/conclusión. Los textos de §6 son catálogo operativo literal; PENDIENTE_CARGA y PENDIENTE_ESCANEO se distinguen. Cada booleano Sí/No sin selección inicial. No hay JSON libre ni biblioteca adicional.
+
+## FRONT-018 — composición consumidora aprobada
+
+Adenda 57 incorpora íntegramente el plan FRONT_018_PLAN_DE_IMPLEMENTACION.md, aprobado mediante «Si apruebo integramente el plan». Sus §§5–7 son contrato operativo literal de UI-E06/E07/E08: versiones paginadas, revisión explícita, faltantes exactos, sustitución con autoridad/motivo y conclusión sin cuerpo. Conserva estilo v2, seis estados, componentes compartidos, variables oficiales, accesibilidad y navegación en el detalle existente. Descarga/preview excluidos. Revisión tiene únicamente la excepción atómica de snapshot/auditoría de Adenda 19; no cambia ejecución ni decisiones anteriores.

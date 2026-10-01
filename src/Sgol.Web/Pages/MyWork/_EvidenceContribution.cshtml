@@ -1,9 +1,9 @@
 @model Sgol.Web.Pages.MyWork.DetailsModel
 @using Sgol.Web.Presentation.MyWork
-@if (Model.CanContribute)
+@if (Model.CanContribute || Model.Replacement is not null)
 {
-    <section id="aportar-evidencia" class="panel-seccion mi-trabajo__seccion" aria-labelledby="evidence-title" data-selected-requirement="@Model.SelectedRequirement?.RequirementCode">
-        <header class="panel-seccion__cabecera"><h2 id="evidence-title" tabindex="-1">Aportar evidencia</h2></header>
+    <section id="@(Model.Replacement is null ? "aportar-evidencia" : "sustituir-evidencia")" class="panel-seccion mi-trabajo__seccion" aria-labelledby="evidence-title" data-selected-requirement="@Model.SelectedRequirement?.RequirementCode">
+        <header class="panel-seccion__cabecera"><h2 id="evidence-title" tabindex="-1">@(Model.Replacement is null ? "Aportar evidencia" : "Sustituir evidencia")</h2></header>
         <div class="evidencia__contenido">
         @if (Model.EvidenceSuccess is not null)
         { <p class="alerta alerta--exito" role="status" tabindex="-1" data-evidence-success><partial name="_Icon" model='@("check")' /> @Model.EvidenceSuccess</p> }
@@ -31,15 +31,15 @@
             {
                 <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="SendEvidence" class="evidencia__formulario" data-evidence-submit>
                     <input type="hidden" name="intention" value="@Model.PreparedEvidence" />
-                    <button class="boton boton--primario" type="submit">Aportar evidencia</button>
+                    <button class="boton boton--primario" type="submit">@(Model.Replacement is null ? "Aportar evidencia" : "Sustituir evidencia")</button>
                     <a class="boton boton--secundario" href="@Model.ReloadHref#aportar-evidencia">Volver al detalle</a>
                 </form>
             }
-            else if (Model.Detail.EvidencePolicy.Requirements.All(r => Model.ExistingRequirements.Contains(r.RequirementCode)))
+            else if (Model.Replacement is null && Model.Detail.EvidencePolicy.Requirements.All(r => Model.ExistingRequirements.Contains(r.RequirementCode)))
             { <partial name="_EmptyState" model='@(new EmptyStateViewModel("No hay requisitos disponibles para una primera aportación."))' /> }
             else
             {
-                <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="SelectEvidence" class="evidencia__formulario" data-evidence-submit>
+                @if (Model.Replacement is null) { <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="SelectEvidence" class="evidencia__formulario" data-evidence-submit>
                     <label class="campo" for="evidence-requirement"><span class="campo__etiqueta">Requisito</span>
                     <select id="evidence-requirement" name="requirementCode" class="campo__control" required>
                         <option value="">Selecciona un requisito para aportar evidencia.</option>
@@ -47,17 +47,25 @@
                         { <option value="@r.RequirementCode" selected="@(Model.SelectedRequirement?.RequirementCode == r.RequirementCode)">@r.RequirementCode</option> }
                     </select></label>
                     <button class="boton boton--secundario" type="submit">Seleccionar requisito</button>
-                </form>
+                </form> }
                 @if (Model.SelectedRequirement is { } selected && selected.ConditionCode == "DIFERENCIA_O_DANO" && Model.DifferenceOrDamage != true)
                 { <p>@EvidenceContributionPresentation.Message(422, Model.DifferenceOrDamage is null ? "CONDICION_EVIDENCIA_NO_RESUELTA" : "REQUISITO_EVIDENCIA_NO_APLICABLE")</p> }
                 else if (Model.SelectedRequirement is { } requirement)
                 {
                     <h3>@requirement.RequirementCode</h3>
-                    <p data-evidence-empty>Aún no hay evidencia aportada para este requisito.</p>
+                    <p data-evidence-empty>@(Model.Replacement is null ? "Aún no hay evidencia aportada para este requisito." : "La versión vigente quedará en historia como sustituida. La nueva versión no cambiará una conclusión ni una decisión de validación anterior")</p>
                     @if (Model.IsBinary)
                     {
-                        <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="PrepareUpload" class="evidencia__formulario" data-evidence-upload data-kind="@requirement.Kind" data-reload="@Model.ReloadHref">
+                        <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="PrepareUpload" class="evidencia__formulario" data-evidence-upload data-replacement="@(Model.Replacement is not null ? "true" : "false")" data-kind="@requirement.Kind" data-reload="@Model.ReloadHref" data-replacement-summary="@Model.Detail.Task.TaskCode · @requirement.RequirementCode · Versión @Model.Replacement?.VersionNo">
                             <input type="hidden" name="requirementCode" value="@requirement.RequirementCode" />
+                            @if (Model.Replacement is not null)
+                            {
+                                <input type="hidden" name="replacement" value="@Model.ReplacementToken" />
+                                <label class="campo" for="replacement-reason"><span class="campo__etiqueta">@(Model.ReplacementNeedsReason ? "Motivo" : "Motivo (opcional)")</span>
+                                <textarea class="campo__control" id="replacement-reason" name="reason" maxlength="500" required="@Model.ReplacementNeedsReason" aria-invalid="@Model.ReplacementReasonInvalid.ToString().ToLowerInvariant()" aria-describedby="@(Model.ReplacementReasonInvalid ? "replacement-reason-help replacement-reason-error" : "replacement-reason-help")">@Model.ReplacementReason</textarea>
+                                @if (Model.ReplacementReasonInvalid) { <span class="campo__mensaje-error" id="replacement-reason-error">Escribe un motivo válido de hasta 500 caracteres</span> }
+                                <span class="campo__ayuda" id="replacement-reason-help">Hasta 500 caracteres. No incluyas secretos, URLs ni contenido de evidencia</span></label>
+                            }
                             <partial name="_UploadPresentation" model='@(new UploadPresentationViewModel("evidence-file", "Archivo de evidencia", UploadPresentationState.Ready,
                                 Message: "Selecciona un archivo del tipo permitido, de hasta 15 MiB.", Accept: requirement.Kind == "FOTOGRAFIA" ? ".jpg,.jpeg,.png,image/jpeg,image/png" : ".pdf,application/pdf", ShowState: false))' />
                             @if (requirement.RequirementCode == "DOCUMENTO_RECEPCION")
@@ -76,7 +84,7 @@
                                 <button class="boton boton--secundario" type="button" data-upload-recover hidden>Recuperar resultado</button>
                                 <button class="boton boton--secundario" type="button" data-upload-refresh hidden>Actualizar estado</button>
                                 <button class="boton boton--secundario" type="button" data-upload-stop hidden>Detener seguimiento</button>
-                                <button class="boton boton--primario" type="button" data-upload-contribute hidden disabled>Aportar evidencia</button>
+                                <button class="boton boton--primario" type="button" data-upload-contribute hidden disabled>@(Model.Replacement is null ? "Aportar evidencia" : "Sustituir evidencia")</button>
                                 <button class="boton boton--secundario" type="button" data-upload-new hidden>Preparar otra carga</button>
                             </div>
                             <noscript><p>Para cargar un archivo, activa JavaScript y recarga esta página.</p></noscript>
@@ -84,8 +92,16 @@
                     }
                     else
                     {
-                        <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="PrepareEvidence" class="evidencia__formulario" data-evidence-submit>
+                        <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="@(Model.Replacement is null ? "PrepareEvidence" : "PrepareReplacement")" class="evidencia__formulario" data-evidence-submit>
                             <input type="hidden" name="requirementCode" value="@requirement.RequirementCode" />
+                            @if (Model.Replacement is not null)
+                            {
+                                <input type="hidden" name="replacement" value="@Model.ReplacementToken" />
+                                <label class="campo" for="replacement-reason"><span class="campo__etiqueta">@(Model.ReplacementNeedsReason ? "Motivo" : "Motivo (opcional)")</span>
+                                <textarea class="campo__control" id="replacement-reason" name="reason" maxlength="500" required="@Model.ReplacementNeedsReason" aria-invalid="@Model.ReplacementReasonInvalid.ToString().ToLowerInvariant()" aria-describedby="@(Model.ReplacementReasonInvalid ? "replacement-reason-help replacement-reason-error" : "replacement-reason-help")">@Model.ReplacementReason</textarea>
+                                @if (Model.ReplacementReasonInvalid) { <span class="campo__mensaje-error" id="replacement-reason-error">Escribe un motivo válido de hasta 500 caracteres</span> }
+                                <span class="campo__ayuda" id="replacement-reason-help">Hasta 500 caracteres. No incluyas secretos, URLs ni contenido de evidencia</span></label>
+                            }
                             @foreach (var field in EvidenceContributionPresentation.Inputs(requirement.RequirementCode))
                             {
                                 var error = Model.InvalidEvidenceFields.Contains(field.Name);
@@ -116,7 +132,7 @@
                                     </label>
                                 }
                             }
-                            <button class="boton boton--primario" type="submit">Aportar evidencia</button>
+                            <button class="boton boton--primario" type="submit">@(Model.Replacement is null ? "Aportar evidencia" : "Sustituir evidencia")</button>
                         </form>
                     }
                 }

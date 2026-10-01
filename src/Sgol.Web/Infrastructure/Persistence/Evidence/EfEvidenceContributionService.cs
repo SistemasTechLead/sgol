@@ -548,9 +548,9 @@ public sealed class EfEvidenceContributionService(
             ?? throw new EvidenceObligationNotFoundException();
         var responsibleRole = await dbContext.RoleAssignmentVersions.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == responsibleUser.Id && x.BranchId == BranchScope.LorettaId && x.Status == RoleAssignmentStatus.Active && x.ValidFrom <= now && (x.ValidTo == null || now < x.ValidTo), token)
             ?? throw new EvidenceObligationNotFoundException();
-        var permitted = obligation.ExecutionStatus == WorkObligationStatuses.Pending
-            ? actor.PersonId == assignment.PersonId
-            : RoleHierarchy.IsStrictlySuperior(actor.RoleCode, responsibleRole.RoleCode) && actor.RoleCode != CanonicalRole.SalesFloor;
+        var permitted = EvidenceAuthorization.CanReplace(obligation.ExecutionStatus,
+            actor.PersonId == assignment.PersonId,
+            RoleHierarchy.IsStrictlySuperior(actor.RoleCode, responsibleRole.RoleCode) && actor.RoleCode != CanonicalRole.SalesFloor);
         if (!permitted) throw new EvidenceObligationNotFoundException();
         return new Access(obligation, actor, assignment.PersonId, responsibleRole.RoleCode, taskCode);
     }

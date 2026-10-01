@@ -155,10 +155,29 @@ public sealed partial class EfObligationQueryReader(
                 row.RequestedByUserId),
             history, captured is null ? null : new ObligationEvidencePolicy(captured.EvidencePolicyVersionId,
                 captured.Requirements.Select(r => new ObligationEvidenceRequirement(r.RequirementVersionId,
-                    r.RequirementCode, r.Kind, r.ConditionCode, r.Ordinal)).ToArray()));
+                    r.RequirementCode, r.Kind, r.ConditionCode, r.Ordinal)).ToArray()),
+            await ReadEvidenceActionsAsync(request.ActorUserId, actor, item, queriedAt, cancellationToken));
 
         await transaction.CommitAsync(cancellationToken);
         return new ObligationDetailPage(detail, nextCursor, queriedAt, row.RowVersion);
+    }
+
+    private async Task<ObligationEvidenceActions> ReadEvidenceActionsAsync(Guid userId, ActorAccess actor,
+        ObligationListItem item, DateTimeOffset at, CancellationToken token)
+    {
+        if (item.CurrentAssignment is null || !await dbContext.AppUsers.AsNoTracking()
+            .AnyAsync(u => u.Id == userId && u.MfaEnrolledAt != null, token)) return new(false, false);
+        var roles = await (from user in dbContext.AppUsers.AsNoTracking()
+                           join role in dbContext.RoleAssignmentVersions.AsNoTracking() on user.Id equals role.UserId
+                           where user.PersonId == item.CurrentAssignment.Responsible.PersonId && user.Status == AccountStatus.Active &&
+                                 role.BranchId == BranchScope.LorettaId && role.Status == RoleAssignmentStatus.Active &&
+                                 role.ValidFrom <= at && (role.ValidTo == null || at < role.ValidTo)
+                           select role.RoleCode).Take(2).ToListAsync(token);
+        if (roles.Count != 1 || !CanonicalRole.IsDefined(roles[0])) return new(false, false);
+        var own = actor.PersonId == item.CurrentAssignment.Responsible.PersonId;
+        return new(EvidenceAuthorization.CanReplace(item.ExecutionStatus, own,
+            RoleHierarchy.IsStrictlySuperior(actor.RoleCode, roles[0])),
+            ObligationConclusionAuthorization.CanConclude(item.ExecutionStatus, own, RoleHierarchy.GrantsTaskExecution(actor.RoleCode)));
     }
 
     public async Task<SupervisionPage> ReadSupervisionAsync(

@@ -9,6 +9,7 @@
     }));
     const form = document.querySelector("[data-evidence-upload]");
     if (!form) return;
+    const replacing = form.dataset.replacement === "true";
     const find = name => form.querySelector(`[data-upload-${name}]`);
     const fileInput = form.querySelector("input[type=file]");
     const selector = document.getElementById("evidence-requirement");
@@ -55,7 +56,7 @@
         if (!response.ok) {
             const failure = new Error(result.message || "No fue posible completar esta operación.");
             failure.correlation = result.correlationId;
-            if (response.status === 403 || response.status === 404) { uploadIntent = flow = file = null; }
+            if ([403, 404, 412].includes(response.status)) { uploadIntent = flow = file = null; }
             throw failure;
         }
         return result;
@@ -158,10 +159,12 @@
             const prepared = await post("PrepareUpload", {
                 requirementCode: form.querySelector("input[name=requirementCode]").value,
                 originalFileName: file.name, declaredMediaType: file.type, sizeBytes: String(file.size), sha256,
-                documentSubtype: form.querySelector("select[name=documentSubtype]")?.value || ""
+                documentSubtype: form.querySelector("select[name=documentSubtype]")?.value || "",
+                ...(replacing ? { replacement: form.querySelector("input[name=replacement]").value, reason: form.querySelector("textarea[name=reason]").value } : {})
             });
             if (current !== generation) return;
             uploadIntent = prepared.intention;
+            form.querySelector("textarea[name=reason]")?.setAttribute("readonly", "");
             let issued = await post("Upload", { intention: uploadIntent });
             if (current !== generation) return;
             flow = issued.intention;
@@ -196,7 +199,8 @@
     stop.addEventListener("click", () => { stopPolling(); say("Se detuvo el seguimiento. El análisis puede continuar."); refresh.focus(); });
     contribute.addEventListener("click", async () => {
         if (busy || !flow || scanState !== "LIMPIO") return;
-        occupied(true); stopPolling(); say("Aportando evidencia…");
+        if (replacing && !await confirmReplacement()) return;
+        occupied(true); stopPolling(); say(replacing ? "Sustituyendo evidencia…" : "Aportando evidencia…");
         contributionAttempted = true;
         try {
             finish(await post("ContributeFile", { intention: flow }));
@@ -209,9 +213,10 @@
         error.hidden = true;
         status.className = "alerta alerta--exito";
         find("icon").replaceChildren(document.querySelector("[data-scan-icon=check]").content.cloneNode(true));
-        document.querySelector("[data-evidence-empty]").hidden = true;
+        const empty = document.querySelector("[data-evidence-empty]"); if (empty) empty.hidden = true;
         const requirement = form.querySelector("input[name=requirementCode]").value;
-        document.querySelector(`[data-evidence-requirement="${requirement}"] [data-evidence-recorded]`).textContent = " — Se aportó la evidencia.";
+        const recorded = document.querySelector(`[data-evidence-requirement="${requirement}"] [data-evidence-recorded]`);
+        if (recorded) recorded.textContent = replacing ? " — Se sustituyó la evidencia." : " — Se aportó la evidencia.";
         say(result.message); status.tabIndex = -1; status.focus();
         uploadIntent = flow = file = null; scanState = null;
         [contribute, refresh, recover, another].forEach(b => { b.hidden = true; });
@@ -222,7 +227,23 @@
         }
         // Keep this completed upload immutable while allowing a different captured requirement.
     }
-    another.addEventListener("click", () => { stopPolling(); location.assign(form.dataset.reload + "#aportar-evidencia"); });
+    function confirmReplacement() {
+        return new Promise(resolve => {
+            const dialog = document.createElement("dialog"); dialog.className = "modal";
+            const title = document.createElement("h2"); title.id = "upload-replacement-title"; title.textContent = "Sustituir evidencia";
+            dialog.setAttribute("aria-labelledby", title.id);
+            const summary = document.createElement("p"); summary.textContent = "La versión vigente quedará en historia como sustituida. La nueva versión no cambiará una conclusión ni una decisión de validación anterior";
+            const actions = document.createElement("div"); actions.className = "modal__acciones";
+            const cancelButton = document.createElement("button"); cancelButton.type = "button"; cancelButton.className = "boton boton--secundario"; cancelButton.textContent = "Cancelar";
+            const confirmButton = document.createElement("button"); confirmButton.type = "button"; confirmButton.className = "boton boton--primario"; confirmButton.textContent = "Sustituir evidencia";
+            cancelButton.addEventListener("click", () => dialog.close()); confirmButton.addEventListener("click", () => dialog.close("confirm"));
+            dialog.addEventListener("close", () => { const confirmed = dialog.returnValue === "confirm"; dialog.remove(); contribute.focus(); resolve(confirmed); }, { once: true });
+            const content = document.createElement("div"); content.className = "modal__contenido"; title.className = "modal__titulo"; summary.className = "modal__texto";
+            const context = document.createElement("p"); context.className = "modal__texto"; context.textContent = form.dataset.replacementSummary + " · " + (form.querySelector("textarea[name=reason]")?.value || "—");
+            actions.append(cancelButton, confirmButton); content.append(title, context, summary, actions); dialog.append(content); document.body.append(dialog); dialog.showModal(); cancelButton.focus();
+        });
+    }
+    another.addEventListener("click", () => { stopPolling(); location.assign(form.dataset.reload + (replacing ? "#versiones-evidencia" : "#aportar-evidencia")); });
     document.addEventListener("visibilitychange", () => { if (document.hidden) clearTimeout(timer); else schedule(); });
     window.addEventListener("pagehide", () => { generation++; stopPolling(); request?.abort(); uploadIntent = flow = file = null; });
 })();

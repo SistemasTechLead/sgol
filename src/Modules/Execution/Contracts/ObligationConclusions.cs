@@ -5,6 +5,8 @@ namespace Sgol.Execution.Contracts;
 public static class ObligationConclusionAuthorization
 {
     public const string Execute = "PER-TAREA-EJECUTAR";
+    public static bool CanConclude(string status, bool owns, bool hasPermission) =>
+        status == "PENDIENTE" && owns && hasPermission;
 }
 
 public static class ObligationConclusionResultCodes

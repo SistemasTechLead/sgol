@@ -58,7 +58,7 @@ public sealed class ObligationConclusionArchitectureTests
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .Where(path => Path.GetExtension(path) is ".cshtml" or ".razor" or ".css" or ".js")
             .ToArray();
-        Assert.Empty(ui);
+        Assert.Equal([Path.Combine(web, "Pages", "MyWork", "_Conclusion.cshtml")], ui);
     }
 
     private static int Count(string value, string search)

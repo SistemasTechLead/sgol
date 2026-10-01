@@ -48,6 +48,7 @@ a {
 a:focus-visible,
 button:focus-visible,
 summary:focus-visible,
+[tabindex="0"]:focus-visible,
 [tabindex="-1"]:focus-visible {
     outline: var(--grosor-foco) solid var(--color-acento);
     outline-offset: var(--desfase-foco);
@@ -795,6 +796,7 @@ button.navegacion-movil__abrir,
 .modal__titulo,
 .modal__texto {
     margin: 0;
+    overflow-wrap: anywhere;
 }
 
 .modal__titulo {

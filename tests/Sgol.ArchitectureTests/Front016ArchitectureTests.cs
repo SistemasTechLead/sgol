@@ -10,7 +10,7 @@ public sealed class Front016ArchitectureTests
         var root = ArchitectureBoundaryTests.FindRepositoryRoot(AppContext.BaseDirectory);
         var pages = Path.Combine(root, "src", "Sgol.Web", "Pages", "MyWork");
         var source = string.Join('\n', Directory.EnumerateFiles(pages, "*.cs")
-            .Where(p => Path.GetFileName(p) != "Details.Evidence.cs").Select(File.ReadAllText));
+            .Where(p => Path.GetFileName(p) is "Index.cshtml.cs" or "Index.Inbox.cs" or "Details.cshtml.cs").Select(File.ReadAllText));
         Assert.Contains("/api/v1/me/inbox", source, StringComparison.Ordinal);
         Assert.Contains("/api/v1/obligations", source, StringComparison.Ordinal);
         Assert.Contains("/api/v1/me/notices/", source, StringComparison.Ordinal);
