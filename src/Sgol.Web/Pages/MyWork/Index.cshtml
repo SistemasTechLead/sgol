@@ -5,7 +5,10 @@
     ViewData["Title"] = "Mi trabajo";
 }
 <section aria-labelledby="mi-trabajo-titulo">
-    <header class="encabezado-pagina"><h1 id="mi-trabajo-titulo" class="encabezado-pagina__titulo">Mi trabajo</h1></header>
+    <header class="encabezado-pagina encabezado-pagina--periodo"><div><h1 id="mi-trabajo-titulo" class="encabezado-pagina__titulo">Mis tareas</h1></div>
+        @if (Model.ErrorTitle is null && Model.CanViewInbox && Model.InboxError is null && Model.Inbox?.Period is { } period)
+        { <div class="periodo-semana"><partial name="_Icon" model='@("calendar")' /><div><strong>Semana @period.IsoWeek / @period.IsoYear</strong><span>@period.StartsOn.ToString("d MMMM", System.Globalization.CultureInfo.GetCultureInfo("es-MX")) – @period.EndsOn.ToString("d MMMM", System.Globalization.CultureInfo.GetCultureInfo("es-MX"))</span><small>Hora de Ciudad de México</small></div></div> }
+    </header>
     @if (Model.ErrorTitle is not null)
     {
         <div id="session-error" class="alerta alerta--peligro" role="alert" tabindex="-1">

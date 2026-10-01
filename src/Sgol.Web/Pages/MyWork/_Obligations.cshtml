@@ -14,9 +14,9 @@
         <label class="campo"><span class="campo__etiqueta">Condición</span><select class="campo__control" name="condition"><option value="">Todas</option>
             <option value="VENCIDA" selected="@(Model.Query["condition"] == "VENCIDA")">Vencida</option><option value="NO_VENCIDA" selected="@(Model.Query["condition"] == "NO_VENCIDA")">No vencida</option>
         </select></label>
-        <button class="boton boton--secundario" type="submit">Aplicar filtros</button>
-        <a class="boton boton--secundario" href="@Model.Query.Href("consulta-tareas", ("taskCode", null), ("executionStatus", null), ("condition", null), ("responsiblePersonId", null), ("queryPeriodId", null), ("cursor", null))">Limpiar filtros</a>
-        <a class="boton boton--secundario" href="@Model.Query.Href("consulta-tareas", ("queryPeriodId", null), ("cursor", null))">Todos los períodos</a>
+        <button class="boton boton--primario" type="submit"><partial name="_Icon" model='@("filter")' />Aplicar filtros</button>
+        <a class="boton boton--textual" href="@Model.Query.Href("consulta-tareas", ("taskCode", null), ("executionStatus", null), ("condition", null), ("responsiblePersonId", null), ("queryPeriodId", null), ("cursor", null))">Limpiar filtros</a>
+        <a class="boton boton--textual" href="@Model.Query.Href("consulta-tareas", ("queryPeriodId", null), ("cursor", null))"><partial name="_Icon" model='@("calendar")' />Todos los períodos</a>
     </form>
     @if (Model.QueryError is not null)
     { <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="Model.QueryError" /></div> }
@@ -33,7 +33,7 @@
                     </td>
                     <td><time datetime="@item.Dates.DueAt?.ToString("O")">@MyWorkPresentation.Time(item.Dates.DueAt)</time></td>
                     <td><div class="tabla__acciones">
-                        <a class="boton boton--secundario tabla__accion" href="@Model.DetailHref(item.ObligationId)">Ver tarea</a>
+                        <a class="boton boton--textual tabla__accion" href="@Model.DetailHref(item.ObligationId)">Ver tarea<partial name="_Icon" model='@("arrow")' /></a>
                         <a class="boton boton--secundario tabla__accion" href="@Model.Query.Href("consulta-tareas", ("queryPeriodId", item.Period.PeriodId.ToString("D")), ("cursor", null))">Consultar este período</a>
                         @if (Model.CanViewInbox) { <a class="boton boton--secundario tabla__accion" href="@Model.Query.Href("mis-tareas", ("periodId", item.Period.PeriodId.ToString("D")), ("taskCursor", null))">Ver este período en mi bandeja</a> }
                     </div></td>

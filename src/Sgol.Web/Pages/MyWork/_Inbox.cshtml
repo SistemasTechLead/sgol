@@ -1,9 +1,7 @@
 @model Sgol.Web.Pages.MyWork.IndexModel
 @using Sgol.Web.Presentation.MyWork
 <section class="panel-seccion mi-trabajo__seccion" id="mis-tareas" aria-labelledby="mis-tareas-title">
-    <header class="panel-seccion__cabecera"><h2 id="mis-tareas-title">Mis tareas</h2></header>
-    @if (Model.Inbox?.Period is { } period)
-    { <p>@MyWorkPresentation.Period(period.IsoYear, period.IsoWeek, period.StartsOn, period.EndsOn) — Hora de Ciudad de México</p> }
+    <header class="panel-seccion__cabecera"><h2 id="mis-tareas-title">Tu bandeja</h2></header>
     <form method="get" action="/mi-trabajo#mis-tareas" class="tabla-filtros" data-work-query="mis-tareas">
         @foreach (var pair in Model.Query.HiddenExcept("taskState", "taskCursor")) { <input type="hidden" name="@pair.Key" value="@pair.Value" /> }
         <label class="campo"><span class="campo__etiqueta">Estado de mis tareas</span>
@@ -12,18 +10,16 @@
                 { <option value="@state" selected="@(Model.Query["taskState"] == state)">@MyWorkPresentation.Badge(state).Text</option> }
             </select>
         </label>
-        <button class="boton boton--secundario" type="submit">Aplicar filtros</button>
-        <a class="boton boton--secundario" href="@Model.Query.Href("mis-tareas", ("taskState", null), ("taskCursor", null))">Limpiar filtros</a>
-        <a class="boton boton--secundario" href="@Model.Query.Href("mis-tareas", ("periodId", null), ("taskCursor", null))">Semana actual</a>
+        <button class="boton boton--primario" type="submit"><partial name="_Icon" model='@("filter")' />Aplicar filtros</button>
+        <a class="boton boton--textual" href="@Model.Query.Href("mis-tareas", ("taskState", null), ("taskCursor", null))">Limpiar filtros</a>
+        <a class="boton boton--textual" href="@Model.Query.Href("mis-tareas", ("periodId", null), ("taskCursor", null))"><partial name="_Icon" model='@("calendar")' />Semana actual</a>
     </form>
-    <div class="tabla-contenedor"><table class="tabla"><caption>Tareas propias del período</caption>
-        <thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Período</th><th scope="col">Origen</th><th scope="col">Ejecución y situación</th><th scope="col">Vencimiento</th><th scope="col">Evidencia</th><th scope="col">Consulta</th></tr></thead>
+    <div class="tabla-contenedor"><table class="tabla tabla-bandeja"><caption>Tareas propias del período</caption>
+        <thead class="tabla__encabezado"><tr><th scope="col">Tarea y período</th><th scope="col">Ejecución y situación</th><th scope="col">Vencimiento</th><th scope="col">Evidencia</th><th scope="col">Consulta</th></tr></thead>
         <tbody>
             @foreach (var item in Model.Inbox?.Tasks.Items ?? [])
             {
-                <tr class="tabla__fila" data-own-task="@item.ObligationId"><td>@item.Task.TaskCode · @item.Task.Name</td>
-                    <td>@MyWorkPresentation.Period(item.Period.IsoYear, item.Period.IsoWeek, item.Period.StartsOn, item.Period.EndsOn)</td>
-                    <td>@MyWorkPresentation.Origin(item.OriginKind)</td>
+                <tr class="tabla__fila" data-own-task="@item.ObligationId"><td><span class="tarea-codigo">@item.Task.TaskCode</span><strong class="tarea-nombre">@item.Task.Name</strong><span class="tarea-contexto"><partial name="_Icon" model='@("calendar")' />Período: @MyWorkPresentation.Period(item.Period.IsoYear, item.Period.IsoWeek, item.Period.StartsOn, item.Period.EndsOn)</span><span class="tarea-contexto">Origen: @MyWorkPresentation.Origin(item.OriginKind)</span></td>
                     <td><partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.ExecutionStatus)" />
                         @if (item.TaskState != "CONCLUIDA") { <partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.TaskState)" /> }
                     </td>
@@ -33,7 +29,7 @@
                         { <ul>@foreach (var missing in item.Evidence.MissingRequirements) { <li>@missing.RequirementCode — @MyWorkPresentation.MissingReason(missing.MissingReason)</li> }</ul> }
                     </td>
                     <td>@if (Model.CanViewTasks && item.AllowedActions.Contains("VIEW_TASK"))
-                        { <a class="boton boton--secundario tabla__accion" href="@Model.DetailHref(item.ObligationId)">Ver tarea</a> }
+                        { <a class="boton boton--textual tabla__accion" href="@Model.DetailHref(item.ObligationId)">Ver tarea<partial name="_Icon" model='@("arrow")' /></a> }
                     </td>
                 </tr>
             }

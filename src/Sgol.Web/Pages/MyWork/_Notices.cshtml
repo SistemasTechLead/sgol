@@ -10,8 +10,8 @@
             <option value="UNREAD" selected="@(Model.Query["noticeStatus"] == "UNREAD")">Sin leer</option>
             <option value="READ" selected="@(Model.Query["noticeStatus"] == "READ")">Leídos</option>
         </select></label>
-        <button class="boton boton--secundario" type="submit">Aplicar filtros</button>
-        <a class="boton boton--secundario" href="@Model.Query.Href("avisos", ("noticeStatus", null), ("noticeCursor", null))">Quitar filtro de lectura</a>
+        <button class="boton boton--primario" type="submit"><partial name="_Icon" model='@("filter")' />Aplicar filtros</button>
+        <a class="boton boton--textual" href="@Model.Query.Href("avisos", ("noticeStatus", null), ("noticeCursor", null))">Quitar filtro de lectura</a>
     </form>
     <div class="tabla-contenedor"><table class="tabla"><caption>Avisos internos propios</caption>
         <thead class="tabla__encabezado"><tr><th scope="col">Aviso</th><th scope="col">Fecha</th><th scope="col">Lectura</th><th scope="col">Tarea relacionada</th><th scope="col">Acción</th></tr></thead><tbody>
@@ -22,7 +22,7 @@
                     @if (notice.ReadAt is not null) { <time datetime="@notice.ReadAt.Value.ToString("O")">@MyWorkPresentation.Time(notice.ReadAt)</time> }
                 </td>
                 <td>@if (notice.Resource.Available && notice.Resource.ObligationId is { } id && Model.CanViewTasks)
-                    { <a class="boton boton--secundario tabla__accion" href="@Model.DetailHref(id)">@notice.Resource.TaskCode · @notice.Resource.TaskName — Ver tarea</a> }
+                    { <a class="boton boton--textual tabla__accion" href="@Model.DetailHref(id)">@notice.Resource.TaskCode · @notice.Resource.TaskName — Ver tarea<partial name="_Icon" model='@("arrow")' /></a> }
                     else if (!notice.Resource.Available) { <p>La tarea relacionada ya no está disponible en tu bandeja</p> }
                 </td>
                 <td>@if (notice.Status == "UNREAD" && notice.AllowedActions.Contains("MARK_NOTICE_READ"))
@@ -30,7 +30,7 @@
                         <form method="post" action="@Model.NoticePostHref" asp-antiforgery="false" data-progress-form>
                             <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
                             <input type="hidden" name="noticeId" value="@notice.NoticeId.ToString("D")" />
-                            <button class="boton boton--secundario" type="submit" data-progress-label="Marcando aviso…">Marcar como leído</button>
+                            <button class="boton boton--textual" type="submit" data-progress-label="Marcando aviso…"><partial name="_Icon" model='@("check")' />Marcar como leído</button>
                         </form>
                     }
                 </td>
