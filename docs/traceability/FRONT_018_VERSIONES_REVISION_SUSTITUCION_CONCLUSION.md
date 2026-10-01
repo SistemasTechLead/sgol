@@ -1,6 +1,6 @@
 # FRONT-018 — Versiones, revisión, sustitución y conclusión
 
-2026-10-01. Plan único aprobado íntegramente mediante «Si apruebo integramente el plan», incorporado por Adenda 57. Implementación local; revisión visual del responsable pendiente. No existe autorización de publicación, PR, checks remotos, merge ni despliegue.
+2026-10-01. Plan único aprobado íntegramente mediante «Si apruebo integramente el plan», incorporado por Adenda 57. Implementación local; revisión visual aprobada por el responsable el 2026-10-01 mediante «Apruebo la implementación visual», sobre la cabeza local 38e2ce3. No existe autorización de publicación, PR, checks remotos, merge ni despliegue.
 
 ## Resultado y contrato
 
@@ -69,4 +69,4 @@ Incidencias corregidas durante la verificación: referencia Request en un parcia
 
 Validación diferida: zoom nativo, lector de pantalla y dispositivos físicos. WebKit Windows con PUT al S3 local HTTP conserva la causa documentada de ausencia de respuesta HTTP; no se relaja la firma ni se declara Safari validado. SeaweedFS local no acredita aislamiento productivo completo de credenciales/buckets o despliegue. Formato global, suites completas y gates remotos se reservan a una eventual autorización expresa de publicación.
 
-Capturas y SHA-256 en [FRONT_018_CAPTURAS.md](FRONT_018_CAPTURAS.md). Son aplicación funcionando con datos sintéticos, no maquetas. La revisión visual sigue pendiente: el responsable debe revisar pantallas y mensajes antes de aprobar la implementación. Esa aprobación no autoriza por sí misma publicación, merge ni despliegue.
+Capturas y SHA-256 en [FRONT_018_CAPTURAS.md](FRONT_018_CAPTURAS.md). Son aplicación funcionando con datos sintéticos, no maquetas. El responsable aprobó la implementación visual el 2026-10-01 mediante «Apruebo la implementación visual», sobre la cabeza local 38e2ce3 y las 25 capturas sintéticas entregadas. Las validaciones diferidas conservan sus causas. Esta aprobación no autoriza publicación, checks remotos, merge ni despliegue.

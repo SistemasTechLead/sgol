@@ -6,6 +6,8 @@ Directorio local ignorado por Git: `.artifacts/front-018`. No hay URLs firmadas,
 
 Recorrido: vacío y faltantes; versiones vigente/sustituida; revisión completa; confirmación y conclusión; sustitución por superior; carga en escaneo y sustitución binaria; filtro inválido y paginación. Las mediciones de reflow, texto ampliado, contraste y teclado están en las pruebas y en el informe; una captura sola no demuestra accesibilidad integral.
 
+Revisión visual aprobada por el responsable el 2026-10-01 mediante «Apruebo la implementación visual», sobre la cabeza local 38e2ce3 y estas 25 capturas sintéticas. Se mantienen las validaciones diferidas y sus causas; esta aprobación no autoriza publicación, checks remotos, merge ni despliegue.
+
 | Archivo | SHA-256 |
 |---|---|
 | [escritorio-binaria-inicio.png](../../.artifacts/front-018/escritorio-binaria-inicio.png) | `c2c1001b359325761c9afdf3b9eb1ee4233fc22d674e43a01a1e7f0d78e4e899` |
