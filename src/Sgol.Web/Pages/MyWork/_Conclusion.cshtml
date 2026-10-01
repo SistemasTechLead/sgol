@@ -1,0 +1,22 @@
+@model Sgol.Web.Pages.MyWork.DetailsModel
+<section class="panel-seccion mi-trabajo__seccion" id="conclusion-tarea" aria-labelledby="conclusion-title">
+    <header class="panel-seccion__cabecera"><h2 id="conclusion-title" tabindex="-1">Conclusión de tarea</h2></header>
+    <div class="evidencia__contenido">
+    @if (Model.ConclusionError is not null) { <div tabindex="-1" data-front-error><partial name="_ProblemAlert" model="Model.ConclusionError" /><ul>@foreach (var r in Model.ConclusionMissing) { <li>@r</li> }</ul></div> }
+    @if (Model.ConclusionSuccess is not null) { <p class="alerta alerta--exito" role="status" tabindex="-1" data-front-success><partial name="_Icon" model='@("check")' /> @Model.ConclusionSuccess</p> }
+    @if (Model.PreparedConclusion is not null)
+    {
+        <form method="post" asp-page-handler="Conclude" asp-route-returnToken="@Model.ReturnToken" data-front-confirm="Concluir tarea" data-front-busy="Concluyendo tarea…">
+            <input type="hidden" name="intention" value="@Model.PreparedConclusion" /><p>@Model.Detail?.Task.TaskCode · @Model.Detail?.Task.Name · @Model.Detail?.CurrentAssignment?.Responsible.DisplayName</p>
+            <p>La tarea quedará concluida. Esto no significa que esté validada</p><div class="acciones-formulario"><a class="boton boton--secundario" href="@Model.ReloadHref#conclusion-tarea">Cancelar</a><button class="boton boton--primario" type="submit">@(Model.ConclusionError is null ? "Concluir tarea" : "Recuperar resultado")</button></div>
+        </form>
+    }
+    else if (Model.Detail?.ExecutionStatus == "CONCLUIDA") { <p>La tarea está concluida. Su historia se conserva</p> }
+    else if (Model.Detail?.EvidenceActions?.CanConclude == true)
+    {
+        @if (Model.ConclusionConflict) { <a class="boton boton--secundario" href="@Model.ReloadHref#conclusion-tarea">Recargar detalle</a> }
+        else { <form method="post" asp-page-handler="PrepareConclusion" asp-route-returnToken="@Model.ReturnToken"><input type="hidden" name="review" value="@Model.ReviewToken" /><button class="boton boton--primario" type="submit" disabled="@(Model.Review?.Result != "COMPLETA")">Concluir tarea</button></form> }
+        @if (Model.Review?.Result != "COMPLETA") { <p>Consulta una revisión completa de la evidencia antes de concluir</p> }
+    }
+    </div>
+</section>

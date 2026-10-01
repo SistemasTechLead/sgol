@@ -33,7 +33,7 @@ public sealed partial class DetailsModel(IRazorSessionState sessionState, ISgolA
         if (!MyWorkQuery.CanonicalId(obligationId, out var id))
         { Response.StatusCode = 400; Error = MyWorkPresentation.Message(400, "OBLIGACION_ID_INVALIDO", null, false); return Page(); }
         var trail = new MyWorkCursor(protection, session.UserId, "history", obligationId);
-        if (Request.Query.Keys.Any(k => k is not ("historyCursor" or "returnToken") && !(HttpMethods.IsPost(Request.Method) && k == "handler")) || Request.Query["returnToken"].Count > 1 || Request.Query["historyCursor"].Count > 1 ||
+        if (Request.Query.Keys.Any(k => k is not ("historyCursor" or "returnToken" or "evidenceRequirement" or "evidenceStatus" or "evidenceCursor") && !(HttpMethods.IsPost(Request.Method) && k == "handler")) || Request.Query["returnToken"].Count > 1 || Request.Query["historyCursor"].Count > 1 ||
             Request.Query.ContainsKey("historyCursor") && string.IsNullOrEmpty(Request.Query["historyCursor"]) ||
             !trail.Read(Request.Query.ContainsKey("historyCursor") ? Request.Query["historyCursor"].ToString() : null))
         { Response.StatusCode = 400; Error = MyWorkPresentation.Message(400, "FILTRO_HISTORIA_INVALIDO", null, false); return Page(); }
@@ -50,9 +50,14 @@ public sealed partial class DetailsModel(IRazorSessionState sessionState, ISgolA
             if (response.Data is null || response.Data.ObligationId != id) throw new ApiProtocolException();
             MyWorkPresentation.Validate(response.Data);
             Pagination = trail.Links(response.HistoryNextCursor, value =>
-                QueryHelpers.AddQueryString(ReloadHref, new Dictionary<string, string?> { ["historyCursor"] = value }) + "#historia");
+                QueryHelpers.AddQueryString(ReloadHref, new Dictionary<string, string?> { ["historyCursor"] = value,
+                    ["evidenceRequirement"] = EvidenceRequirement, ["evidenceStatus"] = EvidenceStatus,
+                    ["evidenceCursor"] = Request.Query["evidenceCursor"].Count == 1 ? Request.Query["evidenceCursor"].ToString() : null }) + "#historia");
             Detail = response.Data;
+            ObligationETag = response.ETag;
             await LoadEvidenceAsync(cancellationToken);
+            if (await sessionState.GetAsync(cancellationToken) is null) return Redirect("/acceso");
+            await LoadVersionsAsync(cancellationToken);
             if (await sessionState.GetAsync(cancellationToken) is null) return Redirect("/acceso");
             return Page();
         }
