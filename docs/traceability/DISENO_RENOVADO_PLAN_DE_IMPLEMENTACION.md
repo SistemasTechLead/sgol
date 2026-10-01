@@ -172,3 +172,7 @@ Ejecución y concordancia documentadas en DISENO_RENOVADO_V2_IMPLEMENTACION.md. 
 ## Autorización de publicación del único hito — 2026-09-30
 
 «Apruebo las pantallas, ahora vamos a agregar esto al repositorio, apruebo commit, push y abrir el PR». Supera la espera de revisión anterior y autoriza commits, push y PR únicos del hito, seguimiento y correcciones del pipeline. Merge y despliegue siguen sujetos a autorización expresa propia. La licencia web de The Seasons conserva su requisito documental previo a publicación.
+
+## Decisión de tipografía para publicación — 2026-09-30
+
+«Autorizar Georgia como en la vista presentada y excluir The Seasons del repositorio y su historial de publicación». Georgia reemplaza la familia de marca sólo en bienvenida, con respaldo Times New Roman/serif; Poppins OFL conserva toda la operación. Se elimina @font-face y el archivo de The Seasons, también de los commits no publicados enviados. No se distribuye ningún archivo de Georgia. Esta decisión supera el requisito pendiente de derechos de The Seasons mediante su exclusión; los registros anteriores describen la secuencia histórica. No cambia alcance, contratos ni autorización de merge/despliegue.

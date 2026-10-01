@@ -2,7 +2,7 @@
   {
     "width": 1440,
     "file": "People-Details-normal",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -34,7 +34,7 @@
   {
     "width": 1440,
     "file": "Configuration-Index-normal",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -50,7 +50,7 @@
   {
     "width": 1440,
     "file": "planes-conflict",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -66,7 +66,7 @@
   {
     "width": 1440,
     "file": "planes-uncertain",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -82,7 +82,7 @@
   {
     "width": 1440,
     "file": "Access-Index-empty",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -90,7 +90,7 @@
   {
     "width": 1440,
     "file": "Access-Index-empty",
-    "name": "Seasons bienvenida",
+    "name": "Georgia bienvenida",
     "value": true,
     "expected": true,
     "ok": true
@@ -106,7 +106,7 @@
   {
     "width": 1440,
     "file": "Access-Index-empty",
-    "name": "Marca encima en móvil",
+    "name": "Marca encima en mÃ³vil",
     "value": 2,
     "expected": 2,
     "ok": true
@@ -114,7 +114,7 @@
   {
     "width": 1440,
     "file": "Access-Index-empty",
-    "name": "Delicias y versión",
+    "name": "Delicias y versiÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -122,7 +122,7 @@
   {
     "width": 1440,
     "file": "MyWork-Index-normal",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -138,7 +138,7 @@
   {
     "width": 390,
     "file": "People-Details-normal",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -170,7 +170,7 @@
   {
     "width": 390,
     "file": "Configuration-Index-normal",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -186,7 +186,7 @@
   {
     "width": 390,
     "file": "planes-conflict",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -202,7 +202,7 @@
   {
     "width": 390,
     "file": "planes-uncertain",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -218,7 +218,7 @@
   {
     "width": 390,
     "file": "Access-Index-empty",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -226,7 +226,7 @@
   {
     "width": 390,
     "file": "Access-Index-empty",
-    "name": "Seasons bienvenida",
+    "name": "Georgia bienvenida",
     "value": true,
     "expected": true,
     "ok": true
@@ -242,7 +242,7 @@
   {
     "width": 390,
     "file": "Access-Index-empty",
-    "name": "Marca encima en móvil",
+    "name": "Marca encima en mÃ³vil",
     "value": 1,
     "expected": 1,
     "ok": true
@@ -250,7 +250,7 @@
   {
     "width": 390,
     "file": "Access-Index-empty",
-    "name": "Delicias y versión",
+    "name": "Delicias y versiÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -258,7 +258,7 @@
   {
     "width": 390,
     "file": "MyWork-Index-normal",
-    "name": "Poppins operación",
+    "name": "Poppins operaciÃ³n",
     "value": true,
     "expected": true,
     "ok": true
@@ -285,11 +285,6 @@
     "name": "Recurso aprobado fonts/Poppins-SemiBold.ttf",
     "ok": true,
     "sha256": "d3bf1bdaf0550e83da9ac0b1d1d9fe6db086835a83aa28578e609a394b9a0286"
-  },
-  {
-    "name": "Recurso aprobado fonts/The-Seasons-Regular.ttf",
-    "ok": true,
-    "sha256": "235245939e668145a4621486a15b9323b784c7775e70909edb3bc9e3e64ed1e2"
   },
   {
     "name": "Recurso aprobado images/loretta.svg",

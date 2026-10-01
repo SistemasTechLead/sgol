@@ -394,3 +394,5 @@ Actualización incremental: 2026-09-30. Adenda 55 libre y verificada antes de cr
 | Adenda 55 — aprobación de implementación v2 | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 37 | 41 |
 
 Entrada operativa: `docs/design/referencia-renovada.md`. Evidencia: `docs/traceability/DISENO_RENOVADO_REFERENCIA.md`. El suplemento conserva literalmente los IDs y contratos; referencia documentada no equivale a diseño implementado.
+
+| Adenda 55 — Georgia y exclusión de fuente | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 43 | 47 |

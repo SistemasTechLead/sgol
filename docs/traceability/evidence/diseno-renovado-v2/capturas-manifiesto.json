@@ -9,7 +9,7 @@
   },
   {
     "file": "Access-Index-codes-1440.png",
-    "sha256": "e5b6b9ce579fcc9023688f4feefbee17ddf5ae1fefd00011a4762872d990709b"
+    "sha256": "71875c6876c980734c3b5f74be124cc54fbfa29c3474b6b557537663ae695b8b"
   },
   {
     "file": "Access-Index-codes-390.png",
@@ -17,7 +17,7 @@
   },
   {
     "file": "Access-Index-complete-1440.png",
-    "sha256": "8ffa5baf838444b996157a8f3a11463f422c44cec13577479cef642814276824"
+    "sha256": "b8ee1891b4e0ed55bbbcb5d3d79779ef998c3f87bf3a4ee7bf601872807cdc42"
   },
   {
     "file": "Access-Index-complete-390.png",
@@ -25,7 +25,7 @@
   },
   {
     "file": "Access-Index-empty-1440.png",
-    "sha256": "ac4cb9b467776d8b1e1a9736227a1a25e8379121e5d465986376534dac85fcf3"
+    "sha256": "65ff64cea99516a8bc68dde1133d0f3a51b7b234d5627ccb41bc93e19a9c7ffd"
   },
   {
     "file": "Access-Index-empty-390.png",
@@ -33,7 +33,7 @@
   },
   {
     "file": "Access-Index-enroll-1440.png",
-    "sha256": "f18d5a042bac46e1b58a6aa12aedcff4d8757c561062e92891d0b05674de8a58"
+    "sha256": "7f46f5d404d119561f3ce2a143aa71567d6af21119be3902143c378d0dc8785f"
   },
   {
     "file": "Access-Index-enroll-390.png",
@@ -41,7 +41,7 @@
   },
   {
     "file": "Access-Index-enroll-key-1440.png",
-    "sha256": "63050acf6553ebc3321288974fdbfa748425b449310272924c3d459343ef991a"
+    "sha256": "5810f586bb957da862496f1522f1111f2abd407c9a37e5a0cf47642bd9133ff5"
   },
   {
     "file": "Access-Index-enroll-key-390.png",
@@ -49,7 +49,7 @@
   },
   {
     "file": "Access-Index-error-1440.png",
-    "sha256": "5eaa07f0bd77fa6945fb5673b228ffd05a0ac40645064dba23ab7a8ff087f216"
+    "sha256": "840160657252ae26860c15b5cc7e6c5576a97f2b5d686574e81d000c080614b4"
   },
   {
     "file": "Access-Index-error-390.png",
@@ -57,7 +57,7 @@
   },
   {
     "file": "Access-Index-expired-1440.png",
-    "sha256": "0c6ba4011c09889b6bce64e74863226cb3b5e0010424a22abf0229192a6d214b"
+    "sha256": "ec1385216e3abf4ef070b714bee0f6a78e81590e3d7b670dd7c10f87de9a0d26"
   },
   {
     "file": "Access-Index-expired-390.png",
@@ -65,7 +65,7 @@
   },
   {
     "file": "Access-Index-password-1440.png",
-    "sha256": "d54937d0bbb189958af8957982133343fa4e6efcb8e8c314cd14688bd62fd4e8"
+    "sha256": "cfd9384d89fe778b790b557842a5e239937178ff2ff614111d3397f1087512e8"
   },
   {
     "file": "Access-Index-password-390.png",
@@ -73,7 +73,7 @@
   },
   {
     "file": "Access-Index-regenerate-1440.png",
-    "sha256": "6618c831180e3fa6f56ebedca36dc2e85131e7861a31aaf1b45ae01b4216d2d4"
+    "sha256": "7e9e1e83837065858df57cf034e85d0c16133106cc81bbd0b289941ab6c811a4"
   },
   {
     "file": "Access-Index-regenerate-390.png",
@@ -81,7 +81,7 @@
   },
   {
     "file": "Access-Index-verify-1440.png",
-    "sha256": "4978ff7924df649f02b99b314708a52d7fbdc04ebb8563a52dd9304673c6cf48"
+    "sha256": "6ff0f8c1f56542a82385218ea910a9f5c1eedee8a4e302aa71310f9523641ac2"
   },
   {
     "file": "Access-Index-verify-390.png",
@@ -237,67 +237,67 @@
   },
   {
     "file": "https/desktop-acceso.png",
-    "sha256": "622ee325b02a2fa5e6da3089b3cd6b05a0e22c9ae77faa8efc49fd15da98482c"
+    "sha256": "e41acccd6198e8fb9c11e7397a5e7bdc2dbc634adff5cb4efb66f7a5cc4ad579"
   },
   {
     "file": "https/desktop-asignacion-sin-evaluacion-texto-ampliado.png",
-    "sha256": "81349034ce3e4a85a60a5f6da2b09e4788ee218db72170bb8c036e61ca5f0d8e"
+    "sha256": "6523dc808d6a78259a8ff704d2ee8c146fcb4b48604692ee43f9d37ec0ea2a5f"
   },
   {
     "file": "https/desktop-asignacion-sin-evaluacion.png",
-    "sha256": "92db0554a21d760be0eff66efd30153601900d3cf24e505a54f73acf86161ccb"
+    "sha256": "b848a89801ad3aae6e3ca5fdf3e820984c6fb2c50ed88781921858c7c5025e22"
   },
   {
     "file": "https/desktop-configuracion-texto-ampliado.png",
-    "sha256": "25a5a52ff2195605b3e8dac071921797012c702d6b817a64bccc3950b5172386"
+    "sha256": "4547cce2cce2850f1655701085eef45f0179f193d8245b7ae72303f0a6fd4e40"
   },
   {
     "file": "https/desktop-configuracion.png",
-    "sha256": "388175cf2fb6ec1f9bb839281e8a3151ae8f93cf2a0fde7f6c3c0bc2e92cc735"
+    "sha256": "aeda424949add90beb287aa164dbecac185f2fd2865de4fe32f86680bc4bd928"
   },
   {
     "file": "https/desktop-confirmacion-cuenta.png",
-    "sha256": "ee0a2523cc0dceeaa775bf25e3cbd1047643ee2bd73d6edfb382dcdf8f6df6e2"
+    "sha256": "d9f959439541face0827379ad79e4d538f691eb39169a24ce4e263e1b44f27be"
   },
   {
     "file": "https/desktop-mi-trabajo-texto-ampliado.png",
-    "sha256": "edca77079ac85403426ce7d728fef1cac99fa0a39f9a9ef11cd2e22f911870c7"
+    "sha256": "502f16a43cad791a304fed2fa021428492d0b45437e3d920e4fb720e3dfeadec"
   },
   {
     "file": "https/desktop-mi-trabajo.png",
-    "sha256": "f6ed7f5744156ad08a366578d858dce709aad0241cbdf232007f50775138243c"
+    "sha256": "0ea863fa9b3c3789f430291499e6dc4094adb5557758a107ad23a88d67b70714"
   },
   {
     "file": "https/desktop-persona-detalle-texto-ampliado.png",
-    "sha256": "15f370c27c79a079c550accb3174894722d63c1abfc63a827e7400492b4664ed"
+    "sha256": "dcf19c6cc0ca28645ece960c4a9073a2fad5e00a896c9c74fbe73a79668e1612"
   },
   {
     "file": "https/desktop-persona-detalle.png",
-    "sha256": "10bffc026debb6ec8e841f5f4bc50b6ef57ca2629f99a5a1fad28c1f89b0e175"
+    "sha256": "58a5fc09dadc90b4c83bf57240d4e70ec00b0f6f507213a9a6bb2d8ced18cd7d"
   },
   {
     "file": "https/desktop-personas-texto-ampliado.png",
-    "sha256": "e2bc5c5cd1e44c359bd8d41b76271baafb175ebffa5ee4c9e8a6b2c5c94edc8b"
+    "sha256": "11b4311565eacf9bb8d4c678a2cabd75b22f228e5b02f373221f719b4026f598"
   },
   {
     "file": "https/desktop-personas.png",
-    "sha256": "370f31b79fb4ca2dad65493c2553d180d2e39b028ccf53d7d48a80fa7ed86844"
+    "sha256": "1dc5d45be66ec2ddc65aa6052040231694cc52d5ca3e20ecba17c11c2724028a"
   },
   {
     "file": "https/desktop-plan-confirmado.png",
-    "sha256": "1b4abfe6ca4eb54887a6c13db4155c987266eaa2cc2b734ec2b0aa510e612f29"
+    "sha256": "6307fac215e2b9c9f31de26933a7c8c34ca7791e518aa17ebd7271944cace64a"
   },
   {
     "file": "https/desktop-planificacion-texto-ampliado.png",
-    "sha256": "558eeeb3baaefd78cd1ddca32c978ffe2c27c783b3d2092439d80619314237da"
+    "sha256": "3217f6a6b7d6b1c8a5402802afadc3a667c3a648e2611b136ac6386381e74ff1"
   },
   {
     "file": "https/desktop-planificacion.png",
-    "sha256": "7475e95e503ce06a4c6237fa33f55d4560d359ec16ce5d8d2a616fbba3774ca3"
+    "sha256": "420898724fd113cf7c532ad140cdc04a1d452e179838b50ec0c716e26263db95"
   },
   {
     "file": "https/desktop-publicacion-confirmacion.png",
-    "sha256": "111b6405f08898d009a46f43e04ccd1debe3794447911374c13f89d469d689a7"
+    "sha256": "5d03d645c8e3d6ddcd98baf195a67ebb453b9238988f17c8700b244d340748a4"
   },
   {
     "file": "https/desktop-sucursal-texto-ampliado.png",
@@ -309,19 +309,19 @@
   },
   {
     "file": "https/desktop-tarea-detalle-texto-ampliado.png",
-    "sha256": "6d7083e5a9517b37c2279e586ef9e26fe7dfe3d194f5896496e3e625be87212d"
+    "sha256": "e87ec8351d86518250dba7b9e1f9f6276a4f0287a7a488a8a75387d239066255"
   },
   {
     "file": "https/desktop-tarea-detalle.png",
-    "sha256": "62e147f1f137a496d86645f222aa7185bee723f33a682db7d1a11caa22b8b8d2"
+    "sha256": "91f87bd57be7d0e5f7b772253183faf4209ff9783aa2ce6c16fdd3f19d7cd6b7"
   },
   {
     "file": "https/desktop-tarea-no-disponible-texto-ampliado.png",
-    "sha256": "6e0f6efefe25783a8f0841c1f9370174b32b9efadb415d16593aeb580006539e"
+    "sha256": "0b5fcd353b7b8a2808f6fd0c65e447f11c011d411e0bfbdce27a57e37220aa60"
   },
   {
     "file": "https/desktop-tarea-no-disponible.png",
-    "sha256": "e087a2a306e8e2da345d8fac06486ba95d3c3f80de19ee617f2bc30fcd2df7b6"
+    "sha256": "ae79c2fb11fb4dc7b576b99385054a0bab5ed180fbf9b949cb0fd2ed03cccc8b"
   },
   {
     "file": "https/mobile-acceso-texto-ampliado.png",
@@ -333,67 +333,67 @@
   },
   {
     "file": "https/mobile-asignacion-sin-evaluacion-texto-ampliado.png",
-    "sha256": "93efdf51ce693fd436f5a96b9561059bbec16cc5284448c7f892177bf3401974"
+    "sha256": "7cb45a4ac7814bd8f4b7ed377988be73374a803e63107abdff6873fe5fd6355f"
   },
   {
     "file": "https/mobile-asignacion-sin-evaluacion.png",
-    "sha256": "747bcbaaa3834c2e52cd8f006a24768bab78df9ec17bdcaada54da7de57c9d64"
+    "sha256": "531a67f9e907397983fa00b631a46d27107f02de581f6e42e44a32f2b10f4dd3"
   },
   {
     "file": "https/mobile-configuracion-texto-ampliado.png",
-    "sha256": "ea961ae22eb1ff7284fddf0561324f44c6b805bef399e57d95b2d873c6e4c71b"
+    "sha256": "b3fd94d7c079fd6a2a38b9a42c7cda38f340d4c330f7f7362777ad29d7f51f75"
   },
   {
     "file": "https/mobile-configuracion.png",
-    "sha256": "cec4c31dcf8e9bb2fdfc7518d7a6bbe5330ebab545b02bb6984e78608aff0798"
+    "sha256": "dca6afedb100057e2ce61a755d897bfa5abbf9e37483e15afccd6e2a890e6eaf"
   },
   {
     "file": "https/mobile-confirmacion-cuenta.png",
-    "sha256": "15a289fdd72570aad188f2f24a3c9c386dd64a1e593544d4a64e685c99bbbf02"
+    "sha256": "6be298c7e84dcbb451a874042164752b5450465d903010b845d13a04b5931edf"
   },
   {
     "file": "https/mobile-mi-trabajo-texto-ampliado.png",
-    "sha256": "f957e5654db0ddf03cf6228478b772ae3d93ffb07886f0288f3f79488bcbaee1"
+    "sha256": "673d0e06a8e6600f5109303f7e3ea6decee09eeeeac9da01f4911d4e018599c0"
   },
   {
     "file": "https/mobile-mi-trabajo.png",
-    "sha256": "b0528f62d8324a531bc3c1ebe2391c2d1c778a1e3cbca2d1a8433aa56d06445d"
+    "sha256": "299adf7409f26df133cf1e26a33005434c4371e256a7c16a4f6cb9c6c8069a5e"
   },
   {
     "file": "https/mobile-navegacion-modal.png",
-    "sha256": "4c3dfa2919e4b615253be71c783fd48c3b9785ed2079abfe239e180dd0efadf4"
+    "sha256": "e9df28ee63dadefe2d8c3e95e575f415c8a21574a8660d58efe10c183338208e"
   },
   {
     "file": "https/mobile-persona-detalle-texto-ampliado.png",
-    "sha256": "3fad8fb76e8d214655de40e07f912b2d6c06d6b52654b259621e8373faaaaeec"
+    "sha256": "1088a684ae38507cfd92235ed4478571fa344f2edcafb9e489199e230fb18f6b"
   },
   {
     "file": "https/mobile-persona-detalle.png",
-    "sha256": "1e253f5b5a3b16b6d6003eb5bacf208c67b989692ab4169586dc57b7cd4c1f3b"
+    "sha256": "5b39b8c7c2cb4ec0d24f96ca86815886dd640fd8d514e319dfac23335f9dccdd"
   },
   {
     "file": "https/mobile-personas-texto-ampliado.png",
-    "sha256": "101836e41e8b1a463386365dd426c17f20ef2e9e7dda061fb30b54cdd2edbe76"
+    "sha256": "3c8d18c0b5b45652cc1cd81bbd2ed6e4537e0e9241a6cfa0611e40a071453ce7"
   },
   {
     "file": "https/mobile-personas.png",
-    "sha256": "fc3da3dfb1d75ba6b8a590fa90c7a3b0bbae51c4df4d8164abec940aa1ba1df4"
+    "sha256": "9dc695f0f2480293004c9bf8470450070a1b51d596c7f2e5076ac41e7213b431"
   },
   {
     "file": "https/mobile-plan-confirmado.png",
-    "sha256": "d1ff929fdf1cb68365eee645635e45d2d84a195bf89f64d52112eee4194fe65c"
+    "sha256": "7ee738558c870297c1c5ff17a831a1527ef97488dec8eaf06cd692a7a8f2f7ef"
   },
   {
     "file": "https/mobile-planificacion-texto-ampliado.png",
-    "sha256": "905b7731b81bee55936dd5795a0c987ecbe5ce4d4fdd9f2474dcab7d1161e4e7"
+    "sha256": "528703e5dd6279767a09c034af633fd571abb804c3027484b14059cdb0ed0c5e"
   },
   {
     "file": "https/mobile-planificacion.png",
-    "sha256": "3af8fbdd7b2f1cd7ab6391959535a28e550b4e133b76f2ab290297f3a7c06803"
+    "sha256": "dce67430e84ee11adfc01317e073d8ba69e3433997b5c89c885f48e77ddc5cbd"
   },
   {
     "file": "https/mobile-publicacion-confirmacion.png",
-    "sha256": "2f5cb9ae8a468b14f1d3f0c2e557cc5cee9b0f129fbd3ea9a35cec631fd0c5c8"
+    "sha256": "3709a0298ee83652653c286384be8d1bdebba6a21adbf98c7060a19e9da56203"
   },
   {
     "file": "https/mobile-sucursal-texto-ampliado.png",
@@ -405,19 +405,19 @@
   },
   {
     "file": "https/mobile-tarea-detalle-texto-ampliado.png",
-    "sha256": "695778311af1caf55d6b7249cc5f3aaeae07402f8798e0b0d13d56615a4530a3"
+    "sha256": "3ba5f8b4310d101386b4f87854d966e50c4b57548bb8cded688fe70c29e50b2a"
   },
   {
     "file": "https/mobile-tarea-detalle.png",
-    "sha256": "c3be61cdbde00b26a90de1d44a094246068d4e5a7da9986f21ef338b3a44d88d"
+    "sha256": "5ad9a2b21aaf969bd90a88317b76ddd360725ea224fa28e11b4e5babf612fe50"
   },
   {
     "file": "https/mobile-tarea-no-disponible-texto-ampliado.png",
-    "sha256": "f505385915aa73e266fa1097e4c241da757510e18f8be6c767b8a11731b188de"
+    "sha256": "70ab604debb19802ff7c2aefa8b103d1ca3a567d318d92bce3eb7d49b393203f"
   },
   {
     "file": "https/mobile-tarea-no-disponible.png",
-    "sha256": "8832c556c4aadf4014f08ce04c334bb9e58ea470e212109c82b04293d59b8c34"
+    "sha256": "1794d7ee551831b93b5bb1123835bfe027dc77f032629d8be243a66f5f02c977"
   },
   {
     "file": "MyWork-Details-empty-1440.png",

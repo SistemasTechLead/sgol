@@ -63,11 +63,11 @@ Cada uno con su versión de texto (para usar sobre `--color-superficie` o sobre 
 
 ## Tipografía
 
-Poppins es la tipografía base de toda la interfaz operativa: formularios, tablas, botones, navegación. The Seasons se reserva para `--tipografia-bienvenida` en bienvenida y `--tipografia-titulo-compacto` en estados vacíos de marca; nunca en tablas, formularios ni badges.
+Poppins es la tipografía base de toda la interfaz operativa: formularios, tablas, botones, navegación. Georgia se reserva para `--tipografia-bienvenida` en bienvenida y `--tipografia-titulo-compacto` en estados vacíos de marca; nunca en tablas, formularios ni badges.
 
 | Token | Valor | Cuándo usarlo |
 |---|---|---|
-| `--fuente-marca` | `"The Seasons", Georgia, "Times New Roman", serif` | Solo `--tipografia-bienvenida` en bienvenida o `--tipografia-titulo-compacto` en vacíos de marca — nunca en tablas, formularios ni badges. |
+| `--fuente-marca` | `Georgia, "Times New Roman", serif` | Solo `--tipografia-bienvenida` en bienvenida o `--tipografia-titulo-compacto` en vacíos de marca — nunca en tablas, formularios ni badges. |
 | `--fuente-base` | `"Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif` | Toda la interfaz operativa: texto, tablas, controles, navegación. |
 | `--tipografia-micro` | `400 11px/16px var(--fuente-base)` | Timestamps, contadores, texto auxiliar mínimo dentro de celdas. |
 | `--tipografia-pequena` | `400 12px/16px var(--fuente-base)` | Celdas de tabla, etiquetas de formulario, texto secundario de listas. |
@@ -169,7 +169,7 @@ Las hojas consumidoras usan variables también para borde, foco y área mínima.
   --color-info-fondo: #E8F1F7;
 
   /* Tipografía */
-  --fuente-marca: "The Seasons", Georgia, "Times New Roman", serif;
+  --fuente-marca: Georgia, "Times New Roman", serif;
   --fuente-base: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   --tipografia-micro: 400 11px/16px var(--fuente-base);
   --tipografia-pequena: 400 12px/16px var(--fuente-base);
@@ -247,4 +247,4 @@ Base aceptada; valores de ESTILO_VISUAL_V2.md. No son evidencia de implementaci�
 | `--ancho-tabla-bandeja` | `840px` | Sólo tabla de bandeja agrupada, scroll propio |
 | `--tipografia-bienvenida` | `400 48px/56px var(--fuente-marca)` | Bienvenida de marca, nunca operativo |
 
-Poppins local 400/500/600 y The Seasons Regular conforme a procedencia y límites de ESTILO_VISUAL_V2.md. Mantener fallback y font-display:swap. No leer fuentes congeladas.
+Poppins local 400/500/600 con licencia OFL y Georgia del sistema conforme a ESTILO_VISUAL_V2.md. Mantener fallback y font-display:swap en Poppins. No distribuir archivos de Georgia ni de The Seasons. No leer fuentes congeladas.

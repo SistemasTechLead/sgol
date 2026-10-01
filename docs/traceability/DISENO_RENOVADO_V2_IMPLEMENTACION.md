@@ -27,8 +27,8 @@ Los archivos de Entry, Branches, MyWork/Details y _WorkPagination no tienen diff
 | Regla vigente | Implementación | Evidencia |
 |---|---|---|
 | Variables oficiales exclusivamente | tokens.css coincide con el bloque root de tokens.md; consumidores sólo usan variables declaradas | InterfaceDesignRulesTests, PASS; sin biblioteca nueva |
-| Fuentes/marca aprobadas | 4 fuentes locales y SVG derivado de curvas del EPS, OFL conservada | concordancia.json: recursos byte a byte iguales a propuesta aprobada y SHA-256; carga de fuentes/imágenes en ambos motores |
-| Poppins operación / Seasons bienvenida | @font-face local, tokens tipográficos y acceso | medidas computadas, capturas e inspección visual |
+| Fuentes/marca aprobadas | 3 fuentes Poppins locales y Georgia del sistema, sin archivo distribuido, y SVG derivado de curvas del EPS, OFL conservada | concordancia.json: recursos byte a byte iguales a propuesta aprobada y SHA-256; carga de fuentes/imágenes en ambos motores |
+| Poppins operación / Georgia bienvenida | @font-face local de Poppins, Georgia por token y acceso | medidas computadas, capturas e inspección visual |
 | Persona: padding 24/16, gap 24/16, ancho útil | persona-detalle, formulario-persona, grid de empleo y motivo | concordancia.json + capturas; datos completos y radio con etiqueta clicable de 44px |
 | Release TAR: gap 24/16 | seccion-definiciones__formulario | ocho variantes + medición de estilos; plantilla única conservada |
 | Plan: mensaje separado 24 | #plan-error:not(:empty) | conflicto/resultado incierto y concordancia.json |
@@ -83,3 +83,9 @@ Validación de formato previa a publicación: primer intento detectó CRLF en lo
 El responsable confirma que no dispone de licencia de The Seasons y prevé uso interno sin ingresos. Esa declaración no acredita permiso de alojamiento o redistribución. Se verificó que origin es un repositorio público. [My Creative Land](https://mycreativeland.com/licensing/) exige licencia para @font-face y limita la distribución de archivos y sus formatos web; [Adobe Fonts](https://fonts.adobe.com/fonts/the-seasons) identifica la misma familia y remite al proveedor para self-hosting. No se afirma una exención por uso interno.
 
 Se presentó fuera del repositorio una alternativa concreta con Georgia, respaldo ya definido por --fuente-marca, únicamente para la frase de bienvenida. Se espera decisión del responsable entre esa sustitución y obtener derechos adecuados manteniendo The Seasons. Los commits locales autorizados se preparan, pero no se sube la rama ni se abre PR mientras no se resuelva este requisito del plan. Si se aprueba excluir The Seasons, se retirará también de los nuevos commits no publicados; borrarlo sólo en la cabeza no bastaría para excluir su archivo del historial enviado.
+
+## Decisión de tipografía para publicación — 2026-09-30
+
+«Autorizar Georgia como en la vista presentada y excluir The Seasons del repositorio y su historial de publicación». Georgia reemplaza la familia de marca sólo en bienvenida, con respaldo Times New Roman/serif; Poppins OFL conserva toda la operación. Se elimina @font-face y el archivo de The Seasons, también de los commits no publicados enviados. No se distribuye ningún archivo de Georgia. Esta decisión supera el requisito pendiente de derechos de The Seasons mediante su exclusión; los registros anteriores describen la secuencia histórica. No cambia alcance, contratos ni autorización de merge/despliegue.
+
+Validación de la sustitución: arquitectura 10/10 y HTTPS/PostgreSQL Chromium/WebKit 2/2 PASS; 354 combinaciones visuales, 254 comprobaciones de interacción/texto y 38 de concordancia PASS. Son 38 al excluir la comparación del binario de fuente retirado; la familia Georgia se comprueba en ambos anchos. Capturas y manifiesto renovados: 167 imágenes sintéticas. Inspección de Acceso de escritorio confirma la composición aprobada. TRX georgia-architecture.trx y georgia-https.trx en la carpeta externa de resultados. Build Release y format integral PASS registrados antes de esta sustitución exclusiva de CSS/documentos. Zoom nativo, lector y dispositivos físicos conservan su validación diferida.

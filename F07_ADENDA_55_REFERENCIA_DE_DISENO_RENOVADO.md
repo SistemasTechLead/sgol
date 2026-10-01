@@ -39,3 +39,9 @@ Las ocho TAR se presentan mediante una plantilla única seleccionada por taskCod
 El responsable aprueba expresamente las correcciones y el complemento del único plan: «Apruebo las correcciones y el complemento del plan para implementar». Se autoriza adaptar las pantallas existentes de FRONT-001..016 a ESTILO_VISUAL_V2.md, conservando contratos y exclusiones. Los §§4–5 conservan el registro documental histórico; su revisión pendiente quedó superada por esta aprobación. Código y validaciones se acreditan por grupo en docs/traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md, sin reaprobar historias anteriores.
 
 La instrucción vigente exige capturas implementadas y concordancia con la guía antes de una aprobación explícita posterior para nuevos commits, push y un único PR de todo el hito. No hay autorización de publicación, merge ni despliegue. Las próximas historias consumen estos componentes y tokens dentro de su propio alcance, sin migración completa como dependencia.
+
+## 7. Georgia y exclusión de The Seasons — 2026-09-30
+
+Decisión literal del responsable: «Autorizar Georgia como en la vista presentada y excluir The Seasons del repositorio y su historial de publicación». Prevalece sobre la selección histórica del §5: bienvenida con Georgia del sistema y respaldos Times New Roman/serif; operación con Poppins local OFL. Sin archivo Georgia distribuido ni @font-face de marca. Se retira The Seasons de la cabeza y de todos los commits no publicados que se enviarán. Los originales externos y Fuentes permanecen intactos. ESTILO_VISUAL_V2.md y tokens.md son la referencia vigente de próximas historias.
+
+El responsable aprobó pantallas, commit, push y un único PR del hito. Seguimiento y correcciones del pipeline incluidos; merge y despliegue siguen requiriendo aprobación expresa separada. La exclusión de la fuente resuelve el requisito pendiente de publicación sin afirmar derechos inexistentes.

@@ -304,7 +304,7 @@ button.navegacion-movil__abrir,
 }
 
 .casilla__control:checked + .casilla__caja::after {
-    content: "✓";
+    content: "âœ“";
 }
 
 .casilla__control:focus-visible + .casilla__caja {
@@ -1167,7 +1167,6 @@ a:not(.boton):not(.navegacion-lateral__item):not(.paginacion__boton) {
 @font-face{font-family:Poppins;src:url('../fonts/Poppins-Regular.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
 @font-face{font-family:Poppins;src:url('../fonts/Poppins-Medium.ttf') format('truetype');font-style:normal;font-weight:500;font-display:swap}
 @font-face{font-family:Poppins;src:url('../fonts/Poppins-SemiBold.ttf') format('truetype');font-style:normal;font-weight:600;font-display:swap}
-@font-face{font-family:'The Seasons';src:url('../fonts/The-Seasons-Regular.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
 
 /* Estilo visual v2: base compartida oficial; documentos en docs/design. */
 body{background:var(--color-superficie-elevada)}

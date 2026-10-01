@@ -56,7 +56,7 @@ Conservar todos los valores actuales de colores de marca, superficies, bordes, t
 | `--peso-medio` | Nuevo: `500` | Nombre de registro, navegación y encabezados de columna |
 | `--peso-fuerte` | Nuevo: `600` | Jerarquía puntual de valores y títulos |
 
-Las restantes tipografías permanecen sin cambio. `--tipografia-grande` corresponde a h2 de sección y `--tipografia-media` a h3; texto primario para contenido y secundario para contexto. La precisión v2 carga Poppins y The Seasons locales aportadas fuera de Fuentes; conserva fallback y no introduce recursos remotos.
+Las restantes tipografías permanecen sin cambio. `--tipografia-grande` corresponde a h2 de sección y `--tipografia-media` a h3; texto primario para contenido y secundario para contexto. La precisión v2 carga Poppins local con licencia OFL y usa Georgia del sistema para bienvenida por decisión aprobada; conserva fallback y no introduce recursos remotos ni distribuye fuentes de marca.
 
 Uso nuevo de `--color-superficie-elevada`: fondo general del área autenticada. Navegación, encabezado de sesión, paneles y tablas usan `--color-superficie`. La superficie cálida puede reforzar navegación activa, encabezados de tabla o hover. Marca decorativa sólo en identidad; nunca controles. No se colorea un panel entero según el estado de una obligación.
 

@@ -105,3 +105,5 @@ Los estados de plan/asignación combinan parciales reales con el shell real. Est
 [Medidas](medidas.json) · [Interacciones/texto](interacciones.json) · [Concordancia](concordancia.json) · [Huellas de capturas](capturas-manifiesto.json)
 
 Resultado y límites en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](../../DISENO_RENOVADO_V2_IMPLEMENTACION.md).
+
+Bienvenida actual: Georgia del sistema, decisión aprobada. Poppins OFL mantiene el resto de la interfaz. Capturas renovadas tras excluir el archivo de The Seasons; no se distribuye fuente Georgia.

@@ -14,7 +14,7 @@ Complementa Adenda 55 y precisa sus reglas visuales. Prevalece sobre ejemplos vi
 - Botón primario relleno de acento; secundario neutro sin contorno rojo; acciones auxiliares textuales, navegación Ver tarea con flecha. El foco conserva anillo visible. Peligro se reserva a acciones y estados pertinentes. El ancho habitual es el del contenido; no estirar acciones de planificación a toda una fila. El acceso principal puede ocupar el ancho del formulario.
 - Semana recibida del sistema junto al título: número/año y rango legible con mes escrito. Nunca inferir totales o períodos ausentes. Las fechas operativas conservan el calendario y zona del contrato.
 - Tablas con caption, th/scope y acciones de cursor; agrupación de tarea/período/origen permite conservar cada valor y etiqueta. Sólo su contenedor desplaza horizontalmente. No transformar tablas en tarjetas ni suprimir datos.
-- Poppins local para operación (400/500/600); The Seasons Regular local sólo en bienvenida. La bienvenida usa tamaño propio por token y no transmite ese tamaño a formularios o celdas.
+- Poppins local para operación (400/500/600); Georgia del sistema sólo en bienvenida. La bienvenida usa tamaño propio por token y no transmite ese tamaño a formularios o celdas.
 - Se conservan los seis estados, áreas mínimas, reflow, textos ampliados y movimiento reducido. Iconos decorativos aria-hidden y etiqueta visible; no sustituyen el texto. Enlaces de contenido en prosa mantienen subrayado; controles de navegación/acción textual usan área de botón, flecha cuando corresponda y foco visible, sin contorno rojo.
 
 ## Correcciones aprobadas
@@ -46,11 +46,11 @@ Texto de bienvenida: Tu espacio de trabajo. Ubicación visual solicitada: Delici
 | Recurso | Procedencia | Incorporación productiva |
 |---|---|---|
 | Poppins Regular/Medium/SemiBold | Google Fonts oficial, ofl/poppins; licencia OFL | Incorporada localmente; licencia OFL conservada |
-| The Seasons Regular | Archivo aportado por el responsable fuera de Fuentes | Uso local privado; pendiente documento de derechos para alojamiento/redistribución web antes de publicación |
+| Georgia | Fuente disponible en el sistema, respaldo Times New Roman/serif | Sustitución aprobada; sin archivo distribuido ni @font-face |
 | Logo Loretta | EPS aportado por el responsable fuera de Fuentes | SVG derivado conservando curvas, relleno oscuro; original intacto |
 | Iconos | SVG propios de línea | Parcial/helper compartido, sin librería |
 
-Recursos incorporados localmente: wwwroot/fonts/Poppins-Regular.ttf, Poppins-Medium.ttf, Poppins-SemiBold.ttf, The-Seasons-Regular.ttf; wwwroot/images/loretta.svg. No se leen ni trasladan archivos congelados. No introducir fuentes remotas. Las reglas y valores de esta guía son autocontenidos; la ruta externa del prototipo no es dependencia operativa de próximas historias.
+Recursos incorporados localmente: wwwroot/fonts/Poppins-Regular.ttf, Poppins-Medium.ttf, Poppins-SemiBold.ttf; wwwroot/images/loretta.svg. No se leen ni trasladan archivos congelados. No introducir fuentes remotas. Las reglas y valores de esta guía son autocontenidos; la ruta externa del prototipo no es dependencia operativa de próximas historias.
 
 ## Verificación de implementación
 
@@ -67,3 +67,7 @@ Tablas: cabecera blanca, padding --espacio-16 en celdas y --espacio-12 en estrec
 Las palabras largas de paneles pueden partirse para texto al 200 %, sin ocultar datos ni overflow global. Fieldset/legend no imponen mínimos que excedan el formulario. Radio conserva indicador de --espacio-24 y su etiqueta clicable de al menos --alto-control-minimo. Navegación modal mantiene Escape y retorno; Tab/Shift+Tab recorre y envuelve sus controles visibles en ambos motores, sin cambiar permisos ni rutas.
 
 Las tablas conservan partición normal de palabras y pueden exceder el ancho estrecho sólo dentro de su contenedor desplazable; los badges no parten etiquetas en caracteres. Esto evita tablas con columnas de una letra y mantiene legibilidad. Las acciones directas de planificación conservan ancho de contenido también cuando su panel usa grid.
+
+## Decisión de tipografía para publicación — 2026-09-30
+
+«Autorizar Georgia como en la vista presentada y excluir The Seasons del repositorio y su historial de publicación». Georgia reemplaza la familia de marca sólo en bienvenida, con respaldo Times New Roman/serif; Poppins OFL conserva toda la operación. Se elimina @font-face y el archivo de The Seasons, también de los commits no publicados enviados. No se distribuye ningún archivo de Georgia. Esta decisión supera el requisito pendiente de derechos de The Seasons mediante su exclusión; los registros anteriores describen la secuencia histórica. No cambia alcance, contratos ni autorización de merge/despliegue.
