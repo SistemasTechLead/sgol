@@ -119,8 +119,11 @@ public sealed partial class Front018BrowserTests
         var required = page.Locator("textarea[name=reason]"); Assert.True(await required.EvaluateAsync<bool>("e => e.required"));
         csrf = await CsrfAsync(page); var selected = await page.Locator("input[name=replacement]").InputValueAsync();
         before = await fixture.MyWorkRowsAsync();
-        var invalidReason = await context.APIRequest.PostAsync(path + "?handler=PrepareReplacement", new() { Form = context.APIRequest.CreateFormData()
-            .Set("__RequestVerificationToken", csrf).Set("replacement", selected).Set("requirementCode", "MERCANCIA").Set("merchandiseReference", "SUPERIOR-04").Set("reason", "") });
+        var invalidReason = await context.APIRequest.PostAsync(path + "?handler=PrepareReplacement", new()
+        {
+            Form = context.APIRequest.CreateFormData()
+            .Set("__RequestVerificationToken", csrf).Set("replacement", selected).Set("requirementCode", "MERCANCIA").Set("merchandiseReference", "SUPERIOR-04").Set("reason", "")
+        });
         Assert.Equal(422, invalidReason.Status); Assert.Equal(before, await fixture.MyWorkRowsAsync());
         await required.FillAsync("Revisión sintética autorizada"); await page.Locator("form[action*='PrepareReplacement'] button[type=submit]").ClickAsync();
         await page.Locator("dialog[open] button[type=submit]").ClickAsync();

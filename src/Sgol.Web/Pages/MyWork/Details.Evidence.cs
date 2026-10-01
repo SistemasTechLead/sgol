@@ -200,8 +200,16 @@ public sealed partial class DetailsModel
         var intention = NewIntention(session, Detail.ObligationId, SelectedRequirement.RequirementCode, "upload", body);
         if (replacing)
         {
-            try { intention = intention with { ReplacementItem = Replacement!.Item, ReplacementRowVersion = Replacement.RowVersion,
-                ReplacementVersionNo = Replacement.VersionNo, Reason = NormalizeReplacementReason(form["reason"].ToString(), ReplacementNeedsReason) }; }
+            try
+            {
+                intention = intention with
+                {
+                    ReplacementItem = Replacement!.Item,
+                    ReplacementRowVersion = Replacement.RowVersion,
+                    ReplacementVersionNo = Replacement.VersionNo,
+                    Reason = NormalizeReplacementReason(form["reason"].ToString(), ReplacementNeedsReason)
+                };
+            }
             catch (EvidenceRequestInvalidException) { return EvidenceFailure(422, "MOTIVO_REQUERIDO"); }
         }
         return new JsonResult(new { intention = Intentions.Protect(intention) });
@@ -264,8 +272,11 @@ public sealed partial class DetailsModel
                 if (intention.ReplacementItem is not null) ConfirmReplacement(data, intention);
                 else ConfirmContribution(data, intention.Requirement);
                 if (data.GetProperty("file").GetProperty("fileId").GetGuid() != intention.FileId) throw new ApiProtocolException();
-                return new JsonResult(new { message = intention.ReplacementItem is not null ? "Sustitución confirmada. La versión anterior permanece en historia" :
-                    response.Replayed || linked ? "Se recuperó la aportación registrada." : "Se aportó la evidencia. Se guardó su primera versión." });
+                return new JsonResult(new
+                {
+                    message = intention.ReplacementItem is not null ? "Sustitución confirmada. La versión anterior permanece en historia" :
+                    response.Replayed || linked ? "Se recuperó la aportación registrada." : "Se aportó la evidencia. Se guardó su primera versión."
+                });
             }
             if (data.GetProperty("fileId").GetGuid() != intention.FileId) throw new ApiProtocolException();
             var state = data.GetProperty("status").GetString()!;

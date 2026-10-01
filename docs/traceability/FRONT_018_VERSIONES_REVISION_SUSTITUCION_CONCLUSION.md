@@ -1,6 +1,6 @@
 # FRONT-018 — Versiones, revisión, sustitución y conclusión
 
-2026-10-01. Plan único aprobado íntegramente mediante «Si apruebo integramente el plan», incorporado por Adenda 57. Implementación local; revisión visual aprobada por el responsable el 2026-10-01 mediante «Apruebo la implementación visual», sobre la cabeza local 38e2ce3. No existe autorización de publicación, PR, checks remotos, merge ni despliegue.
+2026-10-01. Plan único aprobado íntegramente mediante «Si apruebo integramente el plan», incorporado por Adenda 57. Implementación local; revisión visual aprobada por el responsable el 2026-10-01 mediante «Apruebo la implementación visual», sobre la cabeza local 38e2ce3. Publicación autorizada el 2026-10-01 mediante «Apruebo hacer push, pr y su publicación», incluyendo seguimiento y correcciones del mismo hito en el mismo PR. Publicada al existir el PR que incorpora esta actualización; cabeza y pipeline vigente resolubles en sus checks. Merge y despliegue requieren aprobación expresa.
 
 ## Resultado y contrato
 
@@ -70,3 +70,8 @@ Incidencias corregidas durante la verificación: referencia Request en un parcia
 Validación diferida: zoom nativo, lector de pantalla y dispositivos físicos. WebKit Windows con PUT al S3 local HTTP conserva la causa documentada de ausencia de respuesta HTTP; no se relaja la firma ni se declara Safari validado. SeaweedFS local no acredita aislamiento productivo completo de credenciales/buckets o despliegue. Formato global, suites completas y gates remotos se reservan a una eventual autorización expresa de publicación.
 
 Capturas y SHA-256 en [FRONT_018_CAPTURAS.md](FRONT_018_CAPTURAS.md). Son aplicación funcionando con datos sintéticos, no maquetas. El responsable aprobó la implementación visual el 2026-10-01 mediante «Apruebo la implementación visual», sobre la cabeza local 38e2ce3 y las 25 capturas sintéticas entregadas. Las validaciones diferidas conservan sus causas. Esta aprobación no autoriza publicación, checks remotos, merge ni despliegue.
+
+
+## Preparación de publicación autorizada
+
+2026-10-01. Formato global con SDK fijado: primera verificación detectó WHITESPACE en Details.cshtml.cs, Details.Evidence.cs, Details.EvidenceReview.cs, Front018BrowserTests.cs y Front018BrowserTests.Files.cs. Corrección limitada a espacios y saltos de línea, sin cambios de comportamiento o diseño. Segunda ejecución de dotnet format --verify-no-changes --no-restore PASS; build Release 0 errores/advertencias; unitarias enfocadas 172/172 y arquitectura enfocada 18/18 PASS; git diff --check PASS. Los gates remotos deben acreditar la cabeza real del PR; no se presume éxito ni se autoriza merge por publicar. Se conserva 96dfe4d dentro de este único hito.

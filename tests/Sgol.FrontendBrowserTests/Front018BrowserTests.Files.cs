@@ -28,10 +28,13 @@ public sealed partial class Front018BrowserTests
         await page.Locator("#versiones-evidencia tr").Filter(new() { HasText = code }).GetByRole(AriaRole.Button, new() { Name = "Preparar sustitución" }).ClickAsync();
         var csrfBeforeUpload = await CsrfAsync(page); var selection = await page.Locator("input[name=replacement]").InputValueAsync();
         var invalidBefore = await fixture.MyWorkRowsAsync();
-        var invalidReason = await context.APIRequest.PostAsync(path + "?handler=PrepareUpload", new() { Form = context.APIRequest.CreateFormData()
+        var invalidReason = await context.APIRequest.PostAsync(path + "?handler=PrepareUpload", new()
+        {
+            Form = context.APIRequest.CreateFormData()
             .Set("__RequestVerificationToken", csrfBeforeUpload).Set("replacement", selection).Set("requirementCode", code).Set("reason", new string('x', 501))
             .Set("originalFileName", "sintetico.pdf").Set("declaredMediaType", "application/pdf").Set("sizeBytes", EvidenceCorpus.Pdf().Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            .Set("sha256", Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(EvidenceCorpus.Pdf()))).Set("documentSubtype", mobile ? "FACTURA" : "") });
+            .Set("sha256", Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(EvidenceCorpus.Pdf()))).Set("documentSubtype", mobile ? "FACTURA" : "")
+        });
         Assert.Equal(422, invalidReason.Status); Assert.Equal(invalidBefore, await fixture.MyWorkRowsAsync());
         var boundaryReason = "MOTIVO-SINTETICO-" + new string('x', 500 - "MOTIVO-SINTETICO-".Length);
         await page.Locator("textarea[name=reason]").FillAsync(mobile ? boundaryReason : "Sustitución binaria sintética autorizada");

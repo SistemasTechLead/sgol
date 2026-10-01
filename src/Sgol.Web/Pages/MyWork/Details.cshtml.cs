@@ -50,9 +50,13 @@ public sealed partial class DetailsModel(IRazorSessionState sessionState, ISgolA
             if (response.Data is null || response.Data.ObligationId != id) throw new ApiProtocolException();
             MyWorkPresentation.Validate(response.Data);
             Pagination = trail.Links(response.HistoryNextCursor, value =>
-                QueryHelpers.AddQueryString(ReloadHref, new Dictionary<string, string?> { ["historyCursor"] = value,
-                    ["evidenceRequirement"] = EvidenceRequirement, ["evidenceStatus"] = EvidenceStatus,
-                    ["evidenceCursor"] = Request.Query["evidenceCursor"].Count == 1 ? Request.Query["evidenceCursor"].ToString() : null }) + "#historia");
+                QueryHelpers.AddQueryString(ReloadHref, new Dictionary<string, string?>
+                {
+                    ["historyCursor"] = value,
+                    ["evidenceRequirement"] = EvidenceRequirement,
+                    ["evidenceStatus"] = EvidenceStatus,
+                    ["evidenceCursor"] = Request.Query["evidenceCursor"].Count == 1 ? Request.Query["evidenceCursor"].ToString() : null
+                }) + "#historia");
             Detail = response.Data;
             ObligationETag = response.ETag;
             await LoadEvidenceAsync(cancellationToken);

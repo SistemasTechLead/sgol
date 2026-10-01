@@ -50,8 +50,12 @@ public sealed partial class DetailsModel
             }
             Versions = rows;
             EvidencePagination = cursor.Links(result.NextCursor, value => QueryHelpers.AddQueryString(ReloadHref, new Dictionary<string, string?>
-            { ["evidenceRequirement"] = EvidenceRequirement, ["evidenceStatus"] = EvidenceStatus, ["evidenceCursor"] = value,
-                ["historyCursor"] = Request.Query["historyCursor"].Count == 1 ? Request.Query["historyCursor"].ToString() : null }) + "#versiones-evidencia");
+            {
+                ["evidenceRequirement"] = EvidenceRequirement,
+                ["evidenceStatus"] = EvidenceStatus,
+                ["evidenceCursor"] = value,
+                ["historyCursor"] = Request.Query["historyCursor"].Count == 1 ? Request.Query["historyCursor"].ToString() : null
+            }) + "#versiones-evidencia");
         }
         catch (ApiProtocolException) { VersionsError = EvidenceReviewPresentation.Error(503, null, null); }
     }
