@@ -1,5 +1,9 @@
 # Estado de implementación
 
+## FRONT-018 — plan aprobado; implementación en curso
+
+2026-10-01. Aprobación íntegra «Si apruebo integramente el plan», incorporada por Adenda 57. Plan único FRONT_018_PLAN_DE_IMPLEMENTACION.md. UI-E06/E07/E08 exclusivamente; sin descarga/preview ni FRONT-019/020. Excepción snapshot/auditoría de revisión explícitamente aprobada. Rama codex/front-018 y transición 96dfe4d conservadas. Sin autorización de publicación, merge ni despliegue. Código y validaciones todavía en curso; no se acredita Implementada localmente.
+
 ## FRONT-017 — Integrada; siguiente tarea efectiva FRONT-018
 
 2026-10-01. PR [#86](https://github.com/SistemasTechLead/sgol/pull/86) MERGED, cabeza validada `1913347a3c6e27649b2fb3af881ec4c06c55c1f2`, merge `5dfd5557b948d742fa61790a346466acb29ba0fb`; [pipeline final 36905844511, intento 2](https://github.com/SistemasTechLead/sgol/actions/runs/36905844511/attempts/2) SUCCESS para todos los checks requeridos. Aprobación expresa «Apruebo el merge» y ascendencia de la cabeza en origin/master verificadas. Sin despliegue. Heartbeat pausado. Esta evidencia supera la espera histórica de merge debajo; no reabre gates anteriores ni convierte validaciones diferidas en PASS.
