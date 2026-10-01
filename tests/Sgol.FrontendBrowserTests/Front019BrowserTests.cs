@@ -98,6 +98,8 @@ public sealed class Front019BrowserTests
     private static Task<IAPIResponse> Post(IBrowserContext context, string path, string csrf, string intent) => context.APIRequest.PostAsync(path + "?handler=SendValidation", new() { Form = context.APIRequest.CreateFormData().Set("__RequestVerificationToken", csrf).Set("intention", intent).Set("recovery", "true") });
     private static async Task Capture(IPage page, bool mobile, string state)
     {
+        if (Environment.GetEnvironmentVariable("SGOL_FRONT019_CAPTURE_ONLY_CORRECTIONS") == "true" &&
+            (mobile || state is not ("administracion-pendientes" or "historia-vacia"))) return;
         var directory = Environment.GetEnvironmentVariable("SGOL_FRONT019_CAPTURE_DIR"); if (string.IsNullOrEmpty(directory)) return;
         var path = Path.GetFullPath(directory); if (path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Contains("Fuentes", StringComparer.OrdinalIgnoreCase)) throw new InvalidOperationException("Protected output path.");
         Directory.CreateDirectory(path); await page.ScreenshotAsync(new() { Path = Path.Combine(path, $"{(mobile ? "movil" : "escritorio")}-{state}.png"), FullPage = true });

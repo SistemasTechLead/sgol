@@ -1325,5 +1325,7 @@ body{background:var(--color-superficie-elevada)}
 .evidencia__formulario .boton { justify-self: start; }
 .evidencia__formulario .campo, .evidencia__formulario .grupo-radio { min-width: 0; }
 .evidencia__requisitos { padding-inline-start: var(--espacio-24); overflow-wrap: anywhere; }
+.tabla td.evidencia__version-estado { text-align: center; }
+.evidencia__version-numero { margin-block-end: var(--espacio-8); }
 .evidencia__contenido [data-upload-status], .evidencia__contenido [data-upload-name], .evidencia__contenido [data-upload-error] { overflow-wrap: anywhere; }
 @media (max-width: 48rem) { .evidencia__contenido { padding: var(--espacio-16); } }
