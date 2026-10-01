@@ -12,7 +12,13 @@
         _ => "Acceso",
     };
 }
-<section class="panel-seccion acceso" aria-labelledby="acceso-titulo">
+<div class="bienvenida-acceso"><aside class="bienvenida-acceso__marca">
+    <div><img class="marca-loretta__logo" src="~/images/loretta.svg" alt="Loretta · Zapatería" /><p class="marca-loretta__subtitulo">SGOL · Gestión operativa</p><p class="version-sistema">Versión del sistema · @(typeof(Sgol.Web.Pages.Access.IndexModel).Assembly.GetName().Version?.ToString(3))</p></div>
+    <div><h2>Tu espacio<br />de trabajo.</h2><p class="bienvenida-acceso__ubicacion">Loretta · LOR-001<br />Delicias, Chihuahua</p></div>
+    <div class="bienvenida-acceso__simbolo"><partial name="_Icon" model='@("shield")' /></div>
+</aside>
+<section class="acceso" aria-labelledby="acceso-titulo">
+    <p class="contexto-acceso">Acceso a SGOL</p>
     <header class="encabezado-pagina">
         <h1 id="acceso-titulo" class="encabezado-pagina__titulo">@ViewData["Title"]</h1>
     </header>
@@ -39,6 +45,7 @@
     @switch (Model.Stage)
     {
         case "login":
+            <p class="acceso__ayuda">Ingresa con tu usuario de SGOL.</p>
             <form method="post" action="/acceso" asp-antiforgery="false" class="acceso__formulario" data-access-form>
                 <input type="hidden" name="__RequestVerificationToken" value="@Model.Csrf" />
                 <input type="hidden" name="stepAction" value="login" />
@@ -50,7 +57,7 @@
                 @await Html.PartialAsync("_CredentialField", new CredentialFieldViewModel(
                     "password", "Contraseña", CredentialKind.Password,
                     Model.ErrorTitle == "No se pudo iniciar sesión" ? Model.ErrorMessage : null, CanReveal: true))
-                <button class="boton boton--primario" type="submit">Iniciar sesión</button>
+                <button class="boton boton--primario" type="submit"><partial name="_Icon" model='@("arrow")' />Iniciar sesión</button>
             </form>
             break;
         case "password":
@@ -143,3 +150,4 @@
             break;
     }
 </section>
+</div>

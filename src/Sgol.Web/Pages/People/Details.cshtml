@@ -4,8 +4,8 @@
 @{
     ViewData["Title"] = "Historial laboral";
 }
-<section aria-labelledby="detalle-persona-titulo">
-    <a class="boton boton--secundario" href="/personas-y-accesos">Volver a personas</a>
+<section class="persona-detalle" aria-labelledby="detalle-persona-titulo">
+    <a class="boton boton--textual" href="/personas-y-accesos">Volver a personas<partial name="_Icon" model='@("back")' /></a>
     @if (Model.Error is not null)
     {
         @if (Model.IsConflict || Model.Person is null)
@@ -34,7 +34,7 @@
         {
             <section class="panel-seccion formulario-persona" aria-labelledby="empleo-titulo">
                 <header class="panel-seccion__cabecera"><h2 id="empleo-titulo">Actualizar empleo</h2></header>
-                <form method="post" asp-page-handler="Employment" asp-antiforgery="false" data-progress-form>
+                <form method="post" asp-page-handler="Employment" asp-antiforgery="false" class="persona-detalle__empleo" data-progress-form>
                     <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
                     <input type="hidden" name="intentKey" value="@Model.EmploymentIntent.ToString("D")" />
                     <input type="hidden" name="etag" value="@Model.ETag" />
@@ -47,12 +47,12 @@
                         <span class="campo__etiqueta">Turno</span>
                         <input id="shiftText" name="shiftText" class="campo__control" type="text" value="@(Model.ShiftText ?? current.ShiftText)" />
                     </label>
-                    <label class="campo" for="employmentReason">
+                    <label class="campo persona-detalle__motivo" for="employmentReason">
                         <span class="campo__etiqueta">Motivo</span>
                         <textarea id="employmentReason" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-invalid="false" aria-describedby="employmentReason-error" data-required-reason></textarea>
                         <span id="employmentReason-error" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span>
                     </label>
-                    <button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Guardar empleo</button>
+                    <div class="acciones-formulario"><button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Guardar empleo</button></div>
                 </form>
             </section>
             <section class="panel-seccion formulario-persona" aria-labelledby="vigencia-titulo">

@@ -19,7 +19,7 @@
             Model.People.Select(person => (IReadOnlyList<string>)[person.StableCode, person.DisplayName]).ToArray(),
             EmptyState: new EmptyStateViewModel("Aún no hay personas registradas", "Registra la primera persona para comenzar.", "Registrar persona", "#alta-persona"),
             RowActions: Model.People.Select(person => (IReadOnlyList<DataTableActionViewModel>)[
-                new DataTableActionViewModel("Consultar historial", $"/personas-y-accesos/personas/{person.Id:D}")]).ToArray()))" />
+                new DataTableActionViewModel("Ver detalle", $"/personas-y-accesos/personas/{person.Id:D}")]).ToArray()))" />
         </div>
         <section id="alta-persona" class="panel-seccion formulario-persona" aria-labelledby="alta-persona-titulo">
             <header class="panel-seccion__cabecera"><h2 id="alta-persona-titulo">Registrar persona</h2></header>
