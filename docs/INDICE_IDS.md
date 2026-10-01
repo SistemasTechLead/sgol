@@ -396,3 +396,7 @@ Actualización incremental: 2026-09-30. Adenda 55 libre y verificada antes de cr
 Entrada operativa: `docs/design/referencia-renovada.md`. Evidencia: `docs/traceability/DISENO_RENOVADO_REFERENCIA.md`. El suplemento conserva literalmente los IDs y contratos; referencia documentada no equivale a diseño implementado.
 
 | Adenda 55 — Georgia y exclusión de fuente | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 43 | 47 |
+
+## FRONT-017 — contrato consumidor aprobado
+
+Adenda 56, §§Aprobación/Lectura/Composición/Flujo/Validación: F07_ADENDA_56_CONTRATO_CONSUMIDOR_FRONT_017.md, líneas 3–25. Plan íntegro aprobado: docs/traceability/FRONT_017_PLAN_DE_IMPLEMENTACION.md, líneas 3–5.
