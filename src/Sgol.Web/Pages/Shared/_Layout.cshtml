@@ -7,6 +7,9 @@
         new NavigationItem("Mi trabajo", "/mi-trabajo",
             new HashSet<string>(["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION", "PISO_VENTAS"], StringComparer.Ordinal),
             new HashSet<string>(["PER-BANDEJA-PROPIA"], StringComparer.Ordinal)),
+        new NavigationItem("Validación y supervisión", "/validaciones",
+            new HashSet<string>(["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION"], StringComparer.Ordinal),
+            new HashSet<string>(["PER-SUPERVISION-VER"], StringComparer.Ordinal)),
         new NavigationItem("Personas y accesos", "/personas-y-accesos",
             new HashSet<string>(["DIRECCION"], StringComparer.Ordinal),
             new HashSet<string>(["PER-PERSONA-ADMIN"], StringComparer.Ordinal)),
@@ -18,6 +21,7 @@
             AuthenticatedOnly: true)
     };
     var shell = Context.Request.Path.StartsWithSegments("/mi-trabajo") ||
+        Context.Request.Path.StartsWithSegments("/validaciones") ||
         Context.Request.Path.StartsWithSegments("/personas-y-accesos") ||
         Context.Request.Path.StartsWithSegments("/configuracion") ||
         Context.Request.Path.StartsWithSegments("/planificacion");

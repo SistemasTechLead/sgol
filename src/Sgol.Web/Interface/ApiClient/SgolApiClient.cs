@@ -131,8 +131,15 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
                     cursor = cursorElement.GetString();
                 }
                 var items = Deserialize<List<T>>(data);
+                DateTimeOffset? queriedAt = null;
+                if (request.Path.Split('?', 2)[0] is "/api/v1/validations/pending" or "/api/v1/supervision/obligations")
+                {
+                    if (!meta.TryGetProperty("queriedAt", out var queried) || queried.ValueKind != JsonValueKind.String ||
+                        !queried.TryGetDateTimeOffset(out var at) || at.Offset != TimeSpan.Zero || etag is not null || count > 100) throw new ApiProtocolException();
+                    queriedAt = at;
+                }
                 ApiCookieBridge.ApplyResponseCookies(context, responseCookies);
-                return new(status, default, items, correlation!, cursor, count, etag, replayed, null, null);
+                return new(status, default, items, correlation!, cursor, count, etag, replayed, null, null, QueriedAt: queriedAt);
             }
             if (!ErrorStatuses.Contains(status) || !root.TryGetProperty("status", out var problemStatus) ||
                 problemStatus.ValueKind != JsonValueKind.Number ||

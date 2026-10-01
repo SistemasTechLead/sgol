@@ -175,7 +175,7 @@ public sealed partial class Front018BrowserTests
         if (reason is not null) await page.Locator("[name=reason]").FillAsync(reason);
         await page.Locator("form[action*='PrepareReplacement'] button[type=submit]").ClickAsync();
     }
-    private static async Task CheckAccessibilityAsync(IPage page)
+    internal static async Task CheckAccessibilityAsync(IPage page)
     {
         Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth"));
         Assert.True(await page.EvaluateAsync<bool>("() => matchMedia('(prefers-reduced-motion: reduce)').matches"));

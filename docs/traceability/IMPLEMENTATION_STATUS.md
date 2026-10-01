@@ -1,5 +1,17 @@
 # Estado de implementación
 
+## FRONT-019 — Implementada localmente; revisión visual pendiente
+
+2026-10-01. Único plan FRONT_019_PLAN_DE_IMPLEMENTACION.md aprobado íntegramente mediante «Apruebo el plan»; decisiones incorporadas por Adenda 58 antes del código. Rama codex/front-019 sobre el merge aceptado de FRONT-018. UI-V01..V04: pendientes y supervisión de inferiores, emisión inicial de tres resultados, sustitución motivada e historia inmutable. Proyección opcional de autoridad compartida con comandos, histórico READ ONLY / REPEATABLE READ, permisos vigentes y recuperación de intención reautorizada. Ejecución CONCLUIDA y evidencia anterior conservadas. Segunda emisión secuencial 409; carreras/ETag obsoleto 412, sin revelar recursos fuera de alcance. BR-D09/M09 resueltas sólo aquí; descarga/preview excluidos de FRONT-019, BR-API04 global pendiente. Sin FRONT-020/TECH-FRONT-005.
+
+Build Release con SDK 10.0.400 PASS (0 errores/advertencias), unitarias enfocadas 193/193, arquitectura enfocada 22/22, PostgreSQL real 10/10, Chromium HTTPS/PostgreSQL escritorio/móvil 2/2 y diff PASS. Sin restore, dependencias nuevas, cambio de global.json o migraciones. Informe [FRONT_019_VALIDACION_Y_SUPERVISION.md](FRONT_019_VALIDACION_Y_SUPERVISION.md); 36 capturas sintéticas de aplicación funcionando en [FRONT_019_CAPTURAS.md](FRONT_019_CAPTURAS.md). Se mantienen los diferidos documentados de zoom nativo, lector, dispositivos físicos, WebKit Windows PUT/S3 HTTP e aislamiento productivo SeaweedFS; el informe precisa la carrera de evidencia no reensayada. Fuentes/congelados intactos, cambios ajenos preservados. No push/PR/checks remotos/heartbeat/merge/despliegue autorizados. Revisión visual expresa pendiente.
+
+## FRONT-018 — Integrada; evidencia aceptada para FRONT-019
+
+2026-10-01. [PR #87](https://github.com/SistemasTechLead/sgol/pull/87), cabeza validada `fd452ed6f573234dd9972b3b5fb9e0ed48967636`, merge `f722e44747e2a136825c72ac8c8f00122c079a00`; [pipeline final correcto, intento 1](https://github.com/SistemasTechLead/sgol/actions/runs/36923195911/attempts/1). Plan, implementación visual, publicación y merge aprobados expresamente, incluido el commit documental 96dfe4d. Evidencia proporcionada y aceptada por instrucción del responsable; checkout contiene ese merge y su cabeza. Seguimiento pausado; sin despliegue autorizado. Los textos anteriores que mantienen publicación/checks/merge pendientes se conservan debajo como registros históricos superados, no bloquean FRONT-019 ni reabren sus gates.
+
+Registros históricos anteriores a la integración aceptada:
+
 ## FRONT-018 — Publicación autorizada; revisión visual aprobada
 
 2026-10-01. Plan único aprobado íntegramente mediante «Si apruebo integramente el plan» e incorporado por Adenda 57. UI-E06/E07/E08 en el detalle existente: versiones paginadas, revisión explícita/faltantes, sustitución con autoridad y conclusión de tarea completa. BR-API04 resuelta sólo para esta consumidora excluyendo descarga/preview; BR-D04/M08 consumen composición y mensajes aprobados. No se implementan FRONT-019/020.

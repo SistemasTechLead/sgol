@@ -9,7 +9,7 @@ public sealed class SafeReturnDestination(IDataProtectionProvider provider)
         .ToTimeLimitedDataProtector();
 
     // FRONT-002 implements only the shell host, without any UI-E child route.
-    private static readonly IReadOnlySet<string> ImplementedRoutes = new HashSet<string>(["/mi-trabajo"], StringComparer.Ordinal);
+    private static readonly IReadOnlySet<string> ImplementedRoutes = new HashSet<string>(["/mi-trabajo", "/validaciones"], StringComparer.Ordinal);
 
     public string? Protect(string? destination, IReadOnlySet<string>? implementedRoutes = null)
     {

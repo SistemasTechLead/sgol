@@ -27,7 +27,9 @@ public sealed partial class DetailsModel(IRazorSessionState sessionState, ISgolA
         Response.Headers["Referrer-Policy"] = "no-referrer";
         var session = await sessionState.GetAsync(cancellationToken);
         if (session is null) return Redirect("/acceso");
-        BackHref = new MyWorkReturnContext(protection, session.UserId).Read(Request.Query["returnToken"].Count == 1 ? Request.Query["returnToken"].ToString() : null);
+        BackHref = ReturnToken?.StartsWith("v19.", StringComparison.Ordinal) == true
+            ? new Sgol.Web.Presentation.Validation.ValidationReturnContext(protection, session.UserId).Read(ReturnToken)
+            : new MyWorkReturnContext(protection, session.UserId).Read(ReturnToken);
         if (!session.Permissions.Contains(ObligationQueryAuthorization.View))
         { Response.StatusCode = 403; Error = MyWorkPresentation.Message(403, "ACCESO_DENEGADO", null, false); return Page(); }
         if (!MyWorkQuery.CanonicalId(obligationId, out var id))
@@ -62,6 +64,7 @@ public sealed partial class DetailsModel(IRazorSessionState sessionState, ISgolA
             await LoadEvidenceAsync(cancellationToken);
             if (await sessionState.GetAsync(cancellationToken) is null) return Redirect("/acceso");
             await LoadVersionsAsync(cancellationToken);
+            await LoadValidationsAsync(cancellationToken);
             if (await sessionState.GetAsync(cancellationToken) is null) return Redirect("/acceso");
             return Page();
         }
