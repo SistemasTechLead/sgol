@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.DataProtection;
 namespace Sgol.Web.Presentation.MyWork;
 
 public sealed record EvidenceIntention(Guid Actor, Guid Obligation, string Requirement, string Operation,
-    Guid Key, Guid CompleteKey, Guid ContributionKey, DateTimeOffset ExpiresAt, JsonElement Body, Guid? FileId = null)
+    Guid Key, Guid CompleteKey, Guid ContributionKey, DateTimeOffset ExpiresAt, JsonElement Body, Guid? FileId = null,
+    Guid? ReplacementItem = null, long? ReplacementRowVersion = null, int? ReplacementVersionNo = null, string? Reason = null)
 {
     public override string ToString() => "EvidenceIntention";
 }

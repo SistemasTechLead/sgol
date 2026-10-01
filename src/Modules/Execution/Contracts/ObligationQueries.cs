@@ -124,6 +124,7 @@ public sealed record ObligationEvidenceRequirement(Guid RequirementVersionId, st
     string Kind, string ConditionCode, short Ordinal);
 public sealed record ObligationEvidencePolicy(Guid EvidencePolicyVersionId,
     IReadOnlyList<ObligationEvidenceRequirement> Requirements);
+public sealed record ObligationEvidenceActions(bool CanReplace, bool CanConclude);
 
 public sealed record ObligationDetail(
     Guid ObligationId,
@@ -137,7 +138,8 @@ public sealed record ObligationDetail(
     IReadOnlyDictionary<string, string> Links,
     ObligationGenerationRequest GenerationRequest,
     IReadOnlyList<ObligationHistoryEvent> History,
-    ObligationEvidencePolicy? EvidencePolicy = null);
+    ObligationEvidencePolicy? EvidencePolicy = null,
+    ObligationEvidenceActions? EvidenceActions = null);
 
 public sealed record ObligationPage(
     IReadOnlyList<ObligationListItem> Items,

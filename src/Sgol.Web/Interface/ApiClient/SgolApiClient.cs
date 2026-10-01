@@ -153,6 +153,18 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
                 if (fields.Any(f => f is null || f.Path is null || f.Path.Length > 100 || !f.Path.All(c => char.IsAsciiLetterOrDigit(c) || c == '.') ||
                     f.Code is not ("REQUIRED" or "INVALID" or "DUPLICATE" or "OUT_OF_RANGE" or "MISMATCH"))) throw new ApiProtocolException();
             }
+            if (code == "EVIDENCIA_FALTANTE" && root.TryGetProperty("errors", out var missing))
+            {
+                if (missing.ValueKind != JsonValueKind.Array || missing.GetArrayLength() > 32) throw new ApiProtocolException();
+                fields = missing.EnumerateArray().Select(e =>
+                {
+                    if (e.ValueKind != JsonValueKind.Object || !e.TryGetProperty("field", out var field) || field.ValueKind != JsonValueKind.String || field.GetString() != "evidence" ||
+                        !e.TryGetProperty("code", out var why) || why.ValueKind != JsonValueKind.String || why.GetString() != "MISSING" || !e.TryGetProperty("reference", out var reference) ||
+                        reference.ValueKind != JsonValueKind.String || reference.GetString() is not { Length: > 0 and <= 100 } text ||
+                        !text.All(c => char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c) || c == '_')) throw new ApiProtocolException();
+                    return new ApiFieldError("evidence", "MISSING", text);
+                }).ToArray();
+            }
             var presentation = ProblemDetailsPresenter.Present(status, code, problemCorrelation);
             if (status == 401 && code == "DESAFIO_INVALIDO") ApiCookieBridge.Clear(context);
             ApiCookieBridge.ApplyResponseCookies(context, responseCookies);

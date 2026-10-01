@@ -72,4 +72,4 @@ public sealed class ApiProtocolException : Exception
     public ApiProtocolException() : base("La respuesta de la API no cumple el contrato esperado.") { }
 }
 
-public sealed record ApiFieldError(string Path, string Code);
+public sealed record ApiFieldError(string Path, string Code, string? Reference = null);

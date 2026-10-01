@@ -314,6 +314,39 @@ public sealed class SgolApiClientTests
         await Assert.ThrowsAsync<ApiProtocolException>(() => CreateClient(handler).SendAsync<Item>(
             new(HttpMethod.Get, "/api/v1/generation-requests/options", ApiResponseShape.Collection)));
     }
+    [Fact]
+    public async Task Front018ConclusionSendsZeroBytesWithOriginalStrongEtagKeyAndCsrf()
+    {
+        var key = Guid.NewGuid();
+        using var handler = new StubHandler(request =>
+        {
+            Assert.Null(request.Content);
+            Assert.Equal("\"8\"", request.Headers.GetValues("If-Match").Single());
+            Assert.Equal(key.ToString("D"), request.Headers.GetValues("Idempotency-Key").Single());
+            Assert.Equal("synthetic", request.Headers.GetValues("X-CSRF-TOKEN").Single());
+            return Json(HttpStatusCode.OK, $"{{\"data\":{{\"id\":1}},\"meta\":{{\"correlationId\":\"{Correlation}\"}}}}");
+        });
+        var request = new ApiRequest(HttpMethod.Post, "/api/v1/obligations/1/conclusion", ApiResponseShape.Item,
+            IfMatch: "\"8\"", Intent: ApiMutationIntent.FromKey(key), CsrfToken: "synthetic");
+        await CreateClient(handler).SendAsync<Item>(request);
+        await CreateClient(handler).SendAsync<Item>(request);
+        Assert.Equal(2, handler.Count);
+    }
+
+    [Theory]
+    [InlineData("\"evidence\"", "\"MISSING\"", "\"F_ENT_001\"", true)]
+    [InlineData("42", "\"MISSING\"", "\"F_ENT_001\"", false)]
+    [InlineData("\"evidence\"", "null", "\"F_ENT_001\"", false)]
+    [InlineData("\"evidence\"", "\"MISSING\"", "\"https://example.test\"", false)]
+    public async Task Front018MissingReferencesAreClosedAndMalformedResponsesFailSafely(string field, string code, string reference, bool valid)
+    {
+        using var handler = new StubHandler(_ => Json(HttpStatusCode.UnprocessableEntity,
+            $"{{\"status\":422,\"code\":\"EVIDENCIA_FALTANTE\",\"correlationId\":\"{Correlation}\",\"errors\":[{{\"field\":{field},\"code\":{code},\"reference\":{reference}}}]}}", "application/problem+json"));
+        var request = new ApiRequest(HttpMethod.Get, "/api/v1/obligations/1", ApiResponseShape.Item);
+        if (valid) Assert.Equal("F_ENT_001", (await CreateClient(handler).SendAsync<Item>(request)).FieldErrors!.Single().Reference);
+        else await Assert.ThrowsAsync<ApiProtocolException>(() => CreateClient(handler).SendAsync<Item>(request));
+    }
+
     private static SgolApiClient CreateClient(StubHandler handler)
     {
         var context = new DefaultHttpContext();

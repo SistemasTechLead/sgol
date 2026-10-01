@@ -148,7 +148,7 @@ public static class RolePermissionProjection
         }
 
         // Presentation capability only: Evidence reauthorizes current responsibility and state on every request.
-        var permissions = new List<string> { "PER-BANDEJA-PROPIA", "PER-OBLIGACION-PROPIA-VER", "PER-PLAN-VER", "PER-TAREA-VER", "PER-EVIDENCIA-APORTAR" };
+        var permissions = new List<string> { "PER-BANDEJA-PROPIA", "PER-OBLIGACION-PROPIA-VER", "PER-PLAN-VER", "PER-TAREA-VER", "PER-EVIDENCIA-APORTAR", "PER-TAREA-EJECUTAR" };
         if (RoleHierarchy.GrantsSupervisionView(roleCode))
         {
             permissions.Add("PER-SUPERVISION-VER");
@@ -163,6 +163,7 @@ public static class RolePermissionProjection
         if (roleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination)
         {
             permissions.Add("PER-OBLIGACION-CREAR");
+            permissions.Add("PER-EVIDENCIA-SUSTITUIR");
             permissions.Add("PER-PLAN-PUBLICAR");
             permissions.AddRange(["PER-ASIGNACION-EXPLICAR", "PER-CARGA-VER", "PER-ASIGNACION-CORREGIR"]);
         }
