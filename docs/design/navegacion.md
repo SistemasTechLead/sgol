@@ -1,5 +1,19 @@
 # Navegación del frontend SGOL
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las correcciones y el complemento fueron aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». La implementación local se registra por grupo en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md); la aprobación del diseño no equivale a publicación o integración. Los contratos y mensajes funcionales se conservan.
+
+## Diseño renovado — suplemento de presentación aprobado
+
+[Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) y [referencia-renovada.md](referencia-renovada.md) complementan la presentación sin cambiar rutas, grupos, sesión, permisos, destinos ni filtros. Encabezado blanco, columna lateral blanca de `--ancho-navegacion`, área de trabajo cálida y main con `--ancho-contenido`. El orden DOM sigue salto al contenido, identidad/sesión/logout, navegación y main; no se cambia tabulación para replicar la maqueta.
+
+Items normales conservan texto/icono, activo usa acento, superficie elevada, peso medio, borde y `aria-current`; foco y área mínima usan variables de tokens.md. Un grupo sin hijos implementados/visibles no aparece. No se muestran nuevas rutas por decoración.
+
+En viewport estrecho se conserva el panel modal de navegación existente: disparador, foco contenido, Escape y retorno. Identidad, rol, expiración y logout refluyen y permanecen disponibles. La navegación abierta en línea y la ocultación del pie de la maqueta no son reglas oficiales. El encabezado de página sólo muestra contexto confirmado y acciones autorizadas; no añade breadcrumbs, períodos supuestos ni conteos globales a partir de una página con cursor.
+
+La aprobación documental no migra las pantallas existentes. Tareas pendientes consumen esta referencia y materializan sólo lo necesario; la adaptación general tiene su propio hito, sin convertirse en dependencia artificial de FRONT-017..020. Los registros funcionales e históricos siguientes conservan su contexto.
+
 ## FRONT-016 — Mi trabajo
 
 Adenda 54 incorpora §§4–6 del plan aprobado: `/mi-trabajo` materializa UI-E01/E02 y consulta HU-023 con PER-BANDEJA-PROPIA/PER-TAREA-VER respectivamente. Hijo visible «Mi trabajo» para cuatro roles con permiso vigente; detalle GET `/mi-trabajo/tareas/{obligationId:guid}` reautoriza por API. Los períodos se seleccionan desde filas autorizadas; no se consulta GET /weeks ni se materializa semana. La descripción de anfitrión vacío de FRONT-002 abajo es histórica. UI-E04..E08 permanecen pendientes. Marcación es POST separado del logout; abrir, filtrar o navegar no marca avisos ni cambia ejecución.

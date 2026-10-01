@@ -1,5 +1,50 @@
 # componentes.md — SGOL / Loretta Zapatería
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las correcciones y el complemento fueron aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». La implementación local se registra por grupo en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md); la aprobación del diseño no equivale a publicación o integración. Los contratos y mensajes funcionales se conservan.
+
+## Referencia renovada aprobada — composición compartida
+
+[Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) incorpora §§3–9 del [plan aprobado](PLAN_DISENO_RENOVADO.md) mediante «Apruebo las secciones y la adenda». Las reglas siguientes son operativas para las tareas pendientes y el hito de adaptación. Las composiciones funcionales específicas, los seis estados y el catálogo de mensajes se conservan. La [guía](referencia-renovada.md) define la transición; esta documentación no acredita implementación productiva.
+
+### Layout y encabezados compartidos
+
+El shell combina encabezado de sesión, columna lateral y main con ancho máximo `--ancho-contenido`. Conserva el orden DOM: salto al contenido, identidad/sesión/logout, navegación y main. La posición visual no reordena tabulación. Fondo de trabajo `--color-superficie-elevada`; encabezado, navegación y paneles `--color-superficie`. Main usa padding `--espacio-32`, en estrecho `--espacio-16`. Navegación usa `--ancho-navegacion`, separador `--grosor-borde`/`--color-borde` y comportamiento móvil modal de [navegacion.md](navegacion.md).
+
+Encabezado de página: un h1 en `--tipografia-titulo` (estrecho: `--tipografia-titulo-compacto`), descripción ya aprobada si existe, contexto opcional confirmado y acciones autorizadas. No inventa breadcrumb, textos decorativos, período ni totales: el conteo de una página con cursor sólo acredita los elementos recibidos. Acceso/MFA siguen fuera del shell; composición de marca/formulario con `--ancho-acceso` y límites internos de `--ancho-formulario`, conforme a ESTILO_VISUAL_V2.md.
+
+Panel de sección: fondo blanco, borde decorativo por variables, `--radio-tarjeta` y `--sombra-baja`. Cabecera con h2 en `--tipografia-grande`, ayuda y acciones, padding `--espacio-24`; h3 usa `--tipografia-media`. Banda de filtros con gap `--espacio-12`, padding vertical `--espacio-16` y horizontal `--espacio-24`. En estrecho cabecera/filtros usan `--espacio-16` y wrap. Separación entre secciones `--espacio-24`; del encabezado al contenido `--espacio-32`.
+
+Una columna es el valor predeterminado. Dos paneles independientes pueden compartir fila si caben sin recortes y pasan a una columna en estrecho, en el mismo orden. Tablas densas ocupan el ancho disponible. La base se materializa extendiendo los parciales/CSS compartidos existentes, sin biblioteca paralela; cada tarea sólo materializa los componentes necesarios dentro de su alcance.
+
+### Controles, densidad y agrupación
+
+Se conservan primario, secundario y destructivo con una acción primaria por bloque. Campos nativos, select, textarea, credencial, fecha, checkbox y radio conservan etiquetas, ayudas, errores, radio de control y padding de la escala. Campos usan superficie blanca y borde fuerte. Controles no heredan tamaño de título en teléfono. Área mínima por `--alto-control-minimo`; iconos por `--tamano-icono`, vacío por `--tamano-icono-grande`; grosor/desfase de foco por sus tokens. El hover de un control deshabilitado nunca queda activo.
+
+La variante de botón **textual** es auxiliar: fondo transparente, texto en acento, mismo padding `--espacio-8`/`--espacio-16`, radio y área mínima que los demás botones. Hover en superficie elevada, foco completo; deshabilitado usa texto deshabilitado sin hover, ocupado usa mensaje aprobado/spinner y prevención de segundo envío. Error y vacío corresponden a su región consumidora. Usar enlace para navegar y botón para una operación; nunca cambiar su semántica para obtener el aspecto visual.
+
+Tablas mantienen caption, th/scope, columnas y cursor Anterior/Siguiente; encabezado blanco, texto secundario y divisores suaves. Celdas simples usan padding vertical `--espacio-8` y horizontal `--espacio-12`; celdas con varios datos `--espacio-16`, en estrecho `--espacio-12`. Acciones siempre conservan área mínima. Código/contexto puede usar tipografía pequeña; nombre usa base y `--peso-medio`; metadatos son secundarios. Agrupar datos en una celda requiere mantener etiquetas, asociación y todos los valores. No se truncan datos esenciales ni convierten filas a tarjetas.
+
+Badges conservan pastilla, par semántico, texto e icono; los grupos usan wrap y gap `--espacio-8`. Estado base y bandera siguen separados. Alertas conservan icono/texto, par semántico, `--radio-tarjeta` y padding `--espacio-16`. Diálogos conservan superficie blanca, sombra alta, radio y anchos vigentes, Cancelar inicial, Escape y retorno; motivo sólo si el contrato lo exige. Subida conserva progreso, cuarentena y estados de escaneo; sólo LIMPIO habilita el vínculo contractual.
+
+### Estados y accesibilidad transversales
+
+| Estado de pantalla | Cobertura exigida |
+|---|---|
+| Normal | Datos confirmados, jerarquía estable y acciones permitidas. |
+| Foco | `:focus-visible` por variables, sin recortes; acento o peligro según componente, orden DOM y retorno vigente. |
+| Deshabilitado | Control temporalmente inactivo; lectura sigue legible. Sin autorización se oculta la acción. |
+| Error | Alerta de sección/resumen enfocable, error asociado; conflicto visible y sin reintento automático. |
+| Cargando | `aria-busy` regional y mensaje aprobado; prevención de doble envío, esqueleto que reserva tabla o progreso en botón/upload. |
+| Vacío | Ausencia, filtros e historia según mensajes aprobados; sólo acciones disponibles y autorizadas. |
+
+La matriz existente conserva sus «No aplica» por componente: seis estados de pantalla no obligan a crear seis variantes de un elemento estático. Esqueleto usa `--alto-esqueleto` dentro de filas reservadas y `--duracion-esqueleto`; `prefers-reduced-motion` elimina la animación conservando el mensaje. Enlaces de contenido se subrayan. Sólo el contenedor de tabla desplaza horizontalmente; filtros/acciones/diálogos refluyen. No se oculta overflow de html/body para encubrir desbordamientos. Aplicar WCAG 2.2 AA, área mínima del proyecto y verificaciones de [accesibilidad.md](accesibilidad.md).
+
+### Precedencia de ejemplos históricos
+
+Las extensiones aprobadas de cursor, `dialog` nativo y mensajes seguros prevalecen sobre los ejemplos base antiguos de páginas numeradas, `div role="alertdialog"` o acciones ilustrativas. Los ejemplos no crean ordenación, borrado, enlaces ni mensajes ajenos al contrato consumidor. Los registros funcionales siguientes conservan su alcance; el título «aprobada» no significa que todas las pantallas ya tengan el diseño renovado.
+
 ## UI-E01/E02/E03 — FRONT-016 aprobada
 
 Adenda 54 incorpora íntegramente §§4–6 de `docs/traceability/FRONT_016_PLAN_DE_IMPLEMENTACION.md`, aprobados mediante «Bueno sigue con la tarea, apruebo la adenda integramente». Son la composición operativa de bandeja propia y avisos en `/mi-trabajo`, consulta separada por alcance y detalle GET con historia en `/mi-trabajo/tareas/{obligationId:guid}`. Reutiliza tabla/cursor, filtros GET, alertas, badges, vacío y foco; conserva seis estados y responsive. Marcación individual sin diálogo ni motivo, botón ocupado y foco a Leído o al encabezado si desaparece la fila. Carga de consultas usa esqueleto de tabla y aria-busy. No incluye evidencia aportable ni conclusión. BR-D13 se consume; BR-N04 se aplica.
@@ -18,7 +63,7 @@ Todo control interactivo debe tener foco visible por teclado (`:focus-visible`, 
 |---|---|---|
 | Normal | Borde delgado, fondo blanco, texto primario. | `--color-borde-fuerte`, `--color-superficie`, `--color-texto-primario`, `--radio-control` |
 | Hover | Borde ligeramente más oscuro, sin cambio de fondo. | `--color-texto-secundario` (borde en hover) |
-| Foco visible | Anillo de 2px en acento alrededor del control, borde cambia a acento. | `--color-acento`, `outline-offset: 2px` |
+| Foco visible | Anillo de 2px en acento alrededor del control, borde cambia a acento. | `--color-acento`, `outline-offset: var(--desfase-foco)` |
 | Deshabilitado | Fondo superficie-elevada, texto deshabilitado, cursor `not-allowed`, sin hover ni foco. | `--color-superficie-elevada`, `--color-texto-deshabilitado`, `--color-borde` |
 | Error | Borde en peligro, mensaje de error debajo con el mismo color y un ícono. | `--color-peligro`, `--color-peligro-fondo` (solo si se agrega fondo tenue al mensaje) |
 | Cargando | No aplica a un campo de texto individual — ver Tabla y Subida de archivo. | — |
@@ -41,14 +86,14 @@ Todo control interactivo debe tener foco visible por teclado (`:focus-visible`, 
   font: var(--tipografia-base);
   color: var(--color-texto-primario);
   background: var(--color-superficie);
-  border: 1px solid var(--color-borde-fuerte);
+  border: var(--grosor-borde) solid var(--color-borde-fuerte);
   border-radius: var(--radio-control);
   padding: var(--espacio-8) var(--espacio-12);
 }
-.campo__control:hover { border-color: var(--color-texto-secundario); }
+.campo__control:not(:disabled):hover { border-color: var(--color-texto-secundario); }
 .campo__control:focus-visible {
-  outline: 2px solid var(--color-acento);
-  outline-offset: 2px;
+  outline: var(--grosor-foco) solid var(--color-acento);
+  outline-offset: var(--desfase-foco);
   border-color: var(--color-acento);
 }
 .campo__control:disabled {
@@ -134,8 +179,8 @@ Una sola acción primaria por pantalla o por bloque — nunca dos botones primar
   border-radius: var(--radio-control);
   padding: var(--espacio-8) var(--espacio-16);
 }
-.boton--primario:hover { background: var(--color-acento-hover); }
-.boton--primario:focus-visible { outline: 2px solid var(--color-acento); outline-offset: 2px; }
+.boton--primario:not(:disabled):hover { background: var(--color-acento-hover); }
+.boton--primario:focus-visible { outline: var(--grosor-foco) solid var(--color-acento); outline-offset: var(--desfase-foco); }
 .boton--primario:disabled {
   background: var(--color-superficie-elevada);
   color: var(--color-texto-deshabilitado);
@@ -147,10 +192,10 @@ Una sola acción primaria por pantalla o por bloque — nunca dos botones primar
 
 | Estado | Descripción visual | Tokens |
 |---|---|---|
-| Normal | Fondo transparente, borde y texto en acento. | `--color-acento` (borde y texto), `--color-superficie` (fondo) |
-| Hover | Fondo superficie-elevada, borde acento-hover. | `--color-superficie-elevada`, `--color-acento-hover` |
+| Normal | Fondo superficie-elevada, texto primario, contorno transparente. | `--color-superficie-elevada`, `--color-texto-primario` |
+| Hover | Fondo marca-arena, texto primario; sin contorno rojo. | `--color-marca-arena`, `--color-texto-primario` |
 | Foco visible | Anillo de acento. | `--color-acento` |
-| Deshabilitado | Borde y texto deshabilitados. | `--color-borde`, `--color-texto-deshabilitado` |
+| Deshabilitado | Fondo superficie-elevada y texto deshabilitado; sin hover. | `--color-superficie-elevada`, `--color-texto-deshabilitado` |
 | Cargando | Igual patrón que el primario: spinner + texto de progreso, `aria-busy`. | `--color-acento` |
 
 ```html
@@ -179,7 +224,7 @@ Componente central del sistema — la mayoría de las pantallas son variaciones 
 
 | Estado | Descripción visual | Tokens |
 |---|---|---|
-| Normal | Encabezado en superficie-elevada, texto secundario en mayúsculas pequeñas, filas en superficie con borde inferior sutil. | `--color-superficie-elevada`, `--color-texto-secundario`, `--color-borde` |
+| Normal | Encabezado en superficie blanca, texto secundario en peso medio, filas en superficie con borde inferior sutil. | `--color-superficie`, `--color-texto-secundario`, `--color-borde` |
 | Fila hover | Fondo superficie-elevada. | `--color-superficie-elevada` |
 | Fila con foco (navegación por teclado, si la tabla es interactiva) | Anillo interno de acento en la celda activa. | `--color-acento` |
 | Encabezado ordenable, foco visible | Anillo de acento en el botón de la columna. | `--color-acento` |
@@ -216,11 +261,11 @@ Componente central del sistema — la mayoría de las pantallas son variaciones 
 ```
 
 ```css
-.tabla__encabezado { background: var(--color-superficie-elevada); }
+.tabla__encabezado { background: var(--color-superficie); }
 .tabla__encabezado th { font: var(--tipografia-pequena); color: var(--color-texto-secundario); padding: var(--espacio-8) var(--espacio-12); }
-.tabla__fila td { font: var(--tipografia-base); color: var(--color-texto-primario); padding: var(--espacio-8) var(--espacio-12); border-bottom: 1px solid var(--color-borde); }
+.tabla__fila td { font: var(--tipografia-base); color: var(--color-texto-primario); padding: var(--espacio-8) var(--espacio-12); border-bottom: var(--grosor-borde) solid var(--color-borde); }
 .tabla__fila:hover { background: var(--color-superficie-elevada); }
-.tabla__orden:focus-visible { outline: 2px solid var(--color-acento); outline-offset: 2px; }
+.tabla__orden:focus-visible { outline: var(--grosor-foco) solid var(--color-acento); outline-offset: var(--desfase-foco); }
 ```
 
 ## Badge de estado

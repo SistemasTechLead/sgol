@@ -1,0 +1,2842 @@
+[
+  {
+    "engine": "chromium",
+    "file": "Access-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Access-Index-error.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-confirmation.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-conflict.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-recovered.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Branches-Details-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Branches-Details-loading.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Configuration-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Configuration-Index-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Entry-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Details-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Details-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Index-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Details-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Details-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-confirmation.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-conflict-preparation.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-conflict.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-denied.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-missing.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-ADMINISTRACION.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-DIRECCION.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-PISO_VENTAS.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-SUBCOORDINACION.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-recovered.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-uncertain.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Planning-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Planning-Index-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Access-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Access-Index-error.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-confirmation.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-conflict.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-recovered.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Branches-Details-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Branches-Details-loading.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Configuration-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Configuration-Index-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Entry-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Details-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Details-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Index-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Details-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Details-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-confirmation.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-conflict-preparation.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-conflict.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-denied.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-missing.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-ADMINISTRACION.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-DIRECCION.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-PISO_VENTAS.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-SUBCOORDINACION.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-recovered.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-uncertain.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Planning-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Planning-Index-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Access-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Access-Index-error.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-confirmation.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-conflict.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "asignaciones-recovered.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Branches-Details-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Branches-Details-loading.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Configuration-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Configuration-Index-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Entry-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Details-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Details-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "MyWork-Index-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Details-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Details-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "People-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-confirmation.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-conflict-preparation.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-conflict.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-denied.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-missing.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-ADMINISTRACION.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-DIRECCION.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-PISO_VENTAS.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-normal-SUBCOORDINACION.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-recovered.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "planes-uncertain.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Planning-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "chromium",
+    "file": "Planning-Index-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Access-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Access-Index-error.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-confirmation.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-conflict.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-recovered.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Branches-Details-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Branches-Details-loading.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Configuration-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Configuration-Index-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Entry-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Details-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Details-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Index-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Details-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Details-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-confirmation.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-conflict-preparation.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-conflict.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-denied.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-missing.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-ADMINISTRACION.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-DIRECCION.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-PISO_VENTAS.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-SUBCOORDINACION.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-recovered.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-uncertain.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Planning-Index-empty.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Planning-Index-normal.html",
+    "width": 1440,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Access-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Access-Index-error.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-confirmation.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-conflict.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-recovered.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Branches-Details-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Branches-Details-loading.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Configuration-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Configuration-Index-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Entry-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Details-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Details-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Index-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Details-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Details-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-confirmation.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-conflict-preparation.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-conflict.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-denied.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-missing.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-ADMINISTRACION.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-DIRECCION.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-PISO_VENTAS.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-SUBCOORDINACION.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-recovered.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-uncertain.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Planning-Index-empty.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Planning-Index-normal.html",
+    "width": 390,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Access-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Access-Index-error.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-confirmation.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-conflict.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "asignaciones-recovered.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Branches-Details-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Branches-Details-loading.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Configuration-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Configuration-Index-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Entry-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Details-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Details-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "MyWork-Index-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Details-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Details-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "People-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-confirmation.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-conflict-preparation.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-conflict.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-denied.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-missing.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-ADMINISTRACION.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-DIRECCION.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-PISO_VENTAS.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-normal-SUBCOORDINACION.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-recovered.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "planes-uncertain.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": null,
+    "skip": null,
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Planning-Index-empty.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  },
+  {
+    "engine": "webkit",
+    "file": "Planning-Index-normal.html",
+    "width": 320,
+    "overflow": false,
+    "areas": [],
+    "semantics": true,
+    "enlarged": false,
+    "modal": {
+      "initial": true,
+      "closed": true,
+      "returned": true
+    },
+    "skip": {
+      "outline": true,
+      "mainFocused": true
+    },
+    "motion": true
+  }
+]

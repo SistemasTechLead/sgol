@@ -379,3 +379,20 @@ Actualización incremental: 2026-09-29. Se conserva la definición canónica FRO
 | FRONT-016 — plan íntegramente aprobado | `docs/traceability/FRONT_016_PLAN_DE_IMPLEMENTACION.md` | 5 | 7 |
 
 La Adenda 54 incorpora por referencia los §§2–8 del plan; el informe `docs/traceability/FRONT_016_BANDEJA_Y_CONSULTA.md` registra implementación y validaciones vigentes, no sustituye contratos congelados.
+
+## Complemento de diseño renovado aprobado
+
+Actualización incremental: 2026-09-30. Adenda 55 libre y verificada antes de crear; no se asigna tarea nueva ni se modifica la definición canónica de FRONT-017..020 en Adenda 45.
+
+| Referencia | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| Adenda 55 — aprobación y alcance documental | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 3 | 9 |
+| Adenda 55 — referencia oficial operativa | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 11 | 15 |
+| Adenda 55 — adopción de FRONT-017..020 y transición | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 17 | 21 |
+| Adenda 55 — evidencia y siguiente hito | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 23 | 27 |
+
+| Adenda 55 — aprobación de implementación v2 | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 37 | 41 |
+
+Entrada operativa: `docs/design/referencia-renovada.md`. Evidencia: `docs/traceability/DISENO_RENOVADO_REFERENCIA.md`. El suplemento conserva literalmente los IDs y contratos; referencia documentada no equivale a diseño implementado.
+
+| Adenda 55 — Georgia y exclusión de fuente | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 43 | 47 |

@@ -1,8 +1,8 @@
 @using Sgol.Generation.Contracts
 @using Sgol.Web.Pages.Planning
 @model IndexModel
-<section id="alta-manual" class="planificacion__seccion generacion-manual" aria-labelledby="manual-title" aria-busy="false">
-    <h2 id="manual-title">Alta manual</h2>
+<section id="alta-manual" class="panel-seccion planificacion__seccion generacion-manual" aria-labelledby="manual-title" aria-busy="false">
+    <header class="panel-seccion__cabecera"><h2 id="manual-title">Alta manual</h2></header>
     @if (Model.ManualError is not null)
     {
         <div id="manual-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.ManualError" /></div>
@@ -182,7 +182,7 @@
                 }
                 <a class="boton boton--secundario" href="/planificacion?isoYear=@Model.IsoYear&amp;isoWeek=@Model.IsoWeek&amp;from=@Model.From&amp;to=@Model.To&amp;generationRequestId=@result.GenerationRequestId#alta-manual">Consultar resultado</a>
                 @if (result.ObligationId is { } obligationId && Model.CanViewAssignments && Model.CanExplainAssignment)
-                { <a class="boton boton--secundario" href="/planificacion?obligationId=@obligationId#asignaciones">Consultar asignación</a> }
+                { <a class="boton boton--textual" href="/planificacion?obligationId=@obligationId#asignaciones">Consultar asignación<partial name="_Icon" model='@("arrow")' /></a> }
             </div>
         }
     }

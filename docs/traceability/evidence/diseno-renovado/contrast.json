@@ -1,0 +1,79 @@
+[
+  {
+    "foreground": "texto-primario",
+    "background": "superficie",
+    "ratio": 15.115,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "texto-secundario",
+    "background": "superficie-elevada",
+    "ratio": 5.456,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "acento",
+    "background": "superficie",
+    "ratio": 5.576,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "acento-texto",
+    "background": "acento",
+    "ratio": 5.576,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "acento-texto",
+    "background": "acento-hover",
+    "ratio": 7.054,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "exito",
+    "background": "exito-fondo",
+    "ratio": 4.587,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "advertencia",
+    "background": "advertencia-fondo",
+    "ratio": 4.769,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "peligro",
+    "background": "peligro-fondo",
+    "ratio": 5.095,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "info",
+    "background": "info-fondo",
+    "ratio": 5.917,
+    "minimum": 4.5,
+    "pass": true
+  },
+  {
+    "foreground": "borde-fuerte",
+    "background": "superficie",
+    "ratio": 3.042,
+    "minimum": 3,
+    "pass": true
+  },
+  {
+    "foreground": "acento",
+    "background": "superficie-elevada",
+    "ratio": 4.969,
+    "minimum": 3,
+    "pass": true
+  }
+]

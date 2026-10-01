@@ -1,5 +1,15 @@
 # estados-de-dominio.md — SGOL / Loretta Zapatería
 
+## Precisión vigente del estilo v2
+
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las correcciones y el complemento fueron aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». La implementación local se registra por grupo en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md); la aprobación del diseño no equivale a publicación o integración. Los contratos y mensajes funcionales se conservan.
+
+## Referencia renovada — semántica conservada
+
+[Adenda 55](../../F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md) adopta [referencia-renovada.md](referencia-renovada.md) exclusivamente para presentación. Todos los valores persistidos, etiquetas, iconos, pares semánticos y significados aprobados de este documento se conservan. No hay estado nuevo, permiso ni transición de negocio.
+
+Los badges compartidos conservan pastilla, texto e icono; se agrupan con wrap y `--espacio-8`. Nunca se comunica sólo color ni se colorea un panel entero por el estado de una obligación. La bandera Vencida acompaña al estado base; Concluida sigue siendo diferente de validada, RECUPERADA no es creación nueva y PUBLICADO no acredita todos los niveles. La maqueta no reemplaza mensajes ni semántica. Las pantallas existentes materializarán estos usos visuales únicamente en su hito de adaptación.
+
 ## UI-E01/E02 — variantes aprobadas para FRONT-016
 
 Adenda 54 incorpora §6 del plan FRONT-016 aprobado íntegramente. FUTURA: «Futura», calendario, par info. DISPONIBLE: «Disponible», círculo informativo, par info. Ambas acompañan «Pendiente», sin reemplazar executionStatus. VENCIDA conserva la bandera peligro junto a Pendiente. CONCLUIDA conserva el badge exito. UNREAD: «Sin leer», sobre cerrado, par info. READ: «Leído», sobre abierto, texto-secundario/superficie-elevada. Todo lleva texto e icono; son presentación de valores recibidos, no estados persistidos nuevos. Programada es procedencia; Concluida no significa Validada.

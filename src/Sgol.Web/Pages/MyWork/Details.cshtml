@@ -2,7 +2,7 @@
 @model Sgol.Web.Pages.MyWork.DetailsModel
 @using Sgol.Web.Presentation.MyWork
 @{ ViewData["Title"] = "Detalle de tarea"; }
-<h1 class="encabezado-pagina__titulo">Detalle de tarea</h1>
+<header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo">Detalle de tarea</h1></header>
 <p><a class="boton boton--secundario" href="@Model.BackHref">Volver a Mi trabajo</a></p>
 @if (Model.Error is not null)
 {
@@ -11,9 +11,9 @@
 }
 else if (Model.Detail is { } item)
 {
-    <section class="mi-trabajo__seccion" aria-labelledby="tarea-title">
-        <h2 id="tarea-title">@item.Task.TaskCode · @item.Task.Name</h2>
-        <p><partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.ExecutionStatus)" />
+    <section class="panel-seccion mi-trabajo__seccion" aria-labelledby="tarea-title">
+        <header class="panel-seccion__cabecera"><h2 id="tarea-title">@item.Task.TaskCode · @item.Task.Name</h2></header>
+        <p class="badge-grupo"><partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.ExecutionStatus)" />
             @if (item.Condition == "VENCIDA") { <partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.Condition)" /> }
         </p>
         <dl><dt>Procedencia</dt><dd>@MyWorkPresentation.Origin(item.Origin.Kind)</dd><dt>Referencia</dt><dd>@item.Origin.Reference</dd>
@@ -25,8 +25,8 @@ else if (Model.Detail is { } item)
             <dt>Responsable actual</dt><dd>@(item.CurrentAssignment?.Responsible.DisplayName ?? "Sin asignación vigente")</dd>
         </dl><p>Hora de Ciudad de México. Concluida no significa validada.</p>
     </section>
-    <section class="mi-trabajo__seccion" id="historia" aria-labelledby="historia-title">
-        <h2 id="historia-title">Historia de esta tarea</h2>
+    <section class="panel-seccion mi-trabajo__seccion" id="historia" aria-labelledby="historia-title">
+        <header class="panel-seccion__cabecera"><h2 id="historia-title">Historia de esta tarea</h2></header>
         <div class="tabla-contenedor"><table class="tabla"><caption>Hechos permitidos de la tarea</caption><thead class="tabla__encabezado"><tr><th scope="col">Fecha</th><th scope="col">Hecho</th><th scope="col">Responsable o publicación</th><th scope="col">Motivo autorizado</th></tr></thead><tbody>
             @foreach (var ev in item.History)
             {

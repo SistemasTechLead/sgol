@@ -11,7 +11,8 @@
                 const reveal = input.type === "password";
                 input.type = reveal ? "text" : "password";
                 credentialToggle.setAttribute("aria-pressed", reveal ? "true" : "false");
-                credentialToggle.textContent = reveal ? "Ocultar" : "Mostrar";
+                const label = credentialToggle.querySelector("[data-credential-label]") ?? credentialToggle;
+                label.textContent = reveal ? "Ocultar" : "Mostrar";
             }
             return;
         }
@@ -31,6 +32,18 @@
 
     document.querySelectorAll("dialog").forEach(dialog => {
         dialog.addEventListener("close", () => dialogTriggers.get(dialog)?.focus());
+        if (dialog.id === "navegacion-movil") {
+            dialog.addEventListener("keydown", event => {
+                if (event.key !== "Tab") return;
+                const controls = [...dialog.querySelectorAll('button:not(:disabled), a[href]')]
+                    .filter(control => control.getClientRects().length > 0);
+                if (!controls.length) return;
+                const index = controls.indexOf(document.activeElement);
+                const next = (index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length;
+                event.preventDefault();
+                controls[next].focus();
+            });
+        }
     });
     document.querySelectorAll('dialog[data-open-on-error="true"]').forEach(dialog => {
         const opener = document.querySelector(`[data-dialog-open][aria-controls="${dialog.id}"]`);

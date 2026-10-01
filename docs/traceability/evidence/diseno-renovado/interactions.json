@@ -1,0 +1,272 @@
+[
+  {
+    "engine": "chromium",
+    "width": 1440,
+    "file": "People-Details-normal.html",
+    "id": "deactivate-dialog",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 1440,
+    "file": "planes-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "chromium",
+    "width": 1440,
+    "file": "planes-confirmation.html",
+    "id": "plan-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 1440,
+    "file": "asignaciones-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "chromium",
+    "width": 1440,
+    "file": "asignaciones-confirmation.html",
+    "id": "correction-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 390,
+    "file": "People-Details-normal.html",
+    "id": "navegacion-movil",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 390,
+    "file": "People-Details-normal.html",
+    "id": "deactivate-dialog",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 390,
+    "file": "MyWork-Index-normal.html",
+    "id": "navegacion-movil",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 390,
+    "file": "planes-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "chromium",
+    "width": 390,
+    "file": "planes-confirmation.html",
+    "id": "plan-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 390,
+    "file": "asignaciones-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "chromium",
+    "width": 390,
+    "file": "asignaciones-confirmation.html",
+    "id": "correction-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 844,
+    "file": "People-Details-normal.html",
+    "id": "deactivate-dialog",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 844,
+    "file": "planes-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "chromium",
+    "width": 844,
+    "file": "planes-confirmation.html",
+    "id": "plan-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "chromium",
+    "width": 844,
+    "file": "asignaciones-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "chromium",
+    "width": 844,
+    "file": "asignaciones-confirmation.html",
+    "id": "correction-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 1440,
+    "file": "People-Details-normal.html",
+    "id": "deactivate-dialog",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 1440,
+    "file": "planes-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "webkit",
+    "width": 1440,
+    "file": "planes-confirmation.html",
+    "id": "plan-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 1440,
+    "file": "asignaciones-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "webkit",
+    "width": 1440,
+    "file": "asignaciones-confirmation.html",
+    "id": "correction-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 390,
+    "file": "People-Details-normal.html",
+    "id": "navegacion-movil",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 390,
+    "file": "People-Details-normal.html",
+    "id": "deactivate-dialog",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 390,
+    "file": "MyWork-Index-normal.html",
+    "id": "navegacion-movil",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 390,
+    "file": "planes-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "webkit",
+    "width": 390,
+    "file": "planes-confirmation.html",
+    "id": "plan-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 390,
+    "file": "asignaciones-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "webkit",
+    "width": 390,
+    "file": "asignaciones-confirmation.html",
+    "id": "correction-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 844,
+    "file": "People-Details-normal.html",
+    "id": "deactivate-dialog",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 844,
+    "file": "planes-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "webkit",
+    "width": 844,
+    "file": "planes-confirmation.html",
+    "id": "plan-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  },
+  {
+    "engine": "webkit",
+    "width": 844,
+    "file": "asignaciones-confirmation.html",
+    "prepared": true
+  },
+  {
+    "engine": "webkit",
+    "width": 844,
+    "file": "asignaciones-confirmation.html",
+    "id": "correction-confirm",
+    "initial": true,
+    "returned": true,
+    "closed": true
+  }
+]

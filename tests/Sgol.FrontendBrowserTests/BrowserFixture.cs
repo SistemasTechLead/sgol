@@ -42,6 +42,9 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
     private bool disposed;
     public bool CleanupComplete { get; private set; }
 
+    // Optional, closed stage names only: no credentials, connection strings or response data.
+    public Action<string>? Progress { get; set; }
+
     public Uri BaseAddress { get; private set; } = null!;
     public IReadOnlyList<BrowserAccount> Accounts { get; } =
     [
@@ -71,6 +74,7 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
             .WithPassword(Convert.ToHexString(RandomNumberGenerator.GetBytes(24)))
             .Build();
         await database.StartAsync();
+        Progress?.Invoke("DATABASE_READY");
         var connection = database.GetConnectionString();
         connectionString = connection;
         var parsed = new Npgsql.NpgsqlConnectionStringBuilder(connection);
@@ -80,6 +84,7 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
         await using (var context = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connection).Options))
         {
             await context.Database.MigrateAsync();
+            Progress?.Invoke("MIGRATIONS_READY");
             var hasher = new PasswordHasher<AppUser>();
             var now = DateTimeOffset.UtcNow.AddMinutes(-1);
             foreach (var account in Accounts)
@@ -120,11 +125,13 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
                 });
             }
             await context.SaveChangesAsync();
+            Progress?.Invoke("SYNTHETIC_IDENTITIES_READY");
         }
 
         var port = ReservePort();
         BaseAddress = new Uri($"https://127.0.0.1:{port}");
         certificate = NewCertificate();
+        Progress?.Invoke("CERTIFICATE_CREATED");
         using (var roots = new X509Store(StoreName.Root, StoreLocation.CurrentUser))
         {
             roots.Open(OpenFlags.ReadWrite);
@@ -132,6 +139,7 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
                 throw new InvalidOperationException("Fixture certificate already exists in trust store.");
             roots.Add(certificate);
             trustedCertificateInstalled = true;
+            Progress?.Invoke("CERTIFICATE_TRUSTED");
         }
         var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
         certificatePath = Path.Combine(Path.GetTempPath(), $"sgol-front004-{Guid.CreateVersion7():N}.pfx");
@@ -157,6 +165,7 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
         stdoutDrain = DrainAsync(web.StandardOutput);
         stderrDrain = DrainAsync(web.StandardError);
         await WaitUntilReadyAsync();
+        Progress?.Invoke("HOST_READY");
     }
 
     public HttpClient NewClient(out CookieContainer cookies)

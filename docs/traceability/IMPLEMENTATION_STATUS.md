@@ -1,5 +1,31 @@
 # Estado de implementación
 
+## Diseño v2 — pantallas aprobadas y publicación autorizada
+
+2026-09-30. «Apruebo las pantallas, ahora vamos a agregar esto al repositorio, apruebo commit, push y abrir el PR». Autoriza commits y un único PR/pipeline del hito, con seguimiento y correcciones al mismo PR; merge/despliegue no autorizados. **Publicada** en [PR #85](https://github.com/SistemasTechLead/sgol/pull/85), no Integrada; Georgia aprobada y The Seasons excluida del archivo y del historial enviado, conforme a Adenda 55 §7. Run inicial 36794989105: controles y servidor PASS; navegador 23/25, dos expectativas visuales antiguas corregidas en el mismo hito; nuevo pipeline pendiente. Evidencia y registro en DISENO_RENOVADO_V2_IMPLEMENTACION.md. Los estados anteriores conservan la secuencia histórica, no describen una espera vigente de aprobación de pantallas.
+
+## Estilo v2 — implementación local para revisión
+
+2026-09-30. Correcciones y complemento aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». G0–G4 **Implementada localmente** en el único hito de pantallas existentes FRONT-001..016, conforme a ESTILO_VISUAL_V2.md y Adenda 55 §6. Build 0 errores/advertencias; presentación 135/135, arquitectura 10/10 y HTTPS/PostgreSQL Chromium/WebKit 2/2 PASS; 354 combinaciones visuales, 254 comprobaciones de interacción/texto y 39 de concordancia PASS. Evidencia y límites en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](DISENO_RENOVADO_V2_IMPLEMENTACION.md): 167 capturas sintéticas. Sin nuevo commit, push, PR, pipeline, merge o despliegue, conforme a la condición vigente de revisión/aprobación expresa posterior. FRONT-017..020 no iniciadas. Evidencia histórica de historias terminadas aceptada y conservada. Zoom nativo/lector/dispositivos y gates integrales/remotos diferidos por las causas exactas del informe; derechos web de The Seasons pendientes antes de publicación.
+
+Los registros documentales anteriores siguientes describen su momento histórico; su implementación pendiente quedó superada por esta fila vigente. No sustituyen ni reabren la evidencia de FRONT-016.
+
+## Estilo v2 — referencia documentada y revisión visual
+
+2026-09-30. Base v2 aceptada por el responsable salvo las correcciones solicitadas, presentadas fuera del repositorio para revisión previa a implementación. Adenda 55 §5 y docs/design/ESTILO_VISUAL_V2.md precisan las reglas operativas; documentos de diseño y complemento del único plan sincronizados. Estado: **Referencia documentada localmente; correcciones productivas pendientes de revisión visual**. La adaptación anterior conserva su evidencia debajo, no se reetiqueta como v2. FRONT-017..020 no iniciadas. Sin publicación, merge o despliegue; detalle en DISENO_RENOVADO_V2_REVISION.md.
+
+## Diseño renovado — adaptación de pantallas existentes
+
+2026-09-30. Plan completo `docs/traceability/DISENO_RENOVADO_PLAN_DE_IMPLEMENTACION.md` aprobado mediante «Si apruebo el plan completo». Único hito **Implementado localmente**, con **Validación diferida** del recorrido hospedado por espera del almacén de certificados de Windows antes de Kestrel. Layout, variables, componentes y pantallas existentes adaptados por grupos. Build Release 0 errores/advertencias; presentación/render enfocados 109/109 y arquitectura 10/10. Evidencia y capturas Razor sintéticas en `docs/traceability/DISENO_RENOVADO_ADAPTACION.md`; no acreditan integración HTTPS ni persistencia. Se acepta la referencia documental aprobada y la evidencia previa, incluida FRONT-016. FRONT-017..020 no iniciadas; sin autorización de publicación, merge ni despliegue. Los registros documentales e históricos siguientes conservan su contexto de cierre.
+
+## Referencia de diseño renovado — incorporación documental local (registro previo a la adaptación)
+
+Fecha: 2026-09-30. El responsable aprobó «Apruebo las secciones y la adenda»: §§3–9 de `docs/design/PLAN_DISENO_RENOVADO.md` y `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md`. Resultado: **referencia documentada, aprobada e incorporada localmente**; entrada oficial `docs/design/referencia-renovada.md` y seis documentos operativos relacionados. La aceptación final del paquete se solicita al entregarlo. No hay diseño renovado implementado en pantallas productivas ni publicación/integración remota de este paquete.
+
+FRONT-017..020 y cualquier pantalla pendiente consumen la referencia mediante componentes compartidos y CSS propio con variables, dentro de sus contratos/brechas/dependencias. Las pantallas existentes conservan implementación hasta el hito posterior; no se exige migración completa previa. No se modifica ni repite evidencia/gates de FRONT-016: su registro vigente permanece debajo.
+
+Verificaciones, archivos y límites en `docs/traceability/DISENO_RENOVADO_REFERENCIA.md`; siguiente chat y prompt completo en `docs/traceability/DISENO_RENOVADO_SIGUIENTE_HITO.md`. Sin vistas/CSS productivo/JS/backend/dependencias/pruebas funcionales; Fuentes y congelados protegidos. Aceptación final del paquete pendiente, sin autorización para push/PR/merge/despliegue o para ejecutar el hito siguiente.
+
 ## Estado vigente — FRONT-016
 
 Registro local posterior a la base `master` `6036f4f7be7e15d8bc01a261a068ffb652842cf5`. Se acepta la evidencia aportada por el responsable: FRONT-015 integrada mediante PR #82 y documento operativo FRONT integrado mediante PR #83. Las menciones antiguas de documentación aún no publicada o FRONT-016 no iniciada son históricas y no sustituyen este registro. No se repitieron sus gates.

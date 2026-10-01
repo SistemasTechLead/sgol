@@ -59,6 +59,17 @@ public sealed partial class InterfaceDesignRulesTests
         Assert.Equal(
             documentedVariables.Order(StringComparer.Ordinal),
             implementedVariables.Order(StringComparer.Ordinal));
+
+        var documentedValues = CssVariableValueRegex().Matches(File.ReadAllText(
+            Path.Combine(repositoryRoot, "docs", "design", "tokens.md")))
+            .ToDictionary(match => match.Groups[1].Value, match => match.Groups[2].Value.Trim(), StringComparer.Ordinal);
+        var implementedValues = CssVariableValueRegex().Matches(File.ReadAllText(
+            Path.Combine(repositoryRoot, CssVariablesFile)))
+            .ToDictionary(match => match.Groups[1].Value, match => match.Groups[2].Value.Trim(), StringComparer.Ordinal);
+        foreach (var (name, value) in documentedValues)
+        {
+            Assert.Equal(value, implementedValues[name]);
+        }
     }
 
     [Fact]
@@ -300,4 +311,7 @@ public sealed partial class InterfaceDesignRulesTests
 
     [GeneratedRegex(@"^\s*(--[a-z0-9-]+)\s*:", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
     private static partial Regex CssVariableDeclarationRegex();
+
+    [GeneratedRegex(@"^\s*(--[a-z0-9-]+)\s*:\s*([^;\r\n]+);", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex CssVariableValueRegex();
 }

@@ -9,8 +9,8 @@
     <h1 class="encabezado-pagina__titulo">Configuración de LOR-001</h1>
     <p class="encabezado-pagina__descripcion">Sucursal Loretta y versiones de configuración.</p>
 </header>
-<section aria-labelledby="branch-title">
-    <h2 id="branch-title">Sucursal Loretta</h2>
+<section class="panel-seccion" aria-labelledby="branch-title">
+    <header class="panel-seccion__cabecera"><h2 id="branch-title">Sucursal Loretta</h2></header>
     @if (Model.BranchError is not null)
     {
         <div id="branch-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.BranchError" /></div>
@@ -33,8 +33,8 @@
 </section>
 @if (Model.CanManage)
 {
-<section aria-labelledby="releases-title">
-    <h2 id="releases-title">Releases de configuración</h2>
+<section class="panel-seccion" aria-labelledby="releases-title">
+    <header class="panel-seccion__cabecera"><h2 id="releases-title">Releases de configuración</h2></header>
     <p>Versiones de LOR-001. Las fechas se muestran en hora de Ciudad de México.</p>
     @if (Model.Error is not null)
     {
@@ -110,8 +110,8 @@
 
         @if (Model.CanManage)
         {
-            <section id="nuevo-borrador" class="formulario-persona" aria-labelledby="new-draft-title">
-                <h2 id="new-draft-title">Nuevo borrador</h2>
+            <section id="nuevo-borrador" class="panel-seccion formulario-persona" aria-labelledby="new-draft-title">
+                <header class="panel-seccion__cabecera"><h2 id="new-draft-title">Nuevo borrador</h2></header>
                 <p>El borrador no entra en vigor hasta su publicación.</p>
                 <form method="post" asp-page-handler="Create" asp-antiforgery="false" data-progress-form>
                     <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />

@@ -6,21 +6,23 @@
     ViewData["Title"] = "Personas y accesos";
 }
 <section aria-labelledby="personas-titulo">
-    <h1 id="personas-titulo" class="encabezado-pagina__titulo">Personas y accesos</h1>
+    <header class="encabezado-pagina"><h1 id="personas-titulo" class="encabezado-pagina__titulo">Personas y accesos</h1></header>
     @if (Model.Error is not null)
     {
         <div id="people-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div>
     }
     @if (Model.CanShowPeople && !Model.IsDenied)
     {
+        <div class="panel-seccion">
         <partial name="_DataTable" model="@(new DataTableViewModel(
             "Personas registradas", ["Código", "Nombre"],
             Model.People.Select(person => (IReadOnlyList<string>)[person.StableCode, person.DisplayName]).ToArray(),
             EmptyState: new EmptyStateViewModel("Aún no hay personas registradas", "Registra la primera persona para comenzar.", "Registrar persona", "#alta-persona"),
             RowActions: Model.People.Select(person => (IReadOnlyList<DataTableActionViewModel>)[
-                new DataTableActionViewModel("Consultar historial", $"/personas-y-accesos/personas/{person.Id:D}")]).ToArray()))" />
-        <section id="alta-persona" class="formulario-persona" aria-labelledby="alta-persona-titulo">
-            <h2 id="alta-persona-titulo">Registrar persona</h2>
+                new DataTableActionViewModel("Ver detalle", $"/personas-y-accesos/personas/{person.Id:D}")]).ToArray()))" />
+        </div>
+        <section id="alta-persona" class="panel-seccion formulario-persona" aria-labelledby="alta-persona-titulo">
+            <header class="panel-seccion__cabecera"><h2 id="alta-persona-titulo">Registrar persona</h2></header>
             <form method="post" asp-antiforgery="false" data-progress-form>
                 <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
                 <input type="hidden" name="intentKey" value="@Model.IntentKey.ToString("D")" />
@@ -45,8 +47,8 @@
     }
     @if (Model.CanManageAccounts && !Model.IsDenied)
     {
-        <section id="cuentas" class="seccion-cuentas" aria-labelledby="cuentas-titulo">
-            <h2 id="cuentas-titulo" tabindex="-1">Cuentas</h2>
+        <section id="cuentas" class="panel-seccion seccion-cuentas" aria-labelledby="cuentas-titulo">
+            <header class="panel-seccion__cabecera"><h2 id="cuentas-titulo" tabindex="-1">Cuentas</h2></header>
             @if (Model.AccountSuccess is not null)
             {
                 <p role="status" class="alerta alerta--exito"><span aria-hidden="true">✓</span>@Model.AccountSuccess.</p>
@@ -101,7 +103,7 @@
             }
             @if (Model.CanManageRoles)
             {
-                <section id="roles" aria-labelledby="roles-titulo">
+                <section class="panel-seccion" id="roles" aria-labelledby="roles-titulo">
                     <h3 id="roles-titulo">Roles y recuperación MFA</h3>
                     @foreach (var account in Model.Accounts.Where(item => item.Status == "ACTIVA"))
                     {
@@ -109,7 +111,7 @@
                         var current = assignment.History.SingleOrDefault(item => item.Status == "ACTIVO" && item.ValidTo is null);
                         var baseId = $"role-{account.Id:D}";
                         var locked = Model.RoleConflictUserId == account.Id;
-                        <section class="formulario-persona" aria-labelledby="@($"{baseId}-title")">
+                        <section class="panel-seccion formulario-persona" aria-labelledby="@($"{baseId}-title")">
                             <h4 id="@($"{baseId}-title")">@account.UserName</h4>
                             <p>Rol vigente: @(current?.RoleCode ?? "Sin rol vigente")</p>
                             @if (assignment.History.Count == 0)
@@ -171,7 +173,7 @@
                     }
                 </section>
             }
-            <section id="alta-cuenta" class="formulario-persona" aria-labelledby="alta-cuenta-titulo">
+            <section id="alta-cuenta" class="panel-seccion formulario-persona" aria-labelledby="alta-cuenta-titulo">
                 <h3 id="alta-cuenta-titulo">Crear cuenta</h3>
                 <form method="post" asp-page-handler="CreateAccount" asp-antiforgery="false" data-progress-form>
                     <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
