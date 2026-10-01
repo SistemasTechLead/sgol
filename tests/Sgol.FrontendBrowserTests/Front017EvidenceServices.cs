@@ -50,10 +50,19 @@ internal sealed class Front017EvidenceServices : IAsyncDisposable
         var options = new EvidenceStorageOptions { Endpoint = endpoint, Region = "us-east-1", QuarantineBucket = Quarantine, CleanBucket = Clean, AccessKey = access, SecretKey = secret, AllowedUploadOrigins = [allowedOrigin], AllowInsecureTransport = true };
         Pipeline = new(new FileTechnicalValidator(), new CryptographicEvidenceObjectKeyFactory(), new S3PrivateObjectStorage(client, Options.Create(options)),
             new ClamAvScanner(Options.Create(new EvidenceScannerOptions { Host = "127.0.0.1", Port = scanner.GetMappedPublicPort(3310) })));
-        return new Dictionary<string, string> {
-            ["Evidence__Storage__Endpoint"] = endpoint, ["Evidence__Storage__Region"] = "us-east-1", ["Evidence__Storage__QuarantineBucket"] = Quarantine, ["Evidence__Storage__CleanBucket"] = Clean,
-            ["Evidence__Storage__AccessKey"] = access, ["Evidence__Storage__SecretKey"] = secret, ["Evidence__Storage__AllowedUploadOrigins__0"] = allowedOrigin, ["Evidence__Storage__AllowInsecureTransport"] = "true",
-            ["Evidence__Scanner__Host"] = "127.0.0.1", ["Evidence__Scanner__Port"] = scanner.GetMappedPublicPort(3310).ToString(System.Globalization.CultureInfo.InvariantCulture) };
+        return new Dictionary<string, string>
+        {
+            ["Evidence__Storage__Endpoint"] = endpoint,
+            ["Evidence__Storage__Region"] = "us-east-1",
+            ["Evidence__Storage__QuarantineBucket"] = Quarantine,
+            ["Evidence__Storage__CleanBucket"] = Clean,
+            ["Evidence__Storage__AccessKey"] = access,
+            ["Evidence__Storage__SecretKey"] = secret,
+            ["Evidence__Storage__AllowedUploadOrigins__0"] = allowedOrigin,
+            ["Evidence__Storage__AllowInsecureTransport"] = "true",
+            ["Evidence__Scanner__Host"] = "127.0.0.1",
+            ["Evidence__Scanner__Port"] = scanner.GetMappedPublicPort(3310).ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
     }
 
     public async ValueTask DisposeAsync()

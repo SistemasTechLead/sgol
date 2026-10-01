@@ -56,8 +56,11 @@ public sealed class Front017BrowserTests
         var structured = mobile ? "F_ENT_001" : "SECUENCIA";
         await SelectAsync(page, structured);
         csrf = await page.Locator("input[name=__RequestVerificationToken]").First.InputValueAsync();
-        var extraField = await context.APIRequest.PostAsync(path + "?handler=PrepareEvidence", new() { Form = context.APIRequest.CreateFormData()
-            .Set("__RequestVerificationToken", csrf).Set("requirementCode", structured).Set("schemaVersion", "2") });
+        var extraField = await context.APIRequest.PostAsync(path + "?handler=PrepareEvidence", new()
+        {
+            Form = context.APIRequest.CreateFormData()
+            .Set("__RequestVerificationToken", csrf).Set("requirementCode", structured).Set("schemaVersion", "2")
+        });
         Assert.Equal(422, extraField.Status);
         Assert.Equal(before, await fixture.MyWorkRowsAsync());
         if (mobile)
@@ -136,7 +139,8 @@ public sealed class Front017BrowserTests
         Assert.Equal(cleanBefore, await fixture.MyWorkRowsAsync());
         var lostResponse = false;
         const string contributionRoute = "**/*handler=ContributeFile*";
-        await context.RouteAsync(contributionRoute, async route => {
+        await context.RouteAsync(contributionRoute, async route =>
+        {
             if (lostResponse) { await route.ContinueAsync(); return; }
             lostResponse = true;
             var received = await route.FetchAsync(); await received.DisposeAsync(); await route.AbortAsync();

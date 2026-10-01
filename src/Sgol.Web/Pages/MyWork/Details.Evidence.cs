@@ -176,8 +176,16 @@ public sealed partial class DetailsModel
         var hash = form["sha256"].ToString();
         if (hash.Length != 64 || hash.Any(c => !char.IsAsciiHexDigitLower(c))) return EvidenceFailure(400, "SOLICITUD_EVIDENCIA_INVALIDA");
         var subtype = SelectedRequirement.RequirementCode == "DOCUMENTO_RECEPCION" ? form["documentSubtype"].ToString() : null;
-        var body = JsonSerializer.SerializeToElement(new { obligationId = Detail.ObligationId, requirementCode = SelectedRequirement.RequirementCode,
-            originalFileName = form["originalFileName"].ToString(), declaredMediaType = form["declaredMediaType"].ToString(), sizeBytes = size, sha256 = hash, documentSubtype = subtype });
+        var body = JsonSerializer.SerializeToElement(new
+        {
+            obligationId = Detail.ObligationId,
+            requirementCode = SelectedRequirement.RequirementCode,
+            originalFileName = form["originalFileName"].ToString(),
+            declaredMediaType = form["declaredMediaType"].ToString(),
+            sizeBytes = size,
+            sha256 = hash,
+            documentSubtype = subtype
+        });
         var session = (await sessionState.GetAsync(cancellationToken))!;
         return new JsonResult(new { intention = Intentions.Protect(NewIntention(session, Detail.ObligationId, SelectedRequirement.RequirementCode, "upload", body)) });
     }

@@ -59,10 +59,17 @@ public sealed class EvidenceInfrastructureArchitectureTests
         Assert.Contains("evidence_version", migrationSource, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("evidence_review_snapshot", migrationSource, StringComparison.OrdinalIgnoreCase);
 
-        var approvedPolicyUi = Path.Combine(web, "Pages", "Configuration", "_EvidenceValidation.cshtml");
+        // FRONT-017 and Adenda 56 approve these exact consumers without extending the API surface.
+        var approvedUi = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            Path.Combine(web, "Pages", "Configuration", "_EvidenceValidation.cshtml"),
+            Path.Combine(web, "Pages", "MyWork", "_EvidenceContribution.cshtml"),
+            Path.Combine(web, "wwwroot", "js", "evidence-contribution.js"),
+        };
+        Assert.All(approvedUi, path => Assert.True(File.Exists(path), path));
         var ui = Directory.EnumerateFiles(web, "*Evidence*", SearchOption.AllDirectories)
             .Where(path => Path.GetExtension(path) is ".cshtml" or ".razor" or ".css" or ".js")
-            .Where(path => !path.Equals(approvedPolicyUi, StringComparison.OrdinalIgnoreCase))
+            .Where(path => !approvedUi.Contains(path))
             .ToArray();
         Assert.Empty(ui);
     }
