@@ -1,6 +1,8 @@
 # FRONT-017 — Carga privada y primera aportación de evidencia
 
-Fecha: 2026-09-30. Estado: **Implementada localmente**, con revisión visual del responsable pendiente y validaciones diferidas enumeradas. Rama `codex/front-017`, base integrada de PR #85 `754029d7f3fce8f5eec9961824ad336930d235dc`. Sin publicación, PR, checks remotos, merge o despliegue de FRONT-017.
+Fecha: 2026-09-30. Estado: **Implementada localmente**, con revisión visual del responsable aprobada el 2026-10-01 y validaciones diferidas enumeradas. Rama `codex/front-017`, base integrada de PR #85 `754029d7f3fce8f5eec9961824ad336930d235dc`. Sin publicación, PR, checks remotos, merge o despliegue de FRONT-017.
+
+2026-10-01. El responsable revisó pantallas y mensajes y aprobó la implementación mediante «Ya revisé las pantallas y sus mensajes, apruebo su implementación», sobre el código local `60c9ed9`. La revisión visual queda aprobada; las validaciones diferidas conservan sus causas. Esta aprobación no autoriza publicación, checks remotos, merge ni despliegue.
 
 ## Decisiones y dependencias
 
@@ -55,7 +57,7 @@ Durante el desarrollo se corrigieron expectativas de UTC canónico, semilla sint
 
 ## Capturas y revisión visual
 
-Capturas locales sintéticas en `.artifacts/front-017`, ignoradas por Git; corresponden a la aplicación HTTPS funcionando con PostgreSQL y servicios reales, no a previsualización o maqueta externa. 19 capturas verificadas, con manifiesto de archivos/SHA-256 en FRONT_017_CAPTURAS.md. Revisión visual local realizada sobre escritorio LIMPIO/aporte/INVALIDO y móvil formulario/vacío; queda pendiente la revisión del responsable. Estados: selección/vacío de requisito, formulario, condición sin resolver, error, pendiente de escaneo, LIMPIO y aportación.
+Capturas locales sintéticas en `.artifacts/front-017`, ignoradas por Git; corresponden a la aplicación HTTPS funcionando con PostgreSQL y servicios reales, no a previsualización o maqueta externa. 19 capturas verificadas, con manifiesto de archivos/SHA-256 en FRONT_017_CAPTURAS.md. Revisión visual local realizada sobre escritorio LIMPIO/aporte/INVALIDO y móvil formulario/vacío; revisión del responsable aprobada el 2026-10-01. Estados: selección/vacío de requisito, formulario, condición sin resolver, error, pendiente de escaneo, LIMPIO y aportación.
 
 Revisión proporcional PASS: normal, foco, deshabilitado, error, ocupado y vacío; contraste computado, teclado, foco al resultado/error, objetivo mínimo, texto ampliado 200 %, reflow de 320 px y movimiento reducido. El aumento por prueba de estilos no acredita zoom nativo ni lector de pantalla.
 
