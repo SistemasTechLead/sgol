@@ -15,15 +15,23 @@ public static class ValidationPresentation
     public static string Result(string value) => value switch { "CUMPLIDA" => "Cumplida", "INCOMPLETA" => "Incompleta", "NO_CUMPLIDA" => "No cumplida", _ => throw new ApiProtocolException() };
     public static string Authority(string value) => value switch
     {
-        "ORDINARIA" => "Superior inmediato", "ESCALAMIENTO" => "Escalamiento", "AUTOVALIDACION_DIRECCION" => "Autovalidación excepcional de Dirección",
-        "SUSTITUCION_ORIGINAL" => "Sustitución por validador original", "SUSTITUCION_SUPERIOR" => "Sustitución por superior", _ => throw new ApiProtocolException()
+        "ORDINARIA" => "Superior inmediato",
+        "ESCALAMIENTO" => "Escalamiento",
+        "AUTOVALIDACION_DIRECCION" => "Autovalidación excepcional de Dirección",
+        "SUSTITUCION_ORIGINAL" => "Sustitución por validador original",
+        "SUSTITUCION_SUPERIOR" => "Sustitución por superior",
+        _ => throw new ApiProtocolException()
     };
     public static StatusBadgeViewModel Badge(string value) => value switch
     {
-        "PENDIENTE" => new("Pendiente de validación", "◷", "advertencia"), "RESUELTA" => new("Resuelta", "✓", "info"),
-        "VIGENTE" => new("Vigente", "✓", "exito"), "SUSTITUIDA" => new("Sustituida", "◷", "info"),
-        "CUMPLIDA" => new(Result(value), "✓", "exito"), "INCOMPLETA" => new(Result(value), "△", "advertencia"),
-        "NO_CUMPLIDA" => new(Result(value), "✕", "peligro"), _ => throw new ApiProtocolException()
+        "PENDIENTE" => new("Pendiente de validación", "◷", "advertencia"),
+        "RESUELTA" => new("Resuelta", "✓", "info"),
+        "VIGENTE" => new("Vigente", "✓", "exito"),
+        "SUSTITUIDA" => new("Sustituida", "◷", "info"),
+        "CUMPLIDA" => new(Result(value), "✓", "exito"),
+        "INCOMPLETA" => new(Result(value), "△", "advertencia"),
+        "NO_CUMPLIDA" => new(Result(value), "✕", "peligro"),
+        _ => throw new ApiProtocolException()
     };
     public static bool StrongEtag(string? value) => value is { Length: >= 3 } && value[0] == '"' && value[^1] == '"' &&
         long.TryParse(value.AsSpan(1, value.Length - 2), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var version) && version > 0 && value == $"\"{version}\"";

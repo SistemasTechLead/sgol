@@ -1,6 +1,10 @@
 # Estado de implementación
 
-## FRONT-019 — Implementada localmente; revisión visual pendiente
+## FRONT-019 — Publicación autorizada; revisión visual aprobada
+
+El responsable aprobó el resultado visual y la publicación mediante «Ya estan bien todas las capturas, apruebo su commit, pr y publicacion». Autoriza los commits, push, un único PR y seguimiento/correcciones de FRONT-019 en ese mismo PR. Publicada sólo cuando exista en el proveedor el PR que incorpora esta actualización; su cabeza y checks TECH-BASE-003 / PR gates son las referencias vigentes resolubles. Merge y despliegue siguen pendientes de aprobación expresa. No se crean commits administrativos para escribir PR/run/SHA autorreferenciales. Los estados previos de revisión/publicación pendiente de las entradas siguientes quedan como historia superada por esta aprobación.
+
+Preparación de publicación: formato corregido sólo en ValidationPresentation.cs, segunda verificación --verify-no-changes --no-restore PASS; build Release 0 errores/advertencias, unitarias 973/973, arquitectura 68/68 y diff PASS. SDK 10.0.400, sin restore ni cambio de dependencias/global.json. Cabeza y resultado final del pipeline resolubles en el PR que contiene esta actualización, pendientes hasta confirmarse en el proveedor. Al terminar un turno con checks pendientes, mantener heartbeat verificado en este chat, sin duplicados; pausarlo al solicitar aprobación expresa de merge.
 
 Precisión visual posterior: pendientes y supervisión recuperan campos verticales en su orden original, manteniendo la banda de filtros. Cambio acotado de Index.cshtml/components.css; única captura entregada escritorio-administracion-pendientes. Build PASS, arquitectura enfocada 11/11 PASS, navegador real de escritorio 1/1 PASS y diff PASS; registro en informe del hito. Sin cambio contractual ni publicación.
 

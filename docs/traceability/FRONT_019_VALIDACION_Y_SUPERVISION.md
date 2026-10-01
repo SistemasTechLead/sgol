@@ -1,5 +1,11 @@
 # FRONT-019 — Validación y supervisión
 
+## Aprobación visual y autorización de publicación
+
+El responsable declaró «Ya estan bien todas las capturas, apruebo su commit, pr y publicacion». Revisión visual aprobada íntegramente, incluidas sus correcciones. Autoriza publicación de un único PR de codex/front-019 y seguimiento/correcciones del mismo hito sin nuevas confirmaciones de publicación. La cabeza y el pipeline vigentes se resuelven en los checks del PR que incorpora esta actualización; se registra Publicada sólo tras existir ese PR. Merge y despliegue no autorizados. Se mantienen los diferidos y límites anteriores; los párrafos anteriores de revisión pendiente o ausencia de autorización son registros previos superados.
+
+Preparación de publicación: origin/master coincide con la base aceptada; no existe otro PR de esta rama. dotnet format --verify-no-changes --no-restore detectó únicamente WHITESPACE en ValidationPresentation.cs; corrección acotada de saltos/espacios con format whitespace --include, sin cambios funcionales. Segunda verificación de formato PASS, build Release PASS (0 errores/advertencias), unitarias completas 973/973 y arquitectura completa 68/68 PASS; diff PASS. Se conservan las pruebas enfocadas PostgreSQL y navegador registradas, sin atribuir nuevo PASS a suites no reejecutadas. Checks integrales remotos deben corresponder siempre a la cabeza vigente del PR.
+
 2026-10-01, America/Mexico_City. Implementación local del plan aprobado mediante «Apruebo el plan», incorporado por Adenda 58 antes de editar código. Rama `codex/front-019`. Resultado final y comprobaciones abajo. Revisión visual del responsable pendiente; sin autorización de publicación, PR, checks remotos, merge o despliegue.
 
 ## Evidencia aceptada y alcance

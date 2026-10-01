@@ -1,5 +1,7 @@
 # FRONT-019 — Capturas de funcionamiento
 
+Revisión visual completa aprobada mediante «Ya estan bien todas las capturas, apruebo su commit, pr y publicacion». Abarca las correcciones solicitadas y el conjunto de capturas; no acredita los diferidos de accesibilidad/infraestructura ni autoriza merge o despliegue.
+
 Última precisión visual: **escritorio-administracion-pendientes.png** se actualiza nuevamente con los campos apilados de arriba hacia abajo en ambas colecciones, conservando la banda y el título «Supervisión». Es la única captura presentada para esta precisión; historia vacía conserva su corrección anterior.
 
 Revisión solicitada por el responsable: se vuelven a entregar únicamente **escritorio-administracion-pendientes.png** y **escritorio-historia-vacia.png**, con filtros alineados, título «Supervisión» y versión centrada. Las demás capturas no forman parte de esta nueva solicitud de revisión.
