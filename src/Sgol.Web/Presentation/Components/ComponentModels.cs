@@ -103,7 +103,7 @@ public sealed record UploadPresentationViewModel(
     string? FileName = null,
     int? ProgressPercent = null,
     string? Message = null,
-    bool IsDisabled = false);
+    bool IsDisabled = false, string? Accept = null, bool ShowState = true);
 
 public sealed record EmptyStateViewModel(
     string Title,

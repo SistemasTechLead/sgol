@@ -277,7 +277,7 @@ public sealed class EvidenceExternalInfrastructureTests : IAsyncLifetime
             MaxErrorRetry = 0
         });
 
-    private async Task<EvidenceScanOutcome> ScanEicarAsync(ClamAvScanner scanner)
+    private static async Task<EvidenceScanOutcome> ScanEicarAsync(ClamAvScanner scanner)
     {
         string[] fragments =
         [
@@ -288,25 +288,9 @@ public sealed class EvidenceExternalInfrastructureTests : IAsyncLifetime
         ];
         var bytes = System.Text.Encoding.ASCII.GetBytes(string.Concat(
             fragments[2], fragments[0], fragments[3], fragments[1]));
-        var path = Path.Combine(temporaryDirectory, $"eicar-{Guid.NewGuid():N}.tmp");
-        try
-        {
-            await File.WriteAllBytesAsync(path, bytes);
-            await using var stream = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.None,
-                EvidenceFileLimits.BufferBytes,
-                FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
-            return await scanner.ScanAsync(stream, stream.Length, CancellationToken.None);
-        }
-        finally
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
+        // EICAR is opt-in above. Keep the harmless test signature in memory and send it to
+        // the disposable scanner via INSTREAM; it never becomes a workstation file or S3 object.
+        using var stream = new MemoryStream(bytes, writable: false);
+        return await scanner.ScanAsync(stream, stream.Length, CancellationToken.None);
     }
 }

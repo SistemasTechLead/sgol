@@ -19,7 +19,7 @@ internal sealed record BrowserWorkTask(Guid Id, Guid NoticeId, Guid UserId, Guid
 
 internal sealed partial class BrowserFixture
 {
-    public async Task<IReadOnlyList<BrowserWorkTask>> SeedMyWorkAsync(bool enrolledUsers = false)
+    public async Task<IReadOnlyList<BrowserWorkTask>> SeedMyWorkAsync(bool enrolledUsers = false, string taskCode = "TAR-0008")
     {
         await using var db = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connectionString).Options);
         var now = DateTimeOffset.UtcNow;
@@ -28,7 +28,7 @@ internal sealed partial class BrowserFixture
         var release = new ConfigurationRelease(Guid.CreateVersion7(), BranchScope.LorettaId);
         release.ApplyPublished(Published(release.Id), 1, Accounts[0].UserId, effective);
         db.ConfigurationReleases.Add(release);
-        var definition = TaskDefinitionCatalog.Require("TAR-0008");
+        var definition = TaskDefinitionCatalog.Require(taskCode);
         using var payload = JsonDocument.Parse("{}");
         var version = new TaskDefinitionVersion(Guid.CreateVersion7(), definition.Id, 1, 1, payload, release.Id);
         version.ApplyPublished(Published(version.Id), true); db.TaskDefinitionVersions.Add(version);
@@ -38,7 +38,7 @@ internal sealed partial class BrowserFixture
         rule.ApplyPublished(Published(rule.Id)); db.ActivationRuleVersions.Add(rule);
         var policy = new EvidencePolicyVersion(Guid.CreateVersion7(), definition.Id, version.Id, release.Id, null, 1);
         policy.ApplyPublished(Published(policy.Id)); db.EvidencePolicyVersions.Add(policy);
-        db.EvidenceRequirementVersions.AddRange(EvidencePolicyCatalog.Require("TAR-0008")
+        db.EvidenceRequirementVersions.AddRange(EvidencePolicyCatalog.Require(taskCode)
             .Select(r => new EvidenceRequirementVersion(Guid.CreateVersion7(), policy.Id, definition.Id, r)));
         var local = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City"));
         WeekPeriod Period(DateTime date)
@@ -78,7 +78,7 @@ internal sealed partial class BrowserFixture
                 var notice = new InternalNotice(Guid.CreateVersion7(), account.UserId, assignment.Id, assignment.AssignedAt);
                 db.AssignmentVersions.Add(assignment); db.InternalNotices.Add(notice); await db.SaveChangesAsync();
                 if (state == "VENCIDA") await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE work_obligation SET due_at = {now.AddMinutes(-5)} WHERE id = {obligation.Id}");
-                if (state == "CONCLUIDA") await ObligationConclusionTestData.ConcludeAsync(db, obligation.Id, now.AddSeconds(-5));
+                if (state == "CONCLUIDA") await ObligationConclusionTestData.ConcludeAsync(db, obligation.Id, now.AddSeconds(-5), receiptDifference: taskCode == "TAR-0092");
                 tasks.Add(new(obligation.Id, notice.Id, account.UserId, period.Id, state));
             }
         }
@@ -88,7 +88,7 @@ internal sealed partial class BrowserFixture
     public async Task<string> MyWorkRowsAsync(bool includeNoticeAndAudit = true)
     {
         await using var db = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connectionString).Options);
-        string[] names = ["work_obligation", "assignment_version", "week_period", "evidence_item", "evidence_version",
+        string[] names = ["work_obligation", "assignment_version", "week_period", "file_object", "evidence_item", "evidence_version",
             "evidence_review_snapshot", "execution_result", "work_plan", "plan_version", "plan_version_obligation",
             "idempotency_record", "outbox_event", "scheduled_job_run", "internal_notice", "audit_event"];
         var tables = db.Model.GetEntityTypes().Select(t => t.GetTableName()).OfType<string>()

@@ -25,6 +25,7 @@ else if (Model.Detail is { } item)
             <dt>Responsable actual</dt><dd>@(item.CurrentAssignment?.Responsible.DisplayName ?? "Sin asignación vigente")</dd>
         </dl><p>Hora de Ciudad de México. Concluida no significa validada.</p>
     </section>
+    <partial name="_EvidenceContribution" model="Model" />
     <section class="panel-seccion mi-trabajo__seccion" id="historia" aria-labelledby="historia-title">
         <header class="panel-seccion__cabecera"><h2 id="historia-title">Historia de esta tarea</h2></header>
         <div class="tabla-contenedor"><table class="tabla"><caption>Hechos permitidos de la tarea</caption><thead class="tabla__encabezado"><tr><th scope="col">Fecha</th><th scope="col">Hecho</th><th scope="col">Responsable o publicación</th><th scope="col">Motivo autorizado</th></tr></thead><tbody>
@@ -42,4 +43,4 @@ else if (Model.Detail is { } item)
         @if (Model.Pagination is not null) { <partial name="_WorkPagination" model="Model.Pagination" /> }
     </section>
 }
-@section Scripts { <script src="~/js/my-work.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/my-work.js" asp-append-version="true"></script><script src="~/js/evidence-contribution.js" asp-append-version="true"></script> }
