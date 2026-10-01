@@ -22,7 +22,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Execution;
 
 public sealed partial class EfObligationQueryReader(
     SgolDbContext dbContext,
-    IClock clock) : IObligationQueryReader, IHierarchySupervisionReader, IIndicatorReader, IPlanQueryReader
+    IClock clock, ICapturedEvidencePolicyReader? capturedPolicies = null) : IObligationQueryReader, IHierarchySupervisionReader, IIndicatorReader, IPlanQueryReader
 {
     private const int CursorVersion = 1;
     private const int MaximumCursorLength = 2048;
@@ -126,6 +126,18 @@ public sealed partial class EfObligationQueryReader(
         var nextCursor = hasNextPage
             ? EncodeHistoryCursor(request.ObligationId, historyRows[^1])
             : null;
+        var policyId = await dbContext.WorkObligations.AsNoTracking().Where(o => o.Id == row.ObligationId)
+            .Select(o => o.EvidencePolicyVersionId).SingleAsync(cancellationToken);
+        CapturedEvidencePolicy? captured = null;
+        if (policyId is { } versionId)
+        {
+            try
+            {
+                captured = await (capturedPolicies ?? new Configuration.EfCapturedEvidencePolicyReader(dbContext))
+                    .ReadAsync(versionId, row.TaskDefinitionVersionId, row.TaskCode, cancellationToken);
+            }
+            catch (EvidencePolicyValidationException) { throw new ObligationQueryInconsistentException(); }
+        }
         var detail = new ObligationDetail(
             item.ObligationId,
             item.Task,
@@ -141,7 +153,9 @@ public sealed partial class EfObligationQueryReader(
                 row.GenerationResult,
                 row.RequestedAt,
                 row.RequestedByUserId),
-            history);
+            history, captured is null ? null : new ObligationEvidencePolicy(captured.EvidencePolicyVersionId,
+                captured.Requirements.Select(r => new ObligationEvidenceRequirement(r.RequirementVersionId,
+                    r.RequirementCode, r.Kind, r.ConditionCode, r.Ordinal)).ToArray()));
 
         await transaction.CommitAsync(cancellationToken);
         return new ObligationDetailPage(detail, nextCursor, queriedAt, row.RowVersion);

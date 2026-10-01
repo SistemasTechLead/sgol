@@ -19,7 +19,7 @@ using Xunit;
 
 namespace Sgol.IntegrationTests;
 
-public sealed class ObligationQueryPersistenceTests : IAsyncLifetime
+public sealed partial class ObligationQueryPersistenceTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset Now =
         new(2026, 9, 5, 18, 0, 0, TimeSpan.Zero);

@@ -337,6 +337,18 @@ public interface IEvidencePolicyService
         CancellationToken cancellationToken = default);
 }
 
+// Internal snapshot reader: its caller must authorize the obligation before invoking it.
+public interface ICapturedEvidencePolicyReader
+{
+    Task<CapturedEvidencePolicy> ReadAsync(Guid policyVersionId, Guid taskDefinitionVersionId,
+        string taskCode, CancellationToken cancellationToken = default);
+}
+
+public sealed record CapturedEvidenceRequirement(Guid RequirementVersionId, string RequirementCode,
+    string Kind, string ConditionCode, short Ordinal);
+public sealed record CapturedEvidencePolicy(Guid EvidencePolicyVersionId,
+    IReadOnlyList<CapturedEvidenceRequirement> Requirements);
+
 public sealed class EvidencePolicyAccessDeniedException()
     : Exception($"{EvidencePolicyAuthorization.Administer} is required for LOR-001.");
 public sealed class EvidencePolicyReleaseNotDraftException() : Exception("The configuration release must remain BORRADOR for LOR-001.");

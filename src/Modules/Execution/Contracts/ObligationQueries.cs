@@ -120,6 +120,11 @@ public sealed record ObligationHistoryEvent(
     ObligationHistoryAssignment? Assignment,
     ObligationHistoryPublication? Publication);
 
+public sealed record ObligationEvidenceRequirement(Guid RequirementVersionId, string RequirementCode,
+    string Kind, string ConditionCode, short Ordinal);
+public sealed record ObligationEvidencePolicy(Guid EvidencePolicyVersionId,
+    IReadOnlyList<ObligationEvidenceRequirement> Requirements);
+
 public sealed record ObligationDetail(
     Guid ObligationId,
     ObligationTask Task,
@@ -131,7 +136,8 @@ public sealed record ObligationDetail(
     ObligationAssignmentSummary? CurrentAssignment,
     IReadOnlyDictionary<string, string> Links,
     ObligationGenerationRequest GenerationRequest,
-    IReadOnlyList<ObligationHistoryEvent> History);
+    IReadOnlyList<ObligationHistoryEvent> History,
+    ObligationEvidencePolicy? EvidencePolicy = null);
 
 public sealed record ObligationPage(
     IReadOnlyList<ObligationListItem> Items,
