@@ -11,13 +11,14 @@ using Sgol.Web.Presentation.ProblemDetails;
 
 namespace Sgol.Web.Pages.MyWork;
 
-public sealed class DetailsModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
+public sealed partial class DetailsModel(IRazorSessionState sessionState, ISgolApiClient apiClient,
     IDataProtectionProvider protection, AccessNotice accessNotice) : PageModel
 {
     public ObligationDetail? Detail { get; private set; }
     public ProblemDetailsPresentation? Error { get; private set; }
     public CursorPaginationViewModel? Pagination { get; private set; }
     public string BackHref { get; private set; } = "/mi-trabajo";
+    public string? ReturnToken => Request.Query["returnToken"].Count == 1 ? Request.Query["returnToken"].ToString() : null;
     public string ReloadHref => QueryHelpers.AddQueryString(Request.Path,
         new Dictionary<string, string?> { ["returnToken"] = Request.Query["returnToken"].Count == 1 ? Request.Query["returnToken"].ToString() : null });
     public async Task<IActionResult> OnGetAsync(string obligationId, CancellationToken cancellationToken)
@@ -32,7 +33,7 @@ public sealed class DetailsModel(IRazorSessionState sessionState, ISgolApiClient
         if (!MyWorkQuery.CanonicalId(obligationId, out var id))
         { Response.StatusCode = 400; Error = MyWorkPresentation.Message(400, "OBLIGACION_ID_INVALIDO", null, false); return Page(); }
         var trail = new MyWorkCursor(protection, session.UserId, "history", obligationId);
-        if (Request.Query.Keys.Any(k => k is not ("historyCursor" or "returnToken")) || Request.Query["returnToken"].Count > 1 || Request.Query["historyCursor"].Count > 1 ||
+        if (Request.Query.Keys.Any(k => k is not ("historyCursor" or "returnToken") && !(HttpMethods.IsPost(Request.Method) && k == "handler")) || Request.Query["returnToken"].Count > 1 || Request.Query["historyCursor"].Count > 1 ||
             Request.Query.ContainsKey("historyCursor") && string.IsNullOrEmpty(Request.Query["historyCursor"]) ||
             !trail.Read(Request.Query.ContainsKey("historyCursor") ? Request.Query["historyCursor"].ToString() : null))
         { Response.StatusCode = 400; Error = MyWorkPresentation.Message(400, "FILTRO_HISTORIA_INVALIDO", null, false); return Page(); }
@@ -51,6 +52,8 @@ public sealed class DetailsModel(IRazorSessionState sessionState, ISgolApiClient
             Pagination = trail.Links(response.HistoryNextCursor, value =>
                 QueryHelpers.AddQueryString(ReloadHref, new Dictionary<string, string?> { ["historyCursor"] = value }) + "#historia");
             Detail = response.Data;
+            await LoadEvidenceAsync(cancellationToken);
+            if (await sessionState.GetAsync(cancellationToken) is null) return Redirect("/acceso");
             return Page();
         }
         catch (ApiProtocolException)

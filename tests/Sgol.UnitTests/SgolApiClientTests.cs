@@ -11,6 +11,15 @@ public sealed class SgolApiClientTests
     private static readonly string Correlation = Guid.CreateVersion7().ToString("D");
 
     [Fact]
+    public async Task Front017TransportTimeoutRemainsAnUnconfirmedResultWithoutAutomaticRetry()
+    {
+        using var handler = new StubHandler(_ => throw new TaskCanceledException());
+        await Assert.ThrowsAsync<ApiProtocolException>(() => CreateClient(handler).SendAsync<Item>(
+            new(HttpMethod.Post, "/api/v1/files/upload-intents", ApiResponseShape.Item, new { }, Intent: ApiMutationIntent.New(), CsrfToken: "synthetic")));
+        Assert.Equal(1, handler.Count);
+    }
+
+    [Fact]
     public async Task SingleEnvelope_PreservesSessionCookieAndCorrelation()
     {
         string? observedCookie = null;
@@ -123,6 +132,7 @@ public sealed class SgolApiClientTests
     [InlineData(403, "ACCESO_DENEGADO")]
     [InlineData(404, "OBLIGACION_NO_ENCONTRADA")]
     [InlineData(409, "IDEMPOTENCY_CONFLICT")]
+    [InlineData(410, "INTENCION_CARGA_EXPIRADA")]
     [InlineData(412, "VERSION_CONFLICT")]
     [InlineData(413, "FILE_TOO_LARGE")]
     [InlineData(415, "FILE_TYPE_NOT_ALLOWED")]

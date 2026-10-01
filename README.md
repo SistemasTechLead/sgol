@@ -41,3 +41,7 @@ El workflow de pull request aplica estos gates, análisis estático, escaneo de 
 ## Protección documental
 
 `Fuentes/` es de solo lectura lógica y no se utiliza como entrada o salida de compilación, pruebas o ejecución. La trazabilidad inicial de esta tarea está en `docs/traceability/README.md`.
+
+## FRONT-017 — aporte local de evidencia
+
+Implementada localmente en el detalle de Mi trabajo: carga privada con seguimiento hasta LIMPIO y primera aportación, o formulario estructurado cerrado. Plan y BR-D08 aprobados por Adenda 56. Conserva diseño v2, permiso y autorización en servidor, 15 MiB, CSRF, idempotencia y auditoría. Sin preview, descarga ni tareas posteriores. Resultado, validaciones, capturas sintéticas y límites en [FRONT_017_CARGA_Y_APORTE.md](docs/traceability/FRONT_017_CARGA_Y_APORTE.md). Sin publicación o despliegue de este hito.

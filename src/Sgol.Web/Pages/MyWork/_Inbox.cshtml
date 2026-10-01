@@ -30,6 +30,8 @@
                     </td>
                     <td>@if (Model.CanViewTasks && item.AllowedActions.Contains("VIEW_TASK"))
                         { <a class="boton boton--textual tabla__accion" href="@Model.DetailHref(item.ObligationId)">Ver tarea<partial name="_Icon" model='@("arrow")' /></a> }
+                        @if (Model.CanViewTasks && item.AllowedActions.Contains("CONTRIBUTE_EVIDENCE"))
+                        { <a class="boton boton--textual tabla__accion" href="@Model.DetailHref(item.ObligationId)#aportar-evidencia">Aportar evidencia</a> }
                     </td>
                 </tr>
             }

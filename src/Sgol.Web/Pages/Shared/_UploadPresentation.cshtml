@@ -21,7 +21,7 @@
 <div class="subida @stateClass" role="group" aria-labelledby="@($"{Model.Id}-title")" aria-busy="@isBusy.ToString().ToLowerInvariant()">
     <span id="@($"{Model.Id}-title")" class="subida__titulo">@Model.Label</span>
     <label class="subida__zona">
-        <input id="@Model.Id" name="@Model.Id" type="file" class="subida__input" disabled="@Model.IsDisabled" />
+        <input id="@Model.Id" name="@Model.Id" type="file" class="subida__input" disabled="@Model.IsDisabled" accept="@Model.Accept" aria-labelledby="@($"{Model.Id}-title")" aria-describedby="@(string.IsNullOrWhiteSpace(Model.Message) ? null : $"{Model.Id}-help")" />
         <span class="subida__instruccion">Arrastra un archivo o haz clic para seleccionar</span>
     </label>
     @if (!string.IsNullOrWhiteSpace(Model.FileName))
@@ -30,12 +30,12 @@
     }
     @if (Model.ProgressPercent is not null)
     {
-        <progress class="subida__progreso" max="100" value="@Model.ProgressPercent">@Model.ProgressPercent%</progress>
+        <progress class="subida__progreso" max="100" value="@Model.ProgressPercent" aria-label="Progreso de carga">@Model.ProgressPercent%</progress>
     }
-    <p class="subida__estado" role="status" aria-live="polite"><span aria-hidden="true">●</span> @statusText</p>
+    @if (Model.ShowState) { <p class="subida__estado" role="status" aria-live="polite"><span aria-hidden="true">●</span> @statusText</p> }
     @if (!string.IsNullOrWhiteSpace(Model.Message))
     {
-        <p class="subida__mensaje">@Model.Message</p>
+        <p id="@($"{Model.Id}-help")" class="subida__mensaje">@Model.Message</p>
     }
     @if (Model.State == UploadPresentationState.Uploading)
     {

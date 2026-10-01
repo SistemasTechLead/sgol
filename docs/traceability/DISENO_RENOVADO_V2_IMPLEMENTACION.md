@@ -1,6 +1,10 @@
 # SGOL — Implementación local del estilo visual v2
 
-2026-09-30. Único hito de adaptación de pantallas existentes, FRONT-001..016. **Implementada localmente; pantallas aprobadas por el responsable. Publicación pendiente de resolver la fuente.** No se inicia FRONT-017..020 ni se amplía el catálogo MVP.
+2026-09-30. Único hito de adaptación de pantallas existentes, FRONT-001..016. **Integrada mediante PR #85**, con Georgia del sistema y Poppins local OFL; The Seasons excluida del repositorio y del historial publicado. No se implementa FRONT-017..020 ni se amplía el catálogo MVP por este hito. Los apartados siguientes conservan la secuencia histórica de implementación, revisión, publicación y reparación.
+
+## Evidencia vigente de integración — reconciliación al preparar FRONT-017
+
+El responsable aportó en este chat la integración del [PR #85](https://github.com/SistemasTechLead/sgol/pull/85), cabeza validada `14e4f99995082672b77d0cfca138c183d0999e02`, [run final correcto 36797097416](https://github.com/SistemasTechLead/sgol/actions/runs/36797097416), merge `754029d7f3fce8f5eec9961824ad336930d235dc`. El objeto de merge está disponible localmente y tiene la cabeza validada como segundo padre. Se acepta esa evidencia sin repetir gates, ejecutar checks remotos o reabrir el hito. Las esperas de fuente, publicación y pipeline de abajo son históricas, superadas por exclusión aprobada de The Seasons y resultado final. Esta actualización documental forma parte de la preparación de FRONT-017, sin otro PR administrativo. No autoriza despliegue. Zoom nativo, lector de pantalla y dispositivos físicos conservan Validación diferida; CSS 200 % y reflow no los sustituyen.
 
 ## Autorización, base y conservación
 

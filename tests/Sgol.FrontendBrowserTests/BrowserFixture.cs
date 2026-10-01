@@ -44,6 +44,7 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
 
     // Optional, closed stage names only: no credentials, connection strings or response data.
     public Action<string>? Progress { get; set; }
+    public Func<Uri, Task<IReadOnlyDictionary<string, string>>>? ConfigureEvidence { get; set; }
 
     public Uri BaseAddress { get; private set; } = null!;
     public IReadOnlyList<BrowserAccount> Accounts { get; } =
@@ -155,11 +156,13 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
             WorkingDirectory = Path.Combine(RepositoryRoot(), "src", "Sgol.Web")
         };
         start.ArgumentList.Add(assembly);
-        start.Environment["ASPNETCORE_ENVIRONMENT"] = "IntegrationTests";
+        start.Environment["ASPNETCORE_ENVIRONMENT"] = ConfigureEvidence is null ? "IntegrationTests" : "CI";
         start.Environment["ASPNETCORE_URLS"] = BaseAddress.AbsoluteUri;
         start.Environment["ConnectionStrings__Sgol"] = connection;
         start.Environment["Kestrel__Certificates__Default__Path"] = certificatePath;
         start.Environment["Kestrel__Certificates__Default__Password"] = password;
+        if (ConfigureEvidence is not null)
+            foreach (var pair in await ConfigureEvidence(BaseAddress)) start.Environment[pair.Key] = pair.Value;
         web = new Process { StartInfo = start };
         if (!web.Start()) throw new InvalidOperationException("Kestrel did not start.");
         stdoutDrain = DrainAsync(web.StandardOutput);

@@ -1,0 +1,127 @@
+@model Sgol.Web.Pages.MyWork.DetailsModel
+@using Sgol.Web.Presentation.MyWork
+@if (Model.CanContribute)
+{
+    <section id="aportar-evidencia" class="panel-seccion mi-trabajo__seccion" aria-labelledby="evidence-title" data-selected-requirement="@Model.SelectedRequirement?.RequirementCode">
+        <header class="panel-seccion__cabecera"><h2 id="evidence-title" tabindex="-1">Aportar evidencia</h2></header>
+        <div class="evidencia__contenido">
+        @if (Model.EvidenceSuccess is not null)
+        { <p class="alerta alerta--exito" role="status" tabindex="-1" data-evidence-success><partial name="_Icon" model='@("check")' /> @Model.EvidenceSuccess</p> }
+        @if (Model.EvidenceError is not null)
+        {
+            <div tabindex="-1" data-evidence-error><partial name="_ProblemAlert" model="Model.EvidenceError" />
+                @if (Model.SelectedRequirement is { } invalidRequirement && Model.InvalidEvidenceFields.Count > 0)
+                {
+                    <ul>@foreach (var field in EvidenceContributionPresentation.Inputs(invalidRequirement.RequirementCode).Where(f => Model.InvalidEvidenceFields.Contains(f.Name)))
+                    { <li><a href="@("#" + (field.Type == "boolean" ? field.Name + "-true" : "evidence-" + field.Name))">@field.Label</a></li> }</ul>
+                }
+            </div>
+        }
+        @if (Model.Detail?.EvidencePolicy is null)
+        { <partial name="_EmptyState" model='@(new EmptyStateViewModel("Esta tarea no tiene una política de evidencia disponible."))' /> }
+        else if (Model.EvidenceError is null || Model.SelectedRequirement is not null || Model.PreparedEvidence is not null)
+        {
+            <ol class="evidencia__requisitos">
+            @foreach (var requirement in Model.Detail.EvidencePolicy.Requirements)
+            { <li data-evidence-requirement="@requirement.RequirementCode"><span>@requirement.RequirementCode</span> · @requirement.Kind
+                <span data-evidence-recorded>@if (Model.ExistingRequirements.Contains(requirement.RequirementCode)) { <text> — Se aportó la evidencia.</text> }</span>
+            </li> }
+            </ol>
+            @if (Model.PreparedEvidence is not null)
+            {
+                <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="SendEvidence" class="evidencia__formulario" data-evidence-submit>
+                    <input type="hidden" name="intention" value="@Model.PreparedEvidence" />
+                    <button class="boton boton--primario" type="submit">Aportar evidencia</button>
+                    <a class="boton boton--secundario" href="@Model.ReloadHref#aportar-evidencia">Volver al detalle</a>
+                </form>
+            }
+            else if (Model.Detail.EvidencePolicy.Requirements.All(r => Model.ExistingRequirements.Contains(r.RequirementCode)))
+            { <partial name="_EmptyState" model='@(new EmptyStateViewModel("No hay requisitos disponibles para una primera aportación."))' /> }
+            else
+            {
+                <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="SelectEvidence" class="evidencia__formulario" data-evidence-submit>
+                    <label class="campo" for="evidence-requirement"><span class="campo__etiqueta">Requisito</span>
+                    <select id="evidence-requirement" name="requirementCode" class="campo__control" required>
+                        <option value="">Selecciona un requisito para aportar evidencia.</option>
+                        @foreach (var r in Model.Detail.EvidencePolicy.Requirements.Where(r => !Model.ExistingRequirements.Contains(r.RequirementCode)))
+                        { <option value="@r.RequirementCode" selected="@(Model.SelectedRequirement?.RequirementCode == r.RequirementCode)">@r.RequirementCode</option> }
+                    </select></label>
+                    <button class="boton boton--secundario" type="submit">Seleccionar requisito</button>
+                </form>
+                @if (Model.SelectedRequirement is { } selected && selected.ConditionCode == "DIFERENCIA_O_DANO" && Model.DifferenceOrDamage != true)
+                { <p>@EvidenceContributionPresentation.Message(422, Model.DifferenceOrDamage is null ? "CONDICION_EVIDENCIA_NO_RESUELTA" : "REQUISITO_EVIDENCIA_NO_APLICABLE")</p> }
+                else if (Model.SelectedRequirement is { } requirement)
+                {
+                    <h3>@requirement.RequirementCode</h3>
+                    <p data-evidence-empty>Aún no hay evidencia aportada para este requisito.</p>
+                    @if (Model.IsBinary)
+                    {
+                        <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="PrepareUpload" class="evidencia__formulario" data-evidence-upload data-kind="@requirement.Kind" data-reload="@Model.ReloadHref">
+                            <input type="hidden" name="requirementCode" value="@requirement.RequirementCode" />
+                            <partial name="_UploadPresentation" model='@(new UploadPresentationViewModel("evidence-file", "Archivo de evidencia", UploadPresentationState.Ready,
+                                Message: "Selecciona un archivo del tipo permitido, de hasta 15 MiB.", Accept: requirement.Kind == "FOTOGRAFIA" ? ".jpg,.jpeg,.png,image/jpeg,image/png" : ".pdf,application/pdf", ShowState: false))' />
+                            @if (requirement.RequirementCode == "DOCUMENTO_RECEPCION")
+                            {
+                                <label class="campo"><span class="campo__etiqueta">Tipo de documento</span>
+                                <select name="documentSubtype" class="campo__control" required><option value="">Selecciona un tipo</option><option value="NOTA">Nota</option><option value="REMISION">Remisión</option><option value="FACTURA">Factura</option></select></label>
+                            }
+                            <span data-upload-name></span>
+                            <progress class="subida__progreso" max="100" value="0" aria-label="Progreso de carga" data-upload-progress hidden></progress>
+                            <p role="status" aria-live="polite" data-upload-status><span data-upload-icon><partial name="_Icon" model='@("clock")' /></span><span data-upload-status-text></span></p>
+                            @foreach (var icon in new[] { "clock", "check", "shield", "alert" }) { <template data-scan-icon="@icon"><partial name="_Icon" model="icon" /></template> }
+                            <div class="alerta alerta--peligro" role="alert" tabindex="-1" data-upload-error hidden><partial name="_Icon" model='@("alert")' /><span data-upload-error-text></span></div>
+                            <div class="acciones-formulario">
+                                <button class="boton boton--primario" type="submit" data-upload-start disabled>Cargar archivo</button>
+                                <button class="boton boton--secundario" type="button" data-upload-cancel hidden>Cancelar carga</button>
+                                <button class="boton boton--secundario" type="button" data-upload-recover hidden>Recuperar resultado</button>
+                                <button class="boton boton--secundario" type="button" data-upload-refresh hidden>Actualizar estado</button>
+                                <button class="boton boton--secundario" type="button" data-upload-stop hidden>Detener seguimiento</button>
+                                <button class="boton boton--primario" type="button" data-upload-contribute hidden disabled>Aportar evidencia</button>
+                                <button class="boton boton--secundario" type="button" data-upload-new hidden>Preparar otra carga</button>
+                            </div>
+                            <noscript><p>Para cargar un archivo, activa JavaScript y recarga esta página.</p></noscript>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="PrepareEvidence" class="evidencia__formulario" data-evidence-submit>
+                            <input type="hidden" name="requirementCode" value="@requirement.RequirementCode" />
+                            @foreach (var field in EvidenceContributionPresentation.Inputs(requirement.RequirementCode))
+                            {
+                                var error = Model.InvalidEvidenceFields.Contains(field.Name);
+                                var errorId = "evidence-" + field.Name + "-error";
+                                var helpId = field.Type is "datetime-local" or "uuid" ? "evidence-" + field.Name + "-help" : null;
+                                var description = string.Join(" ", new[] { error ? errorId : null, helpId }.Where(v => v is not null));
+                                if (field.Type == "boolean")
+                                {
+                                    <partial name="_RadioGroup" model='@(new RadioGroupViewModel(field.Name, field.Label,
+                                        field.Options!.Select(o => new RadioOption(o, EvidenceContributionPresentation.Option(o), Model.EvidenceValue(field.Name) == o)).ToArray(),
+                                        ErrorMessage: error ? "Revisa los datos del requisito seleccionado." : null))' />
+                                }
+                                else
+                                {
+                                    <label class="campo @(error ? "campo--error" : "")" for="@("evidence-" + field.Name)"><span class="campo__etiqueta">@field.Label</span>
+                                    @if (field.Type == "textarea")
+                                    { <textarea id="@("evidence-" + field.Name)" name="@field.Name" class="campo__control" maxlength="500" required="@(!field.Nullable)" aria-invalid="@error.ToString().ToLowerInvariant()" aria-describedby="@(description.Length == 0 ? null : description)">@Model.EvidenceValue(field.Name)</textarea> }
+                                    else if (field.Type == "select")
+                                    {
+                                        <select id="@("evidence-" + field.Name)" name="@field.Name" class="campo__control" required aria-invalid="@error.ToString().ToLowerInvariant()" aria-describedby="@(description.Length == 0 ? null : description)"><option value="">Selecciona una opción</option>
+                                        @foreach (var option in field.Options!) { <option value="@option" selected="@(Model.EvidenceValue(field.Name) == option)">@EvidenceContributionPresentation.Option(option)</option> }</select>
+                                    }
+                                    else
+                                    { <input id="@("evidence-" + field.Name)" name="@field.Name" class="campo__control" type="@(field.Type == "uuid" ? "text" : field.Type)" value="@Model.EvidenceValue(field.Name)" step="@(field.Type == "number" ? "0.01" : null)" maxlength="@(field.Type == "text" ? "120" : null)" required="@(!field.Nullable)" aria-invalid="@error.ToString().ToLowerInvariant()" aria-describedby="@(description.Length == 0 ? null : description)" /> }
+                                    @if (field.Type == "datetime-local") { <span id="@helpId" class="campo__ayuda">Hora de Ciudad de México · America/Mexico_City</span> }
+                                    @if (field.Type == "uuid") { <span id="@helpId" class="campo__ayuda">UUID de la persona</span> }
+                                    @if (error) { <span id="@errorId" class="campo__mensaje-error"><span aria-hidden="true">!</span> Revisa los datos del requisito seleccionado.</span> }
+                                    </label>
+                                }
+                            }
+                            <button class="boton boton--primario" type="submit">Aportar evidencia</button>
+                        </form>
+                    }
+                }
+            }
+        }
+        </div>
+    </section>
+}

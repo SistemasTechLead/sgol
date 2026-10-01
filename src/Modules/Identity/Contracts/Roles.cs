@@ -147,7 +147,8 @@ public static class RolePermissionProjection
             return [];
         }
 
-        var permissions = new List<string> { "PER-BANDEJA-PROPIA", "PER-OBLIGACION-PROPIA-VER", "PER-PLAN-VER", "PER-TAREA-VER" };
+        // Presentation capability only: Evidence reauthorizes current responsibility and state on every request.
+        var permissions = new List<string> { "PER-BANDEJA-PROPIA", "PER-OBLIGACION-PROPIA-VER", "PER-PLAN-VER", "PER-TAREA-VER", "PER-EVIDENCIA-APORTAR" };
         if (RoleHierarchy.GrantsSupervisionView(roleCode))
         {
             permissions.Add("PER-SUPERVISION-VER");

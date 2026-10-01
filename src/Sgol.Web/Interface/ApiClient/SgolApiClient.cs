@@ -13,7 +13,7 @@ public interface ISgolApiClient
 public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor contextAccessor) : ISgolApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly HashSet<int> ErrorStatuses = [400, 401, 403, 404, 409, 412, 413, 415, 422, 423, 428, 429, 500, 503];
+    private static readonly HashSet<int> ErrorStatuses = [400, 401, 403, 404, 409, 410, 412, 413, 415, 422, 423, 428, 429, 500, 503];
 
     public async Task<ApiResponse<T>> SendAsync<T>(ApiRequest request, CancellationToken cancellationToken = default)
     {
@@ -51,6 +51,7 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
         HttpResponseMessage received;
         try { received = await httpClient.SendAsync(outbound, HttpCompletionOption.ResponseHeadersRead, cancellationToken); }
         catch (HttpRequestException) { throw new ApiProtocolException(); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new ApiProtocolException(); }
         using var response = received;
         var status = (int)response.StatusCode;
         IReadOnlyList<string> responseCookies;
