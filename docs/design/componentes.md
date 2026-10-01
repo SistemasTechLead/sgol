@@ -2,7 +2,7 @@
 
 ## Precisión vigente del estilo v2
 
-La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las correcciones y el complemento fueron aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». La implementación local se registra por grupo en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md); la aprobación del diseño no equivale a publicación o integración. Los contratos y mensajes funcionales se conservan.
 
 ## Referencia renovada aprobada — composición compartida
 
@@ -224,7 +224,7 @@ Componente central del sistema — la mayoría de las pantallas son variaciones 
 
 | Estado | Descripción visual | Tokens |
 |---|---|---|
-| Normal | Encabezado en superficie blanca, texto secundario en peso medio, filas en superficie con borde inferior sutil. | `--color-superficie-elevada`, `--color-texto-secundario`, `--color-borde` |
+| Normal | Encabezado en superficie blanca, texto secundario en peso medio, filas en superficie con borde inferior sutil. | `--color-superficie`, `--color-texto-secundario`, `--color-borde` |
 | Fila hover | Fondo superficie-elevada. | `--color-superficie-elevada` |
 | Fila con foco (navegación por teclado, si la tabla es interactiva) | Anillo interno de acento en la celda activa. | `--color-acento` |
 | Encabezado ordenable, foco visible | Anillo de acento en el botón de la columna. | `--color-acento` |
@@ -261,7 +261,7 @@ Componente central del sistema — la mayoría de las pantallas son variaciones 
 ```
 
 ```css
-.tabla__encabezado { background: var(--color-superficie-elevada); }
+.tabla__encabezado { background: var(--color-superficie); }
 .tabla__encabezado th { font: var(--tipografia-pequena); color: var(--color-texto-secundario); padding: var(--espacio-8) var(--espacio-12); }
 .tabla__fila td { font: var(--tipografia-base); color: var(--color-texto-primario); padding: var(--espacio-8) var(--espacio-12); border-bottom: var(--grosor-borde) solid var(--color-borde); }
 .tabla__fila:hover { background: var(--color-superficie-elevada); }

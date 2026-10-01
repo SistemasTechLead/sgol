@@ -391,4 +391,6 @@ Actualización incremental: 2026-09-30. Adenda 55 libre y verificada antes de cr
 | Adenda 55 — adopción de FRONT-017..020 y transición | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 17 | 21 |
 | Adenda 55 — evidencia y siguiente hito | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 23 | 27 |
 
+| Adenda 55 — aprobación de implementación v2 | `F07_ADENDA_55_REFERENCIA_DE_DISENO_RENOVADO.md` | 37 | 41 |
+
 Entrada operativa: `docs/design/referencia-renovada.md`. Evidencia: `docs/traceability/DISENO_RENOVADO_REFERENCIA.md`. El suplemento conserva literalmente los IDs y contratos; referencia documentada no equivale a diseño implementado.

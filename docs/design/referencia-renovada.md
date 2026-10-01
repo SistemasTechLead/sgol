@@ -2,7 +2,7 @@
 
 ## Precisión vigente del estilo v2
 
-La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las correcciones y el complemento fueron aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». La implementación local se registra por grupo en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md); la aprobación del diseño no equivale a publicación o integración. Los contratos y mensajes funcionales se conservan.
 
 ## Aprobación y fuente operativa
 
@@ -70,3 +70,7 @@ Selección del responsable: `native.html` en `C:/Users/siste/.codex/visualizatio
 Las reglas oficiales anteriores son autocontenidas: no requieren esa ruta externa ni archivos de demostración. Se excluyen comparación, selectores de muestra, acciones/diálogo simulados, aliases auxiliares innecesarios y toda inferencia funcional. Las capturas son maquetas sintéticas, no evidencia de integración ni WCAG completa. Fuentes/ e identidad congelada permanecen protegidas.
 
 Evidencia de verificación en [DISENO_RENOVADO_REFERENCIA.md](../traceability/DISENO_RENOVADO_REFERENCIA.md). Mensaje completo del siguiente hito en [DISENO_RENOVADO_SIGUIENTE_HITO.md](../traceability/DISENO_RENOVADO_SIGUIENTE_HITO.md). No se ejecuta ese hito ni se crea otro chat desde esta tarea.
+
+## Transición vigente tras la aprobación v2
+
+El hito de adaptación y sus correcciones ya tienen aprobación de implementación. La tabla anterior conserva el cierre histórico exclusivamente documental. La referencia actual es ESTILO_VISUAL_V2.md; código y comprobaciones por G0–G4 están en ../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md. Las próximas historias leen esta guía, tokens y componentes locales; no copian maquetas ni incorporan sus acciones simuladas. No hay nuevas historias, nuevos commits o publicación por esta actualización.

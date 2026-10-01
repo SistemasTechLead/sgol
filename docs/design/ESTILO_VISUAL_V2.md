@@ -2,7 +2,7 @@
 
 ## Estado y precedencia
 
-2026-09-30. El responsable acepta la base v2 mediante «Todas las demas pantallas están correctas, utilizaste bien el diseño que te mandé» y ordena actualizar la referencia operativa. Las correcciones de Detalle de persona, selector de release TAR, mensajes de plan y Acceso se presentan para revisión antes de modificar interfaz productiva. Esto documenta diseño; no acredita implementación, publicación ni integración.
+2026-09-30. El responsable acepta la base v2 mediante «Todas las demas pantallas están correctas, utilizaste bien el diseño que te mandé» y ordena actualizar la referencia operativa. El responsable aprobó después las correcciones y su implementación: «Apruebo las correcciones y el complemento del plan para implementar». Esta guía define la referencia; el código, capturas y comprobaciones se registran por separado en ../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md. Publicación e integración requieren evidencia y autorización propias.
 
 Complementa Adenda 55 y precisa sus reglas visuales. Prevalece sobre ejemplos visuales anteriores incompatibles de docs/design y del plan documental. Los contratos funcionales, permisos, mensajes de error, estados y navegación conservan su autoridad. Las tareas futuras consumen esta base sin exigir adaptar todo el sistema ni adelantar FRONT-017..020.
 
@@ -17,7 +17,7 @@ Complementa Adenda 55 y precisa sus reglas visuales. Prevalece sobre ejemplos vi
 - Poppins local para operación (400/500/600); The Seasons Regular local sólo en bienvenida. La bienvenida usa tamaño propio por token y no transmite ese tamaño a formularios o celdas.
 - Se conservan los seis estados, áreas mínimas, reflow, textos ampliados y movimiento reducido. Iconos decorativos aria-hidden y etiqueta visible; no sustituyen el texto. Enlaces de contenido en prosa mantienen subrayado; controles de navegación/acción textual usan área de botón, flecha cuando corresponda y foco visible, sin contorno rojo.
 
-## Correcciones pedidas y presentadas para revisión
+## Correcciones aprobadas
 
 ### Detalle de persona
 
@@ -45,15 +45,25 @@ Texto de bienvenida: Tu espacio de trabajo. Ubicación visual solicitada: Delici
 
 | Recurso | Procedencia | Incorporación productiva |
 |---|---|---|
-| Poppins Regular/Medium/SemiBold | Google Fonts oficial, ofl/poppins; licencia OFL | Prevista como fuente local; conservar licencia |
-| The Seasons Regular | Archivo aportado por el responsable fuera de Fuentes | Prototipo privado; pendiente documento de derechos para alojamiento/redistribución web antes de publicación |
+| Poppins Regular/Medium/SemiBold | Google Fonts oficial, ofl/poppins; licencia OFL | Incorporada localmente; licencia OFL conservada |
+| The Seasons Regular | Archivo aportado por el responsable fuera de Fuentes | Uso local privado; pendiente documento de derechos para alojamiento/redistribución web antes de publicación |
 | Logo Loretta | EPS aportado por el responsable fuera de Fuentes | SVG derivado conservando curvas, relleno oscuro; original intacto |
 | Iconos | SVG propios de línea | Parcial/helper compartido, sin librería |
 
-Recursos productivos previstos: wwwroot/fonts/Poppins-Regular.ttf, Poppins-Medium.ttf, Poppins-SemiBold.ttf, The-Seasons-Regular.ttf; wwwroot/images/loretta.svg. No se leen ni trasladan archivos congelados. No introducir fuentes remotas. Las reglas y valores de esta guía son autocontenidos; la ruta externa del prototipo no es dependencia operativa de próximas historias.
+Recursos incorporados localmente: wwwroot/fonts/Poppins-Regular.ttf, Poppins-Medium.ttf, Poppins-SemiBold.ttf, The-Seasons-Regular.ttf; wwwroot/images/loretta.svg. No se leen ni trasladan archivos congelados. No introducir fuentes remotas. Las reglas y valores de esta guía son autocontenidos; la ruta externa del prototipo no es dependencia operativa de próximas historias.
 
-## Verificación e implementación posterior
+## Verificación de implementación
 
-Antes de trasladar a código: revisión de las vistas corregidas y aceptación del complemento al único plan de implementación. Luego layout, variables y componentes primero, pantallas existentes por grupos, preservando endpoints, sesión, autorización servidor, CSRF, idempotencia, If-Match y cursores.
+Correcciones y complemento aprobados. Orden de implementación: layout, variables y componentes primero, pantallas existentes por grupos, preservando endpoints, sesión, autorización servidor, CSRF, idempotencia, If-Match y cursores.
 
 Comprobar build y pruebas afectadas, sintéticos, teclado/foco/retorno, contraste, controles de 44px, texto ampliado, reflow y movimiento reducido. Actualizar trazabilidad por grupo con evidencia real y causas exactas de validaciones diferidas. No publicar, crear PR, ejecutar gates remotos, merge o despliegue sin autorización expresa correspondiente.
+
+## Precisiones verificables del consumo v2
+
+El helper de Acceso «Ingresa con tu usuario de SGOL.» procede de la propuesta aprobada y acompaña sólo el paso login; no sustituye mensajes de autenticación. Mostrar/Ocultar conserva etiqueta, aria-pressed e icono de ojo; se coloca en fila propia, acción textual, gap --espacio-16. El progreso conserva los mensajes existentes.
+
+Tablas: cabecera blanca, padding --espacio-16 en celdas y --espacio-12 en estrecho; caption legible. Paneles: padding --espacio-24, --espacio-16 estrecho; filtros dentro de superficie elevada con padding --espacio-16 y gap --espacio-12. La bandeja usa --ancho-tabla-bandeja y Ver tarea no se parte en dos líneas. Los avisos conservan nombre/código de tarea y todas sus acciones.
+
+Las palabras largas de paneles pueden partirse para texto al 200 %, sin ocultar datos ni overflow global. Fieldset/legend no imponen mínimos que excedan el formulario. Radio conserva indicador de --espacio-24 y su etiqueta clicable de al menos --alto-control-minimo. Navegación modal mantiene Escape y retorno; Tab/Shift+Tab recorre y envuelve sus controles visibles en ambos motores, sin cambiar permisos ni rutas.
+
+Las tablas conservan partición normal de palabras y pueden exceder el ancho estrecho sólo dentro de su contenedor desplazable; los badges no parten etiquetas en caracteres. Esto evita tablas con columnas de una letra y mantiene legibilidad. Las acciones directas de planificación conservan ancho de contenido también cuando su panel usa grid.

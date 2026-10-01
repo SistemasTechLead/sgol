@@ -33,3 +33,9 @@ El responsable acepta las demás pantallas de la propuesta externa v2 y ordena a
 Detalle de persona, selector/acción de release TAR, conflicto/resultado incierto del plan y marca/versionado/ubicación de acceso requieren la revisión visual solicitada antes de interfaz productiva. El texto Delicias, Chihuahua no modifica America/Mexico_City ni datos contractuales de LOR-001. La versión procede del ensamblado Web; no se inventa una release comercial.
 
 Las ocho TAR se presentan mediante una plantilla única seleccionada por taskCode; las variantes de maqueta no son nuevas rutas. Crear más TAR permanece fuera del MVP y no se implementa en este hito. La base documentada permite consumir el estilo en próximas historias sin migración completa previa. Fuentes y originales congelados intactos; no hay autorización de publicación, merge o despliegue. La aprobación visual aún requerida de las correcciones no invalida las pantallas de base ya aceptadas.
+
+## 6. Aprobación de correcciones e implementación v2 — 2026-09-30
+
+El responsable aprueba expresamente las correcciones y el complemento del único plan: «Apruebo las correcciones y el complemento del plan para implementar». Se autoriza adaptar las pantallas existentes de FRONT-001..016 a ESTILO_VISUAL_V2.md, conservando contratos y exclusiones. Los §§4–5 conservan el registro documental histórico; su revisión pendiente quedó superada por esta aprobación. Código y validaciones se acreditan por grupo en docs/traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md, sin reaprobar historias anteriores.
+
+La instrucción vigente exige capturas implementadas y concordancia con la guía antes de una aprobación explícita posterior para nuevos commits, push y un único PR de todo el hito. No hay autorización de publicación, merge ni despliegue. Las próximas historias consumen estos componentes y tokens dentro de su propio alcance, sin migración completa como dependencia.

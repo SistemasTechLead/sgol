@@ -26,6 +26,8 @@
     if (roleName is null) session = null;
     var visibleItems = RoleAwareNavigation.VisibleTo(session, navigationItems);
     var hasNavigation = visibleItems.Count > 0;
+    var initials = session is null ? "" : string.Concat(session.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[..1])).ToUpperInvariant();
+    var accessPage = ViewData["SkipSession"] is true;
     var expiration = session is null ? (DateTimeOffset?)null : SessionPresentation.EffectiveExpiration(session);
 }
 <!DOCTYPE html>
@@ -37,13 +39,14 @@
     <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
 </head>
-<body>
+<body class="@(accessPage ? "pagina-acceso" : null)">
     <a class="salto-contenido" href="#contenido-principal">Saltar al contenido principal</a>
     <div class="aplicacion @(!shell ? "aplicacion--acceso" : !hasNavigation ? "aplicacion--sin-navegacion" : null)">
         <header class="encabezado-aplicacion">
-            <span class="encabezado-aplicacion__marca" aria-label="Sistema de Gestión Operativa Loretta">SGOL</span>
+            <span class="encabezado-aplicacion__marca">@title</span>
             @if (session is not null)
             {
+                <span class="avatar-sesion" aria-hidden="true">@initials</span>
                 <div class="encabezado-aplicacion__identidad">
                     <span class="encabezado-aplicacion__sesion">@session.DisplayName</span>
                     <span class="encabezado-aplicacion__rol">@roleName</span>
@@ -54,18 +57,19 @@
                 </div>
                 <form method="post" action="/mi-trabajo" asp-antiforgery="false" class="encabezado-aplicacion__logout" data-logout-form>
                     <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
-                    <button class="boton boton--secundario" type="submit">Cerrar sesión</button>
+                    <button class="boton boton--textual" type="submit"><partial name="_Icon" model='@("logout")' />Cerrar sesión</button>
                 </form>
                 @if (hasNavigation)
                 {
                     <button class="boton boton--secundario navegacion-movil__abrir" type="button"
-                            data-dialog-open aria-controls="navegacion-movil">Navegación principal</button>
+                            data-dialog-open aria-controls="navegacion-movil"><partial name="_Icon" model='@("menu")' /><span class="solo-lectores">Navegación principal</span></button>
                 }
             }
         </header>
         @if (hasNavigation)
         {
         <aside class="barra-lateral">
+            <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /><p>SGOL · Gestión operativa</p></div>
             <nav class="navegacion-lateral navegacion-lateral--escritorio" aria-label="Navegación principal">
                 <ul class="navegacion-lateral__lista">
                     @foreach (var item in visibleItems)
@@ -74,20 +78,22 @@
                             <a class="navegacion-lateral__item"
                                href="@item.Href"
                                aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)">
-                                @item.Label
+                                <partial name="_Icon" model='@(item.Label switch { "Configuración" => "settings", "Planificación" => "calendar", "Personas y accesos" => "users", _ => "list" })' />@item.Label
                             </a>
                         </li>
                     }
                 </ul>
             </nav>
+            <div class="sucursal-contexto"><span>Sucursal</span><strong>Loretta · @session!.BranchCode</strong><small>Hora operativa de Ciudad de México</small></div>
                 <dialog id="navegacion-movil" class="navegacion-movil" aria-label="Navegación principal">
-                    <form method="dialog"><button class="boton boton--secundario" type="submit" data-initial-focus>Cerrar navegación</button></form>
+                    <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /><p>SGOL · Gestión operativa</p></div>
+                    <form method="dialog"><button class="boton boton--secundario" type="submit" data-initial-focus><partial name="_Icon" model='@("close")' />Cerrar navegación</button></form>
                     <nav aria-label="Navegación principal móvil">
                         <ul class="navegacion-lateral__lista">
                             @foreach (var item in visibleItems)
                             {
                                 <li><a class="navegacion-lateral__item" href="@item.Href"
-                                       aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)">@item.Label</a></li>
+                                       aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)"><partial name="_Icon" model='@(item.Label switch { "Configuración" => "settings", "Planificación" => "calendar", "Personas y accesos" => "users", _ => "list" })' />@item.Label</a></li>
                             }
                         </ul>
                     </nav>

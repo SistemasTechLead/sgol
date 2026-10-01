@@ -62,7 +62,7 @@
                                     {
                                         @foreach (var action in Model.RowActions[rowIndex])
                                         {
-                                            <a class="boton boton--secundario tabla__accion" href="@action.Href">@action.Label</a>
+                                            <a class="boton boton--textual tabla__accion" href="@action.Href">@action.Label<partial name="_Icon" model='@("arrow")' /></a>
                                         }
                                     }
                                 </div>

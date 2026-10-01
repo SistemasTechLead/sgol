@@ -77,4 +77,16 @@
   --duracion-esqueleto: 1.4s;
   --peso-medio: 500;
   --peso-fuerte: 600;
+
+  /* Estilo v2 aceptado: composición y marca */
+  --alto-encabezado: 88px;
+  --diametro-avatar: 40px;
+  --ancho-logo: 176px;
+  --ancho-logo-bienvenida: 256px;
+  --alto-bienvenida: 680px;
+  --ancho-acceso: 1040px;
+  --grosor-icono: 1.65;
+  --ancho-filtro: 192px;
+  --ancho-tabla-bandeja: 840px;
+  --tipografia-bienvenida: 400 48px/56px var(--fuente-marca);
 }

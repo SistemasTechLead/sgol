@@ -2,7 +2,7 @@
 
 ## Precisión vigente del estilo v2
 
-La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las cuatro correcciones solicitadas siguen en revisión visual; no hay nueva implementación productiva por este registro. Los contratos y mensajes funcionales se conservan.
+La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las correcciones y el complemento fueron aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». La implementación local se registra por grupo en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md); la aprobación del diseño no equivale a publicación o integración. Los contratos y mensajes funcionales se conservan.
 
 Variables CSS del sistema de diseño, organizadas por el rol que cumplen en la interfaz. Ningún nombre de variable usa el nombre del color: se nombran por función, para que un cambio de paleta futuro no obligue a renombrar nada.
 
@@ -131,7 +131,7 @@ El viewport estrecho comienza en `48rem`. Este umbral se declara literalmente s�
 | `--peso-medio` | `500` | Nombres de registros, navegación y columnas. |
 | `--peso-fuerte` | `600` | Énfasis puntual de valores y títulos. |
 
-Las hojas consumidoras usan variables también para borde, foco y área mínima. No se importan aliases de la maqueta, anchos por columna, mínimo universal de tabla, avatar, tracking ni tiempos adicionales. La regla de `@media` anterior es la única excepción para su umbral; no habilita tamaños, espaciados o colores literales en consumidores.
+Las hojas consumidoras usan variables también para borde, foco y área mínima. No se importan aliases de la maqueta, anchos por columna, tracking ni tiempos adicionales. El avatar y el mínimo específico de la bandeja usan exclusivamente las primitivas v2 declaradas debajo. La regla de `@media` anterior es la única excepción para su umbral; no habilita tamaños, espaciados o colores literales en consumidores.
 
 ## Bloque `:root` completo
 
