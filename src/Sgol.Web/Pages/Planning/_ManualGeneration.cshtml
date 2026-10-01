@@ -182,7 +182,7 @@
                 }
                 <a class="boton boton--secundario" href="/planificacion?isoYear=@Model.IsoYear&amp;isoWeek=@Model.IsoWeek&amp;from=@Model.From&amp;to=@Model.To&amp;generationRequestId=@result.GenerationRequestId#alta-manual">Consultar resultado</a>
                 @if (result.ObligationId is { } obligationId && Model.CanViewAssignments && Model.CanExplainAssignment)
-                { <a class="boton boton--secundario" href="/planificacion?obligationId=@obligationId#asignaciones">Consultar asignación</a> }
+                { <a class="boton boton--textual" href="/planificacion?obligationId=@obligationId#asignaciones">Consultar asignación<partial name="_Icon" model='@("arrow")' /></a> }
             </div>
         }
     }

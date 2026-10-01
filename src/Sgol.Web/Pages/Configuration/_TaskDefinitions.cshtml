@@ -44,7 +44,7 @@
                             <td>@item.Name</td>
                             <td>@if (item.Current is null) { <span>Sin versión publicada</span> }
                                 else { <span class="badge @Model.TaskBadgeClass(item.Current.Status)"><span aria-hidden="true">@Model.TaskBadgeIcon(item.Current.Status)</span>@Model.TaskStatusText(item.Current.Status)</span> }</td>
-                            <td><a class="boton boton--secundario tabla__accion" href="/configuracion?taskCode=@item.TaskCode#task-detail">Ver detalle de @item.TaskCode</a></td>
+                            <td><a class="boton boton--textual tabla__accion" href="/configuracion?taskCode=@item.TaskCode#task-detail">Ver detalle de @item.TaskCode<partial name="_Icon" model='@("arrow")' /></a></td>
                         </tr>
                     }
                     </tbody>
