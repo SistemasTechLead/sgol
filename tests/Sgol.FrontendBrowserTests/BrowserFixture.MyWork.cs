@@ -19,7 +19,7 @@ internal sealed record BrowserWorkTask(Guid Id, Guid NoticeId, Guid UserId, Guid
 
 internal sealed partial class BrowserFixture
 {
-    public async Task<IReadOnlyList<BrowserWorkTask>> SeedMyWorkAsync(bool enrolledUsers = false, string taskCode = "TAR-0008")
+    public async Task<IReadOnlyList<BrowserWorkTask>> SeedMyWorkAsync(bool enrolledUsers = false, string taskCode = "TAR-0008", bool validationPolicies = false)
     {
         await using var db = new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connectionString).Options);
         var now = DateTimeOffset.UtcNow;
@@ -40,6 +40,14 @@ internal sealed partial class BrowserFixture
         policy.ApplyPublished(Published(policy.Id)); db.EvidencePolicyVersions.Add(policy);
         db.EvidenceRequirementVersions.AddRange(EvidencePolicyCatalog.Require(taskCode)
             .Select(r => new EvidenceRequirementVersion(Guid.CreateVersion7(), policy.Id, definition.Id, r)));
+        Guid? validationPolicyId = null;
+        if (validationPolicies)
+        {
+            var matrix = ValidationPolicyCatalog.Require(taskCode);
+            var validationPolicy = new ValidationPolicyVersion(Guid.CreateVersion7(), definition.Id, version.Id, release.Id, null, 1,
+                true, matrix.ExecutorRole, ValidationPolicyValues.ImmediateSuperior, matrix.ValidatorRole, ValidationPolicyValues.AllowedResults);
+            validationPolicy.ApplyPublished(Published(validationPolicy.Id)); db.ValidationPolicyVersions.Add(validationPolicy); validationPolicyId = validationPolicy.Id;
+        }
         var local = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City"));
         WeekPeriod Period(DateTime date)
         {
@@ -71,7 +79,7 @@ internal sealed partial class BrowserFixture
                     reference, Accounts[0].UserId, now.AddSeconds(-20));
                 db.GenerationRequests.Add(request); await db.SaveChangesAsync();
                 var obligation = new WorkObligation(Guid.CreateVersion7(), version.Id, BranchScope.LorettaId,
-                    period.Id, request.Id, reference, policy.Id);
+                    period.Id, request.Id, reference, policy.Id, validationPolicyId);
                 db.WorkObligations.Add(obligation); await db.SaveChangesAsync(); request.LinkObligation(obligation.Id);
                 var assignment = new AssignmentVersion(Guid.CreateVersion7(), obligation.Id, account.PersonId,
                     AssignmentVersionStatuses.Current, AssignmentTypes.Automatic, JsonDocument.Parse("{}"), now.AddSeconds(-10));

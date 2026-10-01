@@ -158,6 +158,8 @@ public static class RolePermissionProjection
         {
             permissions.Add("PER-VALIDACION-EMITIR");
         }
+        if (RoleHierarchy.GrantsValidationEscalation(roleCode)) permissions.Add("PER-VALIDACION-ESCALAR");
+        if (RoleHierarchy.GrantsValidationReplacement(roleCode)) permissions.Add("PER-VALIDACION-SUSTITUIR");
 
         // Presentation only. Generation revalidates account, employment, scope and TAR level.
         if (roleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination)

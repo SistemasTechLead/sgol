@@ -99,7 +99,7 @@ public static class ValidationDecisionApiEndpoints
 
     private static object Envelope(HttpContext context, ValidationHistoryDetails result) => new
     {
-        data = new { result.ObligationId, result.ExecutionStatus, validationRequirement = result.ValidationRequirement, decisions = result.Decisions },
+        data = new { result.ObligationId, result.ExecutionStatus, validationRequirement = result.ValidationRequirement, decisions = result.Decisions, result.ValidationActions },
         meta = new { correlationId = context.GetCorrelationId() },
     };
 

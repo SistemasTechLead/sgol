@@ -1,5 +1,9 @@
 # componentes.md — SGOL / Loretta Zapatería
 
+Precisión posterior del responsable para FRONT-019: pendientes y supervisión conservan la banda de filtros, pero apilan sus campos verticalmente en el orden original. La variante tabla-filtros--vertical conserva superficie, padding/gap oficiales, etiquetas junto a sus controles, ancho máximo del campo compartido y botón al final; no modifica los filtros de versiones de evidencia.
+
+Corrección visual FRONT-019 solicitada por el responsable: pendientes/supervisión y versiones de evidencia reutilizan la banda compartida tabla-filtros, con etiquetas alineadas a su control y acciones alineadas al extremo inferior, gap de la escala oficial. Número y badge de versión se apilan y centran en su columna, separados por --espacio-8. El título visible solicitado es «Supervisión». No cambia la jerarquía autorizada ni los contratos.
+
 ## Precisión vigente del estilo v2
 
 La base visual v2 está aceptada y documentada en [ESTILO_VISUAL_V2.md](ESTILO_VISUAL_V2.md), por solicitud expresa de actualización del responsable el 2026-09-30. Sus reglas precisan los ejemplos anteriores: secundario neutro sin borde rojo, fuentes locales, logo/iconos, sesión a la derecha y acceso con composición de marca/formulario. Las correcciones y el complemento fueron aprobados mediante «Apruebo las correcciones y el complemento del plan para implementar». La implementación local se registra por grupo en [DISENO_RENOVADO_V2_IMPLEMENTACION.md](../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md); la aprobación del diseño no equivale a publicación o integración. Los contratos y mensajes funcionales se conservan.
@@ -546,3 +550,6 @@ Adenda 56 incorpora íntegramente FRONT_017_PLAN_DE_IMPLEMENTACION.md, aprobado 
 ## FRONT-018 — composición consumidora aprobada
 
 Adenda 57 incorpora íntegramente el plan FRONT_018_PLAN_DE_IMPLEMENTACION.md, aprobado mediante «Si apruebo integramente el plan». Sus §§5–7 son contrato operativo literal de UI-E06/E07/E08: versiones paginadas, revisión explícita, faltantes exactos, sustitución con autoridad/motivo y conclusión sin cuerpo. Conserva estilo v2, seis estados, componentes compartidos, variables oficiales, accesibilidad y navegación en el detalle existente. Descarga/preview excluidos. Revisión tiene únicamente la excepción atómica de snapshot/auditoría de Adenda 19; no cambia ejecución ni decisiones anteriores.
+## FRONT-019 — composición consumidora aprobada
+
+Adenda 58 incorpora el plan único FRONT_019_PLAN_DE_IMPLEMENTACION.md aprobado mediante «Apruebo el plan». Sus §§4–8 son el contrato operativo de UI-V01..V04: pendientes/supervisión en /validaciones; emisión, sustitución e historia en el detalle existente, tres resultados, fundamento y motivos separados, confirmación y conflicto. BR-D09/M09 resueltas sólo para esta consumidora. Catálogo literal y seis estados en §§7–8; mapas cerrados de requisito, resultado y autoridad con pares/iconos existentes. CSS propio, variables oficiales y base v2 conservados. Proyección validationActions sólo de presentación, servidor reautoriza. Lecturas puras sin efectos; revisión explícita conserva snapshot/auditoría atómicos deduplicados. Descarga/preview excluidos sólo para FRONT-019; BR-API04 global permanece abierta. Sin FRONT-020/TECH-FRONT-005.

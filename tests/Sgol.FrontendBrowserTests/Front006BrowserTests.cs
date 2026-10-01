@@ -70,8 +70,15 @@ public sealed class Front006BrowserTests
                 Assert.Equal(1, await navigation.Locator("a[href='/configuracion']").CountAsync());
                 Assert.Equal(1, await navigation.Locator("a[href='/planificacion']").CountAsync());
                 Assert.Equal(1, await navigation.Locator("a[href='/mi-trabajo']").CountAsync());
-                Assert.Equal(4, await navigation.Locator("a").CountAsync());
-                if (mobile) await page.Keyboard.PressAsync("Escape");
+                Assert.Equal(1, await navigation.Locator("a[href='/validaciones']").CountAsync());
+                Assert.Equal(5, await navigation.Locator("a").CountAsync());
+                if (mobile)
+                {
+                    await page.Keyboard.PressAsync("Escape");
+                    await Assertions.Expect(page.Locator("#navegacion-movil")).ToBeHiddenAsync();
+                    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+                        new() { Name = "Navegación principal" })).ToBeFocusedAsync();
+                }
 
                 await page.Locator("#account-person").FocusAsync();
                 Assert.Equal("account-person", await page.EvaluateAsync<string>(

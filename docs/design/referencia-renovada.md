@@ -74,3 +74,7 @@ Evidencia de verificación en [DISENO_RENOVADO_REFERENCIA.md](../traceability/DI
 ## Transición vigente tras la aprobación v2
 
 El hito de adaptación y sus correcciones ya tienen aprobación de implementación. La tabla anterior conserva el cierre histórico exclusivamente documental. La referencia actual es ESTILO_VISUAL_V2.md; código y comprobaciones por G0–G4 están en ../traceability/DISENO_RENOVADO_V2_IMPLEMENTACION.md. Las próximas historias leen esta guía, tokens y componentes locales; no copian maquetas ni incorporan sus acciones simuladas. No hay nuevas historias, nuevos commits o publicación por esta actualización.
+
+## FRONT-019 — composición consumidora aprobada
+
+Adenda 58 incorpora el plan único FRONT_019_PLAN_DE_IMPLEMENTACION.md aprobado mediante «Apruebo el plan». Sus §§4–8 son el contrato operativo de UI-V01..V04: pendientes/supervisión en /validaciones; emisión, sustitución e historia en el detalle existente, tres resultados, fundamento y motivos separados, confirmación y conflicto. BR-D09/M09 resueltas sólo para esta consumidora. Catálogo literal y seis estados en §§7–8; mapas cerrados de requisito, resultado y autoridad con pares/iconos existentes. CSS propio, variables oficiales y base v2 conservados. Proyección validationActions sólo de presentación, servidor reautoriza. Lecturas puras sin efectos; revisión explícita conserva snapshot/auditoría atómicos deduplicados. Descarga/preview excluidos sólo para FRONT-019; BR-API04 global permanece abierta. Sin FRONT-020/TECH-FRONT-005.

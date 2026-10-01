@@ -29,7 +29,7 @@ public sealed record ApiResponse<T>(
     bool Replayed,
     string? ErrorCode,
     ProblemDetailsPresentation? Error, IReadOnlyList<ApiFieldError>? FieldErrors = null,
-    string? HistoryNextCursor = null)
+    string? HistoryNextCursor = null, DateTimeOffset? QueriedAt = null)
 {
     public bool IsSuccess => Error is null;
     public override string ToString() => $"ApiResponse(Status={Status}, CorrelationId={CorrelationId})";

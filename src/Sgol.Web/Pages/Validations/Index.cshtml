@@ -1,0 +1,63 @@
+@page "/validaciones"
+@model Sgol.Web.Pages.Validations.IndexModel
+@using Sgol.Web.Presentation.Validation
+@using Sgol.Web.Presentation.MyWork
+@{ ViewData["Title"] = "Validación y supervisión"; }
+<header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo" tabindex="-1">Validación y supervisión</h1></header>
+@if (!Model.CanPending && !Model.CanSupervision && Model.PendingError is not null) { <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="Model.PendingError" /></div> }
+@foreach (var section in new[] { "pending", "supervision" })
+{
+    var pending = section == "pending";
+    if (pending ? !Model.CanPending : !Model.CanSupervision) { continue; }
+    var region = pending ? "pendientes" : "supervision";
+    var error = pending ? Model.PendingError : Model.SupervisionError;
+    var queried = pending ? Model.PendingQueriedAt : Model.SupervisionQueriedAt;
+    <section class="panel-seccion mi-trabajo__seccion" id="@region" aria-labelledby="@(region)-title">
+        <header class="panel-seccion__cabecera"><h2 id="@(region)-title" tabindex="-1">@(pending ? "Pendientes de validar" : "Supervisión")</h2></header>
+        <div class="evidencia__contenido">
+        <form method="get" action="/validaciones#@region" class="tabla-filtros tabla-filtros--vertical" data-work-query="@region">
+            @foreach (var hidden in Model.Query.Values.Where(p => !p.Key.StartsWith(section, StringComparison.Ordinal))) { <input type="hidden" name="@hidden.Key" value="@hidden.Value" /> }
+            <label class="campo"><span class="campo__etiqueta">Nivel</span><select class="campo__control" name="@(section)level"><option value="">Todos</option>@foreach (var level in Model.Levels) { <option value="@level" selected="@(Model.Query.Value(section, "level") == level)">@SessionPresentation.RoleName(level)</option> }</select></label>
+            <label class="campo"><span class="campo__etiqueta">Persona responsable (identificador)</span><input class="campo__control" name="@(section)responsiblePersonId" value="@Model.Query.Value(section, "responsiblePersonId")" /></label>
+            <label class="campo"><span class="campo__etiqueta">Año ISO</span><input class="campo__control" name="@(section)isoYear" inputmode="numeric" value="@Model.Query.Value(section, "isoYear")" /></label>
+            <label class="campo"><span class="campo__etiqueta">Semana ISO</span><input class="campo__control" name="@(section)isoWeek" inputmode="numeric" value="@Model.Query.Value(section, "isoWeek")" /></label>
+            <label class="campo"><span class="campo__etiqueta">Registros por página</span><input class="campo__control" type="number" min="1" max="100" name="@(section)limit" value="@(Model.Query.Value(section, "limit") ?? "25")" /></label>
+            @if (!pending) { <label class="campo"><span class="campo__etiqueta">Estado de ejecución</span><select class="campo__control" name="supervisionexecutionStatus"><option value="">Todos</option><option value="PENDIENTE" selected="@(Model.Query.Value(section, "executionStatus") == "PENDIENTE")">Pendiente</option><option value="CONCLUIDA" selected="@(Model.Query.Value(section, "executionStatus") == "CONCLUIDA")">Concluida</option></select></label> }
+            <button class="boton boton--primario" type="submit">@(pending ? "Consultar pendientes" : "Consultar supervisión")</button>
+        </form>
+        <p role="status" hidden data-front-query-status>@(pending ? "Consultando pendientes…" : "Consultando supervisión…")</p>
+        @if (error is not null) { <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="error" /></div><a class="boton boton--secundario" href="@Model.Query.Reset(section)">Quitar filtros</a> }
+        else
+        {
+            <p>Hora de Ciudad de México. Consulta: @MyWorkPresentation.Time(queried)</p>
+            <div class="tabla-contenedor"><table class="tabla"><caption>@(pending ? "Pendientes de validar en tu alcance" : "Trabajo de inferiores autorizado")</caption><thead class="tabla__encabezado"><tr><th scope="col">Tarea y período</th><th scope="col">Responsable y nivel</th><th scope="col">@(pending ? "Pendiente desde" : "Ejecución y evidencia vigente")</th><th scope="col">@(pending ? "Autoridad" : "Validación vigente")</th><th scope="col">Acción</th></tr></thead><tbody>
+            @if (pending)
+            {
+                @foreach (var item in Model.Pending)
+                {
+                    <tr class="tabla__fila"><td>@item.Obligation.Task.TaskCode · @item.Obligation.Task.Name<br />@MyWorkPresentation.Period(item.Obligation.Period.IsoYear, item.Obligation.Period.IsoWeek, item.Obligation.Period.StartsOn, item.Obligation.Period.EndsOn)<br />@MyWorkPresentation.Origin(item.Obligation.Origin.Kind) · @item.Obligation.Origin.Reference</td>
+                    <td>@item.Obligation.CurrentAssignment?.Responsible.DisplayName<br />@SessionPresentation.RoleName(item.ResponsibleLevel)</td><td>@MyWorkPresentation.Time(item.PendingSince)<br /><partial name="_StatusBadge" model='@ValidationPresentation.Badge("PENDIENTE")' />@if (item.MaterializationStatus == "DERIVED") { <p>Pendiente de validación; el requisito se registrará al emitir la primera decisión</p> }</td>
+                    <td>@ValidationPresentation.Authority(item.AvailableAuthority.AuthorityType)</td><td><a id="pending-@item.Obligation.ObligationId.ToString("D")" class="boton boton--textual" href="@Model.TaskHref(item.Obligation.ObligationId, section)">Ver tarea <partial name="_Icon" model='@("arrow")' /></a></td></tr>
+                }
+            }
+            else
+            {
+                @foreach (var item in Model.Supervision)
+                {
+                    <tr class="tabla__fila"><td>@item.Obligation.Task.TaskCode · @item.Obligation.Task.Name<br />@MyWorkPresentation.Period(item.Obligation.Period.IsoYear, item.Obligation.Period.IsoWeek, item.Obligation.Period.StartsOn, item.Obligation.Period.EndsOn)<br />@MyWorkPresentation.Origin(item.Obligation.Origin.Kind) · @item.Obligation.Origin.Reference</td>
+                    <td>@item.Obligation.CurrentAssignment?.Responsible.DisplayName<br />@SessionPresentation.RoleName(item.ResponsibleLevel)</td><td><partial name="_StatusBadge" model="@MyWorkPresentation.Badge(item.Obligation.ExecutionStatus)" />
+                        @if (item.CurrentEvidence.Count == 0) { <p>No hay evidencia vigente disponible</p> }
+                        @foreach (var evidence in item.CurrentEvidence) { <p>@evidence.Requirement.RequirementCode · @evidence.SourceKind · Versión @evidence.Version.VersionNo · @MyWorkPresentation.Time(evidence.Version.SubmittedAt)</p> }
+                    </td><td>@if (item.Validation.CurrentDecision is { } decision) { <partial name="_StatusBadge" model="@ValidationPresentation.Badge(decision.Result)" /><p>@decision.Foundation</p> } else if (item.Validation.Requirement is { } requirement) { <partial name="_StatusBadge" model="@ValidationPresentation.Badge(requirement.Status)" /> } else { <p>Aún no hay decisiones de validación</p> }</td><td><a id="supervision-@item.Obligation.ObligationId.ToString("D")" class="boton boton--textual" href="@Model.TaskHref(item.Obligation.ObligationId, section)">Ver tarea <partial name="_Icon" model='@("arrow")' /></a></td></tr>
+                }
+            }
+            </tbody></table></div>
+            @if (pending ? Model.Pending.Count == 0 : Model.Supervision.Count == 0)
+            { <partial name="_EmptyState" model="@(new EmptyStateViewModel(Model.Query.HasFilters(section) ? "No hay coincidencias con estos filtros" : pending ? "No hay validaciones pendientes en tu alcance" : "No hay tareas de inferiores disponibles en tu alcance", ActionLabel: Model.Query.HasFilters(section) ? "Quitar filtros" : null, ActionHref: Model.Query.HasFilters(section) ? Model.Query.Reset(section) : null))" /> }
+            var pagination = pending ? Model.PendingPagination : Model.SupervisionPagination;
+            @if (pagination is not null) { <partial name="/Pages/MyWork/_WorkPagination.cshtml" model="pagination" /> }
+        }
+        </div>
+    </section>
+}
+@section Scripts { <script src="~/js/my-work.js" asp-append-version="true"></script><script src="~/js/validations.js" asp-append-version="true"></script> }

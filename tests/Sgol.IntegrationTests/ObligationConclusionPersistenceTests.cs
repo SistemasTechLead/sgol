@@ -29,7 +29,7 @@ using Xunit;
 
 namespace Sgol.IntegrationTests;
 
-public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
+public sealed partial class ObligationConclusionPersistenceTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 8, 22, 30, 0, TimeSpan.Zero);
     private readonly PostgreSqlContainer postgres = PostgreSqlPersistenceTests.CreateContainerForTests();
@@ -509,7 +509,7 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         var issueOutcomes = await Task.WhenAll(issueA, issueB);
         var issued = Assert.Single(issueOutcomes, item => item.Result is not null).Result!;
         var issueFailure = Assert.Single(issueOutcomes, item => item.Error is not null).Error!;
-        Assert.True(issueFailure.Code is "DECISION_VALIDACION_YA_EXISTE" or "VALIDACION_CONCURRENCIA_CONFLICTO");
+        Assert.Equal("VERSION_CONFLICT", issueFailure.Code);
 
         await using var replacementContextA = CreateContext();
         await using var replacementContextB = CreateContext();
@@ -522,7 +522,7 @@ public sealed class ObligationConclusionPersistenceTests : IAsyncLifetime
         var replacementOutcomes = await Task.WhenAll(replacementA, replacementB);
         Assert.Single(replacementOutcomes, item => item.Result is not null);
         var replacementFailure = Assert.Single(replacementOutcomes, item => item.Error is not null).Error!;
-        Assert.True(replacementFailure.Code is "DECISION_VALIDACION_NO_ENCONTRADA" or "VALIDACION_CONCURRENCIA_CONFLICTO");
+        Assert.Equal("VERSION_CONFLICT", replacementFailure.Code);
 
         await using var verification = CreateContext();
         var requirement = await verification.ValidationRequirements.AsNoTracking().SingleAsync();
