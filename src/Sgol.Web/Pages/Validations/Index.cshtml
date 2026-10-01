@@ -15,7 +15,7 @@
     <section class="panel-seccion mi-trabajo__seccion" id="@region" aria-labelledby="@(region)-title">
         <header class="panel-seccion__cabecera"><h2 id="@(region)-title" tabindex="-1">@(pending ? "Pendientes de validar" : "Supervisión")</h2></header>
         <div class="evidencia__contenido">
-        <form method="get" action="/validaciones#@region" class="tabla-filtros" data-work-query="@region">
+        <form method="get" action="/validaciones#@region" class="tabla-filtros tabla-filtros--vertical" data-work-query="@region">
             @foreach (var hidden in Model.Query.Values.Where(p => !p.Key.StartsWith(section, StringComparison.Ordinal))) { <input type="hidden" name="@hidden.Key" value="@hidden.Value" /> }
             <label class="campo"><span class="campo__etiqueta">Nivel</span><select class="campo__control" name="@(section)level"><option value="">Todos</option>@foreach (var level in Model.Levels) { <option value="@level" selected="@(Model.Query.Value(section, "level") == level)">@SessionPresentation.RoleName(level)</option> }</select></label>
             <label class="campo"><span class="campo__etiqueta">Persona responsable (identificador)</span><input class="campo__control" name="@(section)responsiblePersonId" value="@Model.Query.Value(section, "responsiblePersonId")" /></label>

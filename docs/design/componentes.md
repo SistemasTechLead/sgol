@@ -1,5 +1,7 @@
 # componentes.md — SGOL / Loretta Zapatería
 
+Precisión posterior del responsable para FRONT-019: pendientes y supervisión conservan la banda de filtros, pero apilan sus campos verticalmente en el orden original. La variante tabla-filtros--vertical conserva superficie, padding/gap oficiales, etiquetas junto a sus controles, ancho máximo del campo compartido y botón al final; no modifica los filtros de versiones de evidencia.
+
 Corrección visual FRONT-019 solicitada por el responsable: pendientes/supervisión y versiones de evidencia reutilizan la banda compartida tabla-filtros, con etiquetas alineadas a su control y acciones alineadas al extremo inferior, gap de la escala oficial. Número y badge de versión se apilan y centran en su columna, separados por --espacio-8. El título visible solicitado es «Supervisión». No cambia la jerarquía autorizada ni los contratos.
 
 ## Precisión vigente del estilo v2

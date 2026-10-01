@@ -93,11 +93,15 @@ public sealed class Front019BrowserTests
         await page.Locator("#result-" + result).CheckAsync(); await page.Locator("#foundation").FillAsync("Fundamento sintético de la revisión");
         if (reason is not null) await page.Locator("#reason").FillAsync(reason);
         await page.Locator("form[action*='PrepareValidation'] button[type=submit]").ClickAsync();
+        await page.Locator("form[action*='SendValidation']").WaitForAsync();
+        await page.WaitForLoadStateAsync(LoadState.Load);
     }
     private static Task<string> Csrf(IPage page) => page.Locator("input[name=__RequestVerificationToken]").First.InputValueAsync();
     private static Task<IAPIResponse> Post(IBrowserContext context, string path, string csrf, string intent) => context.APIRequest.PostAsync(path + "?handler=SendValidation", new() { Form = context.APIRequest.CreateFormData().Set("__RequestVerificationToken", csrf).Set("intention", intent).Set("recovery", "true") });
     private static async Task Capture(IPage page, bool mobile, string state)
     {
+        var selectedState = Environment.GetEnvironmentVariable("SGOL_FRONT019_CAPTURE_STATE");
+        if (selectedState is not null && (mobile || state != selectedState)) return;
         if (Environment.GetEnvironmentVariable("SGOL_FRONT019_CAPTURE_ONLY_CORRECTIONS") == "true" &&
             (mobile || state is not ("administracion-pendientes" or "historia-vacia"))) return;
         var directory = Environment.GetEnvironmentVariable("SGOL_FRONT019_CAPTURE_DIR"); if (string.IsNullOrEmpty(directory)) return;

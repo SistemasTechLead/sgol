@@ -2,6 +2,8 @@
 
 ## FRONT-019 — Implementada localmente; revisión visual pendiente
 
+Precisión visual posterior: pendientes y supervisión recuperan campos verticales en su orden original, manteniendo la banda de filtros. Cambio acotado de Index.cshtml/components.css; única captura entregada escritorio-administracion-pendientes. Build PASS, arquitectura enfocada 11/11 PASS, navegador real de escritorio 1/1 PASS y diff PASS; registro en informe del hito. Sin cambio contractual ni publicación.
+
 Corrección visual posterior solicitada por el responsable: banda compartida de filtros para pendientes/supervisión y versiones, separación/alineación de acciones y etiquetas, título «Supervisión» y número de versión centrado sobre el estado. Build final PASS y navegador escritorio/móvil 2/2 PASS. Se entregan sólo las capturas escritorio-administracion-pendientes y escritorio-historia-vacia para la nueva revisión. Contratos, permisos y diferidos permanecen. Detalle en el informe del hito.
 
 2026-10-01. Único plan FRONT_019_PLAN_DE_IMPLEMENTACION.md aprobado íntegramente mediante «Apruebo el plan»; decisiones incorporadas por Adenda 58 antes del código. Rama codex/front-019 sobre el merge aceptado de FRONT-018. UI-V01..V04: pendientes y supervisión de inferiores, emisión inicial de tres resultados, sustitución motivada e historia inmutable. Proyección opcional de autoridad compartida con comandos, histórico READ ONLY / REPEATABLE READ, permisos vigentes y recuperación de intención reautorizada. Ejecución CONCLUIDA y evidencia anterior conservadas. Segunda emisión secuencial 409; carreras/ETag obsoleto 412, sin revelar recursos fuera de alcance. BR-D09/M09 resueltas sólo aquí; descarga/preview excluidos de FRONT-019, BR-API04 global pendiente. Sin FRONT-020/TECH-FRONT-005.

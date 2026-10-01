@@ -1,5 +1,7 @@
 # FRONT-019 — Capturas de funcionamiento
 
+Última precisión visual: **escritorio-administracion-pendientes.png** se actualiza nuevamente con los campos apilados de arriba hacia abajo en ambas colecciones, conservando la banda y el título «Supervisión». Es la única captura presentada para esta precisión; historia vacía conserva su corrección anterior.
+
 Revisión solicitada por el responsable: se vuelven a entregar únicamente **escritorio-administracion-pendientes.png** y **escritorio-historia-vacia.png**, con filtros alineados, título «Supervisión» y versión centrada. Las demás capturas no forman parte de esta nueva solicitud de revisión.
 
 2026-10-01. **36 capturas**, dos por estado: escritorio 1440×900 y móvil emulado 390×844, página completa. Aplicación ASP.NET Core/Kestrel HTTPS y PostgreSQL real, Chromium, cuatro cuentas y datos sintéticos. No son maquetas. Archivos locales reproducibles con Front019BrowserTests y SGOL_FRONT019_CAPTURE_DIR; excluidos de Git mediante .gitignore y siempre fuera de Fuentes. No incluyen secretos, cookies, valores de intención, URLs firmadas ni evidencia real. El estado cargando pausa sólo la navegación después del evento real para fotografiar el estado transitorio; no acredita red real lenta. Las capturas no sustituyen zoom nativo, lector, dispositivos físicos o WebKit ni resuelven sus diferidos.
