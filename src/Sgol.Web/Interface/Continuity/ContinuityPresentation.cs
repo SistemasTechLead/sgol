@@ -3,6 +3,7 @@ using Sgol.Web.Presentation.ApiClient;
 using Sgol.Web.Presentation.Components;
 
 namespace Sgol.Web.Presentation.Continuity;
+
 public static class ContinuityPresentation
 {
     public static StatusBadgeViewModel Badge(string status) => status switch

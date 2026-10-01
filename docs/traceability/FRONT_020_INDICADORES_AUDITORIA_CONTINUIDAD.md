@@ -1,6 +1,6 @@
 # FRONT-020 — Indicadores, auditoría y continuidad
 
-2026-10-01. **Implementada localmente**, revisión visual pendiente. Plan aprobado íntegramente mediante «Apruebo integramente el plan», incorporado por Adenda 59. Rama local `codex/front-020`, base integrada de FRONT-019. Commit implementado: commit que contiene esta actualización, resoluble en Git. Sin publicación remota ni despliegue.
+2026-10-01. **Implementada localmente**, aspecto visual, commit, PR y publicación aprobados mediante «Apruebo el aspecto visual, su commit, pr y publicacion». Plan aprobado íntegramente mediante «Apruebo integramente el plan», incorporado por Adenda 59. Rama local `codex/front-020`, base integrada de FRONT-019. Commit implementado: commit que contiene esta actualización, resoluble en Git. Publicada al existir en el proveedor el PR que incorpora este registro; no Integrada ni Terminada formal. Merge y despliegue pendientes de sus autorizaciones expresas.
 
 ## Resultado y alcance
 
@@ -49,8 +49,14 @@ Todos los test usan `--no-build --configuration Release`. Compilación final rep
 
 Incidencias corregidas durante implementación: conflictos de sintaxis Razor y compilación, UUID de correlación del fixture (debe ser v7), aserción sobre acento HTML codificado y carrera de navegador al observar una navegación retenida. Se mantiene la aserción de carga; se observa el evento de envío antes de navegar mediante prevención controlada de un único submit, sin pausas arbitrarias ni atribuir esta captura a latencia real.
 
-## Límites y revisión
+## Preparación de publicación autorizada
+
+Tras la aprobación visual/commit/PR/publicación, el preflight confirma árbol limpio, rama codex/front-020, Fuentes protegidas y sesión gh autenticada. El SDK de PATH sigue sin satisfacer global.json; se conserva el SDK aislado 10.0.400, sin restore ni cambio de global.json. Master remoto conserva la base integrada aceptada; no hay otro PR de la rama.
+
+Formato global inicial `dotnet format --verify-no-changes --no-restore` detectó WHITESPACE/ENDOFLINE en archivos del hito. `dotnet format whitespace --no-restore --include <archivos .cs de FRONT-020>` corrigió únicamente espacios y saltos; segunda verificación global PASS (exit 0). Compilación Release --no-restore PASS, 0 errores/advertencias. UnitTests completos --no-build --configuration Release 1022/1022 PASS; ArchitectureTests completos 69/69 PASS, sin omisiones. Git diff y staged --check PASS. Las capturas aprobadas y los contratos conservan su comportamiento; los gates remotos del PR deben validar la cabeza exacta publicada, sin atribuirle resultados de otra cabeza.
+
+## Límites y revisión vigentes
 
 Zoom nativo, lector de pantalla y dispositivos físicos conservan Validación diferida por falta de ensayo real; emulación/reflow no los reemplazan. Sigue diferido WebKit Windows PUT/S3 HTTP local por ausencia de respuesta en el recorrido anterior, ajeno a estas consultas. Aislamiento productivo completo SeaweedFS no acreditado por entorno efímero; optional isolated network histórico SKIPPED permanece SKIPPED. La carrera específica sustitución de evidencia contra emisión no reensayada en FRONT-019 conserva ausencia de nuevo PASS. No se repite ni acredita el simulacro integral backend por mostrar reportes sintéticos.
 
-Revisión visual expresa pendiente del responsable sobre el manifiesto `FRONT_020_CAPTURAS.md`. La implementación y commit locales no significan Publicada, Integrada o Terminada formalmente. La aprobación del plan no autoriza push, PR, checks remotos, heartbeat, merge o despliegue; no hay seguimiento remoto que configurar.
+Revisión visual expresa del manifiesto `FRONT_020_CAPTURAS.md` aprobada por el responsable, junto con commit, PR y publicación. Autoriza push y un único PR, checks, seguimiento y correcciones proporcionales del hito; merge/despliegue requieren sus autorizaciones. Cabeza y pipeline vigentes resolubles en el PR; no añadir commits administrativos para escribir sus números o hashes. Mantener seguimiento en este mismo chat; configurar/verificar heartbeat si el turno termina antes del resultado, quieto mientras no haya cambio accionable. Pausarlo al solicitar merge de la cabeza exacta validada.

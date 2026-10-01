@@ -17,10 +17,14 @@ using Sgol.Web.Presentation.Reporting;
 using Xunit;
 
 namespace Sgol.UnitTests;
+
 public sealed class Front020PresentationTests
 {
     [Theory]
-    [InlineData("DIRECCION", true)] [InlineData("ADMINISTRACION", false)] [InlineData("SUBCOORDINACION", false)] [InlineData("PISO_VENTAS", false)]
+    [InlineData("DIRECCION", true)]
+    [InlineData("ADMINISTRACION", false)]
+    [InlineData("SUBCOORDINACION", false)]
+    [InlineData("PISO_VENTAS", false)]
     public void ExistingQueryPermissionsAreProjectedWithoutGrantingDirectionToOtherRoles(string role, bool direction)
     {
         var permissions = RolePermissionProjection.ForRole(role);
@@ -33,8 +37,10 @@ public sealed class Front020PresentationTests
     [InlineData("/auditoria?from=2026-10-01T00:00:00Z&to=2026-10-02T00:00:00Z", true)]
     [InlineData("/auditoria/eventos/01a00000-0000-7000-8000-000000000001", true)]
     [InlineData("/continuidad/reconciliaciones/01a00000-0000-7000-8000-000000000001", true)]
-    [InlineData("/continuidad?reason=secret", false)] [InlineData("/auditoria?from=invalid", false)]
-    [InlineData("/api/v1/audit-events", false)] [InlineData("//external.example", false)]
+    [InlineData("/continuidad?reason=secret", false)]
+    [InlineData("/auditoria?from=invalid", false)]
+    [InlineData("/api/v1/audit-events", false)]
+    [InlineData("//external.example", false)]
     public void QueryDestinationsRemainInternalClosedAndRequireCurrentAuthorization(string destination, bool valid)
     {
         var helper = new SafeReturnDestination(new EphemeralDataProtectionProvider()); var token = helper.Protect(destination);
@@ -76,9 +82,16 @@ public sealed class Front020PresentationTests
         IndicatorPresentation.Validate(direction); // Unassigned obligations do not create a synthetic person or sixth indicator.
     }
     [Theory]
-    [InlineData("REQUESTED", false)] [InlineData("REFERENCE_CAPTURING", false)] [InlineData("REFERENCE_READY", false)]
-    [InlineData("RESTORE_STARTED", false)] [InlineData("RECONCILING", false)] [InlineData("MATCHED", true)]
-    [InlineData("DIFFERENT", false)] [InlineData("FAILED", false)] [InlineData("APPROVED", false)] [InlineData("UNKNOWN", false)]
+    [InlineData("REQUESTED", false)]
+    [InlineData("REFERENCE_CAPTURING", false)]
+    [InlineData("REFERENCE_READY", false)]
+    [InlineData("RESTORE_STARTED", false)]
+    [InlineData("RECONCILING", false)]
+    [InlineData("MATCHED", true)]
+    [InlineData("DIFFERENT", false)]
+    [InlineData("FAILED", false)]
+    [InlineData("APPROVED", false)]
+    [InlineData("UNKNOWN", false)]
     public void OnlyConfirmedMatchedReportCanOfferApproval(string status, bool expected)
     {
         var data = Report(status); Assert.Equal(expected, ContinuityPresentation.CanApprove(data));
@@ -88,7 +101,10 @@ public sealed class Front020PresentationTests
         Assert.False(ContinuityPresentation.CanApprove(data with { DifferenceCount = 1 }));
     }
     [Theory]
-    [InlineData("", false)] [InlineData(" x ", true)] [InlineData("<secret>", false)] [InlineData("a\nb", false)]
+    [InlineData("", false)]
+    [InlineData(" x ", true)]
+    [InlineData("<secret>", false)]
+    [InlineData("a\nb", false)]
     [InlineData("a\tb", true)]
     public void ReasonUsesExistingNormalizationAndBoundaries(string reason, bool valid) => Assert.Equal(valid, ContinuityPresentation.Reason(reason) is not null);
     [Fact]

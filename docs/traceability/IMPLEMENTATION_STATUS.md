@@ -1,6 +1,12 @@
 # Estado de implementación
 
-## FRONT-020 — Implementada localmente; revisión visual pendiente
+## FRONT-020 — Publicación autorizada; revisión visual aprobada
+
+El responsable aprobó el aspecto visual, el commit, el PR y la publicación mediante «Apruebo el aspecto visual, su commit, pr y publicacion». La autorización cubre publicar un único PR de FRONT-020, seguir sus checks y corregir defectos del mismo hito sin nuevas confirmaciones. No autoriza merge ni despliegue. Estado Publicada únicamente cuando exista en GitHub el PR que incorpora esta actualización; cabeza y pipeline vigentes resolubles en ese PR. Antes de terminar un turno con checks pendientes, configurar y verificar heartbeat en este mismo chat; pausarlo al solicitar aprobación expresa de merge.
+
+Preparación de publicación: formato global detectó WHITESPACE/ENDOFLINE en archivos FRONT-020; corrección limitada a espacios/saltos, segunda verificación global PASS, sin cambio de interfaz o contrato. Build Release PASS, 0 errores/advertencias; unitarias completas 1022/1022 y arquitectura completa 69/69 PASS, sin omisiones; diff y staged PASS. SDK aislado 10.0.400, sin restore ni cambios de dependencias/global.json. Gates remotos ligados a la cabeza vigente del PR. Detalles en el informe del hito. Los párrafos siguientes conservan la evidencia y autorización anteriores, superadas por esta aprobación.
+
+### FRONT-020 — Implementada localmente; registro previo a publicación
 
 2026-10-01. Plan único aprobado íntegramente mediante «Apruebo integramente el plan», decisiones consumidoras incorporadas por Adenda 59 antes del código. UI-R01/R02/U01/U02/K01..K03 y CA/CP-029/032/033/035 implementadas en `/indicadores`, `/auditoria` y `/continuidad`: cinco indicadores y dos universos, auditoría jerárquica minimizada/traza/cursor/regreso, continuidad por ID con VIEWED, solicitud/aceptación motivadas y confirmación/idempotencia/ETag. Preparar/Cancelar sin API ni efectos; consultas de indicadores/auditoría puras. Sin TECH-FRONT-005, funcionalidades posteriores, dependencias, restore, migraciones o cambios en originales/Fuentes.
 

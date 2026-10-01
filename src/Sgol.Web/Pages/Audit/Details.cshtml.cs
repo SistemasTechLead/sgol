@@ -9,6 +9,7 @@ using Sgol.Web.Presentation.ProblemDetails;
 using Sgol.Web.Presentation.Reporting;
 
 namespace Sgol.Web.Pages.Audit;
+
 public sealed class DetailsModel(IRazorSessionState sessionState, ISgolApiClient apiClient, IDataProtectionProvider protection) : PageModel
 {
     public AuditEventDetails? Data { get; private set; }

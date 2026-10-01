@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Sgol.Continuity.Contracts;
 
 namespace Sgol.Web.Presentation.Continuity;
+
 public sealed record ContinuityIntention(Guid Actor, Guid? Resource, Guid Key, string? ETag, string Reason,
     DateTimeOffset ExpiresAt, RecoveryReconciliationDetails? Report)
 {

@@ -9,6 +9,7 @@ using Sgol.Web.Presentation.ProblemDetails;
 using Sgol.Web.Presentation.Reporting;
 
 namespace Sgol.Web.Pages.Continuity;
+
 public class IndexModel(IRazorSessionState sessionState, ISgolApiClient apiClient, IDataProtectionProvider protection) : PageModel
 {
     public bool Allowed { get; private set; }

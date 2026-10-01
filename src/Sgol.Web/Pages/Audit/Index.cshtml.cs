@@ -12,6 +12,7 @@ using Sgol.Web.Presentation.ProblemDetails;
 using Sgol.Web.Presentation.Reporting;
 
 namespace Sgol.Web.Pages.Audit;
+
 public sealed class IndexModel(IRazorSessionState sessionState, ISgolApiClient apiClient, IDataProtectionProvider protection) : PageModel
 {
     public AuditQuery Query { get; private set; } = new();

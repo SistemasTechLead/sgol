@@ -1,6 +1,6 @@
 # FRONT-020 — Capturas de funcionamiento
 
-2026-10-01. **50 capturas**, revisión visual expresa pendiente. Aplicación ASP.NET Core/Kestrel HTTPS con PostgreSQL real, cuentas y datos sintéticos; escritorio 1440×900 con Chromium y móvil emulado 390×844 con WebKit. Son pantallas de la aplicación integrada. Capturas locales en `.artifacts/front-020`, fuera de Fuentes y de Git; se reproducen con Front020BrowserTests y `SGOL_FRONT020_CAPTURE_DIR`.
+2026-10-01. **50 capturas**, revisión visual aprobada mediante «Apruebo el aspecto visual, su commit, pr y publicacion». Incluye las pantallas y confirmaciones del manifiesto; no acredita validaciones diferidas ni autoriza merge/despliegue. Aplicación ASP.NET Core/Kestrel HTTPS con PostgreSQL real, cuentas y datos sintéticos; escritorio 1440×900 con Chromium y móvil emulado 390×844 con WebKit. Son pantallas de la aplicación integrada. Capturas locales en `.artifacts/front-020`, fuera de Fuentes y de Git; se reproducen con Front020BrowserTests y `SGOL_FRONT020_CAPTURE_DIR`.
 
 No incluyen contraseñas, cookies, intenciones protegidas, URLs firmadas, datos reales ni contenido de evidencia. Los hashes son sintéticos. La captura de carga observa el evento real de envío impidiendo una única navegación, para conservar el estado transitorio; no prueba latencia de red. Las etapas de continuidad son registros contractuales sintéticos en la base efímera, sin iniciar recuperación operativa ni acreditar el simulacro integral backend.
 
