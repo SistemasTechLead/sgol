@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Automated')][string] $Mode = 'Automated',
+    [ValidateSet('Automated', 'RegressionDiagnostic')][string] $Mode = 'Automated',
     [ValidateRange(2, 2)][int] $Cycles = 2,
     [string] $DotnetPath = 'C:/Users/siste/.codex/tmp/sgol-sdk-10.0.400/dotnet.exe'
 )
@@ -65,13 +65,32 @@ function Invoke-SelectedTests([string] $project, [string] $filter, [string] $pha
     $passed = if ($valid) { [int]$Matches[2] } else { -1 }
     $skipped = if ($valid) { [int]$Matches[3] } else { -1 }
     $total = if ($valid) { [int]$Matches[4] } else { -1 }
+    # Retain only code identifiers and closed diagnostics, never native messages, arguments or values.
+    $diagnostics = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($line in $native) {
+        $entry = "$line"
+        $test = [regex]::Match($entry, '^\s*Failed (Sgol\.[A-Za-z0-9_.]+)')
+        if ($test.Success) { [void]$diagnostics.Add('FAILED_TEST ' + $test.Groups[1].Value) }
+        $source = [regex]::Match($entry, 'tests[/\\]Sgol\.[A-Za-z.]+[/\\]([A-Za-z0-9.]+\.cs):line\s+(\d+)')
+        if ($source.Success) { [void]$diagnostics.Add('SOURCE ' + $source.Groups[1].Value + ':' + $source.Groups[2].Value) }
+        $cleanup = [regex]::Match($entry, 'Browser fixture cleanup failed: ([A-Z][A-Za-z0-9_,]{0,512})\s*$')
+        if ($cleanup.Success) { [void]$diagnostics.Add('CLEANUP ' + $cleanup.Groups[1].Value) }
+        $primary = [regex]::Match($entry, '\b((?:TECH_FRONT005|FRONT007) (?:PRIMARY_FAILURE|BROWSER_FAILURE) [A-Za-z0-9_]+)\s*$')
+        if ($primary.Success) { [void]$diagnostics.Add($primary.Groups[1].Value) }
+        $location = [regex]::Match($entry, '\b(FRONT007 FAILURE_LINE \d+|TECH_FRONT005 FAILURE_SOURCE [A-Za-z0-9.]+\.cs:\d+)\s*$')
+        if ($location.Success) { [void]$diagnostics.Add($location.Groups[1].Value) }
+        $exception = [regex]::Match($entry, '\b((?:System|Npgsql|Microsoft\.Playwright|Xunit\.Sdk)\.[A-Za-z]+Exception)\b')
+        if ($exception.Success) { [void]$diagnostics.Add('TYPE ' + $exception.Groups[1].Value) }
+    }
+    $closedDiagnostics = @($diagnostics | Sort-Object)
     $phases.Add([ordered]@{ cycle = $cycle; phase = $phase; project = [IO.Path]::GetRelativePath($repositoryRoot, $project);
         filter = $filter; command = 'dotnet test --no-build --configuration Release --filter <recorded filter>'; sha = $sha;
         expected = $expected; passed = $passed; failed = $failed; skipped = $skipped; total = $total;
-        exit = $testExit; durationMs = $timer.ElapsedMilliseconds })
+        exit = $testExit; durationMs = $timer.ElapsedMilliseconds; failureDiagnostics = $closedDiagnostics })
     $phases | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $runRoot 'phases.json') -Encoding utf8NoBOM
     Write-Output "TECH_FRONT005 cycle=$cycle phase=$phase passed=$passed failed=$failed skipped=$skipped exit=$testExit"
     if ($testExit -ne 0 -or -not $valid -or $failed -ne 0 -or $skipped -ne 0 -or $passed -ne $expected -or $total -ne $expected) {
+        foreach ($diagnostic in $closedDiagnostics) { Write-Output "TECH_FRONT005 $diagnostic" }
         throw "TECH_FRONT005_${phase}_INCOMPLETE"
     }
 }
@@ -81,6 +100,11 @@ try {
     $env:DOTNET_CLI_UI_LANGUAGE = 'en'
     $env:SGOL_TECH_FRONT005_OUTPUT = $runRoot
     foreach ($variable in $captureVariables) { [Environment]::SetEnvironmentVariable($variable.Name, $null) }
+    if ($Mode -eq 'RegressionDiagnostic') {
+        Invoke-SelectedTests $browserProject 'Category=FRONT_BROWSER' 'BROWSER_DIAGNOSTIC' 0
+        Write-Output "TECH_FRONT005 DIAGNOSTIC_ONLY $runRoot"
+        return
+    }
     for ($cycle = 1; $cycle -le $Cycles; $cycle++) {
         $env:SGOL_TECH_FRONT005_CYCLE = "$cycle"
         Invoke-SelectedTests $browserProject 'Category=TECH_FRONT005' 'INTEGRAL' $cycle

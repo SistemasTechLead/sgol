@@ -22,6 +22,8 @@ git diff --check
 
 El runner exige cabeza comprometida y árbol limpio, guarda su SHA exacto, crea directorio propio con UUID v7 en `.artifacts/tech-front005/`, retira temporalmente **todos** los SGOL_FRONT*_CAPTURE_DIR y restaura sus valores al terminar. Mantiene PATH del SDK y DOTNET_CLI_UI_LANGUAGE=en sólo en su proceso. No lanza gates remotos.
 
+Para identificar fallos de la regresión cuyo diagnóstico anterior no se conservó: `./scripts/demo/run-tech-front005.ps1 -Mode RegressionDiagnostic -DotnetPath $sgolSdk`. Ejecuta sólo Category=FRONT_BROWSER, registra BROWSER_DIAGNOSTIC con ciclo 0 y nunca genera summary.json ni acredita un ciclo integral. El reporte retiene exclusivamente método fallido sin argumentos, archivo/línea, tipo de excepción y códigos cerrados de cleanup/fallo primario; no conserva mensajes nativos, valores de aserciones ni payloads. No hay retry automático ni cambio de expectativas.
+
 Por ciclo ejecuta secuencialmente: INTEGRAL (R1..R9 en ambos perfiles); BROWSER_REGRESSION (Category=FRONT_BROWSER, con complemento WebKit soportado); POSTGRESQL_API (selección cerrada en script); PRIVATE_S3_CLAMAV (proyecto Sgol.EvidenceIntegrationTests); CONTRACTS_AND_FORMULAS (unitarias relacionadas). Descubre y verifica conteos, cero fallos/omisiones y exit code real. El `summary.json` sólo aparece con cuatro reportes completos, misma cabeza y cleanup correcto. Un fallo detiene el ciclo y conserva resultados; no hay retry automático.
 
 Los comandos del plan para pruebas TechFront005 unitarias/de arquitectura eran propuestas de ubicación. Las pruebas efectivas de reporte están en el proyecto Browser; el borde temporal nuevo está en Integration. No se ejecutan filtros vacíos ni se presentan clases inexistentes como validación.
