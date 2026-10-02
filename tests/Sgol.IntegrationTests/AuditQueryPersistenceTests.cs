@@ -88,20 +88,131 @@ public sealed class AuditQueryPersistenceTests : IAsyncLifetime
         Assert.Equal(before, await CountsAsync(context));
     }
 
-    [Fact]
-    public async Task TechFront005PreAssignmentFactFailsWholeTraceWithoutReadEffects()
+    [Theory]
+    [InlineData("UNKNOWN_ACTION")]
+    [InlineData("WRONG_RESOURCE_TYPE")]
+    [InlineData("MISSING_BRANCH")]
+    [InlineData("FAILED_OUTCOME")]
+    [InlineData("NON_RECIPROCAL_LINK")]
+    [InlineData("AMBIGUOUS_FIRST_ASSIGNMENT")]
+    public async Task TechFront005UnresolvedPreAssignmentFactFailsWholeTraceWithoutReadEffects(string defect)
     {
         var scenario = await ResetAndSeedAsync();
         await using var context = CreateContext();
         var firstAssignment = await context.AssignmentVersions.Where(a => a.ObligationId == scenario.ObligationId)
             .MinAsync(a => a.AssignedAt);
-        context.AuditEvents.Add(Audit(Guid.CreateVersion7(), scenario.Direction.UserId, "WORK_OBLIGATION_CREATED",
-            "WORK_OBLIGATION", scenario.ObligationId, firstAssignment.AddTicks(-10)));
+        var audit = Audit(Guid.CreateVersion7(), scenario.Direction.UserId,
+            defect == "UNKNOWN_ACTION" ? "UNKNOWN_PRE_ASSIGNMENT_ACTION" : "WORK_OBLIGATION_CREATED",
+            defect == "WRONG_RESOURCE_TYPE" ? "GENERATION_REQUEST" : "WORK_OBLIGATION",
+            scenario.ObligationId, firstAssignment.AddTicks(-10), includeBranch: defect != "MISSING_BRANCH",
+            outcome: defect == "FAILED_OUTCOME" ? "REJECTED" : "SUCCESS");
+        if (defect == "NON_RECIPROCAL_LINK")
+        {
+            var generationId = await context.WorkObligations.Where(o => o.Id == scenario.ObligationId)
+                .Select(o => o.GenerationRequestId).SingleAsync();
+            // Corrupt only the owned synthetic fixture to prove the reader does not repair or infer a link.
+            await context.GenerationRequests.Where(r => r.Id == generationId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(r => r.ObligationId, (Guid?)null));
+        }
+        if (defect == "AMBIGUOUS_FIRST_ASSIGNMENT")
+        {
+            var originalId = await context.AssignmentVersions.Where(a => a.ObligationId == scenario.ObligationId)
+                .Select(a => a.Id).SingleAsync();
+            InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(Guid.CreateVersion7(),
+                scenario.ObligationId, scenario.Sales.PersonId, AssignmentVersionStatuses.Superseded,
+                AssignmentTypes.Correction, JsonDocument.Parse("{}"), firstAssignment,
+                "Corrección sintética ambigua", scenario.Direction.UserId, originalId));
+        }
+        context.AuditEvents.Add(audit);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
         var before = await CountsAsync(context);
         await Assert.ThrowsAsync<AuditScopeInconsistentException>(() => Reader(context).ReadAsync(
             Request(scenario.Direction.UserId) with { TraceObligationId = scenario.ObligationId }));
+        Assert.Equal(before, await CountsAsync(context));
+    }
+
+    [Fact]
+    public async Task TechFront005RecognizedPreAssignmentDependenciesAreDirectionOnlyAndReadsStayPure()
+    {
+        var scenario = await ResetAndSeedAsync();
+        await using var context = CreateContext();
+        var obligation = await context.WorkObligations.AsNoTracking().SingleAsync(o => o.Id == scenario.ObligationId);
+        var firstAssignment = await context.AssignmentVersions.Where(a => a.ObligationId == scenario.ObligationId)
+            .MinAsync(a => a.AssignedAt);
+        var occurredAt = firstAssignment.AddTicks(-10);
+        var dependencies = new[]
+        {
+            Audit(Guid.CreateVersion7(), scenario.Direction.UserId, "GENERATION_REQUEST_ACCEPTED",
+                "GENERATION_REQUEST", obligation.GenerationRequestId, occurredAt),
+            Audit(Guid.CreateVersion7(), scenario.Direction.UserId, "GENERATION_REQUEST_RECOVERED",
+                "GENERATION_REQUEST", obligation.GenerationRequestId, occurredAt),
+            Audit(Guid.CreateVersion7(), scenario.Direction.UserId, "WORK_OBLIGATION_CREATED",
+                "WORK_OBLIGATION", obligation.Id, occurredAt),
+            Audit(Guid.CreateVersion7(), scenario.Direction.UserId, "WORK_OBLIGATION_RECOVERED",
+                "WORK_OBLIGATION", obligation.Id, occurredAt),
+        };
+        context.AuditEvents.AddRange(dependencies);
+        var later = Audit(Guid.CreateVersion7(), scenario.Direction.UserId, "WORK_OBLIGATION_RECOVERED",
+            "WORK_OBLIGATION", obligation.Id, firstAssignment.AddTicks(10));
+        context.AuditEvents.Add(later);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var before = await CountsAsync(context);
+        var reader = Reader(context);
+        var request = Request(scenario.Direction.UserId) with { TraceObligationId = obligation.Id, Limit = 2 };
+        var all = new List<AuditEventDetails>();
+        var page = await reader.ReadAsync(request);
+        var firstCursor = page.NextCursor;
+        do
+        {
+            Assert.Equal(new AuditCompleteness(true, true, true, true), page.Completeness);
+            all.AddRange(page.Items);
+            Assert.True(all.Count <= 9, "Trace pagination repeated or added events.");
+            if (page.NextCursor is null) break;
+            page = await reader.ReadAsync(request with { Cursor = page.NextCursor });
+        } while (true);
+        Assert.Equal(9, all.Count);
+        Assert.Equal(9, all.Select(item => item.Id).Distinct().Count());
+        Assert.Equal(all.OrderBy(item => item.OccurredAt).ThenBy(item => item.Id).Select(item => item.Id),
+            all.Select(item => item.Id));
+        foreach (var dependency in dependencies)
+        {
+            var projected = Assert.Single(all, item => item.Id == dependency.Id);
+            Assert.Equal("DEPENDENCY", projected.Scope.Relation);
+            Assert.Null(projected.Scope.SubjectPersonId);
+            Assert.Null(projected.Scope.SubjectLevel);
+            Assert.Equal(obligation.Id, projected.Scope.ObligationId);
+            Assert.Equal(2, projected.Change.OmittedFieldCount);
+            Assert.DoesNotContain("passwordHash", projected.Change.After!.Keys);
+            Assert.DoesNotContain("signedUrl", projected.Change.After.Keys);
+            // General collection/detail keep the historical unresolved classification.
+            Assert.Null((await reader.FindAsync(scenario.Direction.UserId, dependency.Id)).Event.Scope.Relation);
+        }
+        var laterProjection = Assert.Single(all, item => item.Id == later.Id);
+        Assert.Equal("ALL", laterProjection.Scope.Relation);
+        Assert.Equal(scenario.Sales.PersonId, laterProjection.Scope.SubjectPersonId);
+        Assert.Equal(CanonicalRole.SalesFloor, laterProjection.Scope.SubjectLevel);
+        var general = await reader.ReadAsync(Request(scenario.Direction.UserId) with
+        {
+            Action = "WORK_OBLIGATION_CREATED",
+        });
+        Assert.Null(Assert.Single(general.Items).Scope.Relation);
+        foreach (var actor in new[] { scenario.Administration, scenario.Subcoordination, scenario.Sales })
+            await Assert.ThrowsAsync<AuditEventNotFoundException>(() => reader.ReadAsync(
+                request with { ActorUserId = actor.UserId }));
+        Assert.NotNull(firstCursor);
+        await Assert.ThrowsAsync<AuditCursorInvalidException>(() => reader.ReadAsync(request with
+        {
+            ActorUserId = scenario.Administration.UserId,
+            Cursor = firstCursor,
+        }));
+        Assert.Equal(before, await CountsAsync(context));
+        var direction = await context.AppUsers.SingleAsync(u => u.Id == scenario.Direction.UserId);
+        direction.Status = AccountStatus.Inactive;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        await Assert.ThrowsAsync<AuditAccessDeniedException>(() => reader.ReadAsync(request));
         Assert.Equal(before, await CountsAsync(context));
     }
 
@@ -400,7 +511,7 @@ public sealed class AuditQueryPersistenceTests : IAsyncLifetime
     }
 
     private static AuditEvent Audit(Guid id, Guid actor, string action, string resourceType, Guid resourceId,
-        DateTimeOffset occurredAt) => new()
+        DateTimeOffset occurredAt, bool includeBranch = true, string outcome = "SUCCESS") => new()
         {
             Id = id,
             OccurredAt = occurredAt,
@@ -409,9 +520,9 @@ public sealed class AuditQueryPersistenceTests : IAsyncLifetime
             Action = action,
             ResourceType = resourceType,
             ResourceId = resourceId,
-            BranchId = BranchScope.LorettaId,
+            BranchId = includeBranch ? BranchScope.LorettaId : null,
             CorrelationId = Guid.CreateVersion7(),
-            Outcome = "SUCCESS",
+            Outcome = outcome,
             AfterData = JsonDocument.Parse("{\"schemaVersion\":1,\"status\":\"VIGENTE\",\"passwordHash\":\"secret\",\"signedUrl\":\"https://secret\"}"),
         };
 

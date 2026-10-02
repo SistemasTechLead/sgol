@@ -229,8 +229,16 @@ public sealed class EfAuditEventReader(
             if (policy is not null) { resourceIds.Add(policy.ReleaseId); configurationIds.Add(policy.ReleaseId); }
         }
 
-        var assignmentIds = await dbContext.AssignmentVersions.AsNoTracking()
-            .Where(item => item.ObligationId == obligationId).Select(item => item.Id).ToArrayAsync(cancellationToken);
+        var assignmentRows = await dbContext.AssignmentVersions.AsNoTracking()
+            .Where(item => item.ObligationId == obligationId)
+            .Select(item => new { item.Id, item.AssignedAt }).ToArrayAsync(cancellationToken);
+        var assignmentIds = assignmentRows.Select(item => item.Id).ToArray();
+        DateTimeOffset? firstAssignedAt = assignmentRows.Length == 0 ? null : assignmentRows.Min(item => item.AssignedAt);
+        var uniqueFirstAssignment = firstAssignedAt.HasValue &&
+            assignmentRows.Count(item => item.AssignedAt == firstAssignedAt) == 1;
+        var reciprocalGenerationLink = await dbContext.GenerationRequests.AsNoTracking().AnyAsync(item =>
+            item.Id == obligation.GenerationRequestId && item.ObligationId == obligationId &&
+            item.BranchId == BranchScope.LorettaId, cancellationToken);
         var evidenceItems = await dbContext.EvidenceItems.AsNoTracking()
             .Where(item => item.ObligationId == obligationId).Select(item => item.Id).ToArrayAsync(cancellationToken);
         var evidenceVersions = await dbContext.EvidenceVersions.AsNoTracking()
@@ -249,7 +257,8 @@ public sealed class EfAuditEventReader(
         resourceIds.UnionWith(reviewIds);
         resourceIds.UnionWith(requirementIds);
         resourceIds.UnionWith(decisionIds);
-        return new(obligationId, resourceIds, configurationIds,
+        return new(obligationId, obligation.GenerationRequestId, firstAssignedAt, uniqueFirstAssignment, reciprocalGenerationLink,
+            resourceIds, configurationIds,
             assignmentIds.ToHashSet(), evidenceItems.Concat(evidenceVersions).Concat(reviewIds).ToHashSet(),
             requirementIds.Concat(decisionIds).ToHashSet());
     }
@@ -438,6 +447,15 @@ public sealed class EfAuditEventReader(
         if (row.BranchId.HasValue && row.BranchId != BranchScope.LorettaId) return ResolvedScope.Hidden;
         if (trace is not null && row.ResourceId.HasValue && trace.ConfigurationIds.Contains(row.ResourceId.Value))
             return new(true, null, CanonicalRole.Direction, "DEPENDENCY", trace.ObligationId);
+        if (trace is not null && actor.RoleCode == CanonicalRole.Direction &&
+            trace.ReciprocalGenerationLink && trace.UniqueFirstAssignment && trace.FirstAssignedAt.HasValue &&
+            row.BranchId == BranchScope.LorettaId && row.Outcome == "SUCCESS" &&
+            row.OccurredAt < trace.FirstAssignedAt.Value &&
+            (row.ResourceType == "GENERATION_REQUEST" && row.ResourceId == trace.GenerationRequestId &&
+                row.Action is "GENERATION_REQUEST_ACCEPTED" or "GENERATION_REQUEST_RECOVERED" ||
+             row.ResourceType == "WORK_OBLIGATION" && row.ResourceId == trace.ObligationId &&
+                row.Action is "WORK_OBLIGATION_CREATED" or "WORK_OBLIGATION_RECOVERED"))
+            return new(true, null, null, "DEPENDENCY", trace.ObligationId);
 
         Guid? obligationId = null;
         Guid? personId = null;
@@ -639,6 +657,10 @@ public sealed class EfAuditEventReader(
         IReadOnlyCollection<HistoricalRole> Roles);
     private sealed record TraceScope(
         Guid ObligationId,
+        Guid GenerationRequestId,
+        DateTimeOffset? FirstAssignedAt,
+        bool UniqueFirstAssignment,
+        bool ReciprocalGenerationLink,
         HashSet<Guid> ResourceIds,
         HashSet<Guid> ConfigurationIds,
         HashSet<Guid> AssignmentIds,

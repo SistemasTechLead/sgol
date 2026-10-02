@@ -240,7 +240,7 @@ Continuación en este mismo chat, sin crear otro: «Apruebo íntegramente TECH_F
 
 **Estado:** D4 incorporada; fuente y cadena CAT-006 excluidas de esta consumidora conforme al contrato heredado. Continúa el harness aprobado. No se han ejecutado dos ciclos ni se declara Implementada localmente o demo completada.
 
-## 14. D5 pendiente — hechos anteriores a la asignación en la traza integral
+## 14. D5 aprobada — hechos anteriores a la asignación en la traza integral
 
 2026-10-02. **Decisión requerida; no incorporada ni implementada.** R9 conserva su expectativa de traza íntegra. No se cambian expectativas, filtros temporales ni productores para ocultar hechos.
 
@@ -257,3 +257,5 @@ Esta propuesta **modifica una decisión de lectura backend** y supera el harness
 **Trabajo independiente autorizado:** terminar soporte de continuidad/restore, cleanup y reporte, conservar cada resultado y seguir las pruebas que no dependen de esa decisión. R9 se mantiene FAIL si su traza no cumple el contrato esperado; dos ciclos completos y cierre permanecen pendientes. No publicación, PR, checks remotos ni despliegue.
 
 **Confirmación posterior de D5:** cabeza 445225c981f7f1b30ff8950be9dd3988826d12b9, Chromium escritorio: Razor 500 y API 500 AUDIT_SCOPE_INCONSISTENT en trace-diagnostic.json. Cadena PostgreSQL de siete obligaciones verificada; continuidad MATCHED/aprobación y DIFFERENT/no-aprobación reales completadas antes de conservar FAIL final de R9. Cleanup y ausencia de cinco contenedores/red/proceso/temporales propios true. No acredita ciclo integral. Decisión solicitada al responsable; pendiente, sin cambio productivo.
+
+**Decisión posterior aprobada expresamente:** «Aprobar D5 y corrección mínima separada». Responde a la ampliación limitada de alcance para su adenda y corrección mínima de lectura backend en commit separado. Adenda 61 incorpora los pares existentes reconocidos y las condiciones cerradas de vínculo/fecha/sucursal/resultado; extiende DEPENDENCY sólo en traza de Dirección, con ambos sujetos nulos. Conserva los negativos, no-efecto, historia y alcance restantes. Los párrafos de propuesta y pendiente anteriores conservan el estado histórico de la revisión; esta aprobación los supera. La corrección y los dos ciclos finales todavía requieren validación, sin publicación remota autorizada.
