@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.Playwright;
 using Sgol.Cv05Demo;
 using Xunit;
@@ -17,6 +18,7 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
     private readonly List<IBrowserContext> contexts = [];
     private readonly List<IPage> pages = [];
     private readonly List<Front005Step> steps = [];
+    private readonly List<Front005Capture> captures = [];
     private readonly Dictionary<string, Guid> obligations = new(StringComparer.Ordinal);
     private readonly Dictionary<Guid, string> secrets = [];
     private string directory = null!;
@@ -204,7 +206,13 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
             FullPage = true,
             Mask = [page.Locator("[data-sensitive-activation], .acceso__codigos, input[type=password], #versiones-evidencia tbody td:nth-child(4)")]
         });
+        var actorIndex = pages.IndexOf(page);
+        Assert.InRange(actorIndex, 0, fixture.Accounts.Count - 1);
+        captures.Add(new(name[..2], name + ".png", fixture.Accounts[actorIndex].Role));
+        await File.WriteAllTextAsync(Path.Combine(directory, "captures.json"), JsonSerializer.Serialize(captures));
     }
+
+    private sealed record Front005Capture(string Route, string FileName, string Role);
 
     private static void Same(string before, string after) => Assert.True(before == after, "Unexpected persistent effect.");
 }

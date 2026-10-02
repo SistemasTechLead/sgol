@@ -8,6 +8,8 @@
 
 2026-10-02. Harness local en desarrollo, commits coherentes en codex/tech-front-005; el párrafo anterior conserva la preparación histórica anterior al código. Informe de incidencias: TECH_FRONT_005_DEMO_INTEGRAL.md; mapa en preparación: TECH_FRONT_005_COBERTURA_FINAL.md; operación: docs/operations/tech-front005-demo.md. Los pases de desarrollo no acreditan los dos ciclos finales ni Implementada localmente. No hay autorización de publicación remota.
 
+2026-10-02. D5 pendiente en §14 del único plan: traza integral real Razor/API 500 AUDIT_SCOPE_INCONSISTENT por hechos previos a asignación bajo Adenda 29 §§7/8/17. R1..R8, indicadores/cadena PG y continuidad real de desarrollo pasaron; R9 conserva FAIL. Cleanup y ausencia propios verificados. No equivale a dos ciclos ni a Implementada localmente; requiere decisión contractual, sin código productivo por inferencia.
+
 ## FRONT-020 — Integrada; evidencia aceptada para TECH-FRONT-005
 
 2026-10-01. Evidencia expresa del responsable: [PR #89](https://github.com/SistemasTechLead/sgol/pull/89), cabeza validada `7f807feb91b4e4f5873ae26407d4ab48e08588e4`, merge verificado en master `7f1d9158b44e211bef55e6be22b42dff942ad527`; [pipeline final correcto, intento 1](https://github.com/SistemasTechLead/sgol/actions/runs/36945826212/attempts/1). Los cinco checks requeridos source controls, server, browser, operations y TECH-BASE-003 / PR gates SUCCESS; HU-035 isolated network opcional SKIPPED. Plan, capturas, commits, publicación y merge aprobados expresamente; seguimiento pausado/verificado; sin despliegue. Merge obtenido y ascendencia en origin/master comprobada localmente al preparar el plan.
