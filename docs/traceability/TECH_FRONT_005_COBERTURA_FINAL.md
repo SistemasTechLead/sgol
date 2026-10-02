@@ -1,0 +1,56 @@
+# TECH-FRONT-005 — Mapa de cobertura del alcance aprobado
+
+Estado: **en preparación; validación integral pendiente**. Este mapa describe las aserciones y las selecciones ejecutables, no acredita resultados todavía. Su evidencia final será el `summary.json` de dos ciclos sobre la cabeza vigente y los reportes de cada perfil. Las ejecuciones parciales se conservan en TECH_FRONT_005_DEMO_INTEGRAL.md.
+
+Fuente de los nueve recorridos: propuesta D1 del único TECH_FRONT_005_PLAN_DE_IMPLEMENTACION.md, aprobada íntegramente e incorporada por Adenda 60. Adenda 45 exige nueve pero no los enumera. No se atribuye contenido a los cuatro inventarios de Adenda 44 que no se localizaron. D4 aprobada prevalece sobre las referencias iniciales a una cadena TAR-0026: ocho TAR configuradas, siete cadenas ejecutables; TAR-0026 conserva exclusión de Adendas 13/15. BR-API04 permanece abierta globalmente y descarga/preview quedan fuera de esta consumidora por D2.
+
+## Recorridos, pantallas y criterios
+
+CA conserva el mismo número de cada HU enumerada. CP-P/N se acredita únicamente mediante las capas y resultados identificados abajo; asignar un HU a una fila no implica cerrar globalmente todos sus criterios.
+
+| Recorrido | HU / CA | RN | Interfaz y acciones encadenadas | Verificación adicional |
+|---|---|---|---|---|
+| R1 | HU-006/007/023/033 | RN-002/003/025/027/028 | Acceso de los cuatro roles, cambio de contraseña, enrolamiento/confirmación MFA y sesión; menú vigente de 8/6/6/5 rutas por puesto; móvil con Escape y retorno de foco | Sesión API real y 403 de personas para no Dirección; pruebas existentes de sesión/CSRF/caducidad/revocación |
+| R2 | HU-001/002/003/006/007 | RN-002..006/025/027/028 | Personas y accesos: persona/cuenta auxiliar, empleo, disponibilidad, rol/revocación, desactivación/reactivación y reset MFA | Estado PostgreSQL; sesión anterior 401 al cambiar rol; contratos y rollback de administración existentes |
+| R3 | HU-005/008/009/010 | RN-001/005/006/008/009/014/027/028 | Configuración: borrador, doce fechas por UI (diez laborables, festivo, cierre extraordinario), publicación; consulta por cuatro roles | Fechas ISO y vigencia real; publicaciones existentes sin cambios de calendario productivo |
+| R4 | HU-011/012/017/024/027 | RN-006..011/017/020/021/027/028 | Ocho definiciones TAR, 32 políticas y releases publicadas por Dirección | Identificadores/versiones reales conservados; no fuente ficticia de TAR-0026 |
+| R5 | HU-004/013/014/015/016/018/019/034 | RN-003..005/007..013/027/028 | Dirección crea seis manuales con confirmación y recuperación; corrige responsables por UI; sistema genera TAR-0005 y evalúa/asigna con servicios existentes | Replay conserva IDs; ScheduledJobRunner emite señal existente de fuente TAR-0026 no implementada y no crea sus solicitudes/obligaciones; PostgreSQL y carreras existentes |
+| R6 | HU-020/021 | RN-005/010/014/015/025/027/028 | Crear/recuperar plan por UI, preparar, cancelar con Escape/retorno, publicar; cuatro roles consultan plan publicado | PlanPublication y WorkPlan prueban historia, unicidad, ETag, cursores y no-efecto |
+| R7 | HU-022/023/025/026/030 | RN-016..019/023/025/027/029 | Bandejas cuatro roles, aviso leído; responsables aportan cada evidencia, sustituyen TAR-0007, consultan revisión explícita y concluyen siete obligaciones | CSRF Razor ausente 400 y snapshot sin efecto; PUT real a cuarentena, ClamAV real, limpio antes del vínculo; PostgreSQL conserva versiones y snapshot de conclusión |
+| R8 | HU-028/031; HU-027 precondición R4 | RN-020..025/027/028 | Subcoordinación valida las dos de Piso; Administración valida las restantes; TAR-0007 conserva CUMPLIDA→INCOMPLETA→NO_CUMPLIDA; supervisión tres roles y 403 Piso | Una decisión vigente, dos sustituidas y enlaces lineales; autoridad vigente, concurrencia y rollback en pruebas PostgreSQL existentes |
+| R9 | HU-029/032/033/035; CA-034 transversal | RN-025..030 | Cuatro roles consultan indicadores y auditoría; Dirección consulta traza y solicita/consulta/aprueba reconciliación MATCHED; DIFFERENT real sin aprobar | Cinco conteos API/UI con denominadores separados; cuatro etapas de traza y cadena PG; restore real aislado, VIEWED obligatorio, preparar/cancelar sin efecto y replay de aceptación |
+
+Los actores sistema no se presentan como pantallas de usuario. Evaluación/asignación y backup/restore requieren servicios existentes; las acciones frontend que sí existen se realizan por interfaz. La siembra inicial se limita a identidades/empleos/credenciales/roles sintéticos para iniciar el recorrido; no crea las tareas, evidencia, plan, decisiones ni reconciliaciones que este harness acredita. Una persona auxiliar se reutiliza para alta y correcciones; las combinaciones de autoridad adicionales usan los fixtures independientes existentes.
+
+## Capas reutilizadas y propósito
+
+El runner ejecuta las selecciones de nuevo en **cada ciclo**, con descubrimiento no vacío, conteo esperado igual al ejecutado y cero omisiones. Una suite histórica verde no sustituye estas ejecuciones.
+
+| Obligación transversal / CP relacionados | Pruebas que aportan evidencia |
+|---|---|
+| CP-001/002/003/006/007-P/N, permisos vigentes y CSRF | Person/Account/Role/AvailabilityAdministrationPersistenceTests; HostedAuthenticationPostgreSqlTests y RealKestrelHttpsCompletesHostedAuthenticationContract; regresión de acceso FRONT_BROWSER |
+| CP-004/013/014/015/016/018/019/034-P/N, idempotencia y concurrencia | GenerationRequestPersistenceTests y parciales Manual/Cat/Atomic, RecurringGenerationPersistenceTests, EligibilityEvaluation/AutomaticAssignment/AssignmentCorrection/ActiveLoadPersistenceTests |
+| Rollback y no-efecto de generación | EveryAtomicWriteStageAndCommitFailureLeaveNoPartialGeneration; AuditFailureBeforeCommitLeavesNoObligationLinkOrPartialAudit; AuditFailureBeforeCommitLeavesNoGenerationOrIdempotencyEffects; ConfirmedCommitWithDiscardedResponseIsRecoveredWithoutReexecution |
+| ETag/asignación/avisos | PeerIneligibleStaleVersionAndTextualPositionAreRejectedWithoutAssignmentEffects; IdenticalRetryRecoversDifferentContentConflictsAndAuditFailureRollsBack; ConcurrentCorrectionsCannotCreateTwoCurrentSuccessors; AuditFailureRollsBackNoticeRead |
+| CP-020/021-P/N, plan e historia | PlanPublicationPersistenceTests.Front015 y WorkPlanPersistenceTests; R6 realiza creación/publicación por interfaz |
+| CP-022/023/025/026/030-P/N, evidencia y ejecución | ObligationQueryPersistenceTests.Front017/018; ObligationConclusionPersistenceTests; PrivateStorageAndRealScannerKeepNonCleanContentInQuarantine; StructuredEvidencePayloadValidatorTests y EvidenceReviewEvaluatorTests |
+| Autorización, rollback y carreras de conclusión/validación | IncompleteWrongResponsibleAndStaleVersionHaveNoConclusionEffects; ObsoleteSnapshotIsNotLinkedAndAuditFailureRollsBackConclusion; DifferentKeysRaceToOneResultAndPostgreSqlRejectsMutation; Front019ConcurrentInitialDecisionsLeaveOneCurrentAndLoserConflict; Front019LostAuthorityCannotRecoverPriorDecisionAndReadsRemainPure; Front019AuditFailureRollsBackAndSameIntentionCanRecover |
+| CP-029/032-P/N, cinco indicadores y dos universos | Hu029ReconcilesFiveIndicatorsWithCurrentScopeAndNoReadEffects; Hu032ReconcilesAllRolesAndUnassignedObligationsWithoutReadEffects; Indicator/DirectionOverviewApiEndpointTests y Front020PresentationTests; R9 compara los hechos creados con API/UI |
+| CP-033-P/N, minimización y cadena completa | AuditQueryPersistenceTests, incluidas TraceUsesPersistedLinksReturnsFourStagesAndMinimizesPayload, TraceWithHistoricalPeerSubjectFailsAsOneHiddenChain y DeleteSecurityWriterAddsOneExactEventAndTriggerRejectsChanges; R9 no añade borrado funcional |
+| CP-035-P/N, aceptación y no-efecto | R9 restaura/reconcilia realmente MATCHED/DIFFERENT; Front020AuditedQueryFailsClosedAndApprovalRollbackPreservesOriginalIntention; regresión Front020 de FAILED/truncado/ETag/autoridad |
+| Diseño, navegación y accesibilidad | Category=FRONT_BROWSER reutilizada; cada captura nueva pasa CheckAccessibilityAsync de Front018: rasterización FullPage en memoria, contraste 4.5:1, controles, reflow 320, texto duplicado y movimiento reducido; teclado/foco donde se realizan acciones |
+
+## CAT y límites
+
+| CAT / CPT | Cadena nueva visible | Bordes reutilizados y exclusión |
+|---|---|---|
+| CAT-001 / CPT-001-P/N | TAR-0005, recurrencia y meta 100/venta 95 con conformidad | Ventanas, fuente y calendario en RecurringGeneration; acción bajo 90% en EvidenceReviewEvaluator/StructuredEvidence |
+| CAT-002 / CPT-002-P/N | TAR-0007, plazo ordinario de 24 h ya vencido, liberación y sustitución | Origen/plazos y evidencia faltante en GenerationRequest.Cat/Manual y EvidenceReviewEvaluator |
+| CAT-003 / CPT-003-P/N | TAR-0008, dos reclamantes y expediente reciente completo | Plazo de 30 minutos en snapshot de origen; requisitos de evidencia en revisión. El borde específico de 31 minutos requiere localizar o añadir su comprobación antes del cierre |
+| CAT-004 / CPT-004-P/N | TAR-0011, autorización previa, solución, entrega y siete hábiles con calendario UI | Deadline/origen y campos requeridos en ManualGenerationInput y EvidenceReviewEvaluator |
+| CAT-005 / CPT-005-P/N | TAR-0018, diez respuestas Sí, foto y planograma | NO/faltante rechaza por revisión existente; ningún dato real |
+| CAT-006 / CPT-006-P/N | **Excluida por D4: no cadena de servicio/pago** | Sólo configuración TAR-0026 y negativos de no-alta/no-generación; no cierre global de CAT-006 ni siembra de fuente |
+| CAT-007 / CPT-007-P/N | TAR-0092, documento, F-ENT-001 con diferencia/daño y fotografía | Tar0092CurrentFEnt001AloneDeterminesWhetherConditionalPhotoBlocks cubre conformidad sin foto/daño sin foto; unicidad en GenerationRequest.Cat |
+| CAT-008 / CPT-008-P/N | TAR-0093 enlazada a padre TAR-0092 real, fotografía/anotación/aviso interno | IncidentRejectsHiddenMissingWrongPeriodAndEarlierParentThenReplaysAfterConclusion y revisión; aviso externo excluido |
+
+No se convierten los diferidos heredados en PASS: zoom nativo, lector y dispositivos físicos; PUT/S3 WebKit Windows sin HTTP; aislamiento productivo completo SeaweedFS; carrera sustitución de evidencia contra emisión; navegador con 100000 diferencias (colección completa unitaria); isolated network opcional histórico SKIPPED. Ningún emulador ni otra suite borra esos resultados. Los problemas propios del harness permanecen pendientes hasta pasar ambos ciclos con cleanup correcto.

@@ -86,7 +86,8 @@ public sealed partial class TechFront005BrowserTests
                             _ => "Referencia sintética integral"
                         };
                         var input = page.Locator("form[action*='PrepareEvidence'] [name='" + field.Name + "']");
-                        if (field.Type is "boolean" or "select") await input.SelectOptionAsync(value);
+                        if (field.Type == "boolean") await page.Locator("form[action*='PrepareEvidence'] input[name='" + field.Name + "'][value='" + value + "']").CheckAsync();
+                        else if (field.Type == "select") await input.SelectOptionAsync(value);
                         else await input.FillAsync(value);
                     }
                     await Submit(page, page.Locator("form[action*='PrepareEvidence'] button[type=submit]"), "PrepareEvidence");
