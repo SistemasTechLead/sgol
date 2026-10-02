@@ -133,15 +133,9 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
         BaseAddress = new Uri($"https://127.0.0.1:{port}");
         certificate = NewCertificate();
         Progress?.Invoke("CERTIFICATE_CREATED");
-        using (var roots = new X509Store(StoreName.Root, StoreLocation.CurrentUser))
-        {
-            roots.Open(OpenFlags.ReadWrite);
-            if (roots.Certificates.Find(X509FindType.FindByThumbprint, certificate.Thumbprint, validOnly: false).Count != 0)
-                throw new InvalidOperationException("Fixture certificate already exists in trust store.");
-            roots.Add(certificate);
-            trustedCertificateInstalled = true;
-            Progress?.Invoke("CERTIFICATE_TRUSTED");
-        }
+        OwnedBrowserCertificateTrust.Add(certificate);
+        trustedCertificateInstalled = true;
+        Progress?.Invoke("CERTIFICATE_TRUSTED");
         var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
         certificatePath = Path.Combine(Path.GetTempPath(), $"sgol-front004-{Guid.CreateVersion7():N}.pfx");
         await File.WriteAllBytesAsync(certificatePath, certificate.Export(X509ContentType.Pfx, password));
@@ -432,11 +426,7 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
         {
             if (trustedCertificateInstalled && certificate is not null)
             {
-                using var roots = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
-                roots.Open(OpenFlags.ReadWrite);
-                roots.Remove(certificate);
-                if (roots.Certificates.Find(X509FindType.FindByThumbprint,
-                    certificate.Thumbprint, validOnly: false).Count != 0)
+                if (!OwnedBrowserCertificateTrust.Remove(certificate))
                 {
                     success = false;
                     failureCodes.Add("TRUST_PRESENT");

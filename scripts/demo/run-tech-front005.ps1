@@ -81,6 +81,8 @@ function Invoke-SelectedTests([string] $project, [string] $filter, [string] $pha
         if ($location.Success) { [void]$diagnostics.Add($location.Groups[1].Value) }
         $exception = [regex]::Match($entry, '\b((?:System|Npgsql|Microsoft\.Playwright|Xunit\.Sdk)\.[A-Za-z]+Exception)\b')
         if ($exception.Success) { [void]$diagnostics.Add('TYPE ' + $exception.Groups[1].Value) }
+        $certificate = [regex]::Match($entry, 'Owned certificate command (?:failed: exit=-?\d+|timed out)')
+        if ($certificate.Success) { [void]$diagnostics.Add('CERTIFICATE ' + $certificate.Value) }
     }
     $closedDiagnostics = @($diagnostics | Sort-Object)
     $phases.Add([ordered]@{ cycle = $cycle; phase = $phase; project = [IO.Path]::GetRelativePath($repositoryRoot, $project);
@@ -125,10 +127,16 @@ try {
             }
         }
     }
+    $ownedCertificates = @(Get-ChildItem -LiteralPath (Join-Path $runRoot 'owned-certificates') -Filter '*.json' -File |
+        ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json })
+    if ($ownedCertificates.Count -eq 0 -or @($ownedCertificates | Where-Object state -ne 'REMOVED').Count -ne 0) {
+        throw 'TECH_FRONT005_CERTIFICATE_CLEANUP_INCOMPLETE'
+    }
     [ordered]@{ task = 'TECH-FRONT-005'; sha = $sha; cycles = 2; profiles = @('desktop', 'mobile');
         cells = 36; state = 'PASS'; sdk = '10.0.400'; startedAtUtc = $startedAtUtc;
         endedAtUtc = [DateTimeOffset]::UtcNow.ToString('O'); operationTimeZone = 'America/Mexico_City';
-        runId = [IO.Path]::GetFileName($runRoot); captureDirectoriesUnset = $true; phases = $phases } |
+        runId = [IO.Path]::GetFileName($runRoot); captureDirectoriesUnset = $true;
+        ownedCertificateCleanup = $true; ownedCertificateCount = $ownedCertificates.Count; phases = $phases } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $runRoot 'summary.json') -Encoding utf8NoBOM
     Write-Output "TECH_FRONT005 COMPLETE $runRoot"
 }
