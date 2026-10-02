@@ -78,13 +78,13 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
             browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
             version = "Chromium " + browser.Version;
             await Run("R1", AccessAsync, TechFront005Report.Roles);
-            await Run("R2", IdentityAsync, ["DIRECCION"]);
+            await Run("R2", IdentityAsync, ["DIRECCION", "PISO_VENTAS"]);
             await Run("R3", CalendarAsync, TechFront005Report.Roles);
             await Run("R4", ConfigurationAsync, ["DIRECCION"]);
-            await Run("R5", GenerationAsync, ["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION"]);
+            await Run("R5", GenerationAsync, ["DIRECCION"]);
             await Run("R6", PlanAsync, TechFront005Report.Roles);
             await Run("R7", WorkAsync, TechFront005Report.Roles);
-            await Run("R8", ValidationAsync, ["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION"]);
+            await Run("R8", ValidationAsync, TechFront005Report.Roles);
             await Run("R9", ControlAsync, TechFront005Report.Roles);
             failure = "NONE";
         }
@@ -197,7 +197,7 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         {
             Path = Path.Combine(directory, name + ".png"),
             FullPage = true,
-            Mask = [page.Locator("[data-sensitive-activation], .acceso__codigos, input[type=password]")]
+            Mask = [page.Locator("[data-sensitive-activation], .acceso__codigos, input[type=password], #versiones-evidencia tbody td:nth-child(4)")]
         });
     }
 

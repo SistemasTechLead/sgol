@@ -19,6 +19,8 @@ public sealed partial class TechFront005BrowserTests
             Assert.Equal("CONCLUIDA", obligation.ExecutionStatus);
             Assert.NotNull(obligation.ConcludedAt);
             Assert.NotNull(obligation.ConcludedBy);
+            if (code is "TAR-0008" or "TAR-0011") Assert.True(obligation.ConcludedAt <= obligation.DueAt);
+            if (code == "TAR-0007") Assert.True(obligation.ConcludedAt >= obligation.DueAt);
             Assert.True(await db.EvidencePolicyVersions.AnyAsync(p => p.Id == obligation.EvidencePolicyVersionId));
             Assert.True(await db.ValidationPolicyVersions.AnyAsync(p => p.Id == obligation.ValidationPolicyVersionId));
             var execution = await db.ExecutionResults.SingleAsync(e => e.ObligationId == id);

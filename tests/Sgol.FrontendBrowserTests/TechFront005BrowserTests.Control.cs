@@ -11,8 +11,8 @@ public sealed partial class TechFront005BrowserTests
 {
     private async Task ControlAsync()
     {
-        var from = DateTimeOffset.UtcNow.AddDays(-1).ToString("O", CultureInfo.InvariantCulture);
-        var to = DateTimeOffset.UtcNow.AddDays(1).ToString("O", CultureInfo.InvariantCulture);
+        var from = DateTimeOffset.UtcNow.AddDays(-1).UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
+        var to = DateTimeOffset.UtcNow.AddDays(1).UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
         foreach (var (page, index) in pages.Select((p, i) => (p, i)))
         {
             var before = await fixture.Front020RowsAsync();

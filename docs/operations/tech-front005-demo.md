@@ -1,0 +1,45 @@
+# TECH-FRONT-005 — Ejecución local de la demo integral
+
+Estado: harness en desarrollo. Ejecución completa pendiente; consultar informe y mapa de cobertura antes de atribuir PASS.
+
+## Alcance aprobado
+
+Único plan TECH_FRONT_005_PLAN_DE_IMPLEMENTACION.md y Adenda 60. R1..R9 en Chromium escritorio y móvil emulado, cuatro roles, PostgreSQL real, HTTPS y S3/ClamAV propios. TAR-0026 conserva D4: configuración y negativos, sin fuente de servicio/pago ni cadena CAT-006. Descarga/preview excluidos por D2; BR-API04 abierta globalmente. No cambia producto, permisos, endpoints, dependencias ni despliega.
+
+## Comandos y orden
+
+Desde raíz y rama codex/tech-front-005, usar SDK exacto. No ejecutar preflight otra vez como diagnóstico de cada pase. No ejecutar restore si existen los artefactos y no cambiaron dependencias. Build/test se esperan hasta exit real y nunca se superponen.
+
+```powershell
+$sgolSdk = 'C:/Users/siste/.codex/tmp/sgol-sdk-10.0.400/dotnet.exe'
+& $sgolSdk build SGOL.slnx --no-restore --configuration Release
+& $sgolSdk test tests/Sgol.FrontendBrowserTests/Sgol.FrontendBrowserTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~TechFront005ReportTests'
+& $sgolSdk test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~TechFront005LateCat003And004'
+git diff --check
+# Tras conservar el código y la documentación en una cabeza local limpia:
+./scripts/demo/run-tech-front005.ps1 -Mode Automated -Cycles 2 -DotnetPath $sgolSdk
+```
+
+El runner exige cabeza comprometida y árbol limpio, guarda su SHA exacto, crea directorio propio con UUID v7 en `.artifacts/tech-front005/`, retira temporalmente **todos** los SGOL_FRONT*_CAPTURE_DIR y restaura sus valores al terminar. Mantiene PATH del SDK y DOTNET_CLI_UI_LANGUAGE=en sólo en su proceso. No lanza gates remotos.
+
+Por ciclo ejecuta secuencialmente: INTEGRAL (R1..R9 en ambos perfiles); BROWSER_REGRESSION (Category=FRONT_BROWSER, con complemento WebKit soportado); POSTGRESQL_API (selección cerrada en script); PRIVATE_S3_CLAMAV (proyecto Sgol.EvidenceIntegrationTests); CONTRACTS_AND_FORMULAS (unitarias relacionadas). Descubre y verifica conteos, cero fallos/omisiones y exit code real. El `summary.json` sólo aparece con cuatro reportes completos, misma cabeza y cleanup correcto. Un fallo detiene el ciclo y conserva resultados; no hay retry automático.
+
+Los comandos del plan para pruebas TechFront005 unitarias/de arquitectura eran propuestas de ubicación. Las pruebas efectivas de reporte están en el proyecto Browser; el borde temporal nuevo está en Integration. No se ejecutan filtros vacíos ni se presentan clases inexistentes como validación.
+
+## Fixtures, aislamiento y evidencia
+
+Cada perfil crea PostgreSQL origen/restauración, S3 privado origen/destino, ClamAV, red e imagen con identificadores únicos. La identidad de Dirección usa bootstrap real; las otras tres identidades son precondiciones sintéticas. Una auxiliar se crea desde UI. Configuración, calendario, seis solicitudes manuales, plan, evidencia, conclusión, decisiones y solicitudes de continuidad se producen por acciones de interfaz; la recurrencia, evaluación/asignación y operaciones técnicas de restore usan contratos existentes del sistema.
+
+El certificado HTTPS de localhost es efímero y de este perfil; el soporte lo añade a CurrentUser Root antes de iniciar Kestrel y verifica TLS normalmente. Windows puede mostrar un diálogo de confianza. Sólo corresponde al certificado propio de ese pase; ningún certificado ajeno se retira. La prueba de confianza no desactiva la validación HTTPS de la llamada interna Razor.
+
+S3 local usa HTTP declarado, con CORS restringido al origen HTTPS del perfil y bucket de cuarentena propio. Chromium observa un PUT HTTP 200 real. Los archivos son PNG/PDF del corpus sintético, tipo real/SHA-256/ClamAV antes de LIMPIO y vínculo. Esto no acredita aislamiento SeaweedFS productivo ni resuelve el fallo histórico PUT de WebKit Windows.
+
+El oráculo PostgreSQL usa lecturas de vínculos/versiones/snapshots y auditoría. Las pruebas independientes con fixtures directos acreditan autorización, rollback, idempotencia y carreras; no sustituyen las acciones UI ni prueban un recorrido completo por sí solas. El caso temporal tardío se identifica expresamente como backend independiente.
+
+## Reportes y cleanup
+
+Cada `cycle-N/desktop|mobile/report.json` conserva navegador/versión, plataforma, SHA, recorridos/roles/estado/duración, HTTPS, fallo cerrado y cleanup. `phases.json` conserva proyecto, selector, comando, conteos/exit/duración y cabeza. Imágenes `R*.png` muestran aplicación real y pasan rasterización de accesibilidad en memoria antes de guardarse; se evitan/enmascaran secretos. No se guarda trace/HAR, salida nativa sensible, cuerpos, conexiones, cookies, contraseñas, TOTP, recovery, URLs firmadas ni evidencia binaria.
+
+Cleanup en finally: contextos, browser y driver; fixture; confianza HTTPS propia; proceso web, contenedores/red, certificados/PFX/temporales propios; imagen propia. Registra componentes cerrados y verificación de ausencia. Sólo se eliminan recursos inventariados del perfil. Nunca Docker prune, limpieza global, volúmenes ajenos ni borrado funcional de historia. Si cleanup falla, queda FAIL y bloquea el cierre; investigar logs y causa antes de reintentar. Las capturas/reportes sanitizados permanecen.
+
+Los límites heredados y el coste se conservan en informe/mapa. La estimación del plan de 2–4 h no permite omitir ciclos. El estado Implementada localmente requiere criterios cubiertos, ambos ciclos, mapa y capturas revisables; revisión visual solicitada al responsable. Publicación, PR, checks remotos, merge y despliegue requieren sus autorizaciones separadas.
