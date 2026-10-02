@@ -23,6 +23,7 @@ $captureVariables = @(Get-ChildItem Env: | Where-Object Name -Match '^SGOL_FRONT
 $phases = [Collections.Generic.List[object]]::new()
 $browserProject = Join-Path $repositoryRoot 'tests/Sgol.FrontendBrowserTests/Sgol.FrontendBrowserTests.csproj'
 $apiProject = Join-Path $repositoryRoot 'tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj'
+$evidenceProject = Join-Path $repositoryRoot 'tests/Sgol.EvidenceIntegrationTests/Sgol.EvidenceIntegrationTests.csproj'
 # Closed, predeclared selection. Existing fixtures prove backend facts and never stand in for R1..R9.
 $apiFilter = @(
     'FullyQualifiedName~GenerationRequestPersistenceTests',
@@ -36,8 +37,7 @@ $apiFilter = @(
     'FullyQualifiedName~ObligationQueryPersistenceTests.Front018',
     'FullyQualifiedName~ObligationConclusionPersistenceTests',
     'FullyQualifiedName~AuditQueryPersistenceTests',
-    'FullyQualifiedName~ContinuityPersistenceTests.Front020',
-    'FullyQualifiedName~PrivateStorageAndRealScannerKeepNonCleanContentInQuarantine'
+    'FullyQualifiedName~ContinuityPersistenceTests.Front020'
 ) -join '|'
 
 function Invoke-SelectedTests([string] $project, [string] $filter, [string] $phase, [int] $cycle) {
@@ -77,6 +77,7 @@ try {
         Invoke-SelectedTests $browserProject 'Category=TECH_FRONT005' 'INTEGRAL' $cycle
         Invoke-SelectedTests $browserProject 'Category=FRONT_BROWSER' 'BROWSER_REGRESSION' $cycle
         Invoke-SelectedTests $apiProject $apiFilter 'POSTGRESQL_API' $cycle
+        Invoke-SelectedTests $evidenceProject 'FullyQualifiedName~PrivateStorageAndRealScannerKeepNonCleanContentInQuarantine' 'PRIVATE_S3_CLAMAV' $cycle
     }
     $head = (& git -C $repositoryRoot rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $head -ne $sha) { throw 'TECH_FRONT005_HEAD_CHANGED' }

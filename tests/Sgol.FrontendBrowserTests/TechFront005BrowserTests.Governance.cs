@@ -15,10 +15,12 @@ public sealed partial class TechFront005BrowserTests
         var stable = "TF005-" + Guid.CreateVersion7().ToString("N");
         await page.GetByLabel("Código de persona").FillAsync(stable);
         await page.GetByLabel("Nombre", new() { Exact = true }).FillAsync("Persona auxiliar sintética");
-        await Submit(page, page.GetByRole(AriaRole.Button, new() { Name = "Registrar persona" }), "");
+        await Submit(page, page.GetByRole(AriaRole.Button, new() { Name = "Registrar persona" }), "", 302);
         await using var db = fixture.TechFront005Context();
         var person = await db.People.AsNoTracking().SingleAsync(p => p.StableCode == stable);
         auxiliaryPerson = person.Id;
+        await Assertions.Expect(page).ToHaveURLAsync(fixture.BaseAddress.AbsoluteUri.TrimEnd('/') + "/personas-y-accesos/personas/" + person.Id.ToString("D"));
+        await page.GotoAsync("/personas-y-accesos");
         var userName = "tf005." + Guid.CreateVersion7().ToString("N");
         await page.Locator("#account-person").SelectOptionAsync(person.Id.ToString("D"));
         await page.Locator("#account-user").FillAsync(userName);

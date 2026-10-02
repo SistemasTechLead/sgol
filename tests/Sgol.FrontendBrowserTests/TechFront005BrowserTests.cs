@@ -91,6 +91,12 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         {
             // Browser call logs can contain filled credentials or a signed PUT URL. Do not publish them.
             output.WriteLine("TECH_FRONT005 PRIMARY_FAILURE " + exception.GetType().Name);
+            foreach (var frame in new StackTrace(exception, true).GetFrames())
+            {
+                var file = Path.GetFileName(frame.GetFileName());
+                if (file is not null && file.StartsWith("TechFront005", StringComparison.Ordinal))
+                    output.WriteLine("TECH_FRONT005 FAILURE_SOURCE " + file + ":" + frame.GetFileLineNumber());
+            }
             if (exception is DemoFailureException demo)
                 output.WriteLine("TECH_FRONT005 CONTRACT_FAILURE " + demo.Message);
             throw new InvalidOperationException("TECH_FRONT005 failed at " + (steps.LastOrDefault()?.Route ?? "INFRASTRUCTURE") +
