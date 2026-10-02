@@ -1,0 +1,7 @@
+@page "/continuidad/reconciliaciones/{reconciliationId:guid}"
+@model Sgol.Web.Pages.Continuity.DetailsModel
+@{ ViewData["Title"] = "Reconciliación"; }
+<header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo" tabindex="-1">Reconciliación</h1></header>
+<partial name="_Continuity" model="Model" />
+<a class="boton boton--secundario" href="/continuidad">Regresar</a>
+@section Scripts { <script src="~/js/my-work.js" asp-append-version="true"></script><script src="~/js/continuity.js" asp-append-version="true"></script> }

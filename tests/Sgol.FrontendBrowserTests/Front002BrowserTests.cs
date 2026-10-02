@@ -36,7 +36,10 @@ public sealed class Front002BrowserTests
                 Assert.EndsWith("/mi-trabajo", page.Url, StringComparison.Ordinal);
                 Assert.Equal("Mis tareas", await page.GetByRole(AriaRole.Heading, new() { Level = 1 }).InnerTextAsync());
                 Assert.Equal(1, await page.Locator(".navegacion-lateral--escritorio a[href='/validaciones']").CountAsync());
-                Assert.Equal(viewport.Account == 0 ? 5 : 4,
+                Assert.Equal(1, await page.Locator(".navegacion-lateral--escritorio a[href='/indicadores']").CountAsync());
+                Assert.Equal(1, await page.Locator(".navegacion-lateral--escritorio a[href='/auditoria']").CountAsync());
+                Assert.Equal(viewport.Account == 0 ? 1 : 0, await page.Locator(".navegacion-lateral--escritorio a[href='/continuidad']").CountAsync());
+                Assert.Equal(viewport.Account == 0 ? 8 : 6,
                     await page.Locator(".navegacion-lateral--escritorio a").CountAsync());
 
                 await page.Locator(".salto-contenido").FocusAsync();

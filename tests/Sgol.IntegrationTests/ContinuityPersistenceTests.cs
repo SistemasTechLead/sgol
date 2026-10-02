@@ -15,7 +15,7 @@ using Xunit;
 
 namespace Sgol.IntegrationTests;
 
-public sealed class ContinuityPersistenceTests : IAsyncLifetime
+public sealed partial class ContinuityPersistenceTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 14, 18, 0, 0, TimeSpan.Zero);
     private readonly PostgreSqlContainer postgres = PostgreSqlPersistenceTests.CreateContainerForTests();

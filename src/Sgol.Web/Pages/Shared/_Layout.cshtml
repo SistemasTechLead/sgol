@@ -4,6 +4,9 @@
     var title = ViewData["Title"] as string ?? "SGOL";
     var navigationItems = new[]
     {
+        new NavigationItem("Indicadores", "/indicadores", new HashSet<string>(["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION", "PISO_VENTAS"], StringComparer.Ordinal), new HashSet<string>(["PER-INDICADOR-VER"], StringComparer.Ordinal)),
+        new NavigationItem("Auditoría", "/auditoria", new HashSet<string>(["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION", "PISO_VENTAS"], StringComparer.Ordinal), new HashSet<string>(["PER-AUDITORIA-VER"], StringComparer.Ordinal)),
+        new NavigationItem("Continuidad", "/continuidad", new HashSet<string>(["DIRECCION"], StringComparer.Ordinal), new HashSet<string>(["PER-CONTINUIDAD-VER"], StringComparer.Ordinal)),
         new NavigationItem("Mi trabajo", "/mi-trabajo",
             new HashSet<string>(["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION", "PISO_VENTAS"], StringComparer.Ordinal),
             new HashSet<string>(["PER-BANDEJA-PROPIA"], StringComparer.Ordinal)),
@@ -20,7 +23,7 @@
             new HashSet<string>(["DIRECCION", "ADMINISTRACION", "SUBCOORDINACION", "PISO_VENTAS"], StringComparer.Ordinal),
             AuthenticatedOnly: true)
     };
-    var shell = Context.Request.Path.StartsWithSegments("/mi-trabajo") ||
+    var shell = Context.Request.Path.StartsWithSegments("/indicadores") || Context.Request.Path.StartsWithSegments("/auditoria") || Context.Request.Path.StartsWithSegments("/continuidad") || Context.Request.Path.StartsWithSegments("/mi-trabajo") ||
         Context.Request.Path.StartsWithSegments("/validaciones") ||
         Context.Request.Path.StartsWithSegments("/personas-y-accesos") ||
         Context.Request.Path.StartsWithSegments("/configuracion") ||

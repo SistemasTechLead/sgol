@@ -177,10 +177,13 @@ public sealed partial class Front018BrowserTests
     }
     internal static async Task CheckAccessibilityAsync(IPage page)
     {
+        // WebKit must rasterize the page before resolving ancestor backgrounds for contrast.
+        // Keep this independent of the optional capture directory used for visual review.
+        await page.ScreenshotAsync(new() { FullPage = true });
         Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth"));
         Assert.True(await page.EvaluateAsync<bool>("() => matchMedia('(prefers-reduced-motion: reduce)').matches"));
         Assert.True(await page.EvaluateAsync<bool>("() => [...document.querySelectorAll('.panel-seccion button:not(:disabled), .panel-seccion select, .panel-seccion textarea')].filter(e=>e.getClientRects().length).every(e=>e.getBoundingClientRect().height>=44)"));
-        Assert.True(await page.EvaluateAsync<bool>(ContrastCheck));
+        Assert.True(await page.EvaluateAsync<bool>(ContrastCheck), await page.EvaluateAsync<string>(ContrastDiagnostics));
         await page.EvaluateAsync("() => [...document.querySelectorAll('.evidencia__contenido p, .evidencia__contenido li, .evidencia__contenido .boton, .evidencia__contenido .campo__control, .modal p, .modal .boton')].forEach(e => { e.dataset.front018Enlarged=''; e.style.fontSize=(parseFloat(getComputedStyle(e).fontSize)*2)+'px'; })");
         Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth"));
         await page.EvaluateAsync("() => document.querySelectorAll('[data-front018-enlarged]').forEach(e=>{e.style.removeProperty('font-size');delete e.dataset.front018Enlarged;})");
@@ -196,6 +199,17 @@ public sealed partial class Front018BrowserTests
             const a=luminance(getComputedStyle(e).color), b=luminance(background);
             return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5;
           });
+        }
+        """;
+    private const string ContrastDiagnostics = """
+        () => {
+          const luminance = color => { const v=color.match(/[\d.]+/g).slice(0,3).map(Number).map(x=>{const c=x/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;});return v[0]*.2126+v[1]*.7152+v[2]*.0722; };
+          return JSON.stringify([...document.querySelectorAll('.evidencia__contenido .campo__etiqueta, .evidencia__contenido .boton:not(:disabled), .evidencia__contenido .alerta, .modal .boton')].filter(e=>e.getClientRects().length).map(e=>{
+            let parent=e, background=getComputedStyle(e).backgroundColor;
+            while(background==='rgba(0, 0, 0, 0)'&&parent.parentElement){parent=parent.parentElement;background=getComputedStyle(parent).backgroundColor;}
+            const foreground=getComputedStyle(e).color,a=luminance(foreground),b=luminance(background),ratio=(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+            return {tag:e.tagName,classes:e.className,foreground,background,ratio};
+          }).filter(e=>e.ratio<4.5));
         }
         """;
     private static async Task CaptureAsync(IPage page, bool mobile, string state)

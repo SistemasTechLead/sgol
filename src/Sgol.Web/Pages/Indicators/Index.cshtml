@@ -1,0 +1,47 @@
+@page "/indicadores"
+@model Sgol.Web.Pages.Indicators.IndexModel
+@using Sgol.Web.Presentation.MyWork
+@{ ViewData["Title"] = "Indicadores"; }
+<header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo" tabindex="-1">Indicadores</h1></header>
+@if (!Model.CanOperation && !Model.CanDirection && Model.Errors.TryGetValue("operation", out var denied)) { <partial name="_ProblemAlert" model="denied" /> }
+@foreach (var section in new[] { "operation", "direction" })
+{
+    var direction = section == "direction";
+    if (direction ? !Model.CanDirection : !Model.CanOperation) { continue; }
+    <section class="panel-seccion mi-trabajo__seccion" id="@(section)" aria-labelledby="@(section)-title">
+    <header class="panel-seccion__cabecera"><h2 id="@(section)-title" tabindex="-1">@(direction ? "Panorama de Dirección" : "Operación")</h2></header>
+    <div class="evidencia__contenido">
+    <form method="get" action="/indicadores#@(section)" class="tabla-filtros" data-work-query="@(section)">
+        @foreach (var hidden in Model.Query.Values.Where(p => !p.Key.StartsWith(section, StringComparison.Ordinal))) { <input type="hidden" name="@hidden.Key" value="@hidden.Value" /> }
+        <label class="campo"><span class="campo__etiqueta">Año ISO</span><input class="campo__control" name="@(section)isoYear" required inputmode="numeric" value="@Model.Query.Value(section, "isoYear")" /></label>
+        <label class="campo"><span class="campo__etiqueta">Semana ISO</span><input class="campo__control" name="@(section)isoWeek" required inputmode="numeric" value="@Model.Query.Value(section, "isoWeek")" /></label>
+        <label class="campo"><span class="campo__etiqueta">Nivel</span><select class="campo__control" name="@(section)level"><option value="">Todos</option>@foreach (var role in new[] { "DIRECCION", "ADMINISTRACION", "SUBCOORDINACION", "PISO_VENTAS" }) { <option value="@role" selected="@(Model.Query.Value(section, "level") == role)">@SessionPresentation.RoleName(role)</option> }</select></label>
+        <label class="campo"><span class="campo__etiqueta">ID de persona responsable</span><input class="campo__control" name="@(section)responsiblePersonId" value="@Model.Query.Value(section, "responsiblePersonId")" /></label>
+        <label class="campo"><span class="campo__etiqueta">Filas por página</span><input class="campo__control" type="number" min="1" max="100" name="@(section)limit" value="@(Model.Query.Value(section, "limit") ?? "25")" /></label>
+        <button class="boton boton--primario" type="submit">@(direction ? "Consultar panorama" : "Consultar indicadores")</button>
+    </form>
+    <p role="status" hidden data-front-query-status>@(direction ? "Consultando panorama…" : "Consultando indicadores…")</p>
+    @if (Model.Errors.TryGetValue(section, out var error)) { <div data-work-error tabindex="-1"><partial name="_ProblemAlert" model="error" /></div> }
+    else if (!Model.Data.TryGetValue(section, out var data)) { <partial name="_EmptyState" model="@(new EmptyStateViewModel(direction ? "Selecciona un año y una semana ISO para consultar el panorama de Dirección." : "Selecciona un año y una semana ISO para consultar los indicadores."))" /> }
+    else
+    {
+        <p>@MyWorkPresentation.Period(data.Period.IsoYear, data.Period.IsoWeek, data.Period.StartsOn, data.Period.EndsOn) · @data.Period.TimeZone</p>
+        <p>Alcance: @data.Scope.BranchCode · @string.Join(", ", data.Scope.IncludedLevels.Select(SessionPresentation.RoleName)) · Persona: @(data.Scope.ResponsiblePersonId?.ToString("D") ?? "No informado")</p>
+        <p>Consulta: @MyWorkPresentation.Time(Model.Queried[section]) · Base de obligaciones: @data.BaseObligationsCount</p>
+        <div class="tabla-contenedor"><table class="tabla"><caption>Conteos operativos</caption><thead class="tabla__encabezado"><tr><th scope="col">Indicador</th><th scope="col">Conteo</th><th scope="col">Denominador</th></tr></thead><tbody>
+        @foreach (var row in new[] { ("Pendientes", data.Pending), ("Concluidas", data.Concluded), ("Validadas", data.Validated), ("Incumplidas", data.NonCompliant) }) { <tr class="tabla__fila"><th scope="row">@row.Item1</th><td>@row.Item2.Count</td><td>@row.Item2.Denominator</td></tr> }
+        </tbody></table></div>
+        <p>Pendientes cuenta tareas con ejecución pendiente; no cuenta validaciones pendientes.</p><p>Concluida describe la ejecución; no significa validada.</p><p>Validadas incluye cualquier resultado de la decisión vigente. Las decisiones sustituidas no se suman.</p><p>Incumplidas exige una decisión vigente No cumplida. Una tarea vencida no basta.</p>
+        @if (data.BaseObligationsCount == 0) { <partial name="_EmptyState" model='@(new EmptyStateViewModel("No hay obligaciones en el período y alcance consultados. Los conteos y sus denominadores son cero."))' /> }
+        <h3>Carga activa por persona</h3><p>Denominador: @data.ActiveLoadByPerson.Denominator</p>
+        @if (direction) { <p>El denominador incluye pendientes sin asignación; esas tareas no generan una fila de persona.</p> }
+        <div class="tabla-contenedor"><table class="tabla"><caption>Carga activa por persona</caption><thead class="tabla__encabezado"><tr><th scope="col">Persona</th><th scope="col">Nivel</th><th scope="col">Carga activa</th></tr></thead><tbody>
+        @foreach (var item in data.ActiveLoadByPerson.Items) { <tr class="tabla__fila"><td>@item.Person.StableCode · @item.Person.DisplayName</td><td>@SessionPresentation.RoleName(item.Level)</td><td>@item.Count</td></tr> }
+        </tbody></table></div>
+        @if (data.ActiveLoadByPerson.Items.Count == 0) { <partial name="_EmptyState" model='@(new EmptyStateViewModel("No hay personas en el alcance consultado."))' /> }
+        <partial name="/Pages/MyWork/_WorkPagination.cshtml" model="Model.Pagination[section]" />
+    }
+    @if (Model.Query.Selected(section)) { <a class="boton boton--secundario" href="@Model.Query.Reset(section)">Quitar filtros</a> }
+    </div></section>
+}
+@section Scripts { <script src="~/js/my-work.js" asp-append-version="true"></script> }
