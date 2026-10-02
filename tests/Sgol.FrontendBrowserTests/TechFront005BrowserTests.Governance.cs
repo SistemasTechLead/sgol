@@ -98,12 +98,17 @@ public sealed partial class TechFront005BrowserTests
         await page.GotoAsync("/configuracion");
         await Capture(page, "R3-release-vacia");
         await NewDraft();
-        await page.GotoAsync("/planificacion?" + Period + "&from=" + IsoDay + "&to=" + IsoDay + "&day=" + IsoDay + "&releaseId=" + draft);
-        await page.Locator("#draft-type").SelectOptionAsync("LABORABLE");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar día en borrador", Exact = true }).ClickAsync();
-        await Assertions.Expect(page.Locator("#calendar-confirm")).ToBeVisibleAsync();
-        await page.Locator("#calendar-reason").FillAsync("Laborable sintético");
-        await Submit(page, page.Locator("#calendar-save button[type=submit]"), "Save");
+        // Publish enough real calendar facts for the seven-working-day warranty contract.
+        for (var offset = 0; offset < 12; offset++)
+        {
+            var date = day.AddDays(offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            await page.GotoAsync("/planificacion?" + Period + "&from=" + date + "&to=" + date + "&day=" + date + "&releaseId=" + draft);
+            await page.Locator("#draft-type").SelectOptionAsync(offset < 10 ? "LABORABLE" : offset == 10 ? "FESTIVO" : "NO_LABORABLE");
+            await page.GetByRole(AriaRole.Button, new() { Name = "Guardar día en borrador", Exact = true }).ClickAsync();
+            await Assertions.Expect(page.Locator("#calendar-confirm")).ToBeVisibleAsync();
+            await page.Locator("#calendar-reason").FillAsync("Calendario sintético integral");
+            await Submit(page, page.Locator("#calendar-save button[type=submit]"), "Save");
+        }
         await PublishDraft(DateTimeOffset.UtcNow.AddDays(-3));
         foreach (var role in pages)
         {

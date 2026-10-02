@@ -66,6 +66,7 @@ public sealed partial class TechFront005BrowserTests
             Assert.DoesNotContain("TAR-0026", await Direction.Locator("#manual-task").InnerTextAsync());
             await Capture(Direction, "R5-" + code + "-formulario");
             var fields = Direction.Locator("#manual-form input:not([type=hidden])");
+            var now = DateTimeOffset.UtcNow;
             for (var index = 0; index < await fields.CountAsync(); index++)
             {
                 var field = fields.Nth(index);
@@ -73,8 +74,8 @@ public sealed partial class TechFront005BrowserTests
                 var type = await field.GetAttributeAsync("type");
                 if (name is not null && ManualGenerationInput.Fields(code).Contains(name))
                     output.WriteLine("TECH_FRONT005 MANUAL_FIELD " + code + " " + name + " " + (type ?? "default"));
-                await field.FillAsync(type == "datetime-local" ? day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) +
-                    (name == "expiresAt" ? "T23:00:00" : "T00:01:00") : "SYN-" + code + "-" + index);
+                var instant = code == "TAR-0007" ? (name == "expiresAt" ? now.AddHours(-1) : now.AddHours(-25)) : now.AddMinutes(-1);
+                await field.FillAsync(type == "datetime-local" ? Local(instant) : "SYN-" + code + "-" + index);
             }
             if (code == "TAR-0011") await Direction.Locator("#manual-solutionType").SelectOptionAsync("CAMBIO");
             if (code == "TAR-0093")
