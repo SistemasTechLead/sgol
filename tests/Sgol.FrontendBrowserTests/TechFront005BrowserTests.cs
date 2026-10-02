@@ -56,13 +56,16 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         {
             output.WriteLine("TECH_FRONT005 IMAGE");
             await image.BuildAsync(CancellationToken.None);
-            owner = new(image.ImageId)
+            owner = new(image.ImageId);
+            owner.ConfigureWebProcess = info =>
             {
-                ConfigureWebProcess = info => info.WorkingDirectory = Path.Combine(root, "src", "Sgol.Web")
+                info.WorkingDirectory = Path.Combine(root, "src", "Sgol.Web");
+                // Match the integrated browser fixture: trust is present before the host starts.
+                owner.TrustFrontendCertificate();
             };
             output.WriteLine("TECH_FRONT005 INFRASTRUCTURE");
             await owner.StartAsync(CancellationToken.None);
-            owner.TrustFrontendCertificate();
+            await owner.VerifyFrontendTlsAsync(output.WriteLine);
             await owner.ConfigureFrontendCorsAsync();
             fixture = new();
             await fixture.AttachTechFront005Async(owner);

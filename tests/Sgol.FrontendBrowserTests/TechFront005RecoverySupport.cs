@@ -23,6 +23,25 @@ internal sealed partial class Cv05Infrastructure
 
     private bool frontendCertificateTrusted;
 
+    internal async Task VerifyFrontendTlsAsync(Action<string> report)
+    {
+        using var handler = new HttpClientHandler
+        {
+            UseCookies = false,
+            AllowAutoRedirect = false,
+            ServerCertificateCustomValidationCallback = (_, _, chain, errors) =>
+            {
+                report("TECH_FRONT005 TLS_POLICY " + errors);
+                foreach (var status in chain?.ChainStatus ?? [])
+                    report("TECH_FRONT005 TLS_CHAIN " + status.Status);
+                return errors == System.Net.Security.SslPolicyErrors.None;
+            }
+        };
+        using var client = new HttpClient(handler) { BaseAddress = BaseAddress };
+        using var response = await client.GetAsync("/api/v1/auth/session");
+        if ((int)response.StatusCode != 401) throw new InvalidOperationException("Unexpected anonymous session contract.");
+    }
+
     internal void TrustFrontendCertificate()
     {
         if (certificate is null) throw new InvalidOperationException("Owned HTTPS certificate unavailable.");
