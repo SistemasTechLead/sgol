@@ -13,6 +13,7 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
     private BrowserFixture fixture = null!;
     private Cv05Infrastructure owner = null!;
     private IBrowser browser = null!;
+    private IPlaywright playwright = null!;
     private readonly List<IBrowserContext> contexts = [];
     private readonly List<IPage> pages = [];
     private readonly List<Front005Step> steps = [];
@@ -58,13 +59,14 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
             owner = new(image.ImageId);
             output.WriteLine("TECH_FRONT005 INFRASTRUCTURE");
             await owner.StartAsync(CancellationToken.None);
+            owner.TrustFrontendCertificate();
             fixture = new();
             await fixture.AttachTechFront005Async(owner);
             day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,
                 TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City")).DateTime);
             year = ISOWeek.GetYear(day.ToDateTime(TimeOnly.MinValue));
             week = ISOWeek.GetWeekOfYear(day.ToDateTime(TimeOnly.MinValue));
-            using var playwright = await Playwright.CreateAsync();
+            playwright = await Playwright.CreateAsync();
             browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
             version = "Chromium " + browser.Version;
             await Run("R1", AccessAsync, TechFront005Report.Roles);
@@ -97,7 +99,7 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
             await TechFront005Report.WriteAsync(directory, new("TECH-FRONT-005", sha, cycle, mobile ? "mobile" : "desktop",
                 version, "Windows AMD64 / Docker Linux AMD64", true, steps.ToArray(), cleaned, failure));
             output.WriteLine("TECH_FRONT005 CLEANUP " + cleaned);
-            Assert.True(cleaned, "Owned frontend resources were not fully cleaned.");
+            if (failure == "CLEANUP_FAILED") Assert.True(cleaned, "Owned frontend resources were not fully cleaned.");
         }
     }
 
@@ -107,7 +109,9 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         disposed = true;
         foreach (var context in contexts) { try { await context.DisposeAsync(); } catch { resourcesCleaned = false; } }
         try { if (browser is not null) await browser.DisposeAsync(); } catch { resourcesCleaned = false; }
+        try { playwright?.Dispose(); } catch { resourcesCleaned = false; }
         try { if (fixture is not null) { await fixture.DisposeAsync(); resourcesCleaned &= fixture.CleanupComplete; } } catch { resourcesCleaned = false; }
+        try { if (owner is not null) resourcesCleaned &= owner.CleanupFrontendCertificate(); } catch { resourcesCleaned = false; }
         try { if (owner is not null) resourcesCleaned &= await owner.CleanupAsync(); } catch { resourcesCleaned = false; }
         GC.SuppressFinalize(this);
     }

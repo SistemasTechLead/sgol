@@ -35,21 +35,25 @@ public sealed partial class TechFront005BrowserTests
     private async Task FirstAccess(IPage page, BrowserAccount account)
     {
         await page.GotoAsync("/acceso");
+        output.WriteLine("TECH_FRONT005 ACCESS LOGIN");
         await page.Locator("#userName").FillAsync(account.UserName);
         await page.Locator("#password").FillAsync(account.TemporaryPassword);
         await page.GetByRole(AriaRole.Button, new() { Name = "Iniciar sesión" }).ClickAsync();
         await page.WaitForURLAsync("**/acceso/cambiar-contrasena?flow=*");
+        output.WriteLine("TECH_FRONT005 ACCESS PASSWORD_CHANGE");
         Assert.DoesNotContain(await page.Context.CookiesAsync(), c => c.Name == "__Host-SGOL-Session");
         await page.Locator("#currentPassword").FillAsync(account.TemporaryPassword);
         await page.Locator("#newPassword").FillAsync(account.NewPassword);
         await page.GetByRole(AriaRole.Button, new() { Name = "Cambiar contraseña" }).ClickAsync();
         await page.WaitForURLAsync("**/acceso/mfa/enrolar?flow=*");
+        output.WriteLine("TECH_FRONT005 ACCESS MFA_ENROLLMENT");
         await page.GetByRole(AriaRole.Button, new() { Name = "Mostrar clave de configuración" }).ClickAsync();
         var secret = await page.Locator(".acceso__codigos code").InnerTextAsync();
         secrets.Add(account.UserId, secret);
         await page.Locator("#totpCode").FillAsync(BrowserFixture.Totp(secret, DateTimeOffset.UtcNow));
         await page.GetByRole(AriaRole.Button, new() { Name = "Confirmar MFA" }).ClickAsync();
         await Assertions.Expect(page.Locator(".acceso__codigos li")).ToHaveCountAsync(10);
+        output.WriteLine("TECH_FRONT005 ACCESS FULL_SESSION");
         // Never capture the one-time credential screen, including synthetic credentials.
         await page.GotoAsync("/mi-trabajo");
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Level = 1 })).ToHaveTextAsync("Mis tareas");
