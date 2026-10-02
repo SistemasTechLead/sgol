@@ -30,8 +30,11 @@ public sealed partial class TechFront005BrowserTests
             "&traceObligationId=" + obligations["TAR-0007"]);
         Assert.True(await Direction.Locator("#audit tbody tr").CountAsync() > 0, "No backend chain was returned.");
         await Capture(Direction, "R9-traza-completa");
+        foreach (var stage in new[] { "Configuración", "Asignación", "Evidencia", "Validación" })
+            await Assertions.Expect(Direction.Locator("#audit")).ToContainTextAsync(stage + ": Con hechos registrados");
+        await VerifyPersistedChainAsync();
         var account = fixture.Accounts[0];
-        var client = owner.CreateClient();
+        using var client = owner.CreateClient();
         var cookie = (await contexts[0].CookiesAsync()).Single(c => c.Name == "__Host-SGOL-Session");
         client.DefaultRequestHeaders.Add("Cookie", cookie.Name + "=" + cookie.Value);
         var csrf = await HostedAuthenticationClient.GetCsrfAsync(client, CancellationToken.None);
