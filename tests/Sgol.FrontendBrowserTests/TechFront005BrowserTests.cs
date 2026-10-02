@@ -32,7 +32,7 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
     private string IsoDay => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     private IPage Direction => pages[0];
     private static string Local(DateTimeOffset value) => TimeZoneInfo.ConvertTime(value,
-        TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City")).ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);
+        TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City")).ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture);
 
     [Theory, Trait("Category", "TECH_FRONT005")]
     [InlineData(false)]
@@ -158,6 +158,14 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         page.DOMContentLoaded += Loaded;
         try
         {
+            var invalid = await button.EvaluateAsync<string[]>("""
+                button => Array.from(button.form?.elements || []).filter(el => el.willValidate && !el.validity.valid)
+                  .map(el => el.tagName + ':' + el.type + ':' +
+                    ['valueMissing','typeMismatch','patternMismatch','tooLong','tooShort','rangeUnderflow','rangeOverflow','stepMismatch','badInput','customError']
+                      .filter(flag => el.validity[flag]).join(','))
+                """);
+            foreach (var field in invalid) output.WriteLine("TECH_FRONT005 INVALID_FORM " + field);
+            Assert.Empty(invalid);
             var response = page.WaitForResponseAsync(r => r.Request.Method == "POST" &&
                 (handler.Length == 0 ? !r.Url.Contains("handler=", StringComparison.Ordinal) : r.Url.Contains("handler=" + handler, StringComparison.Ordinal)));
             await button.ClickAsync();

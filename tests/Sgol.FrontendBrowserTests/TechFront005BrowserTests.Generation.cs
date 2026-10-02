@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Diagnostics.Metrics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,32 @@ public sealed partial class TechFront005BrowserTests
             Assert.Equal(first.ObligationId, second.ObligationId);
             obligations.Add("TAR-0005", first.ObligationId!.Value);
         }
+        long unavailable = 0;
+        using (var listener = new MeterListener())
+        {
+            listener.InstrumentPublished = (instrument, observer) =>
+            {
+                if (instrument.Meter.Name == "Sgol.Jobs" && instrument.Name == "sgol.worker.recurrence.origin_source_unavailable")
+                    observer.EnableMeasurementEvents(instrument);
+            };
+            listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+            {
+                var reserved = false; var excluded = false;
+                foreach (var tag in tags)
+                {
+                    reserved |= tag.Key == "taskCode" && Equals(tag.Value, "TAR-0026");
+                    excluded |= tag.Key == "result" && Equals(tag.Value, "ORIGIN_SOURCE_NOT_IMPLEMENTED");
+                }
+                if (reserved && excluded) Interlocked.Add(ref unavailable, value);
+            });
+            listener.Start();
+            await using var scope = provider.CreateAsyncScope();
+            var runner = scope.ServiceProvider.GetRequiredService<ScheduledJobRunner>();
+            var scheduled = DateTimeOffset.UtcNow;
+            Assert.Equal(ScheduledJobResult.Completed, await runner.RunAsync(RecurringGenerationContract.JobName, scheduled, Guid.CreateVersion7()));
+            Assert.Equal(ScheduledJobResult.AlreadyCompleted, await runner.RunAsync(RecurringGenerationContract.JobName, scheduled, Guid.CreateVersion7()));
+        }
+        Assert.Equal(1, unavailable);
         foreach (var code in new[] { "TAR-0007", "TAR-0008", "TAR-0011", "TAR-0018", "TAR-0092", "TAR-0093" })
         {
             await Direction.GotoAsync("/planificacion?" + Period + "&taskCode=" + code);
@@ -77,13 +104,21 @@ public sealed partial class TechFront005BrowserTests
             var reserved = Sgol.Configuration.Contracts.TaskDefinitionCatalog.Require("TAR-0026").Id;
             var versions = db.TaskDefinitionVersions.Where(v => v.TaskDefinitionId == reserved).Select(v => v.Id);
             Assert.Equal(0, await db.WorkObligations.CountAsync(o => versions.Contains(o.TaskDefinitionVersionId)));
+            var rules = db.ActivationRuleVersions.Where(r => r.TaskDefinitionId == reserved).Select(r => r.Id);
+            Assert.Equal(0, await db.GenerationRequests.CountAsync(r => rules.Contains(r.RuleVersionId)));
         }
         // UI correction restores the tested floor account even when the ranking chose the auxiliary.
         foreach (var target in new[] { auxiliaryPerson, fixture.Accounts[3].PersonId })
         {
             await Direction.GotoAsync("/planificacion?obligationId=" + obligations["TAR-0007"]);
             var option = Direction.Locator("#new-responsible option[value='" + target + "']");
-            if (await option.CountAsync() == 0) continue; // Current holder is deliberately excluded by the real contract.
+            if (await option.CountAsync() == 0)
+            {
+                await using var db = fixture.TechFront005Context();
+                var current = await db.AssignmentVersions.AsNoTracking().SingleAsync(a => a.ObligationId == obligations["TAR-0007"] && a.Status == "VIGENTE");
+                Assert.Equal(target, current.PersonId); // The current holder is deliberately excluded.
+                continue;
+            }
             await Direction.Locator("#new-responsible").SelectOptionAsync(target.ToString("D"));
             await Direction.Locator("#correction-reason").FillAsync("Corrección sintética integral motivada");
             await Submit(Direction, Direction.Locator("form[action*='PrepareCorrection'] button[type=submit]"), "PrepareCorrection");
