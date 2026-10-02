@@ -27,6 +27,7 @@ internal sealed partial class Cv05Infrastructure(string imageId) : IAsyncDisposa
     public string ImageId => imageId;
     public string ConnectionString { get; private set; } = null!;
     public Uri BaseAddress { get; private set; } = null!;
+    internal Action<ProcessStartInfo>? ConfigureWebProcess { get; set; }
     public string DirectionUserName { get; } = $"dir.cv05.{Guid.CreateVersion7():N}";
     public string DirectionTemporaryPassword { get; } = NewPassword();
     public string DirectionNewPassword { get; } = NewPassword();
@@ -283,6 +284,7 @@ internal sealed partial class Cv05Infrastructure(string imageId) : IAsyncDisposa
         startInfo.Environment["DataProtection__ApplicationName"] = "SGOL-CV05";
         startInfo.Environment["DataProtection__WrappingCertificate"] = certificatePfxBase64;
         startInfo.Environment["DataProtection__WrappingCertificatePassword"] = certificatePassword;
+        ConfigureWebProcess?.Invoke(startInfo);
         web = new Process { StartInfo = startInfo };
         if (!web.Start())
         {

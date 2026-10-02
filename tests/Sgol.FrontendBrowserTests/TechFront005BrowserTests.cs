@@ -56,10 +56,14 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         {
             output.WriteLine("TECH_FRONT005 IMAGE");
             await image.BuildAsync(CancellationToken.None);
-            owner = new(image.ImageId);
+            owner = new(image.ImageId)
+            {
+                ConfigureWebProcess = info => info.WorkingDirectory = Path.Combine(root, "src", "Sgol.Web")
+            };
             output.WriteLine("TECH_FRONT005 INFRASTRUCTURE");
             await owner.StartAsync(CancellationToken.None);
             owner.TrustFrontendCertificate();
+            await owner.ConfigureFrontendCorsAsync();
             fixture = new();
             await fixture.AttachTechFront005Async(owner);
             day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,

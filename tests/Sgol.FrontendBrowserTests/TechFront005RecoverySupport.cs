@@ -7,6 +7,20 @@ namespace Sgol.Cv05Demo;
 
 internal sealed partial class Cv05Infrastructure
 {
+    internal async Task ConfigureFrontendCorsAsync()
+    {
+        using var client = CreateSourceS3();
+        await client.PutCORSConfigurationAsync(new Amazon.S3.Model.PutCORSConfigurationRequest
+        {
+            BucketName = DemoContract.SourceQuarantineBucket,
+            Configuration = new Amazon.S3.Model.CORSConfiguration
+            {
+                Rules = [new Amazon.S3.Model.CORSRule { Id = "sgol-evidence-upload", AllowedOrigins = [BaseAddress.AbsoluteUri.TrimEnd('/')],
+                    AllowedMethods = ["PUT"], AllowedHeaders = ["Content-Type", "Content-Length", "If-None-Match", "x-amz-meta-sgol-sha256", "x-amz-meta-sgol-media-type", "x-amz-meta-sgol-size-bytes"], MaxAgeSeconds = 600 }]
+            }
+        });
+    }
+
     private bool frontendCertificateTrusted;
 
     internal void TrustFrontendCertificate()

@@ -95,15 +95,14 @@ public sealed partial class TechFront005BrowserTests
     {
         await Direction.GotoAsync("/configuracion");
         await Submit(Direction, Direction.GetByRole(AriaRole.Button, new() { Name = "Crear borrador", Exact = true }), "Create");
-        var id = await Direction.Locator("#task-release-select option:nth-child(2)").GetAttributeAsync("value");
-        draft = Guid.Parse(id!);
+        var href = await Direction.GetByRole(AriaRole.Link, new() { Name = "Editar días del borrador", Exact = true }).GetAttributeAsync("href");
+        draft = Guid.Parse(href!.Split("releaseId=", StringSplitOptions.None)[1].Split('&')[0]);
     }
 
     private async Task PublishDraft(DateTimeOffset effective)
     {
         await Direction.GotoAsync("/configuracion");
-        var row = Direction.Locator("#release-history tbody tr").Filter(new() { HasTextString = draft.ToString("D") });
-        await row.GetByRole(AriaRole.Button, new() { Name = "Publicar borrador" }).ClickAsync();
+        await Direction.Locator("button[aria-controls='publish-" + draft.ToString("D") + "']").ClickAsync();
         await Direction.Locator("dialog[open] input[name=effectiveFrom]").FillAsync(Local(effective));
         await Direction.Locator("dialog[open] textarea[name=reason]").FillAsync("Publicación sintética integral");
         await Submit(Direction, Direction.Locator("dialog[open] button[type=submit]"), "Publish");

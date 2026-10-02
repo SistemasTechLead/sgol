@@ -34,11 +34,29 @@ public sealed partial class TechFront005BrowserTests
 
     private async Task FirstAccess(IPage page, BrowserAccount account)
     {
-        await page.GotoAsync("/acceso");
+        var initial = await page.GotoAsync("/acceso");
+        Assert.Equal(200, initial!.Status);
         output.WriteLine("TECH_FRONT005 ACCESS LOGIN");
+        output.WriteLine("TECH_FRONT005 ACCESS USER_FIELDS " + await page.Locator("#userName").CountAsync());
         await page.Locator("#userName").FillAsync(account.UserName);
         await page.Locator("#password").FillAsync(account.TemporaryPassword);
-        await page.GetByRole(AriaRole.Button, new() { Name = "Iniciar sesión" }).ClickAsync();
+        var login = await page.RunAndWaitForResponseAsync(() => page.GetByRole(AriaRole.Button, new() { Name = "Iniciar sesión" }).ClickAsync(),
+            r => r.Request.Method == "POST" && new Uri(r.Url).AbsolutePath == "/acceso");
+        output.WriteLine("TECH_FRONT005 ACCESS LOGIN_STATUS " + login.Status);
+        if (await page.Locator("#acceso-error strong").CountAsync() != 0)
+        {
+            var title = await page.Locator("#acceso-error strong").InnerTextAsync();
+            var code = title switch
+            {
+                "No se pudo iniciar sesión" => "AUTHENTICATION_FAILED",
+                "No se pudo verificar la solicitud" => "CSRF_INVALID",
+                "No se pudo continuar" => "PROTOCOL_OR_CONTRACT_FAILURE",
+                "Revisa los datos ingresados" => "INVALID_INPUT",
+                _ => "OTHER_PUBLIC_ERROR"
+            };
+            output.WriteLine("TECH_FRONT005 ACCESS LOGIN_ERROR " + code);
+            throw new InvalidOperationException("Synthetic UI login rejected.");
+        }
         await page.WaitForURLAsync("**/acceso/cambiar-contrasena?flow=*");
         output.WriteLine("TECH_FRONT005 ACCESS PASSWORD_CHANGE");
         Assert.DoesNotContain(await page.Context.CookiesAsync(), c => c.Name == "__Host-SGOL-Session");
