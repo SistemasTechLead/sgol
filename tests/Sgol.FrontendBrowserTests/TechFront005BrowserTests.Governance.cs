@@ -103,7 +103,7 @@ public sealed partial class TechFront005BrowserTests
         {
             var date = day.AddDays(offset).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             await page.GotoAsync("/planificacion?" + Period + "&from=" + date + "&to=" + date + "&day=" + date + "&releaseId=" + draft);
-            await page.Locator("#draft-type").SelectOptionAsync(offset < 10 ? "LABORABLE" : offset == 10 ? "FESTIVO" : "NO_LABORABLE");
+            await page.Locator("#draft-type").SelectOptionAsync(offset < 10 ? "LABORABLE" : offset == 10 ? "FESTIVO" : "CIERRE_EXTRAORDINARIO");
             await page.GetByRole(AriaRole.Button, new() { Name = "Guardar día en borrador", Exact = true }).ClickAsync();
             await Assertions.Expect(page.Locator("#calendar-confirm")).ToBeVisibleAsync();
             await page.Locator("#calendar-reason").FillAsync("Calendario sintético integral");

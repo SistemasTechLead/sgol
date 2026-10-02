@@ -144,6 +144,7 @@ public sealed partial class TechFront005BrowserTests
     private async Task PlanAsync()
     {
         await Direction.GotoAsync("/planificacion?" + Period);
+        await Submit(Direction, Direction.GetByRole(AriaRole.Button, new() { Name = "Crear o recuperar plan", Exact = true }), "EnsurePlan");
         await Submit(Direction, Direction.GetByRole(AriaRole.Button, new() { Name = "Preparar publicación" }), "PreparePlanPublication");
         await Assertions.Expect(Direction.Locator("#plan-confirm")).ToBeVisibleAsync();
         await Direction.Keyboard.PressAsync("Escape");
