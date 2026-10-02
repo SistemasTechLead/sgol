@@ -89,6 +89,23 @@ public sealed class AuditQueryPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TechFront005PreAssignmentFactFailsWholeTraceWithoutReadEffects()
+    {
+        var scenario = await ResetAndSeedAsync();
+        await using var context = CreateContext();
+        var firstAssignment = await context.AssignmentVersions.Where(a => a.ObligationId == scenario.ObligationId)
+            .MinAsync(a => a.AssignedAt);
+        context.AuditEvents.Add(Audit(Guid.CreateVersion7(), scenario.Direction.UserId, "WORK_OBLIGATION_CREATED",
+            "WORK_OBLIGATION", scenario.ObligationId, firstAssignment.AddTicks(-10)));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var before = await CountsAsync(context);
+        await Assert.ThrowsAsync<AuditScopeInconsistentException>(() => Reader(context).ReadAsync(
+            Request(scenario.Direction.UserId) with { TraceObligationId = scenario.ObligationId }));
+        Assert.Equal(before, await CountsAsync(context));
+    }
+
+    [Fact]
     public async Task CursorIsActorBoundAndConcurrentInsertAfterFenceDoesNotMixPages()
     {
         var scenario = await ResetAndSeedAsync();

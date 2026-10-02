@@ -33,12 +33,20 @@ public sealed partial class TechFront005BrowserTests
             await Capture(page, "R9-auditoria-" + fixture.Accounts[index].Role);
             if (index != 0) Assert.Equal(403, (await page.GotoAsync("/continuidad"))!.Status);
         }
-        await Direction.GotoAsync("/auditoria?mode=trace&from=" + Uri.EscapeDataString(from) + "&to=" + Uri.EscapeDataString(to) +
-            "&traceObligationId=" + obligations["TAR-0007"]);
-        Assert.True(await Direction.Locator("#audit tbody tr").CountAsync() > 0, "No backend chain was returned.");
-        await Capture(Direction, "R9-traza-completa");
-        foreach (var stage in new[] { "Configuración", "Asignación", "Evidencia", "Validación" })
-            await Assertions.Expect(Direction.Locator("#audit")).ToContainTextAsync(stage + ": Con hechos registrados");
+        var tracePath = "/auditoria?mode=trace&from=" + Uri.EscapeDataString(from) + "&to=" + Uri.EscapeDataString(to) +
+            "&traceObligationId=" + obligations["TAR-0007"];
+        var initialTrace = await Direction.GotoAsync(tracePath);
+        var apiTrace = await contexts[0].APIRequest.GetAsync("/api/v1/audit-events?from=" + Uri.EscapeDataString(from) +
+            "&to=" + Uri.EscapeDataString(to) + "&traceObligationId=" + obligations["TAR-0007"]);
+        var traceCode = "NONE";
+        if (apiTrace.Status != 200)
+        {
+            using var error = JsonDocument.Parse(await apiTrace.BodyAsync());
+            traceCode = error.RootElement.TryGetProperty("code", out var code) && code.GetString() == "AUDIT_SCOPE_INCONSISTENT"
+                ? "AUDIT_SCOPE_INCONSISTENT" : "OTHER_CONTRACT_FAILURE";
+        }
+        await File.WriteAllTextAsync(Path.Combine(directory, "trace-diagnostic.json"),
+            "{\"status\":" + initialTrace!.Status + ",\"apiStatus\":" + apiTrace.Status + ",\"code\":\"" + traceCode + "\"}");
         await VerifyPersistedChainAsync();
         var account = fixture.Accounts[0];
         using var client = owner.CreateClient();
@@ -84,6 +92,13 @@ public sealed partial class TechFront005BrowserTests
         await using var db = fixture.TechFront005Context();
         Assert.Equal(2, await db.RecoveryReconciliations.CountAsync());
         Assert.Equal(0, await db.RecoveryReconciliationEvents.CountAsync(e => e.ReconciliationId == different && e.EventType == "RECOVERY_RECONCILIATION_APPROVED"));
+        var traced = await Direction.GotoAsync(tracePath);
+        output.WriteLine("TECH_FRONT005 AUDIT_TRACE_HTTP " + traced!.Status);
+        Assert.Equal(200, traced.Status);
+        Assert.True(await Direction.Locator("#audit tbody tr").CountAsync() > 0, "No backend chain was returned.");
+        await Capture(Direction, "R9-traza-completa");
+        foreach (var stage in new[] { "Configuración", "Asignación", "Evidencia", "Validación" })
+            await Assertions.Expect(Direction.Locator("#audit")).ToContainTextAsync(stage + ": Con hechos registrados");
     }
 
     private async Task VerifyIndicatorsAsync(IPage page, int actorIndex, string endpoint, string section)

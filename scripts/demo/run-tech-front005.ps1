@@ -14,6 +14,7 @@ if ($LASTEXITCODE -ne 0 -or $sha -notmatch '^[a-f0-9]{40}$') { throw 'TECH_FRONT
 $status = & git -C $repositoryRoot status --porcelain
 if ($LASTEXITCODE -ne 0 -or $status) { throw 'TECH_FRONT005_REQUIRES_COMMITTED_HEAD' }
 $runRoot = Join-Path $repositoryRoot ('.artifacts/tech-front005/' + [Guid]::CreateVersion7().ToString('N'))
+$startedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
 [IO.Directory]::CreateDirectory($runRoot) | Out-Null
 $saved = @{}
 foreach ($name in @('PATH', 'DOTNET_CLI_UI_LANGUAGE', 'SGOL_TECH_FRONT005_CYCLE', 'SGOL_TECH_FRONT005_OUTPUT')) {
@@ -101,7 +102,9 @@ try {
         }
     }
     [ordered]@{ task = 'TECH-FRONT-005'; sha = $sha; cycles = 2; profiles = @('desktop', 'mobile');
-        cells = 36; state = 'PASS'; captureDirectoriesUnset = $true; phases = $phases } |
+        cells = 36; state = 'PASS'; sdk = '10.0.400'; startedAtUtc = $startedAtUtc;
+        endedAtUtc = [DateTimeOffset]::UtcNow.ToString('O'); operationTimeZone = 'America/Mexico_City';
+        runId = [IO.Path]::GetFileName($runRoot); captureDirectoriesUnset = $true; phases = $phases } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $runRoot 'summary.json') -Encoding utf8NoBOM
     Write-Output "TECH_FRONT005 COMPLETE $runRoot"
 }

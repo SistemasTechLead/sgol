@@ -130,6 +130,9 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
     {
         if (disposed) return;
         disposed = true;
+        Func<Task<bool>>? verifyAbsence = null;
+        try { verifyAbsence = owner?.FrontendResourceAbsenceCheck(output.WriteLine); }
+        catch (Exception exception) { output.WriteLine("TECH_FRONT005 CLEANUP_INVENTORY " + exception.GetType().Name); resourcesCleaned = false; }
         foreach (var context in contexts) { try { await context.DisposeAsync(); } catch { resourcesCleaned = false; } }
         try { if (browser is not null) await browser.DisposeAsync(); } catch { resourcesCleaned = false; }
         try { playwright?.Dispose(); } catch { resourcesCleaned = false; }
@@ -139,6 +142,8 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         catch (Exception exception) { output.WriteLine("TECH_FRONT005 CLEANUP_TRUST " + exception.GetType().Name); resourcesCleaned = false; }
         try { if (owner is not null) { var result = await owner.CleanupAsync(); output.WriteLine("TECH_FRONT005 CLEANUP_OWNER " + result); resourcesCleaned &= result; } }
         catch (Exception exception) { output.WriteLine("TECH_FRONT005 CLEANUP_OWNER " + exception.GetType().Name); resourcesCleaned = false; }
+        try { if (verifyAbsence is not null) resourcesCleaned &= await verifyAbsence(); }
+        catch (Exception exception) { output.WriteLine("TECH_FRONT005 CLEANUP_ABSENCE " + exception.GetType().Name); resourcesCleaned = false; }
         GC.SuppressFinalize(this);
     }
 

@@ -7,6 +7,49 @@ namespace Sgol.Cv05Demo;
 
 internal sealed partial class Cv05Infrastructure
 {
+    internal Func<Task<bool>> FrontendResourceAbsenceCheck(Action<string> report)
+    {
+        var containerIds = new[] { postgres, restorePostgres, scanner, sourceStore, destinationStore }
+            .Where(container => container is not null).Select(container => container!.Id)
+            .Where(id => !string.IsNullOrEmpty(id)).ToArray();
+        var transientNames = transientContainers.ToArray();
+        var ownedDirectory = privateDirectory;
+        var ownedCertificatePath = certificatePath;
+        var process = web;
+        var processId = process is null ? (int?)null : process.Id;
+        var processStarted = process is null ? (DateTime?)null : process.StartTime;
+        return async () =>
+        {
+            var absent = !Directory.Exists(ownedDirectory) && (ownedCertificatePath is null || !File.Exists(ownedCertificatePath));
+            foreach (var id in containerIds)
+            {
+                var result = await NativeProcess.RunAsync("docker", ["container", "ls", "--all", "--filter", "id=" + id,
+                    "--format", "{{.ID}}"], RepositoryRoot, TimeSpan.FromSeconds(30), CancellationToken.None);
+                absent &= result.Exit == 0 && string.IsNullOrWhiteSpace(result.Stdout);
+            }
+            var networks = await NativeProcess.RunAsync("docker", ["network", "ls", "--filter", "name=" + networkName,
+                "--format", "{{.Name}}"], RepositoryRoot, TimeSpan.FromSeconds(30), CancellationToken.None);
+            absent &= networks.Exit == 0 && string.IsNullOrWhiteSpace(networks.Stdout);
+            foreach (var name in transientNames)
+            {
+                var result = await NativeProcess.RunAsync("docker", ["container", "ls", "--all", "--filter", "name=" + name,
+                    "--format", "{{.Names}}"], RepositoryRoot, TimeSpan.FromSeconds(30), CancellationToken.None);
+                absent &= result.Exit == 0 && string.IsNullOrWhiteSpace(result.Stdout);
+            }
+            if (processId is { } idValue)
+            {
+                try
+                {
+                    using var remaining = System.Diagnostics.Process.GetProcessById(idValue);
+                    absent &= remaining.StartTime != processStarted;
+                }
+                catch (ArgumentException) { }
+            }
+            report("TECH_FRONT005 CLEANUP_ABSENCE " + absent + " containers=" + containerIds.Length);
+            return absent;
+        };
+    }
+
     internal async Task ConfigureFrontendCorsAsync()
     {
         using var client = CreateSourceS3();
