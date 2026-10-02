@@ -60,9 +60,14 @@ public sealed partial class TechFront005BrowserTests
                 if (requirement.Kind is "FOTOGRAFIA" or "DOCUMENTO_REFERENCIADO")
                 {
                     var photo = requirement.Kind == "FOTOGRAFIA";
+                    if (requirement.Code == "DOCUMENTO_RECEPCION")
+                        await page.Locator("[name=documentSubtype]").SelectOptionAsync("REMISION");
                     await page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
                     { Name = photo ? "fotografia-sintetica.png" : "documento-sintetico.pdf", MimeType = photo ? "image/png" : "application/pdf", Buffer = photo ? EvidenceCorpus.Png() : EvidenceCorpus.Pdf() });
-                    await page.Locator("[data-upload-start]").ClickAsync();
+                    var uploaded = await page.RunAndWaitForResponseAsync(() => page.Locator("[data-upload-start]").ClickAsync(),
+                        response => response.Request.Method == "PUT");
+                    Assert.Equal(200, uploaded.Status);
+                    output.WriteLine("TECH_FRONT005 PRIVATE_PUT " + code + " " + requirement.Code + " HTTP " + uploaded.Status);
                     await page.WaitForFunctionAsync("() => document.querySelector('[data-upload-status]').textContent.includes('Esperando análisis') || !document.querySelector('[data-upload-error]').hidden");
                     Assert.True(await page.Locator("[data-upload-error]").IsHiddenAsync(), "Synthetic private upload failed.");
                     await Assertions.Expect(page.Locator("[data-upload-contribute]")).ToBeHiddenAsync();
