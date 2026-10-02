@@ -85,7 +85,7 @@ public sealed partial class TechFront005BrowserTests
                             "select" => field.Name == "outcome" ? "CONFORMIDAD" : "CAMBIO",
                             _ => "Referencia sintética integral"
                         };
-                        var input = page.Locator("[name='" + field.Name + "']");
+                        var input = page.Locator("form[action*='PrepareEvidence'] [name='" + field.Name + "']");
                         if (field.Type is "boolean" or "select") await input.SelectOptionAsync(value);
                         else await input.FillAsync(value);
                     }

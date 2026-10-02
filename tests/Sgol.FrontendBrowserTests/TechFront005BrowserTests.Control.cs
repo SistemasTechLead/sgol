@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Sgol.Cv05Demo;
@@ -18,6 +19,12 @@ public sealed partial class TechFront005BrowserTests
             await page.GotoAsync($"/indicadores?operationisoYear={year}&operationisoWeek={week}");
             await Assertions.Expect(page.Locator("#operation")).ToContainTextAsync("Base de obligaciones");
             Assert.Equal(index == 0 ? 1 : 0, await page.Locator("#direction").CountAsync());
+            await VerifyIndicatorsAsync(page, index, "/api/v1/indicators", "operation");
+            if (index == 0)
+            {
+                await page.GotoAsync($"/indicadores?operationisoYear={year}&operationisoWeek={week}&directionisoYear={year}&directionisoWeek={week}");
+                await VerifyIndicatorsAsync(page, index, "/api/v1/direction/overview", "direction");
+            }
             Same(before, await fixture.Front020RowsAsync());
             await Capture(page, "R9-indicadores-" + fixture.Accounts[index].Role);
             await page.GotoAsync("/auditoria?from=" + Uri.EscapeDataString(from) + "&to=" + Uri.EscapeDataString(to));
@@ -77,6 +84,32 @@ public sealed partial class TechFront005BrowserTests
         await using var db = fixture.TechFront005Context();
         Assert.Equal(2, await db.RecoveryReconciliations.CountAsync());
         Assert.Equal(0, await db.RecoveryReconciliationEvents.CountAsync(e => e.ReconciliationId == different && e.EventType == "RECOVERY_RECONCILIATION_APPROVED"));
+    }
+
+    private async Task VerifyIndicatorsAsync(IPage page, int actorIndex, string endpoint, string section)
+    {
+        // Every expected obligation was created and completed through the preceding interface journeys.
+        var expectedBase = actorIndex == 3 ? 2L : 7L;
+        var response = await page.Context.APIRequest.GetAsync(endpoint + "?" + Period + "&limit=100");
+        Assert.Equal(200, response.Status);
+        using var body = JsonDocument.Parse(await response.BodyAsync());
+        var data = body.RootElement.GetProperty("data");
+        Assert.Equal(expectedBase, data.GetProperty("baseObligationsCount").GetInt64());
+        var counts = new[] { ("pending", "Pendientes", 0L), ("concluded", "Concluidas", expectedBase),
+            ("validated", "Validadas", expectedBase), ("nonCompliant", "Incumplidas", 1L) };
+        foreach (var (property, label, expected) in counts)
+        {
+            Assert.Equal(expected, data.GetProperty(property).GetProperty("count").GetInt64());
+            Assert.Equal(expectedBase, data.GetProperty(property).GetProperty("denominator").GetInt64());
+            var row = page.Locator("#" + section + " table").First.Locator("tbody tr").Filter(new() { HasTextString = label });
+            await Assertions.Expect(row.Locator("td").Nth(0)).ToHaveTextAsync(expected.ToString(CultureInfo.InvariantCulture));
+            await Assertions.Expect(row.Locator("td").Nth(1)).ToHaveTextAsync(expectedBase.ToString(CultureInfo.InvariantCulture));
+        }
+        var load = data.GetProperty("activeLoadByPerson");
+        Assert.Equal(0, load.GetProperty("denominator").GetInt64());
+        Assert.True(load.GetProperty("items").GetArrayLength() > 0);
+        foreach (var item in load.GetProperty("items").EnumerateArray()) Assert.Equal(0, item.GetProperty("count").GetInt64());
+        output.WriteLine("TECH_FRONT005 INDICATORS " + section + " role=" + fixture.Accounts[actorIndex].Role + " base=" + expectedBase);
     }
 
     private async Task<Guid> RequestThroughInterface()

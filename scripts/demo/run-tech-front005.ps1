@@ -19,13 +19,20 @@ $saved = @{}
 foreach ($name in @('PATH', 'DOTNET_CLI_UI_LANGUAGE', 'SGOL_TECH_FRONT005_CYCLE', 'SGOL_TECH_FRONT005_OUTPUT')) {
     $saved[$name] = [Environment]::GetEnvironmentVariable($name)
 }
-$captureVariables = @(Get-ChildItem Env: | Where-Object Name -Match '^SGOL_FRONT\d+_CAPTURE_DIR$')
+$captureVariables = @(Get-ChildItem Env: | Where-Object Name -Like 'SGOL_FRONT*_CAPTURE_DIR')
 $phases = [Collections.Generic.List[object]]::new()
 $browserProject = Join-Path $repositoryRoot 'tests/Sgol.FrontendBrowserTests/Sgol.FrontendBrowserTests.csproj'
 $apiProject = Join-Path $repositoryRoot 'tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj'
 $evidenceProject = Join-Path $repositoryRoot 'tests/Sgol.EvidenceIntegrationTests/Sgol.EvidenceIntegrationTests.csproj'
+$unitProject = Join-Path $repositoryRoot 'tests/Sgol.UnitTests/Sgol.UnitTests.csproj'
 # Closed, predeclared selection. Existing fixtures prove backend facts and never stand in for R1..R9.
 $apiFilter = @(
+    'FullyQualifiedName~PersonAdministrationPersistenceTests',
+    'FullyQualifiedName~AccountAdministrationPersistenceTests',
+    'FullyQualifiedName~RoleAdministrationPersistenceTests',
+    'FullyQualifiedName~AvailabilityAdministrationPersistenceTests',
+    'FullyQualifiedName~HostedAuthenticationPostgreSqlTests',
+    'FullyQualifiedName~HostedAuthenticationKestrelSmokeTests',
     'FullyQualifiedName~GenerationRequestPersistenceTests',
     'FullyQualifiedName~RecurringGenerationPersistenceTests',
     'FullyQualifiedName~EligibilityEvaluationPersistenceTests',
@@ -33,6 +40,7 @@ $apiFilter = @(
     'FullyQualifiedName~AssignmentCorrectionPersistenceTests',
     'FullyQualifiedName~ActiveLoadPersistenceTests',
     'FullyQualifiedName~PlanPublicationPersistenceTests.Front015',
+    'FullyQualifiedName~WorkPlanPersistenceTests',
     'FullyQualifiedName~ObligationQueryPersistenceTests.Front017',
     'FullyQualifiedName~ObligationQueryPersistenceTests.Front018',
     'FullyQualifiedName~ObligationConclusionPersistenceTests',
@@ -78,6 +86,7 @@ try {
         Invoke-SelectedTests $browserProject 'Category=FRONT_BROWSER' 'BROWSER_REGRESSION' $cycle
         Invoke-SelectedTests $apiProject $apiFilter 'POSTGRESQL_API' $cycle
         Invoke-SelectedTests $evidenceProject 'FullyQualifiedName~PrivateStorageAndRealScannerKeepNonCleanContentInQuarantine' 'PRIVATE_S3_CLAMAV' $cycle
+        Invoke-SelectedTests $unitProject 'FullyQualifiedName~IndicatorApiEndpointTests|FullyQualifiedName~DirectionOverviewApiEndpointTests|FullyQualifiedName~Front020PresentationTests|FullyQualifiedName~EvidenceReviewEvaluatorTests' 'CONTRACTS_AND_FORMULAS' $cycle
     }
     $head = (& git -C $repositoryRoot rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $head -ne $sha) { throw 'TECH_FRONT005_HEAD_CHANGED' }

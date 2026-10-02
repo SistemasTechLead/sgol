@@ -115,7 +115,8 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         {
             await DisposeAsync();
             cleaned &= resourcesCleaned;
-            try { cleaned &= await image.CleanupAsync(); } catch { cleaned = false; }
+            try { var result = await image.CleanupAsync(); output.WriteLine("TECH_FRONT005 CLEANUP_IMAGE " + result); cleaned &= result; }
+            catch (Exception exception) { output.WriteLine("TECH_FRONT005 CLEANUP_IMAGE " + exception.GetType().Name); cleaned = false; }
             Environment.SetEnvironmentVariable("CV05_COMMIT", priorCommit);
             if (!cleaned && failure == "NONE") failure = "CLEANUP_FAILED";
             await TechFront005Report.WriteAsync(directory, new("TECH-FRONT-005", sha, cycle, mobile ? "mobile" : "desktop",
@@ -132,9 +133,12 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         foreach (var context in contexts) { try { await context.DisposeAsync(); } catch { resourcesCleaned = false; } }
         try { if (browser is not null) await browser.DisposeAsync(); } catch { resourcesCleaned = false; }
         try { playwright?.Dispose(); } catch { resourcesCleaned = false; }
-        try { if (fixture is not null) { await fixture.DisposeAsync(); resourcesCleaned &= fixture.CleanupComplete; } } catch { resourcesCleaned = false; }
-        try { if (owner is not null) resourcesCleaned &= owner.CleanupFrontendCertificate(); } catch { resourcesCleaned = false; }
-        try { if (owner is not null) resourcesCleaned &= await owner.CleanupAsync(); } catch { resourcesCleaned = false; }
+        try { if (fixture is not null) { await fixture.DisposeAsync(); output.WriteLine("TECH_FRONT005 CLEANUP_FIXTURE " + fixture.CleanupComplete); resourcesCleaned &= fixture.CleanupComplete; } }
+        catch (Exception exception) { output.WriteLine("TECH_FRONT005 CLEANUP_FIXTURE " + exception.GetType().Name); resourcesCleaned = false; }
+        try { if (owner is not null) { var result = owner.CleanupFrontendCertificate(); output.WriteLine("TECH_FRONT005 CLEANUP_TRUST " + result); resourcesCleaned &= result; } }
+        catch (Exception exception) { output.WriteLine("TECH_FRONT005 CLEANUP_TRUST " + exception.GetType().Name); resourcesCleaned = false; }
+        try { if (owner is not null) { var result = await owner.CleanupAsync(); output.WriteLine("TECH_FRONT005 CLEANUP_OWNER " + result); resourcesCleaned &= result; } }
+        catch (Exception exception) { output.WriteLine("TECH_FRONT005 CLEANUP_OWNER " + exception.GetType().Name); resourcesCleaned = false; }
         GC.SuppressFinalize(this);
     }
 
