@@ -55,11 +55,18 @@ public sealed partial class TechFront005BrowserTests
             listener.Start();
             await using var scope = provider.CreateAsyncScope();
             var runner = scope.ServiceProvider.GetRequiredService<ScheduledJobRunner>();
-            var scheduled = DateTimeOffset.UtcNow;
+            // Exercise the same due occurrence as above, rather than adding the 17:00 window
+            // when this demo runs later in the day. The production windows remain unchanged.
+            var scheduled = RecurringGenerationContract.ToUtc(day, new(12, 0),
+                TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City"));
             Assert.Equal(ScheduledJobResult.Completed, await runner.RunAsync(RecurringGenerationContract.JobName, scheduled, Guid.CreateVersion7()));
             Assert.Equal(ScheduledJobResult.AlreadyCompleted, await runner.RunAsync(RecurringGenerationContract.JobName, scheduled, Guid.CreateVersion7()));
         }
         Assert.Equal(1, unavailable);
+        await using (var database = fixture.TechFront005Context())
+        {
+            Assert.Equal(1, await database.WorkObligations.CountAsync());
+        }
         foreach (var code in new[] { "TAR-0007", "TAR-0008", "TAR-0011", "TAR-0018", "TAR-0092", "TAR-0093" })
         {
             await Direction.GotoAsync("/planificacion?" + Period + "&taskCode=" + code);

@@ -109,6 +109,24 @@ public sealed partial class TechFront005BrowserTests
         Assert.Equal(200, response.Status);
         using var body = JsonDocument.Parse(await response.BodyAsync());
         var data = body.RootElement.GetProperty("data");
+        var actualBase = data.GetProperty("baseObligationsCount").GetInt64();
+        if (actualBase != expectedBase)
+        {
+            await using var database = fixture.TechFront005Context();
+            await File.WriteAllTextAsync(Path.Combine(directory, "indicator-base-diagnostic.json"),
+                JsonSerializer.Serialize(new
+                {
+                    role = fixture.Accounts[actorIndex].Role,
+                    section,
+                    year,
+                    week,
+                    expectedBase,
+                    actualBase,
+                    trackedObligations = obligations.Count,
+                    persistedObligations = await database.WorkObligations.CountAsync(),
+                    nonManualObligations = await database.WorkObligations.CountAsync(item => item.ManualTaskCode == null),
+                }));
+        }
         Assert.Equal(expectedBase, data.GetProperty("baseObligationsCount").GetInt64());
         var counts = new[] { ("pending", "Pendientes", 0L), ("concluded", "Concluidas", expectedBase),
             ("validated", "Validadas", expectedBase), ("nonCompliant", "Incumplidas", 1L) };
