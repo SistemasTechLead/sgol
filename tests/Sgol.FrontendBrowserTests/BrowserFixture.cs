@@ -47,7 +47,7 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
     public Func<Uri, Task<IReadOnlyDictionary<string, string>>>? ConfigureEvidence { get; set; }
 
     public Uri BaseAddress { get; private set; } = null!;
-    public IReadOnlyList<BrowserAccount> Accounts { get; } =
+    public IReadOnlyList<BrowserAccount> Accounts { get; private set; } =
     [
         NewAccount(CanonicalRole.Direction),
         NewAccount(CanonicalRole.Administration),

@@ -19,5 +19,12 @@
     <Compile Include="..\Sgol.IntegrationTests\ObligationConclusionTestData.cs" Link="SharedFixtures\ObligationConclusionTestData.cs" />
     <Compile Include="..\Sgol.IntegrationTests\InternalNoticeTestData.cs" Link="SharedFixtures\InternalNoticeTestData.cs" />
     <Compile Include="..\Shared\EvidenceCorpus.cs" Link="SharedFixtures\EvidenceCorpus.cs" />
+    <Compile Include="..\Sgol.Cv05Demo\Cv05Infrastructure.cs" Link="SharedFixtures\Cv05Infrastructure.cs" />
+    <Compile Include="..\Sgol.Cv05Demo\Cv05Stores.cs" Link="SharedFixtures\Cv05Stores.cs" />
+    <Compile Include="..\Sgol.Cv05Demo\Cv05RecoveryRuntime.cs" Link="SharedFixtures\Cv05RecoveryRuntime.cs" />
+    <Compile Include="..\Sgol.Cv05Demo\Cv05Image.cs" Link="SharedFixtures\Cv05Image.cs" />
+    <Compile Include="..\Sgol.Cv05Demo\NativeProcess.cs" Link="SharedFixtures\NativeProcess.cs" />
+    <Compile Include="..\Sgol.Cv05Demo\DemoContract.cs" Link="SharedFixtures\DemoContract.cs" />
+    <Compile Include="..\Sgol.Cv05Demo\HostedAuthenticationClient.cs" Link="SharedFixtures\HostedAuthenticationClient.cs" />
   </ItemGroup>
 </Project>
