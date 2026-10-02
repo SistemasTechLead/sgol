@@ -52,11 +52,12 @@ public sealed class Front009BrowserTests
                 var open = draft.GetByRole(AriaRole.Button, new() { Name = "Publicar borrador" });
                 await open.ClickAsync();
                 var dialog = page.Locator("dialog[open]");
-                Assert.True(await dialog.GetByRole(AriaRole.Button, new() { Name = "Cancelar" })
-                    .EvaluateAsync<bool>("el => document.activeElement === el"));
+                await Assertions.Expect(dialog.GetByRole(AriaRole.Button, new() { Name = "Cancelar" }))
+                    .ToBeFocusedAsync();
                 await CheckWidthAndCaptureAsync(page, output, $"{viewport}-confirmation.png", mobile);
                 await page.Keyboard.PressAsync("Escape");
-                Assert.True(await open.EvaluateAsync<bool>("el => document.activeElement === el"));
+                await Assertions.Expect(dialog).Not.ToBeVisibleAsync();
+                await Assertions.Expect(open).ToBeFocusedAsync();
 
                 await open.ClickAsync();
                 dialog = page.Locator("dialog[open]");
