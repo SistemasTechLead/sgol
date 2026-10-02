@@ -30,7 +30,9 @@ public sealed partial class TechFront005BrowserTests
         var user = await db.IdentityCredentials.AsNoTracking().SingleAsync(u => u.UserName == userName);
         await ChangeAuxiliaryRole(page, user.UserId, "PISO_VENTAS");
         var auxiliary = new BrowserAccount(user.UserId, person.Id, userName, "PISO_VENTAS", password, "S!" + Guid.CreateVersion7().ToString("N") + "a");
-        await using (var context = await ContextAsync()) { var access = await context.NewPageAsync(); await FirstAccess(access, auxiliary); }
+        await using var auxiliaryContext = await ContextAsync();
+        var auxiliaryPage = await auxiliaryContext.NewPageAsync();
+        await FirstAccess(auxiliaryPage, auxiliary);
         await page.GotoAsync("/personas-y-accesos/personas/" + person.Id);
         await page.GetByLabel("Puesto", new() { Exact = true }).FillAsync("Director");
         await page.GetByLabel("Turno", new() { Exact = true }).FillAsync("Matutino");
@@ -52,7 +54,25 @@ public sealed partial class TechFront005BrowserTests
         }
         await page.GotoAsync("/personas-y-accesos");
         await ChangeAuxiliaryRole(page, user.UserId, "SUBCOORDINACION");
+        Assert.Equal(401, (await auxiliaryContext.APIRequest.GetAsync("/api/v1/auth/session")).Status);
         await ChangeAuxiliaryRole(page, user.UserId, "PISO_VENTAS");
+        var revoke = page.Locator("dialog[id$='-revoke']").Filter(new()
+        { Has = page.Locator("input[name=userId][value='" + user.UserId + "']") });
+        var revokeId = await revoke.GetAttributeAsync("id");
+        await page.Locator("button[aria-controls='" + revokeId + "']").ClickAsync();
+        await revoke.Locator("textarea[name=reason]").FillAsync("Revocación sintética motivada");
+        await Submit(page, revoke.Locator("button[type=submit]"), "ChangeRole");
+        await Assertions.Expect(page.Locator("main")).ToContainTextAsync("Rol revocado");
+        await ChangeAuxiliaryRole(page, user.UserId, "PISO_VENTAS");
+        foreach (var handler in new[] { "DeactivateAccount", "ReactivateAccount" })
+        {
+            var accountDialog = page.Locator("#account-status-" + user.UserId.ToString("D"));
+            await page.Locator("button[aria-controls='account-status-" + user.UserId.ToString("D") + "']").ClickAsync();
+            await accountDialog.Locator("textarea[name=reason]").FillAsync("Vigencia de cuenta sintética motivada");
+            await Submit(page, accountDialog.Locator("button[type=submit]"), handler);
+            var status = await db.AppUsers.AsNoTracking().Where(u => u.Id == user.UserId).Select(u => u.Status).SingleAsync();
+            Assert.Equal(handler == "DeactivateAccount" ? "INACTIVA" : "ACTIVA", status);
+        }
         await Capture(page, "R2-cuentas-y-roles");
         var reset = page.Locator("dialog").Filter(new() { Has = page.Locator("form[action*='ResetMfa'] input[name=userId][value='" + user.UserId + "']") });
         var resetId = await reset.GetAttributeAsync("id");
@@ -97,7 +117,10 @@ public sealed partial class TechFront005BrowserTests
     {
         await Direction.GotoAsync("/configuracion");
         await Submit(Direction, Direction.GetByRole(AriaRole.Button, new() { Name = "Crear borrador", Exact = true }), "Create");
-        var href = await Direction.GetByRole(AriaRole.Link, new() { Name = "Editar días del borrador", Exact = true }).GetAttributeAsync("href");
+        var created = Direction.Locator("section[aria-labelledby='releases-title'] > a")
+            .Filter(new() { HasText = "Editar días del borrador" });
+        await Assertions.Expect(created).ToHaveCountAsync(1);
+        var href = await created.GetAttributeAsync("href");
         draft = Guid.Parse(href!.Split("releaseId=", StringSplitOptions.None)[1].Split('&')[0]);
     }
 
