@@ -29,6 +29,7 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
     private bool resourcesCleaned = true;
     private bool disposed;
     private string Period => $"isoYear={year}&isoWeek={week}";
+    private string IsoDay => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     private IPage Direction => pages[0];
     private static string Local(DateTimeOffset value) => TimeZoneInfo.ConvertTime(value,
         TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City")).ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture);

@@ -45,7 +45,7 @@ public sealed partial class TechFront005BrowserTests
         await Capture(page, "R2-historia-laboral");
         foreach (var personId in fixture.Accounts.Select(a => a.PersonId).Append(auxiliaryPerson))
         {
-            await page.GotoAsync("/personas-y-accesos/personas/" + personId + "?fromDate=" + day + "&toDate=" + day + "&day=" + day);
+            await page.GotoAsync("/personas-y-accesos/personas/" + personId + "?fromDate=" + IsoDay + "&toDate=" + IsoDay + "&day=" + IsoDay);
             var form = page.Locator("form[action*='Availability']").First;
             await form.Locator("input[type=radio][value=true]").CheckAsync();
             await Submit(page, form.Locator("button[type=submit]"), "Availability");
@@ -78,7 +78,7 @@ public sealed partial class TechFront005BrowserTests
         await page.GotoAsync("/configuracion");
         await Capture(page, "R3-release-vacia");
         await NewDraft();
-        await page.GotoAsync("/planificacion?" + Period + "&from=" + day + "&to=" + day + "&day=" + day + "&releaseId=" + draft);
+        await page.GotoAsync("/planificacion?" + Period + "&from=" + IsoDay + "&to=" + IsoDay + "&day=" + IsoDay + "&releaseId=" + draft);
         await page.Locator("#draft-type").SelectOptionAsync("LABORABLE");
         await page.GetByRole(AriaRole.Button, new() { Name = "Guardar día en borrador", Exact = true }).ClickAsync();
         await Assertions.Expect(page.Locator("#calendar-confirm")).ToBeVisibleAsync();
@@ -87,7 +87,7 @@ public sealed partial class TechFront005BrowserTests
         await PublishDraft(DateTimeOffset.UtcNow.AddDays(-3));
         foreach (var role in pages)
         {
-            await role.GotoAsync("/planificacion?" + Period + "&from=" + day + "&to=" + day);
+            await role.GotoAsync("/planificacion?" + Period + "&from=" + IsoDay + "&to=" + IsoDay);
             await Assertions.Expect(role.Locator("#published-calendar")).ToContainTextAsync("Laborable");
         }
         await Capture(page, "R3-calendario-semana");

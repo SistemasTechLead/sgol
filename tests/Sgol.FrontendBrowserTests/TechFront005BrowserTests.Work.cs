@@ -13,7 +13,25 @@ public sealed partial class TechFront005BrowserTests
     {
         foreach (var (page, index) in pages.Select((p, i) => (p, i)))
         {
-            await page.GotoAsync("/mi-trabajo");
+            Assert.Equal(200, (await page.GotoAsync("/mi-trabajo"))!.Status);
+            await page.Locator("#avisos select").SelectOptionAsync("UNREAD");
+            await page.Locator("#avisos").GetByRole(AriaRole.Button, new() { Name = "Aplicar filtros" }).ClickAsync();
+            await page.WaitForURLAsync(url => url.Contains("noticeStatus=UNREAD", StringComparison.Ordinal));
+            var unread = page.Locator("#avisos").GetByRole(AriaRole.Button, new() { Name = "Marcar como leído" });
+            if (index is 2 or 3) Assert.True(await unread.CountAsync() > 0, "Assigned executor has no unread notice.");
+            if (await unread.CountAsync() != 0)
+            {
+                var before = await fixture.MyWorkRowsAsync(includeNoticeAndAudit: false);
+                await Submit(page, unread.First, "ReadNotice");
+                await Assertions.Expect(page.Locator("main")).ToContainTextAsync("Aviso marcado como leído. La tarea no cambió");
+                await Assertions.Expect(page.Locator("#avisos-title")).ToBeFocusedAsync();
+                Same(before, await fixture.MyWorkRowsAsync(includeNoticeAndAudit: false));
+                await page.Locator("#avisos select").SelectOptionAsync("READ");
+                await page.Locator("#avisos").GetByRole(AriaRole.Button, new() { Name = "Aplicar filtros" }).ClickAsync();
+                await page.WaitForURLAsync(url => url.Contains("noticeStatus=READ", StringComparison.Ordinal));
+                await Assertions.Expect(page.Locator("#avisos")).ToContainTextAsync("Leído");
+                Same(before, await fixture.MyWorkRowsAsync(includeNoticeAndAudit: false));
+            }
             await Capture(page, "R7-bandeja-" + fixture.Accounts[index].Role);
         }
         using var store = owner.CreateSourceS3();
