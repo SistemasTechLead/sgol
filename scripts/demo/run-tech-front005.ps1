@@ -87,7 +87,7 @@ try {
         Invoke-SelectedTests $browserProject 'Category=FRONT_BROWSER' 'BROWSER_REGRESSION' $cycle
         Invoke-SelectedTests $apiProject $apiFilter 'POSTGRESQL_API' $cycle
         Invoke-SelectedTests $evidenceProject 'FullyQualifiedName~PrivateStorageAndRealScannerKeepNonCleanContentInQuarantine' 'PRIVATE_S3_CLAMAV' $cycle
-        Invoke-SelectedTests $unitProject 'FullyQualifiedName~IndicatorApiEndpointTests|FullyQualifiedName~DirectionOverviewApiEndpointTests|FullyQualifiedName~Front020PresentationTests|FullyQualifiedName~EvidenceReviewEvaluatorTests|FullyQualifiedName~StructuredEvidencePayloadValidatorTests|FullyQualifiedName~ManualGenerationInputTests|FullyQualifiedName~RecurringGenerationTests' 'CONTRACTS_AND_FORMULAS' $cycle
+        Invoke-SelectedTests $unitProject 'FullyQualifiedName~IndicatorApiEndpointTests|FullyQualifiedName~DirectionOverviewApiEndpointTests|FullyQualifiedName~AuditApiEndpointTests|FullyQualifiedName~Front020PresentationTests|FullyQualifiedName~EvidenceReviewEvaluatorTests|FullyQualifiedName~StructuredEvidencePayloadValidatorTests|FullyQualifiedName~ManualGenerationInputTests|FullyQualifiedName~RecurringGenerationTests' 'CONTRACTS_AND_FORMULAS' $cycle
     }
     $head = (& git -C $repositoryRoot rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $head -ne $sha) { throw 'TECH_FRONT005_HEAD_CHANGED' }

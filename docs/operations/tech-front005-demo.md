@@ -4,7 +4,7 @@ Estado: harness en desarrollo. Ejecución completa pendiente; consultar informe 
 
 ## Alcance aprobado
 
-Único plan TECH_FRONT_005_PLAN_DE_IMPLEMENTACION.md y Adenda 60. R1..R9 en Chromium escritorio y móvil emulado, cuatro roles, PostgreSQL real, HTTPS y S3/ClamAV propios. TAR-0026 conserva D4: configuración y negativos, sin fuente de servicio/pago ni cadena CAT-006. Descarga/preview excluidos por D2; BR-API04 abierta globalmente. No cambia producto, permisos, endpoints, dependencias ni despliega.
+Único plan TECH_FRONT_005_PLAN_DE_IMPLEMENTACION.md y Adenda 60. R1..R9 en Chromium escritorio y móvil emulado, cuatro roles, PostgreSQL real, HTTPS y S3/ClamAV propios. TAR-0026 conserva D4: configuración y negativos, sin fuente de servicio/pago ni cadena CAT-006. Descarga/preview excluidos por D2; BR-API04 abierta globalmente. D5 y Adenda 61 autorizan expresamente, en commit separado, la corrección mínima de lectura de traza para hechos reconocidos anteriores a asignación, como dependencias sin sujeto sólo para Dirección. No amplía permisos, endpoints, dependencias ni despliega.
 
 ## Comandos y orden
 
@@ -38,7 +38,7 @@ El oráculo PostgreSQL usa lecturas de vínculos/versiones/snapshots y auditorí
 
 ## Reportes y cleanup
 
-Cada `cycle-N/desktop|mobile/report.json` conserva navegador/versión, plataforma, SHA, recorridos/roles/estado/duración, HTTPS, fallo cerrado y cleanup. `phases.json` conserva proyecto, selector, comando, conteos/exit/duración y cabeza. Imágenes `R*.png` muestran aplicación real y pasan rasterización de accesibilidad en memoria antes de guardarse; se evitan/enmascaran secretos. No se guarda trace/HAR, salida nativa sensible, cuerpos, conexiones, cookies, contraseñas, TOTP, recovery, URLs firmadas ni evidencia binaria.
+Cada `cycle-N/desktop|mobile/report.json` conserva navegador/versión, plataforma, SHA, recorridos/roles/estado/duración, HTTPS, fallo cerrado y cleanup. `captures.json` enumera recorrido, archivo y rol de cada imagen propia. `phases.json` conserva proyecto, selector, comando, conteos/exit/duración y cabeza. Imágenes `R*.png` muestran aplicación real y pasan rasterización de accesibilidad en memoria antes de guardarse; se enmascaran secretos y la columna de contenido de evidencia. No se guarda trace/HAR, salida nativa sensible, cuerpos, conexiones, cookies, contraseñas, TOTP, recovery, URLs firmadas ni evidencia binaria.
 
 Cleanup en finally: contextos, browser y driver; fixture; confianza HTTPS propia; proceso web, contenedores/red, certificados/PFX/temporales propios; imagen propia. Registra componentes cerrados y verificación de ausencia. Sólo se eliminan recursos inventariados del perfil. Nunca Docker prune, limpieza global, volúmenes ajenos ni borrado funcional de historia. Si cleanup falla, queda FAIL y bloquea el cierre; investigar logs y causa antes de reintentar. Las capturas/reportes sanitizados permanecen.
 

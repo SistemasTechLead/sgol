@@ -1,17 +1,19 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using Microsoft.Playwright;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Sgol.FrontendBrowserTests;
 
 [Collection("FRONT_BROWSER")]
-public sealed class Front007BrowserTests
+public sealed class Front007BrowserTests(ITestOutputHelper diagnostics)
 {
     [Fact]
     [Trait("Category", "FRONT_BROWSER")]
     public async Task DirectionManagesRoleHistoryAndResetWhileOtherRolesAreDenied()
     {
-        var fixture = new BrowserFixture();
+        var fixture = new BrowserFixture { Progress = stage => diagnostics.WriteLine("FRONT007 " + stage) };
         var output = Path.Combine(Directory.GetParent(BrowserFixture.RepositoryRoot())!.FullName,
             "front-007-evidence");
         Directory.CreateDirectory(output);
@@ -148,6 +150,15 @@ public sealed class Front007BrowserTests
                         StringComparison.OrdinalIgnoreCase);
                 }
             }
+        }
+        catch (Exception exception)
+        {
+            // Preserve a closed primary diagnostic even when cleanup also fails; never export filled values or URLs.
+            diagnostics.WriteLine("FRONT007 PRIMARY_FAILURE " + exception.GetType().Name);
+            foreach (var frame in new StackTrace(exception, true).GetFrames())
+                if (Path.GetFileName(frame.GetFileName()) == "Front007BrowserTests.cs")
+                    diagnostics.WriteLine("FRONT007 FAILURE_LINE " + frame.GetFileLineNumber());
+            throw new InvalidOperationException("FRONT007 failed; sensitive browser logs were not exported.");
         }
         finally
         {
