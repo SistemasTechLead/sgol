@@ -101,7 +101,6 @@ public sealed partial class TechFront005BrowserTests
                     .GetByRole(AriaRole.Button, new() { Name = "Preparar sustitución" }).ClickAsync();
                 await page.Locator("[name=merchandiseReference]").FillAsync("Mercancía sintética corregida");
                 await Submit(page, page.Locator("form[action*='PrepareReplacement'] button[type=submit]"), "PrepareReplacement");
-                await page.Locator("form[data-front-confirm] > button").ClickAsync();
                 await Assertions.Expect(page.Locator("dialog[open]")).ToBeVisibleAsync();
                 await Submit(page, page.Locator("dialog[open] button[type=submit]"), "SendReplacement");
                 await Assertions.Expect(page.Locator("[data-front-success]")).ToContainTextAsync("Sustitución confirmada");
@@ -111,7 +110,6 @@ public sealed partial class TechFront005BrowserTests
             await Submit(page, page.GetByRole(AriaRole.Button, new() { Name = "Consultar revisión", Exact = true }), "ReviewEvidence");
             await Assertions.Expect(page.Locator("#revision-evidencia")).ToContainTextAsync("Completa");
             await Submit(page, page.Locator("form[action*='PrepareConclusion'] button[type=submit]"), "PrepareConclusion");
-            await page.Locator("form[data-front-confirm] > button").ClickAsync();
             await Assertions.Expect(page.Locator("dialog[open]")).ToBeVisibleAsync();
             await Submit(page, page.Locator("dialog[open] button[type=submit]"), "Conclude");
             await page.GotoAsync(path);
@@ -152,7 +150,6 @@ public sealed partial class TechFront005BrowserTests
         await page.Locator("#foundation").FillAsync("Fundamento sintético integral documentado");
         if (replacement) await page.Locator("#reason").FillAsync("Sustitución sintética fundada y motivada");
         await Submit(page, page.Locator("form[action*='PrepareValidation'] button[type=submit]"), "PrepareValidation");
-        await page.Locator("form[data-front-confirm] > button").ClickAsync();
         await Assertions.Expect(page.Locator("dialog[open]")).ToBeVisibleAsync();
         await Submit(page, page.Locator("dialog[open] button[type=submit]"), "SendValidation");
         await Assertions.Expect(page.Locator("#validaciones-historia [data-front-success]")).ToBeVisibleAsync();
