@@ -22,12 +22,24 @@ public sealed partial class ObligationConclusionPersistenceTests
         var due = taskCode == "TAR-0008" ? Now.AddMinutes(30) : Now.AddDays(8);
         using var input = taskCode == "TAR-0008" ? JsonSerializer.SerializeToDocument(new
         { taskCode, operationReference = "TF005-LATE", detectedAt = Now.UtcDateTime, claimantReferences = TechFront005Claimants }) :
-            JsonSerializer.SerializeToDocument(new { taskCode, caseReference = "TF005-LATE", authorizationReference = "TF005-AUTH",
-                productReference = "TF005-P", solutionType = "CAMBIO", authorizedAt = Now.UtcDateTime });
+            JsonSerializer.SerializeToDocument(new
+            {
+                taskCode,
+                caseReference = "TF005-LATE",
+                authorizationReference = "TF005-AUTH",
+                productReference = "TF005-P",
+                solutionType = "CAMBIO",
+                authorizedAt = Now.UtcDateTime
+            });
         var identity = ManualGenerationInput.Identity(input.RootElement);
         var originKey = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToJsonString())));
-        using var payload = JsonSerializer.SerializeToDocument(new { schemaVersion = 2, input = input.RootElement,
-            originIdentity = identity, calendarDayVersionIds = Array.Empty<Guid>() });
+        using var payload = JsonSerializer.SerializeToDocument(new
+        {
+            schemaVersion = 2,
+            input = input.RootElement,
+            originIdentity = identity,
+            calendarDayVersionIds = Array.Empty<Guid>()
+        });
         var snapshot = new ManualObligationSnapshot(taskCode, originKey, null, payload, due);
         var fixture = await ResetAndCreateObligationAsync(true, taskCode, manualSnapshot: snapshot);
         await using var db = CreateContext();

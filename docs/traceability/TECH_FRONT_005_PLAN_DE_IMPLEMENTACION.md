@@ -171,8 +171,10 @@ Comandos propuestos (script/selector TECH_FRONT005 se crearán sólo tras aproba
 ```powershell
 $sgolSdk = 'C:/Users/siste/.codex/tmp/sgol-sdk-10.0.400/dotnet.exe'
 & $sgolSdk build SGOL.slnx --no-restore --configuration Release
-& $sgolSdk test tests/Sgol.UnitTests/Sgol.UnitTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~TechFront005'
-& $sgolSdk test tests/Sgol.ArchitectureTests/Sgol.ArchitectureTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~TechFront005'
+& $sgolSdk test tests/Sgol.FrontendBrowserTests/Sgol.FrontendBrowserTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~TechFront005ReportTests'
+& $sgolSdk test tests/Sgol.IntegrationTests/Sgol.IntegrationTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~TechFront005LateCat003And004|FullyQualifiedName~AuditQueryPersistenceTests'
+& $sgolSdk test tests/Sgol.UnitTests/Sgol.UnitTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~AuditApiEndpointTests|FullyQualifiedName~Front020PresentationTests'
+& $sgolSdk test tests/Sgol.ArchitectureTests/Sgol.ArchitectureTests.csproj --no-build --configuration Release --filter 'FullyQualifiedName~AuditArchitectureTests'
 & ./scripts/demo/run-tech-front005.ps1 -Mode Automated -Cycles 2 -DotnetPath $sgolSdk
 git diff --check
 ```
@@ -259,3 +261,5 @@ Esta propuesta **modifica una decisión de lectura backend** y supera el harness
 **Confirmación posterior de D5:** cabeza 445225c981f7f1b30ff8950be9dd3988826d12b9, Chromium escritorio: Razor 500 y API 500 AUDIT_SCOPE_INCONSISTENT en trace-diagnostic.json. Cadena PostgreSQL de siete obligaciones verificada; continuidad MATCHED/aprobación y DIFFERENT/no-aprobación reales completadas antes de conservar FAIL final de R9. Cleanup y ausencia de cinco contenedores/red/proceso/temporales propios true. No acredita ciclo integral. Decisión solicitada al responsable; pendiente, sin cambio productivo.
 
 **Decisión posterior aprobada expresamente:** «Aprobar D5 y corrección mínima separada». Responde a la ampliación limitada de alcance para su adenda y corrección mínima de lectura backend en commit separado. Adenda 61 incorpora los pares existentes reconocidos y las condiciones cerradas de vínculo/fecha/sucursal/resultado; extiende DEPENDENCY sólo en traza de Dirección, con ambos sujetos nulos. Conserva los negativos, no-efecto, historia y alcance restantes. Los párrafos de propuesta y pendiente anteriores conservan el estado histórico de la revisión; esta aprobación los supera. La corrección y los dos ciclos finales todavía requieren validación, sin publicación remota autorizada.
+
+**Validación posterior de D5:** PostgreSQL AuditQueryPersistenceTests 17/17, sin omisiones; R1..R9 por interfaz en escritorio y móvil 2/2, sin omisiones, sobre 81f134566ae25e862b7aee57225156843246c049, ambos con cleanup/ausencia verificada true. La traza Razor/API devuelve 200, code NONE, y conserva completeness de cuatro categorías. Esto valida la corrección antes de los dos ciclos completos, todavía pendientes; no acredita las suites complementarias ni ambos ciclos. El bloque de comandos de §9 se alinea a las clases efectivas descubiertas y a D5; los selectores propuestos inexistentes no se ejecutaron.

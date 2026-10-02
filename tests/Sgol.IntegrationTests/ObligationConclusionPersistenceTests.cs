@@ -816,9 +816,16 @@ public sealed partial class ObligationConclusionPersistenceTests : IAsyncLifetim
                     calendarIds.Add(calendar.Id);
                 }
                 var source = manualSnapshot.Payload.RootElement;
-                manualSnapshot = manualSnapshot with { Payload = JsonSerializer.SerializeToDocument(new
-                { schemaVersion = 2, input = source.GetProperty("input"), originIdentity = source.GetProperty("originIdentity"),
-                    calendarDayVersionIds = calendarIds }) };
+                manualSnapshot = manualSnapshot with
+                {
+                    Payload = JsonSerializer.SerializeToDocument(new
+                    {
+                        schemaVersion = 2,
+                        input = source.GetProperty("input"),
+                        originIdentity = source.GetProperty("originIdentity"),
+                        calendarDayVersionIds = calendarIds
+                    })
+                };
                 await context.SaveChangesAsync();
             }
             obligationId = Guid.CreateVersion7();
