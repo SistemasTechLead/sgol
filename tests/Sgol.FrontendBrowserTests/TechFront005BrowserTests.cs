@@ -92,6 +92,14 @@ public sealed partial class TechFront005BrowserTests(ITestOutputHelper output) :
         {
             // Browser call logs can contain filled credentials or a signed PUT URL. Do not publish them.
             output.WriteLine("TECH_FRONT005 PRIMARY_FAILURE " + exception.GetType().Name);
+            if (exception is PlaywrightException browserFailure)
+            {
+                var category = browserFailure.Message.Contains("strict mode violation", StringComparison.Ordinal) ? "AMBIGUOUS_LOCATOR" :
+                    browserFailure.Message.Contains("Malformed value", StringComparison.OrdinalIgnoreCase) ? "MALFORMED_CONTROL_VALUE" :
+                    browserFailure.Message.Contains("cannot be filled", StringComparison.OrdinalIgnoreCase) ? "UNFILLABLE_CONTROL_TYPE" :
+                    "OTHER_BROWSER_FAILURE";
+                output.WriteLine("TECH_FRONT005 BROWSER_FAILURE " + category);
+            }
             foreach (var frame in new StackTrace(exception, true).GetFrames())
             {
                 var file = Path.GetFileName(frame.GetFileName());
