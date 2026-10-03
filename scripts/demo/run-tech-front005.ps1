@@ -115,7 +115,14 @@ try {
         Invoke-SelectedTests $browserProject 'Category=TECH_FRONT005' 'INTEGRAL' $cycle
         Invoke-SelectedTests $browserProject 'Category=FRONT_BROWSER' 'BROWSER_REGRESSION' $cycle
         Invoke-SelectedTests $apiProject $apiFilter 'POSTGRESQL_API' $cycle
-        Invoke-SelectedTests $evidenceProject 'FullyQualifiedName~PrivateStorageAndRealScannerKeepNonCleanContentInQuarantine' 'PRIVATE_S3_CLAMAV' $cycle
+        $previousEicar = [Environment]::GetEnvironmentVariable('SGOL_EVIDENCE_EICAR_TESTS')
+        try {
+            $env:SGOL_EVIDENCE_EICAR_TESTS = 'true'
+            Invoke-SelectedTests $evidenceProject 'FullyQualifiedName~PrivateStorageAndRealScannerKeepNonCleanContentInQuarantine' 'PRIVATE_S3_CLAMAV' $cycle
+        }
+        finally {
+            [Environment]::SetEnvironmentVariable('SGOL_EVIDENCE_EICAR_TESTS', $previousEicar)
+        }
         Invoke-SelectedTests $unitProject 'FullyQualifiedName~IndicatorApiEndpointTests|FullyQualifiedName~DirectionOverviewApiEndpointTests|FullyQualifiedName~AuditApiEndpointTests|FullyQualifiedName~Front020PresentationTests|FullyQualifiedName~EvidenceReviewEvaluatorTests|FullyQualifiedName~StructuredEvidencePayloadValidatorTests|FullyQualifiedName~ManualGenerationInputTests|FullyQualifiedName~RecurringGenerationTests' 'CONTRACTS_AND_FORMULAS' $cycle
     }
     $head = (& git -C $repositoryRoot rev-parse HEAD).Trim()

@@ -28,6 +28,8 @@ Por ciclo ejecuta secuencialmente: INTEGRAL (R1..R9 en ambos perfiles); BROWSER_
 
 Los comandos del plan para pruebas TechFront005 unitarias/de arquitectura eran propuestas de ubicación. Las pruebas efectivas de reporte están en el proyecto Browser; el borde temporal nuevo está en Integration. No se ejecutan filtros vacíos ni se presentan clases inexistentes como validación.
 
+La fase PRIVATE_S3_CLAMAV activa `SGOL_EVIDENCE_EICAR_TESTS=true` exclusivamente alrededor de su prueba existente y restaura el valor previo incluso al fallar. Es la condición operativa ya documentada en evidence-local-ci.md para ensayar el negativo de antimalware; no se elimina su aserción ni se habilita EICAR en la aplicación o en otras fases.
+
 ## Fixtures, aislamiento y evidencia
 
 Cada perfil crea PostgreSQL origen/restauración, S3 privado origen/destino, ClamAV, red e imagen con identificadores únicos. La identidad de Dirección usa bootstrap real; las otras tres identidades son precondiciones sintéticas. Una auxiliar se crea desde UI. Configuración, calendario, seis solicitudes manuales, plan, evidencia, conclusión, decisiones y solicitudes de continuidad se producen por acciones de interfaz; la recurrencia, evaluación/asignación y operaciones técnicas de restore usan contratos existentes del sistema.
