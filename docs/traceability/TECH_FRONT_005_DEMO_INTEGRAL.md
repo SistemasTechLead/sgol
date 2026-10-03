@@ -34,6 +34,16 @@ El cierre posterior de trazabilidad, mapa, plan, guía e instrucciones operativa
 
 ## Evidencia de desarrollo e incidencias
 
+### Publicación — primera ejecución remota y corrección de selección
+
+2026-10-03. PR #90, run 37133483125 intento 1, cabeza 507dd0a5d65a3f53f1680c638acb2caa13605b89: source controls y browser SUCCESS; server FAILURE en Run unit, architecture and PostgreSQL integration tests; operations SKIPPED por dependencia y PR gates FAILURE. HU-035 isolated network opcional SKIPPED conserva su alcance. Ningún resultado derivado se acredita como aceptación.
+
+Los logs cerrados identifican ambos NineJourneysUseRealInterfaceAndPreserveTheBackendChain con PRIMARY_FAILURE PlaywrightException, OTHER_BROWSER_FAILURE y TechFront005BrowserTests.cs:80 (LaunchAsync), anteriores a R1; cleanup fixture/trust/owner/image y agregado true. La salida sensible original no se exporta; no se atribuye un error interno adicional cuyo mensaje fue minimizado. El filtro server Category!=CV05_FOCUSED&Category!=FRONT_BROWSER seleccionaba esos dos perfiles Category=TECH_FRONT005 además de las tres guardas de reporte. Ese job no instala navegadores ni invoca la orquestación de dos ciclos; el descubrimiento local confirmó cinco casos seleccionados. La causa de selección incorrecta está comprobada, no es un defecto de interfaz/backend ni una prueba completa del harness en CI.
+
+Corrección limitada al workflow: server añade Category!=TECH_FRONT005, conservando unitarias, arquitectura, PostgreSQL y las tres guardas de reporte. La regresión provisionada FRONT_BROWSER conserva su selector, 35 casos y todas sus aserciones. TECH_FRONT005 mantiene dos casos ejecutables por su runner integral, sin Skip, cambios de atributos, reintentos o relajación funcional. La evidencia de dos ciclos locales sigue ligada a su cabeza real; sólo cambia clasificación del job remoto, no src/tests/scripts ni el comportamiento validado. Los cinco checks se conservan y deberán pasar sobre la nueva cabeza del mismo PR.
+
+Validación enfocada de selección: server descubre tres guardas y ningún perfil integral; Category=TECH_FRONT005 conserva dos perfiles y Category=FRONT_BROWSER conserva 35 casos. Ejecución con el nuevo filtro en proyecto Browser: 3/3, cero fallos/omisiones, exit 0. Formato global --no-restore --verify-no-changes y git diff --check: exit 0. src/, tests/ y scripts/ siguen idénticos a la cabeza de los dos ciclos; no build/restore ni repetición de ciclos por este cambio de selección del workflow. No se declara corregida una causa interna de Playwright cuyo mensaje se minimizó; se corrige la ejecución accidental en un job distinto del runner contratado.
+
 SDK fijado 10.0.400. Build Release de solución y build enfocado: 0 errores/advertencias. TechFront005ReportTests: 3/3, sin omisiones; rechaza ejecución parcial, cleanup fallido, perfiles/ciclos incompletos y cabeza distinta. Son comprobaciones de desarrollo, no dos ciclos integrales.
 
 | Cabeza y ejecución | Resultado y alcance | Causa / corrección |

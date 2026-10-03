@@ -6,6 +6,8 @@
 
 ### Propuesta de base aceptada — cierre formal TECH-FRONT-005
 
+Publicada mediante PR #90. Primera ejecución remota: source controls/browser SUCCESS, server FAILURE por selección accidental de los dos perfiles TECH_FRONT005 en job sin provisión de navegadores ni runner de dos ciclos; operations SKIPPED derivado y PR gates FAILURE. Corrección limitada de filtro server, sin modificar pruebas/expectativas o ejecutables; guardas de reporte permanecen seleccionadas, FRONT_BROWSER y runner integral conservados. Causa y cleanup en TECH_FRONT_005_DEMO_INTEGRAL.md. Validación remota de la cabeza corregida pendiente; no aceptación de merge.
+
 | Campo | Valor |
 |---|---|
 | Última tarea Terminada propuesta | `TECH-FRONT-005`; sólo eficaz al cumplir las condiciones de merge de F07_ENMIENDA_001 |
