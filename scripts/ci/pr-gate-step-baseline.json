@@ -59,7 +59,7 @@
     },
     {
       "name": "Run unit, architecture and PostgreSQL integration tests",
-      "sha256": "d1c581cc11ae25db004b2ac561dd8757512caf3320408b574dc3f1db2013cbe8",
+      "sha256": "e7d6340591175d2ad3cae73857f979cff27eb80a29d59286facb71c29c8c4496",
       "copies": 1
     },
     {
