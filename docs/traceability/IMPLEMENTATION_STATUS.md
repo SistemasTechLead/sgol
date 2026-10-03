@@ -1,5 +1,13 @@
 # Estado de implementación
 
+## TECH-EVID-003 — Publicada en PR #91; merge autorizado, gates pendientes tras corrección
+
+2026-10-03. Orden literal «Apruebo el merge», posterior a «Autorizo su publicacion». Merge del hito autorizado, sin despliegue; no se ejecuta mientras falten los cinco gates correctos de la cabeza vigente. PR #91 abierto: https://github.com/SistemasTechLead/sgol/pull/91. Cabeza inicial b06aa7ca812156f2b0bb181c5dc779714530d03e, run 37146372298 intento 1: source controls/browser SUCCESS, server FAILURE por dos casos, operations SKIPPED derivado y PR gates FAILURE; opcional HU-035 SKIPPED. No Integrada/Terminada.
+
+Correcciones limitadas al mismo PR bajo autorización de publicación: smoke histórico de ruta inexistente se adapta al contrato autenticado nuevo y al servicio scoped de su fixture; firma GET usa API del SDK fijado con UTC explícito, sin heredar corrección de reloj/redondeo que impedía garantizar 300 s. Guarda de deadline y duración 1..300 conservada; sin modificar TTL, contratos, workflow, dependencias o UI. Builds enfocados PASS, regresión unitaria 69/69, S3/ClamAV real con configuración CI 2/2 y arquitectura afectada 5/5; incidencias, archivos/comandos y alcance en [informe §13](BR_API04_PLAN_DE_IMPLEMENTACION.md#13-publicación-aprobación-de-merge-y-corrección-del-primer-pipeline). Pipeline de nueva cabeza aún no aceptado; evidencia anterior no lo sustituye.
+
+Seguimiento de este chat `merge-autorizado-tech-evid-003-pr-91` pausado al detectar fallo y actualizado tras publicar la corrección para vigilar exclusivamente la nueva cabeza y los cinco gates antes de ejecutar el merge autorizado. BR-API04 ABIERTA y diferidos intactos. No despliegue, preview/UI o tarea posterior. La propuesta de base aceptada inferior se resuelve al commit que introduce este registro y sólo adquiere eficacia con merge y checks reales, no por declaración anticipada.
+
 ## TECH-EVID-003 — Publicación autorizada; propuesta de cierre formal
 
 2026-10-03. Orden literal «Autorizo su publicacion»: autoriza publicar la rama `codex/tech-evid-003`, abrir el PR de este hito y ejecutar/seguir sus checks; las correcciones limitadas al mismo hito se conservan en ese PR. No autoriza merge, despliegue o preview/UI. Implementación local 729bf954d8ca08bea7ffb2d4138e2c26790e6299 y sus 88 casos enfocados se conservan como evidencia de ese contenido; los checks remotos deberán validar el commit que incorpora este registro, sin atribuirles PASS anticipado.

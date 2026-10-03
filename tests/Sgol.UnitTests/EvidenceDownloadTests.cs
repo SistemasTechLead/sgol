@@ -13,8 +13,42 @@ using Xunit;
 
 namespace Sgol.UnitTests;
 
+[Collection(EvidenceDownloadClockFixtureDefinition.Name)]
 public sealed class EvidenceDownloadTests
 {
+    [Theory]
+    [InlineData(-2)]
+    [InlineData(2)]
+    public async Task SignerDoesNotInheritSdkClockCorrectionOrExceedFiveMinutes(int correctionSeconds)
+    {
+        var original = Amazon.AWSConfigs.ManualClockCorrection;
+        using var client = new AmazonS3Client(new BasicAWSCredentials("synthetic-key", "synthetic-secret"), new AmazonS3Config
+        { ServiceURL = "https://storage.example.test", AuthenticationRegion = "us-east-1", ForcePathStyle = true });
+        var storage = new S3PrivateObjectStorage(client, Options.Create(new EvidenceStorageOptions
+        {
+            Endpoint = "https://storage.example.test",
+            CleanBucket = "clean",
+            QuarantineBucket = "quarantine",
+            AccessKey = "synthetic-key",
+            SecretKey = "synthetic-secret",
+            Region = "us-east-1"
+        }));
+        var metadata = new EvidenceObjectMetadata(EvidenceObjectKey.Parse("v1/aa/aa/" + new string('a', 64)), 128, new string('b', 64), EvidenceMediaType.Png);
+        var expiry = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds()).AddSeconds(300);
+        try
+        {
+            Amazon.AWSConfigs.ManualClockCorrection = TimeSpan.FromSeconds(correctionSeconds);
+            var authorization = await storage.CreateCleanDownloadAuthorizationAsync(metadata, Guid.CreateVersion7(), expiry, CancellationToken.None);
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(authorization.Url.Query);
+            var signedAt = DateTimeOffset.ParseExact(query["X-Amz-Date"].ToString(), "yyyyMMdd'T'HHmmss'Z'",
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal);
+            var seconds = int.Parse(query["X-Amz-Expires"].ToString(), System.Globalization.CultureInfo.InvariantCulture);
+            Assert.InRange(seconds, 1, 300);
+            Assert.Equal(expiry, signedAt.AddSeconds(seconds));
+        }
+        finally { Amazon.AWSConfigs.ManualClockCorrection = original; }
+    }
+
     [Theory]
     [InlineData("invalid", null)]
     [InlineData("00000000-0000-0000-0000-000000000000", null)]
@@ -111,7 +145,14 @@ public sealed class EvidenceDownloadTests
         using var client = new AmazonS3Client(new BasicAWSCredentials("synthetic-key", "synthetic-secret"), new AmazonS3Config
         { ServiceURL = "https://storage.example.test", AuthenticationRegion = "us-east-1", ForcePathStyle = true });
         var storage = new S3PrivateObjectStorage(client, Options.Create(new EvidenceStorageOptions
-        { Endpoint = "https://storage.example.test", CleanBucket = "clean", QuarantineBucket = "quarantine" }));
+        {
+            Endpoint = "https://storage.example.test",
+            CleanBucket = "clean",
+            QuarantineBucket = "quarantine",
+            AccessKey = "synthetic-key",
+            SecretKey = "synthetic-secret",
+            Region = "us-east-1"
+        }));
         var metadata = new EvidenceObjectMetadata(EvidenceObjectKey.Parse("v1/aa/aa/" + new string('a', 64)), 128, new string('b', 64), type);
         var id = Guid.CreateVersion7();
         var expiresAt = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds()).AddSeconds(60);
@@ -158,4 +199,11 @@ public sealed class EvidenceDownloadTests
                 new(new Uri("https://storage.example.test/synthetic-object"), new DateTimeOffset(2026, 10, 3, 18, 5, 0, TimeSpan.Zero))));
         }
     }
+}
+
+// The SDK override is process-wide; isolate these tests and always restore it.
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class EvidenceDownloadClockFixtureDefinition
+{
+    public const string Name = "Evidence download SDK clock";
 }

@@ -454,3 +454,12 @@ El estado operativo se localiza al inicio de docs/traceability/IMPLEMENTATION_ST
 | `TECH-EVID-003` — regresión Dirección separada y archivos cambiados | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 229 | 245 |
 | `TECH-EVID-003` — comandos/resultados, incidencias y límites | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 247 | 265 |
 | `TECH-EVID-003` — cierre local y diferidos conservados | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 267 | 271 |
+
+### TECH-EVID-003 — Publicación y corrección del primer pipeline
+
+PR #91 publicado; «Apruebo el merge» autoriza integración una vez que los cinco gates de la cabeza corregida pasen. §13 del informe registra run 37146372298 fallido, dos causas y corrección/regresión del mismo hito. No cierra BR-API04 ni acredita merge anticipado. El estado operativo vigente está al inicio de IMPLEMENTATION_STATUS.
+
+| Referencia vigente | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| `TECH-EVID-003` — publicación, orden de merge y fallo remoto | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 273 | 286 |
+| `TECH-EVID-003` — corrección de firma/smoke y regresión enfocada | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 288 | 298 |
