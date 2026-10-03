@@ -401,15 +401,19 @@ Entrada operativa: `docs/design/referencia-renovada.md`. Evidencia: `docs/tracea
 
 Adenda 56, §§Aprobación/Lectura/Composición/Flujo/Validación: F07_ADENDA_56_CONTRATO_CONSUMIDOR_FRONT_017.md, líneas 3–25. Plan íntegro aprobado: docs/traceability/FRONT_017_PLAN_DE_IMPLEMENTACION.md, líneas 3–5.
 
-## BR-API04 — resolución global aprobada y contrato propuesto
+## BR-API04 — resolución global y contrato mínimo aprobados
 
-Actualización incremental: 2026-10-03. Adenda 62 incorpora localmente la resolución global aprobada mediante «Apruebo la resolucion global». No crea ID de backlog, no cierra BR-API04 y no aprueba reglas detalladas de descarga. Las filas siguientes distinguen decisión vigente de borrador; no sustituyen las definiciones canónicas anteriores.
+Actualización incremental: 2026-10-03. Adenda 62 incorpora localmente la resolución global mediante «Apruebo la resolucion global»; Adenda 63 incorpora exclusivamente §§15.1–15.8 mediante «La apruebo integramente». No crean ID de backlog, no cierran BR-API04 ni autorizan implementación/ensayos. Las esperas anteriores de aprobación quedan como registros históricos superados; las definiciones canónicas restantes se conservan.
 
 | Referencia | Archivo | Línea inicial | Línea final |
 |---|---|---:|---:|
 | BR-API04 — aprobación y resolución global incorporada localmente | `F07_ADENDA_62_RESOLUCION_GLOBAL_BR_API04.md` | 3 | 15 |
 | BR-API04 — límites y punto de parada | `F07_ADENDA_62_RESOLUCION_GLOBAL_BR_API04.md` | 17 | 23 |
-| BR-API04 — contrato mínimo PROPUESTO, aprobación pendiente | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 236 | 343 |
-| BR-API04 — incorporación y evidencia documental | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 345 | 357 |
+| BR-API04 — aprobación íntegra e incorporación contractual | `F07_ADENDA_63_CONTRATO_MINIMO_DE_DESCARGA_BR_API04.md` | 3 | 7 |
+| BR-API04 — contrato y límites aceptados | `F07_ADENDA_63_CONTRATO_MINIMO_DE_DESCARGA_BR_API04.md` | 9 | 15 |
+| BR-API04 — dependencias y punto de parada actual | `F07_ADENDA_63_CONTRATO_MINIMO_DE_DESCARGA_BR_API04.md` | 17 | 23 |
+| BR-API04 — contrato mínimo APROBADO, §§15.1–15.8 | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 236 | 343 |
+| BR-API04 — registro histórico de entrega del borrador | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 345 | 357 |
+| BR-API04 — incorporación del contrato y siguiente chat | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 359 | 373 |
 
-El estado operativo se localiza al inicio de docs/traceability/IMPLEMENTATION_STATUS.md. Hasta aprobar el contrato mínimo y autorizar separadamente su ejecución, no hay implementación de descarga/preview ni ensayo de la diferencia Dirección. La resolución conserva las exclusiones consumidoras, D4/CAT-006, D5 y todos los diferidos.
+El estado operativo se localiza al inicio de docs/traceability/IMPLEMENTATION_STATUS.md. El contrato está aprobado e incorporado localmente; falta tarea/ID/plan y orden de implementación, y autorización separada de verificación Dirección. No hay implementación de descarga/preview ni ensayo nuevo. Se conservan exclusiones consumidoras, D4/CAT-006, D5 y todos los diferidos.
