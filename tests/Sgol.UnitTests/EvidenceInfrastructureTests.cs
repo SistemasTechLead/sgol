@@ -387,6 +387,9 @@ public sealed class EvidenceInfrastructureTests
 
     private sealed class MemoryStorage : IPrivateObjectStorage
     {
+        public Task<EvidenceDownloadAuthorization> CreateCleanDownloadAuthorizationAsync(EvidenceObjectMetadata metadata,
+            Guid fileId, DateTimeOffset expiresAt, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Download signing is outside this inspection fixture.");
         private byte[] bytes = [];
         private EvidenceObjectMetadata metadata = default!;
         public bool Quarantined { get; private set; }

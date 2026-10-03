@@ -35,6 +35,8 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
                     services.AddSingleton<IValidationPolicyService, UnusedValidationPolicyService>();
                     services.RemoveAll<IEvidenceContributionService>();
                     services.AddSingleton<IEvidenceContributionService, UnusedEvidenceContributionService>();
+                    services.RemoveAll<IEvidenceDownloadService>();
+                    services.AddSingleton<IEvidenceDownloadService, UnusedEvidenceDownloadService>();
                     services.RemoveAll<IEvidenceReviewService>();
                     services.AddSingleton<IEvidenceReviewService, UnusedEvidenceReviewService>();
                 });
@@ -208,10 +210,12 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact]
-    public async Task EvidenceDownloadRemainsOutsideHu025()
+    public async Task EvidenceDownloadRequiresAuthenticationUnderTechEvid003()
     {
         using var response = await _client.GetAsync("/api/v1/files/019d2d67-2c00-7000-8000-000000000100/download");
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.True(response.Headers.CacheControl?.Private == true && response.Headers.CacheControl.NoStore);
     }
 
     [Fact]
@@ -299,6 +303,12 @@ public sealed class HostSmokeTests : IClassFixture<WebApplicationFactory<Program
         public Task<EvidenceDetails> ContributeAsync(ContributeEvidenceCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<EvidenceDetails> ReplaceAsync(ReplaceEvidenceCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<EvidencePage> ListAsync(EvidenceQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class UnusedEvidenceDownloadService : IEvidenceDownloadService
+    {
+        public Task RequireActorAsync(Guid actorUserId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<EvidenceDownloadDetails> AuthorizeAsync(Guid actorUserId, Guid fileId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class UnusedEvidenceReviewService : IEvidenceReviewService

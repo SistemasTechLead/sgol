@@ -400,3 +400,75 @@ Entrada operativa: `docs/design/referencia-renovada.md`. Evidencia: `docs/tracea
 ## FRONT-017 — contrato consumidor aprobado
 
 Adenda 56, §§Aprobación/Lectura/Composición/Flujo/Validación: F07_ADENDA_56_CONTRATO_CONSUMIDOR_FRONT_017.md, líneas 3–25. Plan íntegro aprobado: docs/traceability/FRONT_017_PLAN_DE_IMPLEMENTACION.md, líneas 3–5.
+
+## BR-API04 — resolución global y contrato mínimo aprobados
+
+Actualización incremental: 2026-10-03. Adenda 62 incorpora localmente la resolución global mediante «Apruebo la resolucion global»; Adenda 63 incorpora exclusivamente §§15.1–15.8 mediante «La apruebo integramente». No crean ID de backlog, no cierran BR-API04 ni autorizan implementación/ensayos. Las esperas anteriores de aprobación quedan como registros históricos superados; las definiciones canónicas restantes se conservan.
+
+| Referencia | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| BR-API04 — aprobación y resolución global incorporada localmente | `F07_ADENDA_62_RESOLUCION_GLOBAL_BR_API04.md` | 3 | 15 |
+| BR-API04 — límites y punto de parada | `F07_ADENDA_62_RESOLUCION_GLOBAL_BR_API04.md` | 17 | 23 |
+| BR-API04 — aprobación íntegra e incorporación contractual | `F07_ADENDA_63_CONTRATO_MINIMO_DE_DESCARGA_BR_API04.md` | 3 | 7 |
+| BR-API04 — contrato y límites aceptados | `F07_ADENDA_63_CONTRATO_MINIMO_DE_DESCARGA_BR_API04.md` | 9 | 15 |
+| BR-API04 — dependencias y punto de parada actual | `F07_ADENDA_63_CONTRATO_MINIMO_DE_DESCARGA_BR_API04.md` | 17 | 23 |
+| BR-API04 — contrato mínimo APROBADO, §§15.1–15.8 | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 236 | 343 |
+| BR-API04 — registro histórico de entrega del borrador | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 345 | 357 |
+| BR-API04 — incorporación del contrato y siguiente chat | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 359 | 373 |
+
+El estado operativo se localiza al inicio de docs/traceability/IMPLEMENTATION_STATUS.md. El contrato está aprobado e incorporado localmente; falta tarea/ID/plan y orden de implementación, y autorización separada de verificación Dirección. No hay implementación de descarga/preview ni ensayo nuevo. Se conservan exclusiones consumidoras, D4/CAT-006, D5 y todos los diferidos.
+
+## BR-API04 — Antecedente de propuesta de plan e identificador
+
+2026-10-03. Documento de propuesta: `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md`, §§1–9. §2 presenta **TECH-EVID-003 como identificador propuesto, no asignado ni aprobado**; no es una entrada canónica de backlog. §4 propone la verificación separada de Dirección, sin autorización de ensayo/corrección. §§5–7 contienen implementación/aceptación/archivos futuros; §8 conserva exclusiones/diferidos y §9 las decisiones y parada. No sustituye el contrato aprobado por Adenda 63. Estado vigente al inicio de IMPLEMENTATION_STATUS: propuesta preparada, aprobación/incorporación del plan y órdenes expresas pendientes, sin código o ensayo.
+
+| Referencia propuesta, no canónica | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| BR-API04 — definición/ID pendientes (antecedente) | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 28 | 43 |
+| BR-API04 — propuesta separada Dirección | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 73 | 87 |
+| BR-API04 — secuencia/aceptación/archivos futuros | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 89 | 141 |
+| BR-API04 — límites y decisión del plan | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 143 | 163 |
+
+## TECH-EVID-003 — Definición y plan aprobados
+
+2026-10-03. Aprobación literal «Lo apruebo» e incorporación local mediante Adenda 64: TECH-EVID-003 ya no es un ID pendiente de asignación. La sección anterior conserva el antecedente de propuesta; los pendientes de ID/plan del contrato y registros anteriores quedan superados exclusivamente por esta decisión. No autoriza implementar/ensayar ni la verificación Dirección separada. Plan aprobado: `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` §§1–9; estado posterior en §10. BR-API04 sigue ABIERTA y límites/diferidos intactos.
+
+| Referencia vigente | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| `TECH-EVID-003` — aprobación/incorporación | `F07_ADENDA_64_DEFINICION_Y_PLAN_DE_DESCARGA_TECH_EVID_003.md` | 3 | 7 |
+| `TECH-EVID-003` — definición/precedencia | `F07_ADENDA_64_DEFINICION_Y_PLAN_DE_DESCARGA_TECH_EVID_003.md` | 9 | 22 |
+| `TECH-EVID-003` — Dirección/límites/parada | `F07_ADENDA_64_DEFINICION_Y_PLAN_DE_DESCARGA_TECH_EVID_003.md` | 24 | 30 |
+
+### TECH-EVID-003 — Orden y verificación ejecutada
+
+2026-10-03. «Autorizo implementar y tambien autorizo verificar direccion»: órdenes anteriores pendientes superadas. §11 de `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` registra verificación enfocada PostgreSQL/handler metadata, FAIL contractual 404 frente a 200 para Dirección sin asignación, controles/no-efecto y propuesta mínima de corrección. La orden propia para corregir sigue pendiente conforme a §4.5; no se reutiliza el helper defectuoso. Estado operativo al inicio de IMPLEMENTATION_STATUS, sin declarar Implementada localmente ni cerrar BR-API04.
+
+### TECH-EVID-003 — Implementación local y corrección Dirección autorizada
+
+2026-10-03. «Lo autorizo» autoriza la corrección propuesta y continuar descarga. §12 de `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` registra resultado **Implementada localmente**, corrección/ensayo separados, archivos, configuración y comandos/resultados de 88 casos distintos finales PASS por filtros, límites de evidencia y diferidos. Supera paradas de ejecución anteriores; no cambia Adendas 62/63/64 ni cierra BR-API04, ni declara publicación/integración. Estado operativo vigente al inicio de IMPLEMENTATION_STATUS.
+
+| Referencia vigente | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| `TECH-EVID-003` — antecedente de verificación Dirección roja y propuesta | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 181 | 209 |
+| `TECH-EVID-003` — autorización de corrección, resultado y criterios | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 211 | 227 |
+| `TECH-EVID-003` — regresión Dirección separada y archivos cambiados | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 229 | 245 |
+| `TECH-EVID-003` — comandos/resultados, incidencias y límites | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 247 | 265 |
+| `TECH-EVID-003` — cierre local y diferidos conservados | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 267 | 271 |
+
+### TECH-EVID-003 — Publicación y corrección del primer pipeline
+
+PR #91 publicado; «Apruebo el merge» autoriza integración una vez que los cinco gates de la cabeza corregida pasen. §13 del informe registra run 37146372298 fallido, dos causas y corrección/regresión del mismo hito. No cierra BR-API04 ni acredita merge anticipado. El estado operativo vigente está al inicio de IMPLEMENTATION_STATUS.
+
+| Referencia vigente | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| `TECH-EVID-003` — publicación, orden de merge y fallo remoto | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 273 | 286 |
+| `TECH-EVID-003` — corrección de firma/smoke y regresión enfocada | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 288 | 298 |
+
+### TECH-EVID-003 — Corrección autorizada del fallo FRONT-013
+
+«Autorizo investigar y corregir ese fallo»: §14 registra run 37148014020 fallido, reproducción determinista de segundos cero en Chromium, formato normalizado y regresión FRONT-013 8/8 PASS. Nueva cabeza del mismo PR #91 requiere sus cinco gates; merge autorizado y pendiente, BR-API04 ABIERTA y diferidos conservados. Estado operativo vigente al inicio de IMPLEMENTATION_STATUS.
+
+| Referencia vigente | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| `TECH-EVID-003` / `FRONT-013` — autorización, causa y reproducción | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 300 | 310 |
+| `TECH-EVID-003` / `FRONT-013` — corrección, validación y límites | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 312 | 322 |

@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using Amazon.Runtime;
+using Amazon.Runtime.Internal;
+using Amazon.Runtime.Internal.Auth;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
@@ -24,6 +26,70 @@ public sealed class S3PrivateObjectStorage(
     private readonly EvidenceStorageOptions configuration = options.Value;
     private readonly object corsVerificationLock = new();
     private Task? corsVerification;
+
+    public Task<EvidenceDownloadAuthorization> CreateCleanDownloadAuthorizationAsync(
+        EvidenceObjectMetadata metadata, Guid fileId, DateTimeOffset expiresAt, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var remaining = expiresAt - DateTimeOffset.UtcNow;
+        if (fileId == Guid.Empty || remaining <= TimeSpan.Zero || remaining > TimeSpan.FromMinutes(5))
+            throw new EvidenceStorageUnavailableException();
+        var extension = metadata.MediaType switch
+        {
+            EvidenceMediaType.Jpeg => "jpg",
+            EvidenceMediaType.Png => "png",
+            EvidenceMediaType.Pdf => "pdf",
+            _ => throw new EvidenceStorageUnavailableException()
+        };
+        try
+        {
+            var signedAt = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var seconds = (expiresAt - signedAt).TotalSeconds;
+            if (seconds is < 1 or > 300 || seconds != Math.Truncate(seconds) ||
+                string.IsNullOrWhiteSpace(configuration.AccessKey) || string.IsNullOrWhiteSpace(configuration.SecretKey) ||
+                string.IsNullOrWhiteSpace(configuration.Region))
+                throw new EvidenceStorageUnavailableException();
+            var disposition = $"attachment; filename=\"evidence-{fileId:D}.{extension}\"";
+            var request = new DefaultRequest(new GetObjectRequest(), "s3")
+            {
+                Endpoint = new Uri(configuration.Endpoint),
+                ResourcePath = $"/{configuration.CleanBucket}/{metadata.Key.Value}",
+                HttpMethod = "GET",
+                UseQueryString = true
+            };
+            request.Parameters["X-Amz-Expires"] = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            request.Parameters["response-content-type"] = metadata.MediaType.ToMediaType();
+            request.Parameters["response-content-disposition"] = disposition;
+            request.Parameters["response-cache-control"] = "private, no-store";
+            // Use the pinned SDK's explicit-time signer: no shared clock correction or rounded duration.
+            // Metrics are disabled so the canonical request and signature cannot enter diagnostics.
+            var signature = AWS4PreSignedUrlSigner.SignRequest(request, null!, null!, configuration.AccessKey,
+                configuration.SecretKey, "s3", configuration.Region, signedAt.UtcDateTime);
+            var parameters = string.Join("&", request.Parameters.Select(p =>
+                Amazon.Util.AWSSDKUtils.UrlEncode(p.Key, false) + "=" + Amazon.Util.AWSSDKUtils.UrlEncode(p.Value, false)));
+            var url = new Uri(request.Endpoint.AbsoluteUri.TrimEnd('/') + request.ResourcePath + "?" +
+                parameters + "&" + signature.ForQueryParameters, UriKind.Absolute);
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(url.Query);
+            if (ReadSignedExpiry(query) != expiresAt ||
+                query["response-content-type"] != metadata.MediaType.ToMediaType() ||
+                query["response-content-disposition"] != disposition ||
+                query["response-cache-control"] != "private, no-store") throw new EvidenceStorageUnavailableException();
+            return Task.FromResult(new EvidenceDownloadAuthorization(url, expiresAt));
+        }
+        catch (Exception ex) when (ex is AmazonS3Exception or AmazonClientException or ArgumentException or InvalidOperationException)
+        { throw new EvidenceStorageUnavailableException(); }
+    }
+
+    private static DateTimeOffset ReadSignedExpiry(Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+    {
+        if (!query.TryGetValue("X-Amz-Date", out var date) || date.Count != 1 ||
+            !DateTimeOffset.TryParseExact(date[0], "yyyyMMdd'T'HHmmss'Z'", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal, out var signedAt) ||
+            !query.TryGetValue("X-Amz-Expires", out var expiry) || expiry.Count != 1 ||
+            !int.TryParse(expiry[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seconds) ||
+            seconds < 1 || seconds > 300) throw new EvidenceStorageUnavailableException();
+        return signedAt.AddSeconds(seconds);
+    }
 
     public async Task<EvidenceUploadAuthorization> CreateQuarantineUploadAuthorizationAsync(
         EvidenceObjectMetadata metadata,
@@ -185,7 +251,8 @@ public sealed class S3PrivateObjectStorage(
                 Key = key.Value
             }, timeout.Token);
 
-            if (!TryReadMetadata(response.Metadata, key, response.ContentLength, out var metadata))
+            if (!TryReadMetadata(response.Metadata, key, response.ContentLength, out var metadata) ||
+                response.Headers.ContentType != metadata.MediaType.ToMediaType())
             {
                 throw new EvidenceObjectIntegrityException();
             }

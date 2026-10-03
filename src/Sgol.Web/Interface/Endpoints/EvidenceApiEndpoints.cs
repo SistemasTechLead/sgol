@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Sgol.Evidence.Contracts;
 using Sgol.Web.Infrastructure.Evidence;
 using Sgol.Web.Infrastructure.Http;
@@ -21,6 +22,7 @@ public static class EvidenceApiEndpoints
         endpoints.MapPost("/api/v1/files/upload-intents", CreateUploadAsync);
         endpoints.MapPost("/api/v1/files/{id:guid}/complete", CompleteAsync);
         endpoints.MapGet("/api/v1/files/{id:guid}/status", StatusAsync);
+        endpoints.MapGet("/api/v1/files/{id}/download", DownloadAsync);
         endpoints.MapPost("/api/v1/obligations/{id:guid}/evidence", ContributeAsync);
         endpoints.MapPost("/api/v1/obligations/{id:guid}/evidence/{itemId:guid}/replacements", ReplaceAsync);
         endpoints.MapGet("/api/v1/obligations/{id:guid}/evidence", ListAsync);
@@ -100,6 +102,44 @@ public static class EvidenceApiEndpoints
             return Results.Json(new { data = Evidence(result), meta = Meta(context) }, statusCode: 201);
         }
         catch (Exception ex) { return Map(context, ex); }
+    }
+
+    public static async Task<IResult> DownloadAsync(HttpContext context, string id, IEvidenceDownloadService service, CancellationToken token)
+    {
+        context.Response.Headers.CacheControl = "private, no-store";
+        context.Response.Headers.Pragma = "no-cache";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        context.Response.Headers.XContentTypeOptions = "nosniff";
+        if (!TryActor(context, out var actor, out var failure)) return failure!;
+        try
+        {
+            await service.RequireActorAsync(actor, token);
+            if (!Guid.TryParseExact(id, "D", out var fileId) || fileId == Guid.Empty ||
+                context.Request.Query.Count != 0 || context.Request.Headers.ContainsKey("Idempotency-Key") ||
+                context.Request.Headers.ContainsKey("If-Match") || context.Request.ContentLength is > 0 ||
+                context.Request.Headers.TransferEncoding.Count != 0 ||
+                context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature>()?.CanHaveBody == true ||
+                context.Request.Body.CanSeek && context.Request.Body.Length != 0)
+                return Problem(context, 400, "SOLICITUD_DESCARGA_INVALIDA", "La solicitud de descarga no es válida");
+            var result = await service.AuthorizeAsync(actor, fileId, token);
+            return Results.Json(new
+            {
+                data = new
+                {
+                    fileId = result.FileId.ToString("D"),
+                    download = new
+                    {
+                        url = result.Download.Url.AbsoluteUri,
+                        expiresAt = result.Download.ExpiresAt.UtcDateTime
+                    }
+                },
+                meta = Meta(context)
+            });
+        }
+        catch (EvidenceDownloadException ex) { return Problem(context, ex.StatusCode, ex.Code, "La descarga no está disponible"); }
+        catch (Exception ex) when (ex is EvidenceStorageUnavailableException or OptionsValidationException)
+        { return Problem(context, 503, "INFRAESTRUCTURA_EVIDENCIA_NO_DISPONIBLE", "La descarga no está disponible"); }
+        catch (Exception) { return Problem(context, 500, "ERROR_FUNCIONAL_REGISTRADO", "La descarga no está disponible"); }
     }
 
     public static async Task<IResult> ListAsync(HttpContext context, Guid id, IEvidenceContributionService service, CancellationToken token)

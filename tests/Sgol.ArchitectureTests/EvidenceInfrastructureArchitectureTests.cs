@@ -36,13 +36,14 @@ public sealed class EvidenceInfrastructureArchitectureTests
                 "*_AddVersionedEvidenceContribution.cs").Single());
 
         Assert.Equal(4, Count(endpoint, "MapPost("));
-        Assert.Equal(3, Count(endpoint, "MapGet("));
+        Assert.Equal(4, Count(endpoint, "MapGet("));
         Assert.Contains("/api/v1/files/upload-intents", endpoint, StringComparison.Ordinal);
         Assert.Contains("/api/v1/files/{id:guid}/complete", endpoint, StringComparison.Ordinal);
         Assert.Contains("/api/v1/files/{id:guid}/status", endpoint, StringComparison.Ordinal);
         Assert.Contains("/api/v1/obligations/{id:guid}/evidence", endpoint, StringComparison.Ordinal);
         Assert.Contains("/api/v1/obligations/{id:guid}/evidence/{itemId:guid}/replacements", endpoint, StringComparison.Ordinal);
-        Assert.DoesNotContain("download", endpoint, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/api/v1/files/{id}/download", endpoint, StringComparison.Ordinal);
+        Assert.DoesNotContain("preview", endpoint, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("IAntiforgery", endpoint, StringComparison.Ordinal);
         Assert.Contains("X-CSRF-TOKEN", File.ReadAllText(Path.Combine(web, "Program.cs")), StringComparison.Ordinal);
         var storageAdapter = File.ReadAllText(Path.Combine(web, "Infrastructure", "Evidence", "S3PrivateObjectStorage.cs"));
@@ -87,7 +88,7 @@ public sealed class EvidenceInfrastructureArchitectureTests
             Directory.EnumerateFiles(Path.Combine(web, "Infrastructure", "Persistence", "Migrations"), "*_EnableStructuredEvidence.cs").Single());
 
         Assert.Equal(4, Count(endpoint, "MapPost("));
-        Assert.Equal(3, Count(endpoint, "MapGet("));
+        Assert.Equal(4, Count(endpoint, "MapGet("));
         Assert.Contains("structuredPayload", endpoint, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateTable", migration, StringComparison.Ordinal);
         Assert.Contains("evidence_version", migration, StringComparison.Ordinal);
@@ -109,7 +110,7 @@ public sealed class EvidenceInfrastructureArchitectureTests
                 "*_AddEvidenceReviewSnapshots.cs").Single());
 
         Assert.Equal(4, Count(endpoint, "MapPost("));
-        Assert.Equal(3, Count(endpoint, "MapGet("));
+        Assert.Equal(4, Count(endpoint, "MapGet("));
         Assert.Contains("/api/v1/obligations/{id}/evidence-review", endpoint, StringComparison.Ordinal);
         Assert.Contains("evidence_review_snapshot", migration, StringComparison.Ordinal);
         Assert.Contains("SERIALIZABLE", service, StringComparison.OrdinalIgnoreCase);

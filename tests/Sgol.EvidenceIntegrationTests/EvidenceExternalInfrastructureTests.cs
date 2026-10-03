@@ -17,7 +17,7 @@ using Xunit;
 namespace Sgol.EvidenceIntegrationTests;
 
 [Trait("Category", "EvidenceExternal")]
-public sealed class EvidenceExternalInfrastructureTests : IAsyncLifetime
+public sealed partial class EvidenceExternalInfrastructureTests : IAsyncLifetime
 {
     private const string SeaweedImage = "chrislusf/seaweedfs:4.45@sha256:fc9f76fa993ad69966ffeb2f65d0318fcae39c6f8e20cf68ef7b3a5cb97769e5";
     private const string ClamAvImage = "clamav/clamav:1.5.4-debian@sha256:be3cb41d9833ce9ffb98f3d3e1483c35c0d87060c2bda3624d75fd28bbf0b3bd";

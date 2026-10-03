@@ -559,6 +559,9 @@ public sealed class EfEvidenceContributionService(
     {
         var actor = await ActorAsync(actorId, now, token);
         if (actor is null) throw new EvidenceAccessDeniedException();
+        if (!await dbContext.WorkObligations.AsNoTracking().AnyAsync(x =>
+            x.Id == obligationId && x.BranchId == BranchScope.LorettaId, token)) return false;
+        if (actor.RoleCode == CanonicalRole.Direction) return true;
         var assignment = await dbContext.AssignmentVersions.AsNoTracking().SingleOrDefaultAsync(x => x.ObligationId == obligationId && x.Status == AssignmentVersionStatuses.Current, token);
         if (assignment is null) return false;
         var user = await dbContext.AppUsers.AsNoTracking().SingleOrDefaultAsync(x => x.PersonId == assignment.PersonId && x.Status == AccountStatus.Active, token);
