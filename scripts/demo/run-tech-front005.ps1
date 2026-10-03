@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Automated', 'RegressionDiagnostic')][string] $Mode = 'Automated',
+    [ValidateSet('Bounded', 'Manual')][string] $CertificateConfirmation = 'Bounded',
     [ValidateRange(2, 2)][int] $Cycles = 2,
     [string] $DotnetPath = 'C:/Users/siste/.codex/tmp/sgol-sdk-10.0.400/dotnet.exe'
 )
@@ -17,7 +18,7 @@ $runRoot = Join-Path $repositoryRoot ('.artifacts/tech-front005/' + [Guid]::Crea
 $startedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
 [IO.Directory]::CreateDirectory($runRoot) | Out-Null
 $saved = @{}
-foreach ($name in @('PATH', 'DOTNET_CLI_UI_LANGUAGE', 'SGOL_TECH_FRONT005_CYCLE', 'SGOL_TECH_FRONT005_OUTPUT')) {
+foreach ($name in @('PATH', 'DOTNET_CLI_UI_LANGUAGE', 'SGOL_TECH_FRONT005_CYCLE', 'SGOL_TECH_FRONT005_OUTPUT', 'SGOL_TECH_FRONT005_CERTIFICATE_CONFIRMATION')) {
     $saved[$name] = [Environment]::GetEnvironmentVariable($name)
 }
 $captureVariables = @(Get-ChildItem Env: | Where-Object Name -Like 'SGOL_FRONT*_CAPTURE_DIR')
@@ -87,6 +88,7 @@ function Invoke-SelectedTests([string] $project, [string] $filter, [string] $pha
     $closedDiagnostics = @($diagnostics | Sort-Object)
     $phases.Add([ordered]@{ cycle = $cycle; phase = $phase; project = [IO.Path]::GetRelativePath($repositoryRoot, $project);
         filter = $filter; command = 'dotnet test --no-build --configuration Release --filter <recorded filter>'; sha = $sha;
+        certificateConfirmation = $CertificateConfirmation;
         expected = $expected; passed = $passed; failed = $failed; skipped = $skipped; total = $total;
         exit = $testExit; durationMs = $timer.ElapsedMilliseconds; failureDiagnostics = $closedDiagnostics })
     $phases | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $runRoot 'phases.json') -Encoding utf8NoBOM
@@ -101,6 +103,7 @@ try {
     $env:PATH = (Split-Path $DotnetPath) + [IO.Path]::PathSeparator + $env:PATH
     $env:DOTNET_CLI_UI_LANGUAGE = 'en'
     $env:SGOL_TECH_FRONT005_OUTPUT = $runRoot
+    $env:SGOL_TECH_FRONT005_CERTIFICATE_CONFIRMATION = $CertificateConfirmation
     foreach ($variable in $captureVariables) { [Environment]::SetEnvironmentVariable($variable.Name, $null) }
     if ($Mode -eq 'RegressionDiagnostic') {
         Invoke-SelectedTests $browserProject 'Category=FRONT_BROWSER' 'BROWSER_DIAGNOSTIC' 0
@@ -136,6 +139,7 @@ try {
         cells = 36; state = 'PASS'; sdk = '10.0.400'; startedAtUtc = $startedAtUtc;
         endedAtUtc = [DateTimeOffset]::UtcNow.ToString('O'); operationTimeZone = 'America/Mexico_City';
         runId = [IO.Path]::GetFileName($runRoot); captureDirectoriesUnset = $true;
+        certificateConfirmation = $CertificateConfirmation;
         ownedCertificateCleanup = $true; ownedCertificateCount = $ownedCertificates.Count; phases = $phases } |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $runRoot 'summary.json') -Encoding utf8NoBOM
     Write-Output "TECH_FRONT005 COMPLETE $runRoot"

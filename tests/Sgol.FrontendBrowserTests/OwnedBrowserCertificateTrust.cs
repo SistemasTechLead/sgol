@@ -82,6 +82,7 @@ internal static class OwnedBrowserCertificateTrust
             notBeforeUtc = certificate.NotBefore.ToUniversalTime(),
             notAfterUtc = certificate.NotAfter.ToUniversalTime(),
             state,
+            confirmation = Environment.GetEnvironmentVariable("SGOL_TECH_FRONT005_CERTIFICATE_CONFIRMATION") ?? "Bounded",
         }));
     }
 
@@ -111,8 +112,13 @@ internal static class OwnedBrowserCertificateTrust
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Owned certificate command unavailable.");
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        // Deadline for a verified trust dialog; this is not browser synchronization or a retry.
-        if (!process.WaitForExit(120_000))
+        // A human operator completes the OS confirmation in Manual mode. Wait for the real
+        // command exit, not a longer sleep or a retry. Automated mode keeps its deadline.
+        if (Environment.GetEnvironmentVariable("SGOL_TECH_FRONT005_CERTIFICATE_CONFIRMATION") == "Manual")
+        {
+            process.WaitForExit();
+        }
+        else if (!process.WaitForExit(120_000))
         {
             process.Kill();
             process.WaitForExit();
