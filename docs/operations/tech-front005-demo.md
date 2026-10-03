@@ -1,6 +1,6 @@
 # TECH-FRONT-005 — Ejecución local de la demo integral
 
-Estado: Implementada localmente; dos ciclos completos PASS sobre 3693239e181782386d5038d8be4232341fa53a89. Por ciclo 2 integrales, 35 navegador, 181 PostgreSQL/API, 1 S3/ClamAV y 166 contratos; total 770/770, cero fallos/omisiones, cleanup correcto. Artefactos: .artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a. Consultar informe y mapa para alcance, exclusiones y diferidos; revisión visual humana pendiente, sin publicación autorizada.
+Estado: Implementada localmente; dos ciclos completos PASS sobre 3693239e181782386d5038d8be4232341fa53a89. Por ciclo 2 integrales, 35 navegador, 181 PostgreSQL/API, 1 S3/ClamAV y 166 contratos; total 770/770, cero fallos/omisiones, cleanup correcto. Artefactos: .artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a. Consultar informe y mapa para alcance, exclusiones y diferidos; revisión visual humana aprobada el 2026-10-03, sin publicación autorizada.
 
 ## Alcance aprobado
 
@@ -46,7 +46,7 @@ Cada `cycle-N/desktop|mobile/report.json` conserva navegador/versión, plataform
 
 Cleanup en finally: contextos, browser y driver; fixture; confianza HTTPS propia; proceso web, contenedores/red, certificados/PFX/temporales propios; imagen propia. Registra componentes cerrados y verificación de ausencia. Sólo se eliminan recursos inventariados del perfil. Nunca Docker prune, limpieza global, volúmenes ajenos ni borrado funcional de historia. Si cleanup falla, queda FAIL y bloquea el cierre; investigar logs y causa antes de reintentar. Las capturas/reportes sanitizados permanecen.
 
-Los límites heredados y el coste se conservan en informe/mapa. La estimación del plan de 2–4 h no permite omitir ciclos. El estado Implementada localmente requiere criterios cubiertos, ambos ciclos, mapa y capturas revisables; revisión visual solicitada al responsable. Publicación, PR, checks remotos, merge y despliegue requieren sus autorizaciones separadas.
+Los límites heredados y el coste se conservan en informe/mapa. La estimación del plan de 2–4 h no permite omitir ciclos. El estado Implementada localmente requiere criterios cubiertos, ambos ciclos, mapa y capturas revisables; revisión visual aprobada por el responsable el 2026-10-03. Publicación, PR, checks remotos, merge y despliegue requieren sus autorizaciones separadas.
 
 La fixture R5 ejercita una sola ventana TAR-0005 de las 12:00 del día operativo, ya vencida durante estos pases. El procesador y ScheduledJobRunner/replay usan la misma fecha/corte; PostgreSQL comprueba una obligación antes de las seis altas manuales. No usar UtcNow como corte del Worker: después de las 17:00 incluiría legítimamente otra recurrente, fuera de las siete cadenas de esta fixture. Las ventanas productivas 12:00/17:00 y sus pruebas existentes no se cambian. El contrato del Worker rechaza ScheduledFor futuro; la fixture no fuerza aceptación ni sustituye el reloj productivo. Una discrepancia en R9 conserva diagnóstico cerrado de cantidades/período/rol, sin contenido ni secretos.
 

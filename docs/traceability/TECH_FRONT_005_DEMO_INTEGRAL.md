@@ -1,6 +1,10 @@
 # TECH-FRONT-005 — Informe de demo integral
 
-2026-10-02. **Implementada localmente; demo integral del alcance aprobado completada.** Dos ciclos reales sobre `3693239e181782386d5038d8be4232341fa53a89`: 770/770 pruebas, cero fallos/omisiones, exit 0; 36 celdas R1..R9 × escritorio/móvil × dos ciclos PASS. Plan único y D1..D4 incorporados por Adenda 60; D5 aprobada y corregida en commit backend separado por Adenda 61. TAR-0026 conserva configuración/negativos y exclusión de fuente/cadena CAT-006. BR-API04 permanece abierta globalmente; descarga/preview fuera de esta consumidora. Cero brechas bloqueantes propias del alcance aprobado; revisión visual humana pendiente. Sin publicación, merge ni despliegue.
+2026-10-02. **Implementada localmente; demo integral del alcance aprobado completada.** Dos ciclos reales sobre `3693239e181782386d5038d8be4232341fa53a89`: 770/770 pruebas, cero fallos/omisiones, exit 0; 36 celdas R1..R9 × escritorio/móvil × dos ciclos PASS. Plan único y D1..D4 incorporados por Adenda 60; D5 aprobada y corregida en commit backend separado por Adenda 61. TAR-0026 conserva configuración/negativos y exclusión de fuente/cadena CAT-006. BR-API04 permanece abierta globalmente; descarga/preview fuera de esta consumidora. Cero brechas bloqueantes propias del alcance aprobado; revisión visual humana aprobada el 2026-10-03. Sin publicación, merge ni despliegue.
+
+## Aprobación visual del responsable
+
+2026-10-03. «Ya revise las capturas y todo se encuentra en orden, retomemos el trabajo». Revisión visual aprobada sobre las capturas finales entregadas; pendiente local cerrado. Conserva cabeza ejecutada, 770/770 pruebas, 36 celdas, cleanup y diferidos. Este registro sólo modifica documentación; src/, tests/ y scripts/ conservan el contenido ejecutado. Sin autorización expresa de publicación, merge ni despliegue.
 
 ## Evidencia final verificable
 
