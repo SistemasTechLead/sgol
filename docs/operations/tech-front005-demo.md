@@ -1,6 +1,6 @@
 # TECH-FRONT-005 — Ejecución local de la demo integral
 
-Estado: harness en desarrollo. Ejecución completa pendiente; consultar informe y mapa de cobertura antes de atribuir PASS.
+Estado: Implementada localmente; dos ciclos completos PASS sobre 3693239e181782386d5038d8be4232341fa53a89. Por ciclo 2 integrales, 35 navegador, 181 PostgreSQL/API, 1 S3/ClamAV y 166 contratos; total 770/770, cero fallos/omisiones, cleanup correcto. Artefactos: .artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a. Consultar informe y mapa para alcance, exclusiones y diferidos; revisión visual humana pendiente, sin publicación autorizada.
 
 ## Alcance aprobado
 

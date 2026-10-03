@@ -1,6 +1,30 @@
 # TECH-FRONT-005 — Informe de demo integral
 
-2026-10-01. **Implementación y validación en curso.** No acredita demo completada ni Implementada localmente. Plan único aprobado e incorporado por Adenda 60; D4 conserva la exclusión heredada de TAR-0026, sin fuente ni cadena CAT-006. BR-API04 continúa abierta globalmente; descarga/preview fuera de esta consumidora.
+2026-10-02. **Implementada localmente; demo integral del alcance aprobado completada.** Dos ciclos reales sobre `3693239e181782386d5038d8be4232341fa53a89`: 770/770 pruebas, cero fallos/omisiones, exit 0; 36 celdas R1..R9 × escritorio/móvil × dos ciclos PASS. Plan único y D1..D4 incorporados por Adenda 60; D5 aprobada y corregida en commit backend separado por Adenda 61. TAR-0026 conserva configuración/negativos y exclusión de fuente/cadena CAT-006. BR-API04 permanece abierta globalmente; descarga/preview fuera de esta consumidora. Cero brechas bloqueantes propias del alcance aprobado; revisión visual humana pendiente. Sin publicación, merge ni despliegue.
+
+## Evidencia final verificable
+
+Comando: `./scripts/demo/run-tech-front005.ps1 -Cycles 2 -CertificateConfirmation Manual -DotnetPath C:/Users/siste/.codex/tmp/sgol-sdk-10.0.400/dotnet.exe`. SDK 10.0.400; Windows AMD64 / Docker Linux AMD64. Los cuatro perfiles integrales usan Chromium 151.0.7922.34, HTTPS con validación normal, escritorio 1440×900 y móvil emulado 390×844. La regresión reutiliza también sus casos WebKit; eso no acredita el PUT/S3 histórico fallido en WebKit. Todas las variables SGOL_FRONT*_CAPTURE_DIR estuvieron ausentes; la rasterización FullPage de contraste se realiza en memoria independientemente de guardar capturas.
+
+Ejecución: 2026-10-03 00:55:25.004289 UTC a 01:56:38.1153054 UTC (2026-10-02 18:55–19:56 America/Mexico_City), aproximadamente 61 minutos incluidos aprovisionamiento y confirmaciones humanas. No es una medición de latencia ni de SLO RPO/RTO. Build previo del código: 0 errores/advertencias; formato global correcto. El último ajuste fue sólo runner/documentación, validado por parser, prueba S3/ClamAV enfocada y estos dos ciclos; sin restore ni nuevas dependencias.
+
+| Fase | Ciclo 1: PASS / ms | Ciclo 2: PASS / ms |
+|---|---|---|
+| INTEGRAL | 2/2 / 479156 | 2/2 / 335166 |
+| BROWSER_REGRESSION | 35/35 / 1224789 | 35/35 / 1181630 |
+| POSTGRESQL_API | 181/181 / 198495 | 181/181 / 202995 |
+| PRIVATE_S3_CLAMAV | 1/1 / 14829 | 1/1 / 14763 |
+| CONTRACTS_AND_FORMULAS | 166/166 / 1931 | 166/166 / 1862 |
+
+Cada fase tiene exit 0 y cero fallos/omisiones. El selector y comando exactos están en `.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/phases.json`; `summary.json` conserva misma cabeza, diez fases, dos ciclos y 36 celdas. Los cuatro `cycle-N/desktop|mobile/report.json` conservan nueve PASS, failure NONE, HTTPS y cleanup true. Cada `captures.json` contiene 53 archivos sanitizados existentes: 212 capturas en total. Manifiestos y guía visual: [TECH_FRONT_005_CAPTURAS.md](TECH_FRONT_005_CAPTURAS.md); criterios y capas: [TECH_FRONT_005_COBERTURA_FINAL.md](TECH_FRONT_005_COBERTURA_FINAL.md).
+
+Cleanup: cada propietario comprueba ausencia de sus cinco contenedores, red, proceso por PID/fecha, temporales/PFX e imagen. Los 88 certificados propios terminaron REMOVED; verificación posterior de CurrentUser Root en sólo lectura: cero huellas propias presentes. Ningún contenedor activo al verificar; launcher terminó exit 0. No se alteraron servicios/datos/certificados ajenos. Los artefactos sanitizados permanecen fuera de Git para revisión, no como recursos funcionales activos.
+
+Las acciones UI de los cuatro roles se contrastan con API/PostgreSQL para permisos vigentes, jerarquía, propiedad, estados, CSRF, idempotencia, If-Match, historia y auditoría/no-efecto. R9 conserva los cinco indicadores y dos universos, GET puros de indicadores/auditoría, traza completa, RECOVERY_RECONCILIATION_VIEWED obligatorio, MATCHED aprobado y DIFFERENT sin aprobar. PreparationAndCancellationNeverQueryOrMutateContinuity exige cero llamadas cliente al preparar/cancelar y pasó dentro de las 166 unitarias de cada ciclo. S3 privado/cuarentena, tipo real, SHA-256 y ClamAV real preceden al vínculo limpio; negativo EICAR real pasó en ambos ciclos.
+
+Conserva las validaciones diferidas heredadas: zoom nativo, lector y dispositivos físicos no ensayados; PUT/S3 Windows WebKit previo sin HTTP; aislamiento productivo completo SeaweedFS no acreditado; carrera específica sustitución de evidencia contra emisión no reensayada; navegador con 100000 diferencias diferido por costo, colección completa comprobada unitariamente; isolated network histórico opcional SKIPPED. No se borran fallos anteriores ni se convierten en PASS. Los registros pendientes debajo son historia superada por esta evidencia y mantienen sus cabezas y alcance.
+
+El cierre posterior de trazabilidad, mapa, plan, guía e instrucciones operativas modifica únicamente seis documentos Markdown. La cabeza de ejecución indicada se conserva exactamente en los artefactos; no se atribuyen sus pruebas a otra SHA. Se comprueba que src/, tests/ y scripts/ de la cabeza final son idénticos a esa cabeza ejecutada. La verificación final de formato/diff y las pruebas del reporte se realizan sobre el cierre; no se repiten los dos ciclos por cambios exclusivamente documentales ni se crea un commit administrativo para hashes resolubles.
 
 ## Evidencia de desarrollo e incidencias
 
@@ -12,7 +36,7 @@ SDK fijado 10.0.400. Build Release de solución y build enfocado: 0 errores/adve
 
 Los logs sensibles de navegador/procesos no se exportan: diagnóstico de etapa, tipo de fallo, handler y estado HTTP; reporte cerrado sin cookies, tokens, credenciales, URLs firmadas, conexión ni contenido de evidencia. El reporte conserva cada ejecución fallida y su cleanup.
 
-## Pendiente de cierre
+## Pendiente de cierre — registro histórico anterior a los ciclos finales
 
 Dos ciclos obligatorios sobre la cabeza vigente: 36 celdas nuevas R1..R9 × escritorio/móvil × dos ciclos, regresión de Category=FRONT_BROWSER y selección PostgreSQL/API/S3/ClamAV fijada en el runner. Ningún pase histórico ni reporte parcial los sustituye. Mapa final de cobertura, verificaciones de auditoría/no-efecto, capturas sanitizadas y revisión visual pendientes. Sin push, PR, checks remotos, merge ni despliegue.
 

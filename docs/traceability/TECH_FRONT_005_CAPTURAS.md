@@ -1,6 +1,6 @@
 # TECH-FRONT-005 — Capturas y guía de recorridos
 
-**Pendiente de entrega visual final.** Las capturas de desarrollo corresponden a la aplicación real con datos sintéticos; sus pases son parciales y no acreditan la demo integral. No se presentan como maquetas ni como validación de dos ciclos. El manifiesto final será `captures.json` junto al `report.json` de cada ciclo/perfil, bajo el directorio propio indicado por el runner. La cabeza, navegador, plataforma y resultados se consultan en ese reporte y en `summary.json`.
+**Entrega visual final; revisión humana pendiente.** Capturas de la aplicación real con datos sintéticos, correspondientes a los dos ciclos completos PASS del alcance aprobado (770/770 pruebas, 36 celdas, cleanup correcto). La cabeza, navegador, plataforma y resultados constan en report.json y summary.json; los manifiestos enumeran los archivos por recorrido y rol. Los pases parciales históricos conservan su resultado y no sustituyen esta evidencia.
 
 Las capturas ocultan activación, contraseña, configuración MFA/códigos y contenido de evidencia. No incluyen archivo binario, URLs firmadas, cookies, tokens ni conexiones. Mantienen etiquetas, acciones, requisito, versión y estado para revisar la aplicación. Poppins local OFL, Georgia del sistema y estilos integrados conservados; no hay cambios incidentales de interfaz para acomodar la prueba.
 
@@ -16,8 +16,35 @@ Las capturas ocultan activación, contraseña, configuración MFA/códigos y con
 | R6 — plan semanal | Dirección crea o recupera el plan, prepara/cancela y confirma publicación. Todos los puestos consultan el resultado permitido. | Plan publicado y versiones conservadas. Cancelar no publica. |
 | R7 — trabajo y evidencia | Subcoordinación y Piso aportan los requisitos de sus tareas; leen avisos propios y consultan la revisión. Los archivos se cargan, analizan y sólo se aportan cuando están limpios. | Evidencia incompleta/completa, versión vigente/sustituida y tarea concluida. Concluida todavía puede estar pendiente de validación. |
 | R8 — validación y supervisión | Subcoordinación valida tareas de Piso; Administración las de Subcoordinación. Emitir y sustituir una decisión requiere fundamento/motivo. Dirección consulta supervisión. | Una decisión vigente y versiones sustituidas conservadas. Piso recibe denegación de supervisión. |
-| R9 — indicadores, auditoría y continuidad | Los cuatro puestos consultan sus conteos y eventos permitidos. Dirección consulta la cadena y solicita un simulacro de recuperación. Sólo un resultado coincidente admisible puede aprobarse. | Ceros y denominadores reales; cadena por vínculos; MATCHED aprobado y DIFFERENT sin aprobar. D5 fue aprobada; la traza integral todavía requiere validar su corrección mínima. No se presenta una salida fallida como completa. |
+| R9 — indicadores, auditoría y continuidad | Los cuatro puestos consultan sus conteos y eventos permitidos. Dirección consulta la cadena y solicita un simulacro de recuperación. Sólo un resultado coincidente admisible puede aprobarse. | Ceros y denominadores reales; cadena por vínculos y cuatro etapas con D5 validada; MATCHED aprobado y DIFFERENT sin aprobar. No se presenta una salida fallida como completa. |
 
-Pendientes de revisión final: escritorio/móvil, etiquetas próximas, separación de filtros/acciones, teclado, foco/retorno, controles, contraste 4.5:1, texto ampliado, reflow y movimiento reducido. Las aserciones automáticas acompañan cada captura; la aprobación visual no las sustituye. Zoom nativo, lector y dispositivos físicos siguen sin ensayo, y los demás límites se conservan en el informe.
 
-Al terminar los dos ciclos se entregarán las rutas absolutas del manifiesto y las capturas representativas sanitizadas, junto con la solicitud expresa de revisión visual. Hasta entonces no se declara la demo completada.
+## Entrega visual final
+
+Cabeza de las capturas: `3693239e181782386d5038d8be4232341fa53a89`; Chromium 151.0.7922.34, Windows AMD64/Docker Linux AMD64, HTTPS. Los cuatro reportes tienen nueve PASS y cleanup true. Hay 53 imágenes por perfil/ciclo (212 total), todas existentes en sus manifiestos. Los controles compartidos, Poppins local OFL y Georgia se conservan.
+
+- Ciclo 1, desktop: [manifiesto](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-1/desktop/captures.json) y [reporte](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-1/desktop/report.json).
+- Ciclo 1, mobile: [manifiesto](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-1/mobile/captures.json) y [reporte](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-1/mobile/report.json).
+- Ciclo 2, desktop: [manifiesto](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/captures.json) y [reporte](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/report.json).
+- Ciclo 2, mobile: [manifiesto](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/mobile/captures.json) y [reporte](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/mobile/report.json).
+
+Selección del ciclo 2 para revisión:
+
+| Recorrido / rol | Aplicación real sanitizada |
+|---|---|
+| R1 · Dirección | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/R1-DIRECCION.png) |
+| R2 · Dirección | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/R2-cuentas-y-roles.png) |
+| R3 · Dirección | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/R3-calendario-semana.png) |
+| R4 · Dirección | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/R4-ocho-TAR-politicas.png) |
+| R5 · Dirección | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/R5-generacion-asignacion-historia.png) |
+| R6 · Dirección | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/R6-plan-DIRECCION.png) |
+| R7 · Piso | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/mobile/R7-TAR-0007-concluida.png) |
+| R8 · Subcoordinación | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/mobile/R8-TAR-0007-validacion.png) |
+| R9 · Piso: indicadores | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/mobile/R9-indicadores-PISO_VENTAS.png) |
+| R9 · Dirección: traza | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/mobile/R9-traza-completa.png) |
+| R9 · Dirección: aceptación | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/R9-aceptacion-auditada.png) |
+| R9 · Dirección: diferencias | [Ver captura](C:/Users/siste/Dev/SGOL-Migracion-20260929/extraido/SGOL-git-portable-v3/SGOL/.artifacts/tech-front005/01a0ff42384a7db783079e62b5b4706a/cycle-2/desktop/R9-restauracion-DIFFERENT.png) |
+
+R1 se captura antes de configurar/publicar calendario y políticas: el estado inicial de Mi trabajo no representa el estado final del sistema; la cadena continúa con R3/R4 y el plan R6. Las máscaras de evidencia son intencionales y conservan controles, requisitos, versiones y estados. Las tablas móviles conservan su desplazamiento horizontal; una imagen fija no acredita un dispositivo físico.
+
+Revisión visual humana solicitada: comprobar etiquetas próximas y alineadas, orden vertical, separación entre filtros/acciones y legibilidad en escritorio/móvil. La revisión automática pasó teclado/foco/retorno, contraste 4.5:1, controles, texto ampliado, reflow y movimiento reducido según el mapa; no sustituye zoom nativo, lector ni dispositivos físicos. Capturas revisadas durante este pase incluyen indicadores de Piso móvil, historia de tres decisiones TAR-0007 y MATCHED aprobado; la aprobación visual humana sigue pendiente.
