@@ -8,6 +8,8 @@
 
 ## Evidencia final verificable
 
+**Publicación autorizada posteriormente, 2026-10-03:** «Doy mi autorizacion para hacer push, pr y ejecutar los checks remotos». Seguimiento y correcciones limitadas al mismo hito/PR autorizados; merge y despliegue pendientes de sus autorizaciones expresas. La propuesta formal y referencias resolubles constan en IMPLEMENTATION_STATUS.md. Esta decisión supera los textos históricos de falta de autorización, conservando los resultados exactos de los dos ciclos y los límites. Los checks remotos deben acreditar la cabeza vigente del PR; no se deduce su resultado de los 770 casos locales.
+
 Comando: `./scripts/demo/run-tech-front005.ps1 -Cycles 2 -CertificateConfirmation Manual -DotnetPath C:/Users/siste/.codex/tmp/sgol-sdk-10.0.400/dotnet.exe`. SDK 10.0.400; Windows AMD64 / Docker Linux AMD64. Los cuatro perfiles integrales usan Chromium 151.0.7922.34, HTTPS con validación normal, escritorio 1440×900 y móvil emulado 390×844. La regresión reutiliza también sus casos WebKit; eso no acredita el PUT/S3 histórico fallido en WebKit. Todas las variables SGOL_FRONT*_CAPTURE_DIR estuvieron ausentes; la rasterización FullPage de contraste se realiza en memoria independientemente de guardar capturas.
 
 Ejecución: 2026-10-03 00:55:25.004289 UTC a 01:56:38.1153054 UTC (2026-10-02 18:55–19:56 America/Mexico_City), aproximadamente 61 minutos incluidos aprovisionamiento y confirmaciones humanas. No es una medición de latencia ni de SLO RPO/RTO. Build previo del código: 0 errores/advertencias; formato global correcto. El último ajuste fue sólo runner/documentación, validado por parser, prueba S3/ClamAV enfocada y estos dos ciclos; sin restore ni nuevas dependencias.

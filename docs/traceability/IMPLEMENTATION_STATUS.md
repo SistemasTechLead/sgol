@@ -1,6 +1,24 @@
 # Estado de implementación
 
-## TECH-FRONT-005 — Implementada localmente; demo integral completada
+## TECH-FRONT-005 — Implementada localmente; demo integral completada; publicación autorizada
+
+2026-10-03. Autorización expresa: «Doy mi autorizacion para hacer push, pr y ejecutar los checks remotos». Incluye seguimiento y correcciones limitadas al mismo hito/PR, sin merge ni despliegue. La publicación se acredita mediante la rama remota y el PR que incorpora este registro; su existencia/estado y los checks de su cabeza vigente se verifican en GitHub. Hasta esa evidencia permanece Implementada localmente; con rama publicada y PR abierto pasa a Publicada, nunca Integrada por inferencia. Los textos anteriores de falta de autorización son registros históricos superados por esta decisión.
+
+### Propuesta de base aceptada — cierre formal TECH-FRONT-005
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada propuesta | `TECH-FRONT-005`; sólo eficaz al cumplir las condiciones de merge de F07_ENMIENDA_001 |
+| Corte y épica | Hito técnico de harness, validación y cobertura frontend, fila 51/orden 25 de Adenda 45; plan y D1..D5 aprobados |
+| Pull request | `PR que incorpora esta actualización` |
+| Commit implementado | `commit que contiene esta actualización`; cabeza vigente exacta verificada en el PR |
+| Pipeline requerido | `TECH-BASE-003 / PR gates`, con source controls, server, browser y operations SUCCESS sobre la misma cabeza; HU-035 isolated network opcional no aporta aceptación |
+| Aceptación humana | Plan, decisiones y capturas aprobados; aprobación expresa de merge pendiente en este chat |
+| Commit incorporado en master | `pendiente de merge` |
+| Fuentes/ | Protección requerida en source controls del PR; originales conservados |
+| Siguiente tarea propuesta | Cierre de este hito mediante revisión de los checks y aprobación expresa de merge; ninguna tarea nueva iniciada |
+
+Esta tabla es propuesta de cierre, no declaración anticipada de Terminada. PR, run y SHA se resuelven en el proveedor sin commits administrativos; los dos ciclos locales conservan su SHA real y las diferencias documentales se distinguen de los ejecutables validados. BR-API04, D4/CAT-006 y diferidos heredados conservan su alcance.
 
 2026-10-02. Dos ciclos completos sobre `3693239e181782386d5038d8be4232341fa53a89`, SDK 10.0.400, Windows AMD64/Docker Linux AMD64: por ciclo INTEGRAL 2/2, FRONT_BROWSER 35/35, PostgreSQL/API 181/181, S3/ClamAV 1/1 y contratos/fórmulas 166/166; total 770/770, cero fallos/omisiones, exit 0. R1..R9 × escritorio/móvil × dos ciclos: 36 PASS, cuatro roles, backend real y HTTPS. Cuatro reportes cleanup true y 88 certificados propios retirados/ausentes; 212 capturas sanitizadas con manifiestos íntegros. Informe, mapa final y guía: TECH_FRONT_005_DEMO_INTEGRAL.md, TECH_FRONT_005_COBERTURA_FINAL.md y TECH_FRONT_005_CAPTURAS.md. Cero brechas bloqueantes propias del alcance aprobado; revisión visual humana aprobada el 2026-10-03. No Publicada ni Integrada; sin push/PR/checks remotos/merge/despliegue.
 
