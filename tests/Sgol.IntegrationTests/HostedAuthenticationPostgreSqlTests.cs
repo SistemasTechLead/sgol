@@ -21,7 +21,7 @@ using Xunit;
 
 namespace Sgol.IntegrationTests;
 
-public sealed class HostedAuthenticationPostgreSqlTests : IAsyncLifetime
+public sealed partial class HostedAuthenticationPostgreSqlTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = PostgreSqlPersistenceTests.CreateContainerForTests();
 

@@ -82,6 +82,7 @@ public static class PersistenceServiceCollectionExtensions
             ?? throw new InvalidOperationException("The obligation reader must provide operational indicators."));
         EvidenceInfrastructureServiceCollectionExtensions.AddFailClosedAdapters(services);
         services.AddScoped<IEvidenceContributionService, EfEvidenceContributionService>();
+        services.AddScoped<IEvidenceDownloadService, EfEvidenceDownloadService>();
         services.AddScoped<IEvidenceReviewService, EfEvidenceReviewService>();
         services.AddScoped<IEvidenceConclusionReviewService, EfEvidenceConclusionReviewService>();
         services.AddScoped<IObligationConclusionService, EfObligationConclusionService>();

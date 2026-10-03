@@ -417,3 +417,40 @@ Actualización incremental: 2026-10-03. Adenda 62 incorpora localmente la resolu
 | BR-API04 — incorporación del contrato y siguiente chat | `docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md` | 359 | 373 |
 
 El estado operativo se localiza al inicio de docs/traceability/IMPLEMENTATION_STATUS.md. El contrato está aprobado e incorporado localmente; falta tarea/ID/plan y orden de implementación, y autorización separada de verificación Dirección. No hay implementación de descarga/preview ni ensayo nuevo. Se conservan exclusiones consumidoras, D4/CAT-006, D5 y todos los diferidos.
+
+## BR-API04 — Antecedente de propuesta de plan e identificador
+
+2026-10-03. Documento de propuesta: `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md`, §§1–9. §2 presenta **TECH-EVID-003 como identificador propuesto, no asignado ni aprobado**; no es una entrada canónica de backlog. §4 propone la verificación separada de Dirección, sin autorización de ensayo/corrección. §§5–7 contienen implementación/aceptación/archivos futuros; §8 conserva exclusiones/diferidos y §9 las decisiones y parada. No sustituye el contrato aprobado por Adenda 63. Estado vigente al inicio de IMPLEMENTATION_STATUS: propuesta preparada, aprobación/incorporación del plan y órdenes expresas pendientes, sin código o ensayo.
+
+| Referencia propuesta, no canónica | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| BR-API04 — definición/ID pendientes (antecedente) | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 28 | 43 |
+| BR-API04 — propuesta separada Dirección | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 73 | 87 |
+| BR-API04 — secuencia/aceptación/archivos futuros | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 89 | 141 |
+| BR-API04 — límites y decisión del plan | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 143 | 163 |
+
+## TECH-EVID-003 — Definición y plan aprobados
+
+2026-10-03. Aprobación literal «Lo apruebo» e incorporación local mediante Adenda 64: TECH-EVID-003 ya no es un ID pendiente de asignación. La sección anterior conserva el antecedente de propuesta; los pendientes de ID/plan del contrato y registros anteriores quedan superados exclusivamente por esta decisión. No autoriza implementar/ensayar ni la verificación Dirección separada. Plan aprobado: `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` §§1–9; estado posterior en §10. BR-API04 sigue ABIERTA y límites/diferidos intactos.
+
+| Referencia vigente | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| `TECH-EVID-003` — aprobación/incorporación | `F07_ADENDA_64_DEFINICION_Y_PLAN_DE_DESCARGA_TECH_EVID_003.md` | 3 | 7 |
+| `TECH-EVID-003` — definición/precedencia | `F07_ADENDA_64_DEFINICION_Y_PLAN_DE_DESCARGA_TECH_EVID_003.md` | 9 | 22 |
+| `TECH-EVID-003` — Dirección/límites/parada | `F07_ADENDA_64_DEFINICION_Y_PLAN_DE_DESCARGA_TECH_EVID_003.md` | 24 | 30 |
+
+### TECH-EVID-003 — Orden y verificación ejecutada
+
+2026-10-03. «Autorizo implementar y tambien autorizo verificar direccion»: órdenes anteriores pendientes superadas. §11 de `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` registra verificación enfocada PostgreSQL/handler metadata, FAIL contractual 404 frente a 200 para Dirección sin asignación, controles/no-efecto y propuesta mínima de corrección. La orden propia para corregir sigue pendiente conforme a §4.5; no se reutiliza el helper defectuoso. Estado operativo al inicio de IMPLEMENTATION_STATUS, sin declarar Implementada localmente ni cerrar BR-API04.
+
+### TECH-EVID-003 — Implementación local y corrección Dirección autorizada
+
+2026-10-03. «Lo autorizo» autoriza la corrección propuesta y continuar descarga. §12 de `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` registra resultado **Implementada localmente**, corrección/ensayo separados, archivos, configuración y comandos/resultados de 88 casos distintos finales PASS por filtros, límites de evidencia y diferidos. Supera paradas de ejecución anteriores; no cambia Adendas 62/63/64 ni cierra BR-API04, ni declara publicación/integración. Estado operativo vigente al inicio de IMPLEMENTATION_STATUS.
+
+| Referencia vigente | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| `TECH-EVID-003` — antecedente de verificación Dirección roja y propuesta | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 181 | 209 |
+| `TECH-EVID-003` — autorización de corrección, resultado y criterios | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 211 | 227 |
+| `TECH-EVID-003` — regresión Dirección separada y archivos cambiados | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 229 | 245 |
+| `TECH-EVID-003` — comandos/resultados, incidencias y límites | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 247 | 265 |
+| `TECH-EVID-003` — cierre local y diferidos conservados | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 267 | 271 |

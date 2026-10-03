@@ -127,6 +127,12 @@ public interface IEvidenceObjectKeyFactory
 
 public interface IPrivateObjectStorage
 {
+    Task<EvidenceDownloadAuthorization> CreateCleanDownloadAuthorizationAsync(
+        EvidenceObjectMetadata metadata,
+        Guid fileId,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken);
+
     Task<EvidenceUploadAuthorization> CreateQuarantineUploadAuthorizationAsync(
         EvidenceObjectMetadata metadata,
         DateTimeOffset expiresAt,

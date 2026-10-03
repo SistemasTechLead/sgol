@@ -425,6 +425,8 @@ internal sealed class Cv04Seed(Cv04Infrastructure infrastructure)
 
     private sealed class UnusedPrivateObjectStorage : IPrivateObjectStorage
     {
+        public Task<EvidenceDownloadAuthorization> CreateCleanDownloadAuthorizationAsync(EvidenceObjectMetadata metadata,
+            Guid fileId, DateTimeOffset expiresAt, CancellationToken cancellationToken) => throw Failure();
         public Task<EvidenceUploadAuthorization> CreateQuarantineUploadAuthorizationAsync(
             EvidenceObjectMetadata metadata, DateTimeOffset expiresAt, CancellationToken cancellationToken) =>
             throw Failure();

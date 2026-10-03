@@ -25,6 +25,68 @@ public sealed class S3PrivateObjectStorage(
     private readonly object corsVerificationLock = new();
     private Task? corsVerification;
 
+    public Task<EvidenceDownloadAuthorization> CreateCleanDownloadAuthorizationAsync(
+        EvidenceObjectMetadata metadata, Guid fileId, DateTimeOffset expiresAt, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var remaining = expiresAt - DateTimeOffset.UtcNow;
+        if (fileId == Guid.Empty || remaining <= TimeSpan.Zero || remaining > TimeSpan.FromMinutes(5))
+            throw new EvidenceStorageUnavailableException();
+        var extension = metadata.MediaType switch
+        {
+            EvidenceMediaType.Jpeg => "jpg",
+            EvidenceMediaType.Png => "png",
+            EvidenceMediaType.Pdf => "pdf",
+            _ => throw new EvidenceStorageUnavailableException()
+        };
+        try
+        {
+            var request = new GetPreSignedUrlRequest
+            {
+                BucketName = configuration.CleanBucket,
+                Key = metadata.Key.Value,
+                Verb = HttpVerb.GET,
+                Expires = expiresAt.UtcDateTime,
+                Protocol = new Uri(configuration.Endpoint).Scheme == Uri.UriSchemeHttp ? Protocol.HTTP : Protocol.HTTPS,
+                ResponseHeaderOverrides = new ResponseHeaderOverrides
+                {
+                    ContentType = metadata.MediaType.ToMediaType(),
+                    ContentDisposition = $"attachment; filename=\"evidence-{fileId:D}.{extension}\"",
+                    CacheControl = "private, no-store"
+                }
+            };
+            var url = new Uri(client.GetPreSignedURL(request), UriKind.Absolute);
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(url.Query);
+            var emittedExpiry = ReadSignedExpiry(query, maximumSeconds: 301);
+            if (emittedExpiry != expiresAt)
+            {
+                // One local precision adjustment for the SDK's duration rounding/clock correction.
+                // The authorized deadline never moves; neither intermediate token is returned.
+                request.Expires = expiresAt.UtcDateTime - (emittedExpiry - expiresAt);
+                url = new Uri(client.GetPreSignedURL(request), UriKind.Absolute);
+                query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(url.Query);
+            }
+            if (ReadSignedExpiry(query) != expiresAt ||
+                query["response-content-type"] != metadata.MediaType.ToMediaType() ||
+                query["response-content-disposition"] != request.ResponseHeaderOverrides.ContentDisposition ||
+                query["response-cache-control"] != "private, no-store") throw new EvidenceStorageUnavailableException();
+            return Task.FromResult(new EvidenceDownloadAuthorization(url, expiresAt));
+        }
+        catch (Exception ex) when (ex is AmazonS3Exception or ArgumentException or InvalidOperationException)
+        { throw new EvidenceStorageUnavailableException(); }
+    }
+
+    private static DateTimeOffset ReadSignedExpiry(Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query, int maximumSeconds = 300)
+    {
+        if (!query.TryGetValue("X-Amz-Date", out var date) || date.Count != 1 ||
+            !DateTimeOffset.TryParseExact(date[0], "yyyyMMdd'T'HHmmss'Z'", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal, out var signedAt) ||
+            !query.TryGetValue("X-Amz-Expires", out var expiry) || expiry.Count != 1 ||
+            !int.TryParse(expiry[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seconds) ||
+            seconds < 1 || seconds > maximumSeconds) throw new EvidenceStorageUnavailableException();
+        return signedAt.AddSeconds(seconds);
+    }
+
     public async Task<EvidenceUploadAuthorization> CreateQuarantineUploadAuthorizationAsync(
         EvidenceObjectMetadata metadata,
         DateTimeOffset expiresAt,
@@ -185,7 +247,8 @@ public sealed class S3PrivateObjectStorage(
                 Key = key.Value
             }, timeout.Token);
 
-            if (!TryReadMetadata(response.Metadata, key, response.ContentLength, out var metadata))
+            if (!TryReadMetadata(response.Metadata, key, response.ContentLength, out var metadata) ||
+                response.Headers.ContentType != metadata.MediaType.ToMediaType())
             {
                 throw new EvidenceObjectIntegrityException();
             }

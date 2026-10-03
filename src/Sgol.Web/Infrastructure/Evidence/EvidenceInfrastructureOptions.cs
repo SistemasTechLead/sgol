@@ -2,6 +2,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Sgol.Web.Infrastructure.Evidence;
 
+public sealed class EvidenceDownloadOptions
+{
+    public const string SectionName = "Evidence:Download";
+
+    [Range(1, 300)]
+    public int ValiditySeconds { get; init; } = 300;
+}
+
 public sealed class EvidenceStorageOptions
 {
     public const string SectionName = "Evidence:Storage";

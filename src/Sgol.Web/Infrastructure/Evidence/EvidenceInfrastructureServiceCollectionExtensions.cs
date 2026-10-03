@@ -15,6 +15,9 @@ public static class EvidenceInfrastructureServiceCollectionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
+        services.AddOptions<EvidenceDownloadOptions>()
+            .Bind(configuration.GetSection(EvidenceDownloadOptions.SectionName))
+            .ValidateDataAnnotations();
         services.AddOptions<EvidenceStorageOptions>()
             .Bind(configuration.GetSection(EvidenceStorageOptions.SectionName))
             .ValidateDataAnnotations()

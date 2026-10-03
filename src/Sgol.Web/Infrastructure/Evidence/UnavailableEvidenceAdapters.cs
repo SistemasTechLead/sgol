@@ -4,6 +4,7 @@ namespace Sgol.Web.Infrastructure.Evidence;
 
 internal sealed class UnavailablePrivateObjectStorage : IPrivateObjectStorage
 {
+    public Task<EvidenceDownloadAuthorization> CreateCleanDownloadAuthorizationAsync(EvidenceObjectMetadata metadata, Guid fileId, DateTimeOffset expiresAt, CancellationToken cancellationToken) => Fail<EvidenceDownloadAuthorization>();
     public Task<EvidenceUploadAuthorization> CreateQuarantineUploadAuthorizationAsync(EvidenceObjectMetadata metadata, DateTimeOffset expiresAt, CancellationToken cancellationToken) => Fail<EvidenceUploadAuthorization>();
     public Task PutQuarantineAsync(EvidenceObjectMetadata metadata, Stream content, CancellationToken cancellationToken) => Fail();
     public Task<EvidenceObjectMetadata> GetMetadataAsync(EvidenceStorageArea area, EvidenceObjectKey key, CancellationToken cancellationToken) => Fail<EvidenceObjectMetadata>();
