@@ -56,7 +56,9 @@ public sealed partial class ObligationQueryPersistenceTests
         await ObligationConclusionTestData.ConcludeAsync(db, scenario.SalesObligationId, Now);
         var file = await db.FileObjects.AsNoTracking().FirstAsync(f => f.ObligationId == scenario.SalesObligationId);
         string? afterReplacement = null;
-        var storage = new DownloadStorage(db) { AfterMetadata = async () =>
+        var storage = new DownloadStorage(db)
+        {
+            AfterMetadata = async () =>
         {
             await using var other = CreateContext();
             await using var transaction = await other.Database.BeginTransactionAsync();
@@ -68,7 +70,8 @@ public sealed partial class ObligationQueryPersistenceTests
                 successor.Id, scenario.Direction.UserId, Now, "Synthetic replacement", previous.Id));
             await other.SaveChangesAsync(); await transaction.CommitAsync();
             afterReplacement = await TechEvid003SnapshotAsync(other);
-        }};
+        }
+        };
         var result = await DownloadService(db, storage).AuthorizeAsync(scenario.Direction.UserId, file.Id);
         Assert.Equal(file.Id, result.FileId);
         Assert.Equal(afterReplacement, await TechEvid003SnapshotAsync(db));

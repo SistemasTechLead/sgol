@@ -23,8 +23,13 @@ public sealed partial class EvidenceExternalInfrastructureTests
         // Inject corrupt metadata in a separate synthetic object before the read interval.
         var corruptBytes = EvidenceCorpus.Png();
         var corruptKey = new CryptographicEvidenceObjectKeyFactory().Create();
-        var corrupt = new PutObjectRequest { BucketName = CleanBucket, Key = corruptKey.Value,
-            ContentType = "image/png", InputStream = new MemoryStream(corruptBytes) };
+        var corrupt = new PutObjectRequest
+        {
+            BucketName = CleanBucket,
+            Key = corruptKey.Value,
+            ContentType = "image/png",
+            InputStream = new MemoryStream(corruptBytes)
+        };
         corrupt.Metadata["x-amz-meta-sgol-sha256"] = Convert.ToHexStringLower(SHA256.HashData(corruptBytes));
         corrupt.Metadata["x-amz-meta-sgol-media-type"] = "Png";
         corrupt.Metadata["x-amz-meta-sgol-size-bytes"] = (corruptBytes.Length + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);

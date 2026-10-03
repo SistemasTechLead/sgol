@@ -1,5 +1,27 @@
 # Estado de implementación
 
+## TECH-EVID-003 — Publicación autorizada; propuesta de cierre formal
+
+2026-10-03. Orden literal «Autorizo su publicacion»: autoriza publicar la rama `codex/tech-evid-003`, abrir el PR de este hito y ejecutar/seguir sus checks; las correcciones limitadas al mismo hito se conservan en ese PR. No autoriza merge, despliegue o preview/UI. Implementación local 729bf954d8ca08bea7ffb2d4138e2c26790e6299 y sus 88 casos enfocados se conservan como evidencia de ese contenido; los checks remotos deberán validar el commit que incorpora este registro, sin atribuirles PASS anticipado.
+
+Se publican también los antecedentes aprobados aún locales (Adendas 62/63 y PROPUESTA_POST_TECH_FRONT_005) que definen el contrato consumido. Revisión previa detectó WHITESPACE en cuatro archivos del hito; corregido con formato limitado a archivos afectados, sin cambios funcionales o de workflow. Preflight exit 0, árbol inicial limpio, Fuentes limpia/sin rebaseline; incompatibilidad PATH/SDK conocida, sin diagnóstico adicional. La publicación se acredita por la existencia de la rama remota y el PR que incorpora este registro; hasta entonces conserva Implementada localmente. BR-API04 ABIERTA y todos los límites/diferidos de §12 del informe permanecen.
+
+### Propuesta de base aceptada — TECH-EVID-003
+
+| Campo | Valor |
+|---|---|
+| Última tarea Terminada propuesta | TECH-EVID-003; Implementada localmente, cierre formal pendiente de aceptación/merge |
+| Corte y épica | Tarea técnica de descarga limitada de BR-API04, definición aprobada por Adenda 64; no amplía backlog funcional |
+| Pull request | PR que incorpora esta actualización |
+| Commit implementado | commit que contiene esta actualización |
+| Pipeline requerido | TECH-BASE-003 / source controls, server, browser, operations y PR gates; checks del commit exacto |
+| Aceptación humana | Aprobación expresa de merge requerida para la cabeza validada del PR |
+| Commit incorporado en master | pendiente de merge |
+| Fuentes/ | Protección requerida en checks; preflight local limpio, originales intactos |
+| Siguiente tarea propuesta | Ninguna iniciada ni asignada automáticamente; BR-API04 permanece ABIERTA |
+
+El registro no convierte este hito en Integrada/Terminada por estar en una rama. F07_ENMIENDA_001 usa referencias resolubles al PR/commit/run sin commits administrativos posteriores sólo para sus números. Resultado de pipeline se verifica en el proveedor para la cabeza vigente; sin merge automático.
+
 ## TECH-EVID-003 — Implementada localmente; Dirección corregida y verificada por separado
 
 2026-10-03. Orden literal posterior «Lo autorizo» autoriza la corrección de lectura Dirección presentada tras §11; continúa la implementación de descarga ya autorizada mediante «Autorizo implementar y tambien autorizo verificar direccion». ID/plan aprobados e incorporados por Adenda 64. Registros inferiores de espera y diferencia roja son antecedentes superados específicamente por estas órdenes y resultados, no evidencia vigente de un defecto pendiente.

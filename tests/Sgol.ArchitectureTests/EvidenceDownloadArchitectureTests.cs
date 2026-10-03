@@ -18,8 +18,7 @@ public sealed class EvidenceDownloadArchitectureTests
         foreach (var operation in new[] { "SaveChanges", "ExecuteUpdate", "ExecuteDelete", "PromoteToClean", "DeleteAsync", "PutQuarantine", "IOutboxWriter", "AuditTransaction" })
             Assert.DoesNotContain(operation, source, StringComparison.Ordinal);
         var endpoint = File.ReadAllText(Path.Combine(web, "Interface", "Endpoints", "EvidenceApiEndpoints.cs"));
-        var download = endpoint[endpoint.IndexOf("public static async Task<IResult> DownloadAsync", StringComparison.Ordinal)..
-            endpoint.IndexOf("public static async Task<IResult> ListAsync", StringComparison.Ordinal)];
+        var download = endpoint[endpoint.IndexOf("public static async Task<IResult> DownloadAsync", StringComparison.Ordinal)..endpoint.IndexOf("public static async Task<IResult> ListAsync", StringComparison.Ordinal)];
         Assert.DoesNotContain("DbContext", download, StringComparison.Ordinal);
         Assert.DoesNotContain("AmazonS3", download, StringComparison.Ordinal);
         Assert.DoesNotContain("Results.Redirect", download, StringComparison.Ordinal);

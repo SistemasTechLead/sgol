@@ -124,11 +124,15 @@ public static class EvidenceApiEndpoints
             var result = await service.AuthorizeAsync(actor, fileId, token);
             return Results.Json(new
             {
-                data = new { fileId = result.FileId.ToString("D"), download = new
+                data = new
                 {
-                    url = result.Download.Url.AbsoluteUri,
-                    expiresAt = result.Download.ExpiresAt.UtcDateTime
-                } },
+                    fileId = result.FileId.ToString("D"),
+                    download = new
+                    {
+                        url = result.Download.Url.AbsoluteUri,
+                        expiresAt = result.Download.ExpiresAt.UtcDateTime
+                    }
+                },
                 meta = Meta(context)
             });
         }
