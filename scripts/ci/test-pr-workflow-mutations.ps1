@@ -4,7 +4,9 @@ $validator = Join-Path $PSScriptRoot 'test-pr-workflow.ps1'
 $original = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../../.github/workflows/pull-request.yml') -Raw
 $cases = @(
     @{ Name = 'missing gate'; From = '      - name: Scan secrets with pinned Gitleaks'; To = '      - name: Removed secret scanner' },
-    @{ Name = 'weakened filter'; From = 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER'; To = 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER&Category!=SECURITY' },
+    @{ Name = 'weakened filter'; From = 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER&Category!=TECH_FRONT005'; To = 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER&Category!=TECH_FRONT005&Category!=SECURITY' },
+    @{ Name = 'misrouted integral browser harness'; From = 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER&Category!=TECH_FRONT005'; To = 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER' },
+    @{ Name = 'lost frontend report guards'; From = 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER&Category!=TECH_FRONT005'; To = 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER&Category!=TECH_FRONT005&FullyQualifiedName!~TechFront005ReportTests' },
     @{ Name = 'missing dependency'; From = 'needs: [controls, server, browser]'; To = 'needs: controls' },
     @{ Name = 'missing always'; From = 'always() && github.event_name'; To = 'success() && github.event_name' },
     @{ Name = 'write authority'; From = '      contents: read'; To = '      contents: write' },

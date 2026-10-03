@@ -151,7 +151,9 @@ jobs:
       - name: Run unit, architecture and PostgreSQL integration tests
         env:
           SGOL_EVIDENCE_EICAR_TESTS: "true"
-        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER'
+        # TECH_FRONT005 owns two-cycle browser orchestration in its dedicated demo runner.
+        # Report guards remain in server; FRONT_BROWSER runs in the provisioned browser job.
+        run: dotnet test --no-build --configuration Release --filter 'Category!=CV05_FOCUSED&Category!=FRONT_BROWSER&Category!=TECH_FRONT005'
 
       - name: Verify formatting
         run: dotnet format --verify-no-changes

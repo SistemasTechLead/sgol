@@ -47,7 +47,7 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
     public Func<Uri, Task<IReadOnlyDictionary<string, string>>>? ConfigureEvidence { get; set; }
 
     public Uri BaseAddress { get; private set; } = null!;
-    public IReadOnlyList<BrowserAccount> Accounts { get; } =
+    public IReadOnlyList<BrowserAccount> Accounts { get; private set; } =
     [
         NewAccount(CanonicalRole.Direction),
         NewAccount(CanonicalRole.Administration),
@@ -133,15 +133,9 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
         BaseAddress = new Uri($"https://127.0.0.1:{port}");
         certificate = NewCertificate();
         Progress?.Invoke("CERTIFICATE_CREATED");
-        using (var roots = new X509Store(StoreName.Root, StoreLocation.CurrentUser))
-        {
-            roots.Open(OpenFlags.ReadWrite);
-            if (roots.Certificates.Find(X509FindType.FindByThumbprint, certificate.Thumbprint, validOnly: false).Count != 0)
-                throw new InvalidOperationException("Fixture certificate already exists in trust store.");
-            roots.Add(certificate);
-            trustedCertificateInstalled = true;
-            Progress?.Invoke("CERTIFICATE_TRUSTED");
-        }
+        OwnedBrowserCertificateTrust.Add(certificate);
+        trustedCertificateInstalled = true;
+        Progress?.Invoke("CERTIFICATE_TRUSTED");
         var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
         certificatePath = Path.Combine(Path.GetTempPath(), $"sgol-front004-{Guid.CreateVersion7():N}.pfx");
         await File.WriteAllBytesAsync(certificatePath, certificate.Export(X509ContentType.Pfx, password));
@@ -407,6 +401,8 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
         if (disposed) return;
         disposed = true;
         var success = true;
+        var failureCodes = new List<string>();
+        var stage = "WEB_STOP";
         foreach (var client in clients) client.Dispose();
         clients.Clear();
         try
@@ -414,36 +410,43 @@ internal sealed partial class BrowserFixture : IAsyncDisposable
             if (web is { HasExited: false })
             {
                 web.Kill(entireProcessTree: true);
+                stage = "WEB_EXIT";
                 await web.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
             }
+            stage = "STDOUT_DRAIN";
             if (stdoutDrain is not null) await stdoutDrain.WaitAsync(TimeSpan.FromSeconds(5));
+            stage = "STDERR_DRAIN";
             if (stderrDrain is not null) await stderrDrain.WaitAsync(TimeSpan.FromSeconds(5));
         }
-        catch { success = false; }
+        catch (Exception exception) { success = false; failureCodes.Add(stage + "_" + exception.GetType().Name); }
         finally { web?.Dispose(); }
         try { if (database is not null) await database.DisposeAsync(); }
-        catch { success = false; }
+        catch (Exception exception) { success = false; failureCodes.Add("DATABASE_" + exception.GetType().Name); }
         try
         {
             if (trustedCertificateInstalled && certificate is not null)
             {
-                using var roots = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
-                roots.Open(OpenFlags.ReadWrite);
-                roots.Remove(certificate);
-                success &= roots.Certificates.Find(X509FindType.FindByThumbprint,
-                    certificate.Thumbprint, validOnly: false).Count == 0;
+                if (!OwnedBrowserCertificateTrust.Remove(certificate))
+                {
+                    success = false;
+                    failureCodes.Add("TRUST_PRESENT");
+                }
             }
         }
-        catch { success = false; }
+        catch (Exception exception) { success = false; failureCodes.Add("TRUST_" + exception.GetType().Name); }
         certificate?.Dispose();
         try
         {
             if (certificatePath is not null && File.Exists(certificatePath)) File.Delete(certificatePath);
-            success &= certificatePath is null || !File.Exists(certificatePath);
+            if (certificatePath is not null && File.Exists(certificatePath))
+            {
+                success = false;
+                failureCodes.Add("PFX_PRESENT");
+            }
         }
-        catch { success = false; }
+        catch (Exception exception) { success = false; failureCodes.Add("PFX_" + exception.GetType().Name); }
         CleanupComplete = success;
-        if (!success) throw new InvalidOperationException("Browser fixture cleanup failed.");
+        if (!success) throw new InvalidOperationException("Browser fixture cleanup failed: " + string.Join(",", failureCodes));
     }
 
     private static BrowserAccount NewAccount(string role) => new(Guid.CreateVersion7(), Guid.CreateVersion7(),

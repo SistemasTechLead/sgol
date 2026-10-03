@@ -712,7 +712,8 @@ public sealed partial class ObligationConclusionPersistenceTests : IAsyncLifetim
     private async Task<Fixture> ResetAndCreateObligationAsync(
         bool withCompleteEvidence,
         string taskCode = "TAR-0018",
-        string? responsibleRole = null)
+        string? responsibleRole = null,
+        ManualObligationSnapshot? manualSnapshot = null)
     {
         await using (var reset = CreateContext())
         {
@@ -789,23 +790,67 @@ public sealed partial class ObligationConclusionPersistenceTests : IAsyncLifetim
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
-        var obligation = await new EfWorkObligationMaterializer(
-            context, new AuditTransaction(context), new FixedClock(Now.AddMinutes(3)), NewUuidGenerator())
-            .MaterializeAsync(new(request.Id, Guid.CreateVersion7()));
+        Guid obligationId;
+        if (manualSnapshot is null)
+        {
+            var materialized = await new EfWorkObligationMaterializer(
+                context, new AuditTransaction(context), new FixedClock(Now.AddMinutes(3)), NewUuidGenerator())
+                .MaterializeAsync(new(request.Id, Guid.CreateVersion7()));
+            obligationId = materialized.ObligationId;
+        }
+        else
+        {
+            // Independent backend fixture for a temporal negative, never used by the integral UI demo.
+            if (taskCode == "TAR-0011")
+            {
+                var calendarIds = new List<Guid>();
+                for (var index = 1; index <= 8; index++)
+                {
+                    var calendar = new CalendarDayVersion(Guid.CreateVersion7(), BranchScope.LorettaId,
+                        DateOnly.FromDateTime(Now.UtcDateTime).AddDays(index),
+                        index == 2 ? CalendarContract.Holiday : CalendarContract.WorkingDay,
+                        index != 2, policyRelease.Id, "Calendario sintético de objetivo tardío");
+                    calendar.ApplyPublished(VersioningRules.PlanPublication(calendar.ToVersionRecord(), null, [],
+                        calendar.RowVersion, Now.AddMinutes(2), "Calendario sintético").Published);
+                    context.CalendarDayVersions.Add(calendar);
+                    calendarIds.Add(calendar.Id);
+                }
+                var source = manualSnapshot.Payload.RootElement;
+                manualSnapshot = manualSnapshot with
+                {
+                    Payload = JsonSerializer.SerializeToDocument(new
+                    {
+                        schemaVersion = 2,
+                        input = source.GetProperty("input"),
+                        originIdentity = source.GetProperty("originIdentity"),
+                        calendarDayVersionIds = calendarIds
+                    })
+                };
+                await context.SaveChangesAsync();
+            }
+            obligationId = Guid.CreateVersion7();
+            var validationPolicy = await context.ValidationPolicyVersions.SingleAsync(p => p.TaskDefinitionId == taskDefinition.Id);
+            context.WorkObligations.Add(new WorkObligation(obligationId, taskVersion.Id, BranchScope.LorettaId,
+                period.Id, request.Id, request.OriginReference, policy.Id, validationPolicy.Id, manualSnapshot));
+            await context.SaveChangesAsync();
+            var trackedRequest = await context.GenerationRequests.SingleAsync(r => r.Id == request.Id);
+            trackedRequest.LinkObligation(obligationId);
+            await context.SaveChangesAsync();
+        }
         var personId = await context.AppUsers.AsNoTracking()
             .Where(user => user.Id == actor).Select(user => user.PersonId).SingleAsync();
         using var explanation = JsonDocument.Parse("{}");
         InternalNoticeTestData.AddAssignmentWithNotice(context, new AssignmentVersion(
-            Guid.CreateVersion7(), obligation.ObligationId, personId, AssignmentVersionStatuses.Current,
+            Guid.CreateVersion7(), obligationId, personId, AssignmentVersionStatuses.Current,
             AssignmentTypes.Automatic, explanation, Now.AddMinutes(4)));
         await context.SaveChangesAsync();
 
         if (withCompleteEvidence)
         {
-            await AddCompleteEvidenceAsync(context, actor, obligation.ObligationId, policy.Id);
+            await AddCompleteEvidenceAsync(context, actor, obligationId, policy.Id);
         }
 
-        return new(actor, obligation.ObligationId, policy.Id);
+        return new(actor, obligationId, policy.Id);
     }
 
     private static async Task AddIndicatorObligationAsync(
@@ -946,6 +991,9 @@ public sealed partial class ObligationConclusionPersistenceTests : IAsyncLifetim
         "SECUENCIA" => """{"schemaVersion":1,"sequenceSummary":"Secuencia sintética"}""",
         "DECISION" => """{"schemaVersion":1,"decisionSummary":"Decisión sintética","decidedAt":"2026-09-07T20:00:00Z"}""",
         "FUNDAMENTO" => """{"schemaVersion":1,"foundationSummary":"Fundamento sintético"}""",
+        "EVALUACION" => """{"schemaVersion":1,"assessmentSummary":"Evaluación sintética","assessedAt":"2026-09-07T20:00:00Z"}""",
+        "REPARACION_O_CAMBIO" => """{"schemaVersion":1,"solutionType":"CAMBIO","solutionReference":"TF005-SOLUTION","completedAt":"2026-09-07T20:00:00Z"}""",
+        "ENTREGA" => """{"schemaVersion":1,"deliveryReference":"TF005-DELIVERY","deliveredAt":"2026-09-07T20:00:00Z"}""",
         "AVISO_INTERNO" => """{"schemaVersion":1,"noticeReference":"AVI-01","notifiedAt":"2026-09-07T20:00:00Z"}""",
         _ => throw new InvalidOperationException($"No existe payload sintético completo para {requirementCode}."),
     });
