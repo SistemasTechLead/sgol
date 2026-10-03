@@ -1,6 +1,6 @@
 # SGOL — Propuesta de siguiente hito después de TECH-FRONT-005
 
-Fecha: 2026-10-03, America/Mexico_City. Estado: **HITO DOCUMENTAL APROBADO Y EJECUTADO LOCALMENTE; RESOLUCIÓN GLOBAL PROPUESTA PENDIENTE DE DECISIÓN**. Aprobación literal del responsable: «Apruebo integramente la propuesta». Autoriza la revisión mínima y redacción de §4; no aprueba de antemano la resolución global de BR-API04 ni su incorporación contractual. No es una tarea de código aprobada. No se asigna un identificador nuevo. §§1–9 conservan la propuesta aprobada y su contexto; §§10–14 registran la ejecución y la resolución para decisión.
+Fecha: 2026-10-03, America/Mexico_City. Estado: **RESOLUCIÓN GLOBAL APROBADA E INCORPORADA LOCALMENTE; CONTRATO MÍNIMO PROPUESTO PENDIENTE DE APROBACIÓN**. Aprobaciones literales: «Apruebo integramente la propuesta» y posteriormente «Apruebo la resolucion global». La segunda aprueba §12 y autoriza preparar únicamente el contrato mínimo documental; se incorpora por Adenda 62. No es una tarea de código aprobada. No se asigna un identificador nuevo. §§1–14 conservan la investigación y sus decisiones sucesivas; §15 presenta el contrato mínimo propuesto, no aprobado por la autorización de redactarlo; §16 registra esta entrega.
 
 ## 1. Resultado de la revisión y base aceptada
 
@@ -209,7 +209,7 @@ Texto propuesto para aprobación global:
 
 **Alternativa, si no se requiere preparar esa capacidad ahora:** mantener BR-API04 ABIERTA y aplazar descarga/preview globalmente sin retirar el compromiso de F06; registrar motivo y condición de reanudación explícitos. Eso permite priorizar un hito independiente de validación residual, pero no convierte la descarga pendiente en PASS ni autoriza automáticamente carreras, accesibilidad o cloud. Una eliminación definitiva del alcance general exigiría una decisión contractual distinta con remisión exacta a F06; no se recomienda inferirla de D2.
 
-La aprobación del plan original no aprueba este texto ni las propuestas de §11. Se requiere la decisión del responsable sobre esta resolución y, separadamente, si desea autorizar la verificación mínima de la diferencia de lectura. Hasta entonces se detiene esa parte y se conserva la brecha abierta.
+**Decisión posterior:** el responsable aprobó la resolución global mediante «Apruebo la resolucion global». Se incorpora exclusivamente ese texto mediante F07_ADENDA_62_RESOLUCION_GLOBAL_BR_API04.md. Autoriza preparar el contrato; no aprueba de antemano las opciones detalladas de §11 ni autoriza la verificación/corrección separada de §10.2. BR-API04 conserva ABIERTA.
 
 ## 13. Alcance, costo, archivos y aceptación de la opción recomendada
 
@@ -223,6 +223,8 @@ Validación de esa redacción: revisión de fuente, contradicciones, IDs, reglas
 
 ## 14. Trazabilidad y entrega de esta ejecución documental
 
+Registro histórico de la entrega anterior a aprobar la resolución global; su espera queda superada por §12 y la incorporación de §16. Conserva la evidencia de esa entrega, sin bloquear la redacción ahora autorizada.
+
 Fuentes adicionales mínimas consultadas: F05_CRITERIOS_DE_ACEPTACION.md líneas 53–59; F05_ESPECIFICACION_FUNCIONAL_MVP.md líneas 96–97 y 138–141, localizadas por INDICE_IDS; F06_REGISTRO_ADR.md ADR-007 líneas 105–113; F06_CONTRATO_DE_API.md §4 estados/códigos y §5.6 líneas 189–201; Adenda 15 §§3–6/12; Adenda 17 §§5.2–5.3; Adenda 18 §§3.2/5/6.2/12 y revisiones CORS §§24–25; FRONT_018_PLAN_DE_IMPLEMENTACION.md §3 línea 32. ADR-009 se consultó en su rango localizado únicamente como límite de idempotencia, sin derivar escritura del GET. Adendas 57..61 y el cierre previo conservan su aceptación.
 
 Comparación estática acotada: src/Sgol.Web/Interface/Endpoints/EvidenceApiEndpoints.cs; src/Modules/Evidence/Contracts/EvidenceInfrastructureContracts.cs e EvidenceContributions.cs; src/Sgol.Web/Infrastructure/Evidence/S3PrivateObjectStorage.cs; src/Sgol.Web/Infrastructure/Persistence/Evidence/EfEvidenceContributionService.cs, únicamente listado/autoridad. La búsqueda de registros de rutas se limitó a Interface/Endpoints; localización de nombres de archivos de evidencia excluyó bin/obj. No se abrieron archivos binarios, ZIP, Excel, originales de marca ni contenido de evidencia. Dos búsquedas con comodín como ruta literal de Windows fueron rechazadas por sintaxis de ruta; se corrigieron usando globs de rg sobre directorios explícitos. No afectaron archivos ni prueban ausencia de contenido.
@@ -230,3 +232,126 @@ Comparación estática acotada: src/Sgol.Web/Interface/Endpoints/EvidenceApiEndp
 Resultado: hito documental **ejecutado localmente**, con único documento actualizado y resolución concreta pendiente de aprobación global. No hay implementación de producto que marcar Implementada localmente. IMPLEMENTATION_STATUS e índice no se actualizan aún: la propuesta aprobada condiciona esas incorporaciones a la aprobación de la decisión contractual; la autorización y ejecución se trazan en este archivo. Sin adenda creada anticipadamente.
 
 Comprobaciones ejecutadas para esta entrega: revisión documental de referencias/contradicciones; git diff --cached --check exit 0 sobre el único Markdown añadido; diff --cached --stat/status limitados a ese archivo; ascendencia del merge aceptado en HEAD exit 0. Preflight exit 0 con incompatibilidad SDK registrada, sin diagnóstico adicional. El commit local que contiene este entregable conserva el trabajo documental autorizado, sin publicación ni commit administrativo sólo para hashes. No build, restore, formato, suites, tests de código o checks remotos: el cambio es sólo documental. Todos los diferidos de §5 permanecen con causa original; no se ensayaron ni recibieron PASS. No se creó infraestructura/temporales sensibles, por lo que cleanup de esta revisión no requiere eliminación. Se espera decisión sobre §12 antes de cualquier incorporación contractual o nuevo trabajo.
+
+## 15. Contrato mínimo de descarga — PROPUESTO, aprobación íntegra pendiente
+
+### 15.1 Alcance y relación con las fuentes
+
+**Aprobado globalmente por Adenda 62:** conservar la descarga pendiente de F06, binario original, archivo LIMPIO vinculado a versión funcional, URL firmada privada con máximo cinco minutos; redactar el contrato sin preview, transformación ni UI de lectura. **Propuesto en §15:** todas las reglas detalladas siguientes, incluyendo autoridad, versiones, revocación residual, DTO, nombres, pureza y códigos nuevos. La aprobación global no los convierte en vigentes.
+
+Se propone exclusivamente `GET /api/v1/files/{id}/download`, ruta ya declarada en F06 §5.6. Devuelve autorización temporal para un objeto exacto; no transmite el binario desde Web, no redirige automáticamente y no crea un endpoint de proxy. No crea otra ruta o permiso, no descarga evidencia estructurada, no permite elegir bucket/clave/nombre/TTL desde el cliente y no habilita integraciones externas.
+
+### 15.2 Solicitud y alcance autorizado
+
+Solicitud sin cuerpo ni parámetros de consulta. `id` es fileId en formato UUID D, no vacío; los recursos públicos generados conservan UUID v7. Se rechazan query, cuerpo y cabeceras funcionales `Idempotency-Key`/`If-Match`, sin cambiar su obligatoriedad en mutaciones existentes. Las cabeceras normales de autenticación/HTTP/correlación no son parámetros de negocio. No requiere CSRF porque se propone una lectura sin efectos; no se reutiliza esa excepción en ningún POST/PUT. Se conserva autenticación de mismo origen con cookie segura, sesión/MFA completos y denegación por defecto.
+
+Permiso propuesto: **PER-TAREA-VER existente**, revaluado en servidor junto con cuenta, empleo y rol vigentes en LOR-001; tener PER-EVIDENCIA-APORTAR/SUSTITUIR o ser creador de la carga no concede lectura. Se propone exactamente el universo de Adenda 15 §§3–4/Adenda 18 §12:
+
+| Rol vigente | Descarga propuesta de obligación visible |
+|---|---|
+| PISO_VENTAS | Asignación VIGENTE a su propia persona |
+| SUBCOORDINACION | Propia o responsable vigente de nivel PISO_VENTAS |
+| ADMINISTRACION | Propia o responsable vigente de nivel SUBCOORDINACION/PISO_VENTAS |
+| DIRECCION | LOR-001 completa, incluida obligación sin asignación; no depende de vigencia del responsable para consultar el hecho |
+
+No Dirección exige asignación VIGENTE y cuenta/empleo/rol canónico vigentes del responsable; par/superior, otra sucursal y relación histórica no autorizan. Dirección conserva cuenta/empleo/rol propios vigentes y permiso vigente. No se inventa un permiso de «descargar evidencia» ni se toma un puesto textual como autoridad.
+
+El contrato propone acceso al archivo de **VIGENTE y SUSTITUIDA**, por la misma autoridad actual sobre la obligación. Sustituir una versión no borra su archivo ni concede al aportante histórico acceso futuro. PENDIENTE y CONCLUIDA son estados admisibles de la obligación visible; validación vigente/sustituida no altera esta lectura. No exige publicación en plan ni cambia ejecución/validación. TAR-0026 continúa limitada a configuración/políticas y negativos; este contrato no habilita fuente/cadena CAT-006.
+
+### 15.3 Cadena, limpieza e instante de emisión
+
+El lector debe resolver en servidor la cadena persistida exacta `file_object → evidence_version → evidence_item → work_obligation`, con vínculo recíproco `linked_evidence_item_id`, misma LOR-001 y política/requisito capturados coherentes. No usa correlación, nombre, SHA coincidente, JSON ni proximidad temporal para inferir el vínculo. Un objeto limpio aún no vinculado funcionalmente no es descargable. Una evidencia estructurada sin binario no tiene autorización de descarga.
+
+Se propone aplicar alcance en la lectura antes de materializar metadata o consultar S3; identidad/autoridad inválidas no disparan metadata S3 ni firma. Recurso inexistente, ajeno, otra sucursal o no vinculado queda oculto. Ambigüedad o contradicción de una cadena dentro del alcance reconocido falla cerrada, sin escoger un eslabón, sintetizarlo ni reparar. El servicio no expone entidades/DbContext al endpoint ni escribe tablas de otro módulo.
+
+Sólo estado LIMPIO, área CLEAN, tipo real admitido JPEG/PNG/PDF y objeto exacto promovido. Antes de firmar se cotejan existencia y metadata técnica de S3 con tamaño/tipo/SHA-256 persistidos mediante los mecanismos internos existentes; eso no equivale a un nuevo escaneo o hashing integral por GET. Archivo no limpio no recibe token; objeto ausente/inconsistente falla cerrado. No copiar, promover, completar, escanear, cambiar estado o reparar desde esta consulta. No aplicar limpieza de objetos técnicos a evidencia vinculada.
+
+Instante propuesto de autoridad: tras la comprobación técnica, abrir una lectura final PostgreSQL READ ONLY/REPEATABLE READ, capturar una vez `authorizedAt` UTC y revaluar cuenta/empleo/rol/permiso, universo, cadena y estado contra esa instantánea final. Comprobar que el archivo/versión exactos coinciden con los cotejados en S3. La firma local se emite sólo tras esas guardas; se completa la lectura sin escritura y la respuesta se devuelve con el token. Si cambió el recurso/autoridad antes de esa instantánea, no se devuelve una autorización basada en la comprobación previa. Fallo posterior de lectura/firma no devuelve URL parcial. No se mantiene la transacción abierta durante una transferencia binaria.
+
+La autoridad corresponde a esa instantánea de emisión, no al instante futuro de cada GET S3. Una modificación concurrente posterior a authorizedAt queda comprendida en el límite explícito de §15.4; no se promete atomicidad entre PostgreSQL y el consumo externo de la URL. La inconsistencia estática de Dirección en §10.2 es una dependencia real que debe verificarse y resolverse antes de reutilizar el helper en una implementación. Aprobar este contrato no autoriza por sí mismo ese ensayo o arreglo separado.
+
+### 15.4 Vigencia y revocación durante vigencia
+
+Duración propuesta: cinco minutos por defecto, endurecible con configuración validada de duración mayor que cero y no superior a cinco minutos. Sin TTL elegido por cliente, renovación automática, ampliación por retry o URL permanente. `expiresAt = authorizedAt + duración efectiva`, en UTC; si al devolver la respuesta ya caducó, falla sin devolver token. Repetir la petición exige nueva sesión/autoridad y firma; no hay recuperación de URL por idempotencia.
+
+**Aceptación de límite propuesta, requiere aprobación expresa al aprobar §15:** la URL es una credencial temporal al portador. Una baja de cuenta/empleo/rol, corrección de asignación, logout, pérdida de permiso o sustitución posterior impide emitir nuevas URLs según autoridad actual; **no garantiza invalidar inmediatamente una URL ya emitida**. Puede seguir iniciando accesos al objeto hasta su expiración efectiva. No se promete detener una transferencia iniciada antes de caducar ni retirar una copia descargada. No se destruye historia, objeto o credencial compartida para simular revocación individual.
+
+El endpoint no concede autoridad permanente sobre S3. Firma sólo método GET y objeto CLEAN exacto, sin listado/bucket administration/escritura ni cuarentena. Si el responsable exige revalidación SGOL en cada transferencia, revocación inmediata o token ligado al usuario en S3, detener esta parte y decidir otro contrato/arquitectura; no introducir proxy, gateway, almacén de tokens o cuentas por inferencia. El límite no acredita aislamiento productivo SeaweedFS, que sigue diferido.
+
+### 15.5 Respuesta cerrada y transporte
+
+Éxito propuesto: `200 application/json`, envelope singular, sin 302 y sin binario en el cuerpo:
+
+| Campo exacto | Tipo / regla propuesta |
+|---|---|
+| data.fileId | UUID D minúsculo del archivo autorizado |
+| data.download.url | String URI absoluta firmada GET; nunca persistida ni registrada |
+| data.download.expiresAt | Instante RFC 3339 UTC con Z, idéntico a la vigencia de firma |
+| meta.correlationId | Correlación de respuesta conforme a F06 |
+
+No añade nombre original, hash, contenido, proveedor, bucket o clave como campos separados; no modifica el DTO de listado/status/upload. La URI técnica S3 puede contener host/ruta/clave y firma: se entrega únicamente como credencial efímera a un actor autorizado, no se promete ocultar esos componentes dentro de una URL firmada directa. Si ocultarlos al receptor es requisito, exige otra decisión de transporte antes de implementar. Nunca usar una URL real o ejemplo de firma en documentación, Git, logs, capturas o mensajes.
+
+Cabeceras propuestas para éxito y Problem Details: `Cache-Control: private, no-store`, `Pragma: no-cache`, `Referrer-Policy: no-referrer` y `X-Content-Type-Options: nosniff`. No ETag/304 de esta autorización, no almacenamiento server de URL, y petición con condición HTTP de cache no evita reautorizar ni produce 304. No modifica caché de otros endpoints.
+
+El GET S3 autorizado debe devolver `Content-Type` derivado exclusivamente del tipo real verificado, `Content-Disposition: attachment` y `Cache-Control: private, no-store`. Disposición/cache se fijan en la autorización de respuesta del proveedor y quedan cubiertas por la firma. Nombre propuesto seguro: `evidence-{fileId:D}.jpg`, `.png` o `.pdf`, extensión por tipo real, sin nombre original, rutas, PII o texto de usuario. No inline, thumbnail ni transformación. Los bytes mantienen su SHA-256 original. No se requiere lectura cross-origin mediante fetch ni cambiar CORS del bucket CLEAN: no hay UI en este contrato.
+
+TLS, buckets privados y condiciones locales de HTTP siguen Adenda 17 §5.2 y Adenda 18 §25: HTTP sólo Development/CI con opción explícita y endpoint permitido; HTTPS en el resto. No se autoriza aprovisionamiento productivo, reparación CORS, URL pública, CDN, nueva biblioteca o dependencia. La configuración/signer debe conservar cabeceras y expiración bajo el proveedor real elegido; si éste no puede cumplirlas, falla cerrado y exige decisión, no elimina la garantía para conseguir PASS.
+
+### 15.6 Pureza, auditoría y errores exactos propuestos
+
+GET puro: no escritura de archivo/versión/estado, auditoría, idempotencia, outbox, checkpoint, scheduled_job_run, historial, rol/asignación, semana o plan; tampoco mutaciones S3. No genera un evento de «descargado» ni «leído»: emitir token no demuestra transferencia ni lectura. No traslada RECOVERY_RECONCILIATION_VIEWED de continuidad. Diagnóstico existente sólo correlationId/código cerrado/operación, sin URL, firma, contenido, nombre, hash, conexiones o credenciales; no crea observabilidad productiva nueva.
+
+Todos los errores usan `application/problem+json`, `code` y `correlationId`, sin datos parciales ni URL. Los códigos marcados NUEVO son propuestas para esta operación; no existen como decisión aprobada por la resolución global.
+
+| HTTP / code | Condición propuesta / origen |
+|---|---|
+| 400 SOLICITUD_DESCARGA_INVALIDA — NUEVO | UUID inválido/vacío, query/cuerpo o Idempotency-Key/If-Match funcionales inadmisibles. Detalle genérico |
+| 401 AUTENTICACION_REQUERIDA | Sesión ausente/expirada o MFA incompleto; código existente |
+| 403 ACCESO_DENEGADO | Actor sin cuenta/empleo/rol/permiso vigente antes de resolver recurso; existente |
+| 404 ARCHIVO_NO_ENCONTRADO | UUID no existente, otra sucursal, fuera de alcance o sin vínculo funcional; código existente, semántica de ocultación extendida propuesta |
+| 422 ARCHIVO_NO_LIMPIO | Cadena autorizada pero archivo no LIMPIO/CLEAN; código existente cuyo uso en descarga se propone ampliar |
+| 500 CADENA_EVIDENCIA_INCONSISTENTE — NUEVO | Vínculo ambiguo/no recíproco o política/ítem/versión contradictorios tras reconocer alcance; genérico, sin selección parcial |
+| 503 INFRAESTRUCTURA_EVIDENCIA_NO_DISPONIBLE | Storage/configuración/signer no disponibles, objeto limpio ausente o metadata incongruente, firma/cabeceras/expiración no garantizadas. Código existente, uso ampliado propuesto; sin autorreparación |
+| 500 ERROR_FUNCIONAL_REGISTRADO | Fallo inesperado conforme al código general F06; sin excepción nativa/detalles/URL |
+
+Precedencia propuesta: autenticación/actor → sintaxis cerrada → lookup con alcance → cadena/vínculo → LIMPIO/CLEAN → storage/metadata → reautorización final → firma/respuesta. Una solicitud ajena no recibe estado limpio, error de proveedor o diferencia de vínculo. No devolver 409/412/428 como semántica de reemplazo para este GET. La expiración/denegación de un GET directo al proveedor es respuesta del proveedor, no Problem Details SGOL ni autorización para reintento automático; el usuario de una futura UI tendría que solicitar una nueva autorización y ser revaluado según contrato consumidor todavía no aprobado.
+
+### 15.7 Matriz de aceptación futura por capa
+
+Casos siguientes son criterios propuestos, no pruebas ejecutadas ni IDs nuevos de CP/backlog. Reutilizar suites existentes cuando cubran el criterio; no renombrar CP-025 ni atribuirle una prueba que no ejecuta. Preparar fixtures sintéticos válidos/UUID v7 y sincronización por barrera/condición real, sin sleeps/retries ni reducción de expectativas.
+
+| Criterio | Evidencia futura exigible |
+|---|---|
+| Ruta, método, DTO/cabeceras y errores cerrados | API/contrato: solicitud válida y query/cuerpo/UUID/cabeceras inválidos; no 302/304 ni campos extra/URL parcial; sin ruta preview |
+| Cuatro roles y alcance actual | PostgreSQL/API: propia/inferior permitido, par/superior/otra sucursal/rol perdido ocultos, actor inválido 403, sesión/MFA 401; diferencia Dirección sin asignación resuelta/verificada separadamente antes de depender del helper |
+| Historia binaria | PostgreSQL/API más S3 real: VIGENTE y SUSTITUIDA vinculadas exactas; aportante/responsable histórico sin autoridad actual denegado; PENDIENTE/CONCLUIDA sin cambiar decisión vigente/sustituida |
+| Limpieza y cadena | API/PostgreSQL: no limpio, limpio no vinculado, vínculo ambiguo/no recíproco y estado/área incorrectos; cero firma/lectura S3 para recursos ajenos; S3 real: archivo/metadata ausentes o discordantes sin URL |
+| Reautorización al emitir | Barreras PostgreSQL/API: revocar autoridad antes de instantánea final deniega; una emisión válida lleva el authorizedAt/TTL esperado en oráculo interno sanitizado; cambios posteriores no se presentan como revocación instantánea |
+| Token limitado/bytes/headers | S3 compatible real: GET del objeto exacto, bytes/SHA-256 originales, MIME verificado, attachment/nombre seguro/no-store; firma alterada, objeto distinto, PUT y acceso anónimo/listado denegados; sin datos o token en diagnóstico |
+| Expiración y límite residual | Firma de corta duración explícitamente permitida en fixture más reloj/condición real del proveedor; antes de caducar acceso válido, después nuevas solicitudes denegadas. Revalidar nueva emisión tras baja/rol/asignación/logout; documentar por separado supervivencia temporal de token previo. No simular expiración sólo con reloj de aplicación |
+| No-efecto/historia/minimización | PostgreSQL: conteos/huellas antes/después de éxito/denegación/fallo, sin SaveChanges/audit/idempotency/outbox/job/row_version. S3: sólo metadata/firma/lectura esperadas, cero promoción/borrado/CORS. Prueba de arquitectura impide exponer DbContext/SDK a dominio o endpoint |
+| Concurrencia | PostgreSQL/API: reemplazo genera sucesora conservando archivo anterior; descargas a versión exacta sin promover/forzar/reescribir decisión. No acredita la carrera específica evidencia contra emisión de validación, que conserva su diferido |
+
+No se exige nuevo ciclo integral ni Playwright para este contrato API/S3 sin UI. Una implementación futura necesita plan/orden/ID aprobados y build/tests enfocados secuenciales con SDK fijo; su publicación requiere autorización aparte. Estimación inicial de validación enfocada API/PostgreSQL/S3: 1–2 h de ejecución/provisión tras tener código/pruebas, más implementación todavía no estimada; no es evidencia ejecutada ni presupuesto autorizado. S3/ClamAV existentes se reutilizarían sólo donde corresponda, sin inventar un antivirus distinto o consumir evidencia real.
+
+### 15.8 Dependencias, exclusiones y aceptación documental
+
+Dependencias antes de código: aprobación íntegra de §15, incorporación de sus reglas mediante adenda contractual expresa, tarea/ID y plan de implementación aprobados; verificación/resolución separada de §10.2 antes de reutilizar autoridad. No se crea tarea por inferencia. Una aprobación del contrato autoriza incorporar la decisión documental; no iniciar código, ensayos ni publicación salvo orden expresa adicional.
+
+Mantener BR-API04 ABIERTA hasta cierre global con evidencia. Aprobar un contrato sólo de descarga no cierra preview ni BR-API04 por implicación. Preview permanece diferida; su eventual cierre global exige decidir su exclusión o contrato y evidencia. Todas las exclusiones/diferidos de §§3/5/6 permanecen, incluidos D4/CAT-006, D5, SeaweedFS productivo y WebKit Windows histórico sin HTTP. No agregar productores, reparación, indicadores, permisos, rutas auxiliares, UI, diseño, bibliotecas, cloud o cuentas. No modificar fórmulas, historia, validación ni navegación 8/6/6/5.
+
+Aceptación documental propuesta: aprobar íntegramente §§15.1–15.8, incluidos acceso a ambas versiones, PER-TAREA-VER/universo, instantánea final, límite de revocación temporal y transferencias/copias, exposición técnica de URI firmada al receptor, pureza sin evento de descarga, DTO/headers/nombre seguro y nuevos códigos exactos; o señalar cambios concretos en este mismo documento. Si exige revocación inmediata, ocultamiento de URI al receptor o prueba de lectura auditada, revisar sólo esa parte con decisión explícita antes de incorporar contrato. No ocultar esas limitaciones mediante otro navegador, proxy inferido o gate ajeno.
+
+## 16. Incorporación global y entrega del contrato propuesto
+
+2026-10-03. «Apruebo la resolucion global» aprueba §12; resolución incorporada localmente en Adenda 62. Se preparó §15 como contrato mínimo completo para aprobación, con decisiones explícitas para cada materia de §11, sin código ni ensayos. Las fuentes ya leídas se conservan; lecturas adicionales mínimas: F06_CONTRATO_DE_API.md §§1–2/5.6; Adenda 18 §17 y Adenda 15 §15 para errores y no-efecto. Nº62 libre comprobado en raíz; árbol inicial limpio, HEAD bb46a238eb4faa550ee27150c0615f835604c423, base integrada conservada. Preflight exit 0 con incompatibilidad SDK de PATH registrada, sin diagnóstico adicional.
+
+Archivos de esta entrega: este Markdown (aprobaciones/contrato propuesto), F07_ADENDA_62_RESOLUCION_GLOBAL_BR_API04.md (únicamente resolución aprobada), docs/INDICE_IDS.md (rango de resolución y rango de borrador separados) y docs/traceability/IMPLEMENTATION_STATUS.md (estado documental y punto de parada). No se modifican F00–F07 congelados, adendas históricas, Fuentes, código, pruebas, CI, dependencias o SDK. No se presenta la nueva documentación como Publicada/Integrada.
+
+Validación documental proporcional: coherencia fuente/estado, campos cerrados, IDs, referencias y alcance del diff revisados; git diff --check y staged exit 0, rangos del índice cotejados con encabezados reales, base integrada conservada. El commit local que contiene esta entrega conserva sólo los cuatro documentos anteriores, sin publicación. No build/restore/formato/tests/gates remotos porque sólo cambia documentación. Diferidos intactos con sus causas. Aislamiento: misma rama codex/; no cambios ajenos que separar. Cleanup: no se crean servicios/certificados/datos/temporales sensibles, no se limpia infraestructura histórica. Reportes/capturas anteriores se conservan sin abrir secretos. Certificados futuros Manual y sólo recursos propios verificados conforme a §7. Esperar aprobación íntegra del contrato §15 antes de incorporarlo como decisión contractual; no ejecutar otro hito automáticamente.
+
+Nombre del siguiente chat, sólo si el responsable lo abre: **SGOL — Aprobación del contrato mínimo de descarga BR-API04**.
+
+Mensaje listo para copiar:
+
+> Aplica AGENTS.md e INSTRUCCIONES_EJECUCION_TAREAS_FRONT.md. Lee docs/traceability/PROPUESTA_POST_TECH_FRONT_005.md §15 y F07_ADENDA_62_RESOLUCION_GLOBAL_BR_API04.md. La resolución global está aprobada e incorporada localmente; el contrato detallado §15 sigue propuesto. Espera mi aprobación íntegra antes de incorporarlo como contrato. Conserva BR-API04 ABIERTA, preview/UI diferidas, límite de revocación de URL firmada, diferencia Dirección pendiente de verificación separada y todos los límites D4/D5. No asignes un ID, implementes, ensayes, publiques, despliegues ni inicies automáticamente otro hito.
