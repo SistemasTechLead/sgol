@@ -463,3 +463,12 @@ PR #91 publicado; «Apruebo el merge» autoriza integración una vez que los cin
 |---|---|---:|---:|
 | `TECH-EVID-003` — publicación, orden de merge y fallo remoto | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 273 | 286 |
 | `TECH-EVID-003` — corrección de firma/smoke y regresión enfocada | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 288 | 298 |
+
+### TECH-EVID-003 — Corrección autorizada del fallo FRONT-013
+
+«Autorizo investigar y corregir ese fallo»: §14 registra run 37148014020 fallido, reproducción determinista de segundos cero en Chromium, formato normalizado y regresión FRONT-013 8/8 PASS. Nueva cabeza del mismo PR #91 requiere sus cinco gates; merge autorizado y pendiente, BR-API04 ABIERTA y diferidos conservados. Estado operativo vigente al inicio de IMPLEMENTATION_STATUS.
+
+| Referencia vigente | Archivo | Línea inicial | Línea final |
+|---|---|---:|---:|
+| `TECH-EVID-003` / `FRONT-013` — autorización, causa y reproducción | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 300 | 310 |
+| `TECH-EVID-003` / `FRONT-013` — corrección, validación y límites | `docs/traceability/BR_API04_PLAN_DE_IMPLEMENTACION.md` | 312 | 322 |

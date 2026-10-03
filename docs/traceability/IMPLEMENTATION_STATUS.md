@@ -1,5 +1,13 @@
 # Estado de implementación
 
+## TECH-EVID-003 — Corrección FRONT-013 autorizada y verificada; nueva validación remota requerida
+
+2026-10-03. Orden literal «Autorizo investigar y corregir ese fallo» tras pausa del seguimiento de PR #91. Run 37148014020 de cabeza 1e6d8b7387ce75593ac75ead05abc9010135dba2: source controls/server SUCCESS, browser FAILURE (34 PASS/1 FAIL), operations SKIPPED derivado y PR gates FAILURE; HU-035 opcional SKIPPED. No merge. Base master e6355332ea09542c2b38895945c61a1efb83d586 conservada.
+
+Causa reproducida: Chromium normaliza segundos cero de datetime-local y Playwright rechaza HH:mm:00 por desigualdad textual. Sólo se corrige el formato de fechas sintéticas en Front013BrowserTests, conservando segundos no cero y todos los contratos/expectativas originales. Cuatro casos deterministas: antes 1 FAIL/3 PASS; tras corrección, filtro completo FRONT-013 **8/8 PASS**, cero omitidas, ambos motores y regresión hospedada con PostgreSQL real. Build Release/no-restore PASS (0 errores/advertencias), formato dirigido y diff-check PASS. Preflight exit 0, incompatibilidad conocida SDK PATH sin diagnóstico adicional. Causa, comandos, cleanup y límites en [informe §14](BR_API04_PLAN_DE_IMPLEMENTACION.md#14-corrección-autorizada-del-fallo-de-navegador-front-013).
+
+Corrección implementada localmente; publicación autorizada en el mismo PR #91 y acreditada por el commit que incorpora esta actualización. Nueva cabeza debe satisfacer los cinco gates, con seguimiento del mismo chat actualizado y verificado al publicarse. «Apruebo el merge» sigue vigente para ese hito después de gates/identidad correctos. No Integrada/Terminada anticipadamente, cambios de producto/UI/workflow, despliegue ni siguiente tarea. BR-API04 ABIERTA globalmente; Fuentes, Adendas 62/63/64, límites y diferidos intactos. Los registros inferiores conservan evidencia histórica, superada sólo en lo explícitamente corregido.
+
 ## TECH-EVID-003 — Publicada en PR #91; merge autorizado, gates pendientes tras corrección
 
 2026-10-03. Orden literal «Apruebo el merge», posterior a «Autorizo su publicacion». Merge del hito autorizado, sin despliegue; no se ejecuta mientras falten los cinco gates correctos de la cabeza vigente. PR #91 abierto: https://github.com/SistemasTechLead/sgol/pull/91. Cabeza inicial b06aa7ca812156f2b0bb181c5dc779714530d03e, run 37146372298 intento 1: source controls/browser SUCCESS, server FAILURE por dos casos, operations SKIPPED derivado y PR gates FAILURE; opcional HU-035 SKIPPED. No Integrada/Terminada.

@@ -9,6 +9,26 @@ namespace Sgol.FrontendBrowserTests;
 public sealed partial class Front013BrowserTests
 {
     [Theory, Trait("Category", "FRONT_BROWSER")]
+    [InlineData(false, 0)]
+    [InlineData(false, 37)]
+    [InlineData(true, 0)]
+    [InlineData(true, 37)]
+    public async Task ManualDateTimeInputPreservesZeroAndNonzeroSeconds(bool mobile, int seconds)
+    {
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await (mobile ? playwright.Webkit : playwright.Chromium).LaunchAsync(new() { Headless = true });
+        await using var context = await ContextAsync(browser, mobile);
+        var page = await context.NewPageAsync();
+        await page.SetContentAsync("<input type=\"datetime-local\" step=\"1\" required>");
+        var local = new DateTimeOffset(2026, 10, 2, 13, 38, seconds, TimeSpan.FromHours(-6));
+        var value = FormatManualDateTime(local);
+        var field = page.Locator("input");
+        await field.FillAsync(value);
+        Assert.Equal(local.DateTime, DateTime.Parse(await field.InputValueAsync(), CultureInfo.InvariantCulture));
+        Assert.True(await field.EvaluateAsync<bool>("e => e.validity.valid"));
+    }
+
+    [Theory, Trait("Category", "FRONT_BROWSER")]
     [InlineData(false)]
     [InlineData(true)]
     public async Task SixClosedFormsCreateAndRecoverStableResultsOnDesktopAndMobile(bool mobile)
@@ -27,8 +47,8 @@ public sealed partial class Front013BrowserTests
             await SessionAsync(context, fixture, ticket);
             var page = await context.NewPageAsync();
             var local = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City")).AddDays(-1);
-            var originTime = local.ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture);
-            var expires = local.AddDays(1).ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture);
+            var originTime = FormatManualDateTime(local);
+            var expires = FormatManualDateTime(local.AddDays(1));
             foreach (var code in new[] { "TAR-0007", "TAR-0008", "TAR-0011", "TAR-0018", "TAR-0092", "TAR-0093" })
             {
                 Assert.Equal(200, (await page.GotoAsync(new Uri(fixture.BaseAddress, $"/planificacion?taskCode={code}#alta-manual").AbsoluteUri))?.Status);
@@ -107,6 +127,10 @@ public sealed partial class Front013BrowserTests
         }
         finally { await fixture.DisposeAsync(); Assert.True(fixture.CleanupComplete); }
     }
+
+    // Chromium normalizes zero seconds away; Playwright FillAsync requires the normalized value.
+    private static string FormatManualDateTime(DateTimeOffset local) =>
+        local.ToString(local.Second == 0 ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture);
 
     private static Task<IBrowserContext> ContextAsync(IBrowser browser, bool mobile) => browser.NewContextAsync(new()
     {
