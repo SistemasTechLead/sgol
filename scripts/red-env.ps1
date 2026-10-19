@@ -1,0 +1,11 @@
+$lanConfig = Get-Content -LiteralPath (Join-Path $sgolLocal 'red.json') -Raw | ConvertFrom-Json
+$env:ASPNETCORE_URLS = 'http://127.0.0.1:7241'
+$env:SgolApi__TrustedOrigin = "https://$($lanConfig.Address):7440"
+$env:ReverseProxy__KnownProxy = '127.0.0.1'
+$env:LocalShared__SecurityHeaders = 'true'
+$env:LocalShared__EvidenceOrigin = "https://$($lanConfig.Address):7443"
+$env:Evidence__Storage__Endpoint = $env:LocalShared__EvidenceOrigin
+$env:Evidence__Storage__AllowedUploadOrigins__0 = $env:SgolApi__TrustedOrigin
+$env:Lan__Address = $lanConfig.Address
+$env:Lan__CertificatePath = Join-Path $sgolLocal 'red.pfx'
+$env:Lan__CertificatePassword = $lanConfig.CertificatePassword

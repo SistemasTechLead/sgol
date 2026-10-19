@@ -1,0 +1,203 @@
+﻿@model Sgol.Web.Pages.Planning.IndexModel
+@using Sgol.Web.Pages.Planning
+@using Sgol.Planning.Contracts
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+<section class="planificacion planificacion--navigation @(Model.DirectionOperations || Model.DirectionDetail?.IsWeeklyOperationsPlan == true ? "planificacion--operations" : "")" aria-labelledby="direction-planning-title" data-direction-planning data-role-labels="@System.Text.Json.JsonSerializer.Serialize(Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Roles.ToDictionary(role => role, role => Sgol.Web.Presentation.Navigation.SessionPresentation.RoleName(role)))">
+    <header class="encabezado-pagina planificacion__navigation-header">
+        <h1 id="direction-planning-title" class="encabezado-pagina__titulo">Planificación</h1>
+        @if (Model.CanViewDirectionPlans)
+        {
+            <nav class="planificacion__header-actions planificacion__header-actions--closing" aria-label="Opciones de planificación">
+                @if (Model.DirectionCreating || Model.DirectionDetail is not null) { <a class="boton boton--secundario" href="/planificacion">Volver a Planes</a> }
+                @if (Model.CanPrepareDirectionPlan && !Model.DirectionCreating && Model.DirectionDetail is null) { <a class="boton boton--primario" href="/planificacion?mode=create">Crear Nuevo Plan</a> }
+                @if (Model.CanPrepareWeeklyOperationsPlan && !Model.DirectionCreating && Model.DirectionDetail is null) { <a class="boton boton--secundario" href="/planificacion?mode=operations">Plan de Operaciones Semanal</a> }
+                @if (Model.CanPrepareDirectionPlan && !Model.DirectionOperations && Model.DirectionDetail?.IsWeeklyOperationsPlan != true) { <a class="boton boton--secundario" href="/planificacion/procesos">Crear plan de proceso</a> }
+                @if (Model.CanPrepareDirectionPlan) { <button class="boton boton--secundario closing-planning-open" type="button" data-dialog-open aria-haspopup="dialog" aria-controls="closing-planning-dialog">Cobertura de cierre</button> }
+            </nav>
+        }
+    </header>
+    @if (Model.DirectionError is not null) { <div id="direction-plan-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.DirectionError" /></div> }
+    @if (Model.DirectionError is not null && !Model.DirectionConfirming) { <partial name="_DirectionLoad" model="Model" /> }
+    @if (Model.DirectionSuccess is not null) { <p role="status"><span aria-hidden="true">✓</span> @Model.DirectionSuccess</p> }
+    @if ((Model.DirectionOperations ? Model.CanPrepareWeeklyOperationsPlan : Model.CanPrepareDirectionPlan) && Model.DirectionCreating)
+    {
+        <section class="panel-seccion planificacion__seccion" aria-labelledby="direction-create-title">
+            <header class="panel-seccion__cabecera"><h2 id="direction-create-title">@(Model.DirectionOperations ? "Plan de Operaciones Semanal" : "Crear Nuevo Plan")</h2></header>
+            @if (Model.DirectionOperations) { <p>Un maestro por semana. El domingo se prepara la semana que inicia el lunes; su ejecución abarca de lunes a domingo. Las tareas marcadas se cargan automáticamente. Revisa las incidencias y guarda para asignar las cargas.</p> }
+            else { <p>Este recorrido usa tareas independientes de General. <a href="/planificacion/procesos">Seleccionar un proceso y cargar sus etapas predefinidas</a>.</p> }
+            <form method="post" asp-page-handler="PrepareDirectionPlan" asp-antiforgery="false" data-direction-create data-operations="@(Model.DirectionOperations ? "true" : "false")" data-operational-today="@Model.DirectionToday.ToString("yyyy-MM-dd")" data-progress-form>
+                <input type="hidden" name="isWeeklyOperationsPlan" value="@(Model.DirectionOperations ? "true" : "false")" />
+                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                <div class="planificacion__formulario">
+                    <label class="campo" for="direction-name"><span class="campo__etiqueta">Nombre del plan</span><input id="direction-name" class="campo__control" name="name" value="@Model.DirectionName" required aria-describedby="direction-plan-error" aria-invalid="@(Model.DirectionError is null ? "false" : "true")" /></label>
+                    <label class="campo" for="direction-area"><span class="campo__etiqueta">Área</span><input id="direction-area" class="campo__control" name="area" value="@Model.DirectionArea" required aria-describedby="direction-plan-error" aria-invalid="@(Model.DirectionError is null ? "false" : "true")" /></label>
+                    <label class="campo" for="direction-period"><span id="direction-period-label" class="campo__etiqueta">Periodo</span><select id="direction-period" aria-labelledby="direction-period-label" class="campo__control campo__control--select" name="periodType">
+                        @foreach (var period in DirectionPlanContract.PeriodTypes.Where(p => !Model.DirectionOperations || p == "SEMANAL")) { <option value="@period" selected="@(period == Model.DirectionPeriodType)">@IndexModel.DirectionPeriodLabel(period)</option> }
+                    </select></label>
+                    <label class="campo" for="direction-year"><span class="campo__etiqueta" data-direction-year-label>@(Model.DirectionPeriodType == "SEMANAL" ? "Año ISO" : "Año de calendario")</span><input id="direction-year" class="campo__control" type="number" name="year" min="1" max="9999" value="@Model.DirectionYear" required aria-describedby="direction-dates direction-plan-error" aria-invalid="@(Model.DirectionError is null ? "false" : "true")" /></label>
+                    <label class="campo" for="direction-number" data-direction-number-field hidden="@(Model.DirectionPeriodType == "ANUAL")"><span class="campo__etiqueta" data-direction-number-label>@(Model.DirectionPeriodType switch { "SEMANAL" => "Semana ISO", "MENSUAL" => "Mes", "TRIMESTRAL" => "Trimestre", _ => "Semestre" })</span><input id="direction-number" class="campo__control" type="number" name="periodNumber" min="1" max="@(Model.DirectionPeriodType switch { "SEMANAL" => 53, "MENSUAL" => 12, "TRIMESTRAL" => 4, _ => 2 })" value="@Model.DirectionNumber" required="@(Model.DirectionPeriodType != "ANUAL")" aria-describedby="direction-dates direction-plan-error" aria-invalid="@(Model.DirectionError is null ? "false" : "true")" /></label>
+                </div>
+                <p id="direction-dates" role="status" aria-live="polite">@if (Model.DirectionRange is { } range) { <span>@range.StartsOn.ToString("dd/MM/yyyy") — @range.EndsOn.ToString("dd/MM/yyyy"). @IndexModel.DirectionIsoLabel(range.StartsOn) — @IndexModel.DirectionIsoLabel(range.EndsOn).</span> }</p>
+                @if (Model.DirectionOperations) { <p>De lunes a viernes comienza hoy y termina el domingo. Sábado y domingo prepara del lunes siguiente a su domingo. Incluye las tareas del día inicial aunque su hora de vencimiento ya haya pasado.</p> }
+                <label class="campo" for="direction-search" hidden="@Model.DirectionOperations"><span class="campo__etiqueta">Buscar tareas</span><input id="direction-search" class="campo__control" type="search" aria-controls="direction-task-results" /></label>
+                <button class="boton boton--secundario" type="button" data-direction-predefined hidden="@Model.DirectionOperations">Cargar Tareas Predefinidas</button>
+                <p role="status" aria-live="polite" data-predefined-status></p>
+                <ul id="direction-task-results" class="direction-plan__options" aria-label="Resultados de tareas" hidden>
+                    @foreach (var task in Model.DirectionTaskOptions)
+                    {
+                        <li data-task-option data-code="@task.TaskCode" data-name="@task.Name" data-period="@task.PeriodType"><button class="boton boton--secundario" type="button" data-direction-add disabled="@Model.DirectionSelectedCodes.Contains(task.TaskCode)"><span>@task.TaskCode · @task.Name · @Sgol.Web.Pages.Tasks.IndexModel.RoleLabel(task.AssignedRole)</span><span data-added-label>@(Model.DirectionSelectedCodes.Contains(task.TaskCode) ? "Agregada" : "")</span></button></li>
+                    }
+                </ul>
+                <p class="estado-vacio" role="status" data-search-empty hidden>No se encontraron tareas con esa descripción</p>
+                <h3>Tareas del plan</h3>
+                @if (Model.DirectionOperations) { <p>Para cambiar esta lista, marca o desmarca «Es parte del plan de operaciones semanal» en el catálogo de Tareas y vuelve a abrir este plan.</p> }
+                else { <p>Elige las tareas necesarias para este plan. Su periodo no las agrega automáticamente; las repeticiones y asignaciones se generan al confirmar el guardado.</p> }
+                <p class="estado-vacio" role="status" data-selection-empty hidden="@(Model.DirectionSelectedCodes.Count > 0)">Aún no has agregado tareas al plan</p>
+                <div class="tabla-contenedor"><table class="tabla" aria-label="Tareas seleccionadas"><thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Descripción</th><th scope="col">Acción</th></tr></thead><tbody data-direction-selected>
+                    @foreach (var code in Model.DirectionSelectedCodes)
+                    {
+                        var selectedTask = Model.DirectionTaskOptions.FirstOrDefault(t => t.TaskCode == code);
+                        if (selectedTask is not null) { <tr class="tabla__fila" data-selected-code="@code"><td>@code<input type="hidden" name="taskCodes" value="@code" /></td><td>@selectedTask.Name</td><td>@if (Model.DirectionOperations) { <span>Catálogo del maestro</span> } else { <button type="button" class="boton boton--secundario" data-direction-remove>Quitar del plan</button> }</td></tr> }
+                    }
+                </tbody></table></div>
+                <p role="status" aria-live="polite" data-selection-status></p>
+                <input type="hidden" name="capacityAdjustments" value="@Model.DirectionCapacityJson" data-plan-capacity-values />
+                <input type="hidden" name="capacityFingerprint" value="@Model.DirectionCapacityFingerprint" data-plan-capacity-fingerprint />
+                <button class="boton boton--secundario" type="button" aria-controls="direction-capacity" data-plan-capacity-open>Asignar cargas de trabajo</button>
+                <p role="status" aria-live="polite" data-plan-capacity-summary></p>
+                <button class="boton boton--primario" type="submit" data-progress-label="Guardando plan…">Guardar plan</button>
+            </form>
+            <dialog id="direction-capacity" class="modal direction-capacity" aria-labelledby="direction-capacity-title">
+                <div class="modal__contenido">
+                    <h2 id="direction-capacity-title" class="modal__titulo">Incidencias</h2>
+                    <p id="direction-capacity-help">Indica el porcentaje de capacidad por día. El porcentaje total es el promedio de los días, redondeado al entero más cercano; ese único porcentaje se usa para asignar las tareas durante toda la vigencia. Los días nuevos parten del 100%, respetando las reducciones de capacidad existentes.</p>
+                    <p>El detalle diario sirve para calcular el total; un día al 0% no bloquea por sí solo las asignaciones de esa fecha. Se conservan los roles, la disponibilidad y la rotación actuales.</p>
+                    <p>Los ajustes se aplican al guardar el plan y se comparten con Supervisión durante la vigencia indicada. Las tareas ya asignadas conservan su responsable; sus minutos pendientes siguen contando.</p>
+                    <p role="status" aria-live="polite" data-plan-capacity-status></p>
+                    <div data-plan-capacity-workers></div>
+                    <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-plan-capacity-cancel>Cancelar</button><button class="boton boton--primario" type="button" data-plan-capacity-accept disabled>Usar estos ajustes</button></div>
+                </div>
+            </dialog>
+        </section>
+        @if (Model.DirectionConfirming && Model.DirectionPlanIntent is not null)
+        {
+            <dialog id="direction-plan-confirm" class="modal" aria-labelledby="direction-confirm-title" data-open-on-error="true">
+                <div class="modal__contenido">
+                    <h2 id="direction-confirm-title" class="modal__titulo">Guardar plan</h2>
+                    <p>@Model.DirectionName · @Model.DirectionArea · @IndexModel.DirectionPeriodLabel(Model.DirectionPeriodType).</p>
+                    @if (Model.DirectionRange is { } range) { <p>@range.StartsOn.ToString("dd/MM/yyyy") — @range.EndsOn.ToString("dd/MM/yyyy")</p> }
+                    <partial name="_DirectionLoad" model="Model" />
+                    <details><summary>Tareas (@Model.DirectionSelectedCodes.Count)</summary><ul>@foreach (var task in Model.DirectionTaskOptions.Where(t => Model.DirectionSelectedCodes.Contains(t.TaskCode))) { <li>@task.TaskCode · @task.Name</li> }</ul></details>
+                    @if (Model.DirectionSelectedCodes.Count == 0) { <p>Aún no has agregado tareas al plan</p> }
+                    @if (Model.DirectionUncertain) { <p data-dialog-error tabindex="-1">No se pudo confirmar el guardado. Reenvía la misma solicitud para comprobar el resultado</p> }
+                    @if (Model.DirectionCapacitySummary.Count > 0) { <h3>Ajustes de capacidad</h3><ul>@foreach (var adjustment in Model.DirectionCapacitySummary) { <li>@adjustment</li> }</ul><p>Se aplicarán al guardar el plan. Las tareas existentes siguen contando para el reparto.</p> }
+                    @if(Model.DirectionTemporalRows.Length>0) {
+                        <details><summary>Revisar horarios y conflictos por fecha</summary><div class="tabla-contenedor"><table class="tabla"><caption>Candidatos por horario; el reparto también valida rol, especialización y capacidad</caption><thead><tr><th scope="col">Fecha</th><th scope="col">Tarea</th><th scope="col">Activación</th><th scope="col">Persona</th><th scope="col">Horario</th><th scope="col">Resultado</th></tr></thead><tbody>
+                        @foreach(var row in Model.DirectionTemporalRows) { <tr><td>@row.Day.ToString("dd/MM/yyyy")</td><td>@row.Task</td><td>@TimeZoneInfo.ConvertTime(row.StartsAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("HH:mm")</td><td>@row.Person</td><td>@row.Hours</td><td>@(row.Eligible?"Elegible por horario":Sgol.Web.Pages.People.IndexModel.ScheduleMessage(row.Reason))</td></tr> }
+                        </tbody></table></div></details>
+                    }
+                    <form method="post" asp-page-handler="SaveDirectionPlan" asp-antiforgery="false" data-progress-form>
+                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                        <input type="hidden" name="directionIntent" value="@Model.DirectionPlanIntent" />
+                        <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton boton--primario" type="submit" data-progress-label="Guardando plan…">Guardar plan</button></div>
+                    </form>
+                </div>
+            </dialog>
+        }
+    }
+    else if (Model.CanViewDirectionPlans && Model.DirectionDetail is { } detail)
+    {
+        <section class="panel-seccion planificacion__seccion" aria-labelledby="direction-detail-title">
+            <header class="panel-seccion__cabecera planning-progress-header"><h2 id="direction-detail-title">@detail.Name</h2>
+                <div class="planning-detail-actions">
+                <partial name="_TaskProgress" model="@(TaskProgressViewModel.FromAssignments(detail.Assignments ?? [], "Progreso del plan"))" />
+            @if (Model.CanPrepareDirectionPlan) {
+            <form method="post" asp-page-handler="PrepareDirectionPlanDeletion" asp-antiforgery="false" data-progress-form>
+                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                <input type="hidden" name="planId" value="@detail.PlanId" />
+                <button type="submit" class="boton boton--secundario" data-progress-label="Revisando eliminación…">Eliminar plan</button>
+            </form>
+            }
+                </div>
+            </header>
+            <p>@detail.Area · @IndexModel.DirectionPeriodLabel(detail.PeriodType)</p>
+            @if (detail.IsWeeklyOperationsPlan) { <span class="badge badge--neutro">Plan de Operaciones Semanal · Maestro</span> }
+            @if (detail.Assignments?.Any(a => a.OccasionId != null) == true) { <p>Consulta las instrucciones y material de cada ocasión en Supervisión o Mi trabajo.</p> }
+            <p>@detail.StartsOn.ToString("dd/MM/yyyy") — @detail.EndsOn.ToString("dd/MM/yyyy")</p>
+            <p>@IndexModel.DirectionIsoLabel(detail.StartsOn) — @IndexModel.DirectionIsoLabel(detail.EndsOn)</p>
+            <span class="badge badge--neutro"><span aria-hidden="true">✓</span>@(detail.Status == "ASIGNADO" ? "Asignado" : "Borrador")</span>
+            <h3>Tareas del plan</h3>
+            @if (detail.MonthlyPending is { Count: > 0 }) {
+                <p role="status"><strong>Ocurrencias mensuales pendientes (@detail.MonthlyPending.Count)</strong></p>
+                <ul>@foreach (var pending in detail.MonthlyPending) { <li>@pending.TaskCode · @pending.Name · @pending.PreferredDay/@pending.Month/@pending.Year · @Sgol.Web.Infrastructure.Persistence.Planning.MonthlyPendingPresentation.Reason(pending.Reason)</li> }</ul>
+            }
+            @if (Model.CanPrepareDirectionPlan && detail.PeriodType != "OCASIONAL" && detail.EndsOn >= WeekContract.LocalToday(DateTimeOffset.UtcNow)) {
+                <details><summary>Agregar tareas durante la semana</summary>
+                    <form method="post" asp-page-handler="AddDirectionTasks" asp-antiforgery="false">
+                        <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="planId" value="@detail.PlanId" />
+                        <label class="campo"><span class="campo__etiqueta">Tarea del catálogo</span><select class="campo__control" name="taskCodes" required>@foreach (var option in Model.DirectionTaskOptions.Where(t => !detail.IsWeeklyOperationsPlan || t.IsWeeklyOperationsTask)) { <option value="@option.TaskCode">@option.Name · @Sgol.Web.Pages.Tasks.IndexModel.RoleLabel(option.AssignedRole)</option> }</select></label>
+                        <p>Se incorporan las repeticiones de su calendario dentro de este plan. Las ya asignadas no se duplican; las fechas pasadas conservan su vencimiento.</p>
+                        <button class="boton boton--primario" type="submit">Agregar y asignar</button>
+                    </form>
+                </details>
+            }
+            @if (detail.Tasks.Count == 0) { <p class="estado-vacio" role="status">Aún no has agregado tareas al plan</p> }
+            else { <div class="tabla-contenedor"><table class="tabla" aria-label="Tareas previstas"><thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Descripción</th></tr></thead><tbody>@foreach (var task in detail.Tasks) { <tr class="tabla__fila"><td>@task.TaskCode</td><td>@task.Name</td></tr> }</tbody></table></div> }
+            @if (detail.Assignments is { Count: > 0 } assignments) {
+                <h3>Asignaciones (@assignments.Count)</h3>
+                <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th>Tarea</th><th>Trabajador</th><th>Inicio</th><th>Vencimiento</th><th>Carga</th><th>Estado</th><th>Evidencia</th></tr></thead><tbody>
+                @foreach (var assignment in assignments) {
+                    <tr class="tabla__fila"><td>@assignment.Name@if (assignment.SpecializationName != null) { <br /><small>Especialización: @assignment.SpecializationName</small> }</td><td>@assignment.PersonName<br /><small>@Sgol.Web.Pages.Tasks.IndexModel.RoleLabel(assignment.AssignedRole)</small><br /><small>Carga previa: @assignment.PreviousLoadMinutes min</small></td><td>@Sgol.Web.Presentation.MyWork.MyWorkPresentation.Time(assignment.StartsAt)</td><td>@Sgol.Web.Presentation.MyWork.MyWorkPresentation.Time(assignment.DueAt)</td><td>@assignment.LoadMinutes min</td><td>@(assignment.CompletedAt is null ? "Pendiente" : "Terminada")</td><td>@assignment.Comment @if (assignment.FileName is not null) { <a href="/mi-trabajo?handler=OperationalFile&amp;id=@assignment.Id">Ver evidencia</a> }</td></tr>
+                }
+                </tbody></table></div>
+            }
+        </section>
+    }
+    else if (Model.CanViewDirectionPlans && Model.DirectionError is null)
+    {
+        <section class="panel-seccion planificacion__seccion" aria-labelledby="direction-list-title" aria-busy="false">
+            <header class="panel-seccion__cabecera"><h2 id="direction-list-title">Planes activos</h2></header>
+            @if (Model.DirectionPlans.Count == 0) { <p class="estado-vacio" role="status">Aún no tienes planes preparados para este periodo</p> }
+            else
+            {
+                <div class="tabla-contenedor"><table class="tabla" aria-label="Planes activos"><thead class="tabla__encabezado"><tr><th scope="col">Nombre del plan</th><th scope="col">Área</th><th scope="col">Periodo</th><th scope="col">Fechas</th><th scope="col">Estado</th><th scope="col">Acción</th></tr></thead><tbody>
+                    @foreach (var plan in Model.DirectionPlans) { <tr class="tabla__fila"><td>@plan.Name<div class="planning-plan-progress"><partial name="_TaskProgress" model="@(TaskProgressViewModel.FromAssignments(plan.Assignments ?? [], "Progreso del plan"))" /></div></td><td>@plan.Area</td><td>@IndexModel.DirectionPeriodLabel(plan.PeriodType)</td><td>@plan.StartsOn.ToString("dd/MM/yyyy") — @plan.EndsOn.ToString("dd/MM/yyyy")</td><td><span class="badge badge--neutro"><span aria-hidden="true">✓</span>@(plan.Status == "ASIGNADO" ? "Asignado" : "Borrador")</span></td><td><a class="boton boton--secundario" href="/planificacion?planId=@plan.PlanId">Consultar</a></td></tr> }
+                </tbody></table></div>
+            }
+            <nav class="paginacion" aria-label="Paginación de planes">
+                @if (Model.DirectionPreviousHref is not null) { <a class="boton boton--secundario" href="@Model.DirectionPreviousHref">Anterior</a> } else { <span aria-disabled="true">Anterior</span> }
+                @if (Model.DirectionNextHref is not null) { <a class="boton boton--secundario" href="@Model.DirectionNextHref">Siguiente</a> } else { <span aria-disabled="true">Siguiente</span> }
+            </nav>
+        </section>
+    }
+    @if (Model.DirectionDeletion is { } deletion && Model.DirectionDeleteIntent is not null)
+    {
+        <dialog id="direction-plan-delete" class="modal" open aria-labelledby="direction-delete-title" aria-describedby="direction-delete-summary" data-open-on-error="true">
+            <div class="modal__contenido">
+                <h2 id="direction-delete-title" class="modal__titulo">Eliminar el plan «@deletion.Name»</h2>
+                <p id="direction-delete-summary">Esta acción es permanente. Se eliminará el plan completo para todos los trabajadores, incluyendo:</p>
+                <ul>
+                    <li>@deletion.Tasks tareas previstas y @deletion.Assignments asignaciones, con sus repeticiones, responsables, fechas y parámetros.</li>
+                    <li>@deletion.CompletedAssignments asignaciones terminadas, sus conclusiones y revisiones.</li>
+                    <li>@deletion.ProgressEntries registros de avance y @deletion.EvidenceFiles archivos de evidencia o material de referencia.</li>
+                    <li>@deletion.CapacityAdjustments ajustes de capacidad aplicados por el plan. Se restablece la capacidad anterior registrada; en planes antiguos sin ese registro, se retira el ajuste.</li>
+                </ul>
+                <p>Se liberará la carga pendiente de estas asignaciones. Se conservarán las tareas del catálogo, los trabajadores y la auditoría. Si el plan, sus tareas o sus ajustes cambian, tendrás que revisar de nuevo antes de eliminar.</p>
+                <form method="post" asp-page-handler="DeleteDirectionPlan" asp-antiforgery="false" class="direction-plan-delete-form" data-progress-form>
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                    <input type="hidden" name="deleteIntent" value="@Model.DirectionDeleteIntent" />
+                    <label class="campo"><span class="campo__etiqueta">Escribe ELIMINAR para confirmar</span><input class="campo__control" name="confirmation" required pattern="ELIMINAR" autocomplete="off" /></label>
+                    <div class="modal__acciones"><a class="boton boton--secundario" href="/planificacion?planId=@deletion.PlanId" data-initial-focus>Cancelar</a><button class="boton boton--primario" type="submit" data-progress-label="Eliminando plan…">Eliminar plan y sus asignaciones</button></div>
+                </form>
+            </div>
+        </dialog>
+    }
+    else if (Model.DirectionDeleteIntent is not null)
+    {
+        <form method="post" asp-page-handler="DeleteDirectionPlan" asp-antiforgery="false" data-progress-form>
+            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="deleteIntent" value="@Model.DirectionDeleteIntent" /><input type="hidden" name="confirmation" value="ELIMINAR" />
+            <button class="boton boton--secundario" type="submit" data-progress-label="Comprobando eliminación…">Reenviar la misma solicitud de eliminación</button>
+        </form>
+    }
+</section>
+

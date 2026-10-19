@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Internal notice and personal inbox contracts for SGOL.</Description>
+  </PropertyGroup>
+</Project>

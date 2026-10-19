@@ -1,0 +1,7 @@
+@page "/mi-trabajo/fotografias/{id:guid}"
+@model Sgol.Web.Pages.MyWork.PhotographsModel
+@{ ViewData["Title"] = "Fotografías de evidencia"; }
+<h1>Fotografías de evidencia</h1>
+<p>@Model.Photos.Count fotografías en esta entrega.</p>
+<partial name="_OperationalPhotoGallery" model="@((Model.AssignmentId, Model.Photos))" />
+<a class="boton boton--secundario" href="/mi-trabajo">Volver a Mi trabajo</a>

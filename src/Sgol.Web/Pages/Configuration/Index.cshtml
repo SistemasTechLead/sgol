@@ -1,0 +1,57 @@
+@page "/configuracion"
+@model Sgol.Web.Pages.Configuration.IndexModel
+@{
+    ViewData["Title"] = "Configuración";
+}
+<header class="encabezado-pagina">
+    <h1 class="encabezado-pagina__titulo">Configuración</h1>
+    <p class="encabezado-pagina__descripcion">Personaliza la apariencia de SGOL.</p>
+</header>
+<section class="panel-seccion apariencia" aria-labelledby="appearance-title">
+    <header class="panel-seccion__cabecera"><h2 id="appearance-title">Apariencia</h2></header>
+    <p id="theme-help">Elige cómo quieres ver el programa. El cambio se aplica al instante y se guarda en este navegador.</p>
+    <fieldset class="apariencia__opciones apariencia__opciones--temas" aria-describedby="theme-help">
+        <legend>Modo de color</legend>
+        <label class="apariencia__opcion">
+            <input type="radio" name="appearance-theme" value="light" data-theme-choice checked disabled />
+            <span class="apariencia__muestra apariencia__muestra--clara" aria-hidden="true"><span></span><span></span><span></span></span>
+            <strong>Claro</strong>
+            <span>Fondos claros y tonos cálidos.</span>
+        </label>
+        <label class="apariencia__opcion">
+            <input type="radio" name="appearance-theme" value="dark" data-theme-choice disabled />
+            <span class="apariencia__muestra apariencia__muestra--oscura" aria-hidden="true"><span></span><span></span><span></span></span>
+            <strong>Oscuro</strong>
+            <span>Fondos oscuros y texto suave.</span>
+        </label>
+        <label class="apariencia__opcion">
+            <input type="radio" name="appearance-theme" value="special" data-theme-choice disabled />
+            <span class="apariencia__muestra apariencia__muestra--especial" aria-hidden="true"><span></span><span></span><span></span></span>
+            <strong>Apariencia especial</strong>
+            <span>Salmón Loretta, rosa suave y acentos morados.</span>
+        </label>
+    </fieldset>
+    <p>Los colores de estado de las tareas del Tablero y Mi trabajo se conservan en todos los modos.</p>
+    <p class="apariencia__estado" role="status" data-theme-status></p>
+    <p id="layout-help">Elige la versión que prefieres. Se guarda en este navegador y se conserva al volver a iniciar sesión.</p>
+    <fieldset class="apariencia__opciones" aria-describedby="layout-help">
+        <legend>Versión de la aplicación</legend>
+        <label class="apariencia__opcion">
+            <input type="radio" name="appearance-layout" value="desktop" data-layout-choice disabled />
+            <strong>Escritorio</strong>
+            <span>Vista amplia con barra lateral, incluso en dispositivos pequeños.</span>
+        </label>
+        <label class="apariencia__opcion">
+            <input type="radio" name="appearance-layout" value="mobile" data-layout-choice disabled />
+            <strong>Móvil</strong>
+            <span>Vista compacta con menú de navegación y contenido en una columna.</span>
+        </label>
+        <label class="apariencia__opcion">
+            <input type="radio" name="appearance-layout" value="auto" data-layout-choice checked disabled />
+            <strong>Automática</strong>
+            <span>Se adapta al tamaño de la pantalla.</span>
+        </label>
+    </fieldset>
+    <p class="apariencia__estado" role="status" data-layout-status></p>
+    <noscript><p>Activa JavaScript en tu navegador para cambiar la apariencia.</p></noscript>
+</section>

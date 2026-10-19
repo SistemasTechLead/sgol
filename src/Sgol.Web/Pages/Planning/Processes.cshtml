@@ -1,0 +1,86 @@
+@page "/planificacion/procesos"
+@model Sgol.Web.Pages.Planning.ProcessesModel
+@using Sgol.Web.Pages.Tasks
+@{ ViewData["Title"]="Plan de proceso"; }
+<link rel="stylesheet" href="~/css/processes.css" asp-append-version="true" />
+<section class="process-page planificacion planificacion--navigation"><header class="encabezado-pagina planificacion__navigation-header"><h1 class="encabezado-pagina__titulo">Plan de proceso</h1><nav class="planificacion__header-actions" aria-label="Opciones de planificación"><a class="boton boton--secundario" href="/planificacion">Volver a Planes</a></nav></header>
+@if(Model.Error!=null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+@if(Model.Plan is { } plan)
+{
+    <section class="panel-seccion"><h2>@plan.Plan.Name</h2><p>@(plan.Plan.Status=="BORRADOR" ? "Preparado: carga reservada, sin tareas habilitadas" : "Activado: las etapas siguen su flujo")</p>
+        <p>La versión seleccionada queda capturada al preparar el plan. Activarlo no habilita todas las etapas.</p>
+        @foreach(var start in plan.Starts)
+        {
+            var captured=plan.Configurations.Single(c=>c.StartId==start.Id);
+            <h3>@captured.Name · Versión @captured.Version</h3>
+            <p>Inicio previsto @start.StartsAt.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM/yyyy HH:mm") · Ciudad de México · @(start.Status=="PREPARADO" ? "Preparado" : "Activado")</p>
+            <ol>@foreach(var stage in captured.Stages) { <li><strong>@stage.Name</strong><p>@stage.PersonName · @IndexModel.RoleLabel(stage.Role) · @stage.Minutes min de trabajo · @stage.DeadlineHours h de plazo</p></li> }</ol>
+        }
+        @if(Model.CanManage && plan.Plan.Status=="BORRADOR") { <form method="post" asp-page-handler="Activate"><input type="hidden" name="planId" value="@plan.Plan.Id" /><button class="boton boton--primario" type="submit">Activar plan e iniciar el flujo</button></form> }
+        @foreach(var run in plan.Runs) { <p><a class="boton boton--secundario" href="/mi-trabajo/procesos?id=@run.Id">Abrir @run.Name · Ronda @run.Round</a></p> }
+        @if(Model.CanManage && Model.Deletion is null)
+        {
+            <form method="post" asp-page-handler="PrepareDeletion"><input type="hidden" name="planId" value="@plan.Plan.Id" /><button class="boton boton--secundario" type="submit">Eliminar plan de proceso</button></form>
+        }
+    </section>
+    @if(Model.Deletion is { } deletion && Model.DeleteIntent is not null)
+    {
+        <section class="panel-seccion" aria-labelledby="process-delete-title">
+            <h2 id="process-delete-title">Eliminar el plan «@deletion.Name»</h2>
+            <p>Esta acción es permanente. Se eliminará el plan para todos sus participantes:</p>
+            <ul>
+                <li>@deletion.Tasks tareas previstas, @deletion.Assignments asignaciones y @deletion.CompletedAssignments asignaciones terminadas.</li>
+                <li>@plan.Runs.Length ejecuciones del proceso, con todas sus etapas, rondas, intentos, entregas y revisiones.</li>
+                <li>@deletion.ProgressEntries registros de avance y @deletion.EvidenceFiles archivos: documentos de todas las versiones, fotografías y material de referencia.</li>
+                <li>@deletion.CapacityAdjustments ajustes de capacidad del plan; se restablece la capacidad anterior registrada.</li>
+            </ul>
+            <p>Se liberará la carga pendiente. Se conservarán el proceso y sus tareas del catálogo, los trabajadores y la auditoría.</p>
+            <form method="post" asp-page-handler="DownloadArchive">
+                <input type="hidden" name="deleteIntent" value="@Model.DeleteIntent" />
+                <button class="boton boton--secundario" type="submit">Descargar todos los archivos (ZIP)</button>
+            </form>
+            <p>El ZIP incluye los archivos originales y un índice del plan. Antes de eliminar, comprueba que la descarga terminó y el archivo se guardó. Si no hay archivos, contiene únicamente el índice.</p>
+            <form method="post" asp-page-handler="Delete">
+                <input type="hidden" name="deleteIntent" value="@Model.DeleteIntent" />
+                <fieldset class="process-stage process-delete-choice"><legend>¿Quieres descargar los archivos antes de eliminar?</legend>
+                    <label><input type="radio" name="archiveChoice" value="download" checked required /> Sí, descargar primero y conservar el ZIP</label>
+                    <label><input type="radio" name="archiveChoice" value="skip" required /> No, eliminar sin descargar archivos</label>
+                </fieldset>
+                <label class="campo"><span class="campo__etiqueta">Escribe ELIMINAR para confirmar</span><input class="campo__control" name="confirmation" required pattern="ELIMINAR" autocomplete="off" /></label>
+                <div class="process-actions"><a class="boton boton--secundario" href="/planificacion/procesos?planId=@plan.Plan.Id">Cancelar</a><button class="boton boton--primario" type="submit">Eliminar plan y sus archivos</button></div>
+            </form>
+        </section>
+    }
+}
+else
+{
+    <section class="panel-seccion"><h2>Seleccionar proceso</h2><form method="get"><label class="campo"><span class="campo__etiqueta">Proceso publicado y habilitado</span><select class="campo__control" name="processId" required><option value="">Selecciona</option>@foreach(var option in Model.Options) { <option value="@option.Id" selected="@(option.Id==Model.Input.ProcessId)">@option.Name</option> }</select></label><button class="boton boton--secundario" type="submit">Cargar etapas predefinidas</button></form></section>
+    @if(Model.Editor is { } editor)
+    {
+        <section class="panel-seccion"><h2>@editor.Process.Name</h2><p>El proceso es una unidad. Las tareas conservan rol, evidencia y carga; las condiciones controlan cuándo trabaja cada persona.</p>
+        <form method="post" asp-page-handler="Preview">
+            <input type="hidden" asp-for="Input.Key" /><input type="hidden" asp-for="Input.ProcessId" />
+            <label class="campo"><span class="campo__etiqueta">Nombre del plan</span><input class="campo__control" asp-for="Input.Name" maxlength="120" required /></label>
+            <label class="campo"><span class="campo__etiqueta">Tipo de inicio</span><select class="campo__control" asp-for="Input.Mode"><option value="CALENDARIO">Fechas del calendario del proceso</option><option value="OCASION">Ocasión explícita (por ejemplo, una demostración)</option></select></label>
+            <div class="planificacion__formulario"><label class="campo"><span class="campo__etiqueta">Desde (inicio de la ocasión)</span><input class="campo__control" asp-for="Input.From" type="date" required /></label><label class="campo"><span class="campo__etiqueta">Hasta (periodo del calendario)</span><input class="campo__control" asp-for="Input.Through" type="date" required /></label></div>
+            <p>La hora procede de la versión publicada. Activar antes del inicio deja la primera etapa programada; si se activa después, su plazo empieza al habilitarse efectivamente.</p>
+            @foreach(var step in editor.Steps)
+            {
+                var task=editor.Tasks.Single(t=>t.Id==step.TaskId);
+                <fieldset class="process-stage"><legend>@step.Position. @task.Name</legend><p>@IndexModel.RoleLabel(task.AssignedRole) · @task.LoadMinutes min · Plazo @step.DeadlineHours h · @IndexModel.Label(task.Requirement)</p>
+                <label class="campo"><span class="campo__etiqueta">Responsable</span><select class="campo__control" name="Input.People[@step.Position]" required><option value="">Selecciona</option>@foreach(var worker in Model.Workers.Where(w=>w.EligibleFor(task.AssignedRole, task.SpecializationId))) { <option value="@worker.Id" selected="@(Model.Input.People.GetValueOrDefault(step.Position)==worker.Id)">@worker.Name</option> }</select></label><p>@step.Instructions</p></fieldset>
+            }
+            <button class="boton boton--secundario" type="submit">Ver fechas y capacidad</button>
+        </form></section>
+        @if(Model.Preview is { } preview)
+        {
+            <section class="panel-seccion"><h2>Revisar plan</h2><p>@preview.ProcessName · Versión @preview.Version · @preview.Stages.Sum(s=>s.Minutes) min por ejecución</p>
+            <ol>@foreach(var starts in preview.Starts) { <li>@starts.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM/yyyy HH:mm") · Ciudad de México</li> }</ol>
+            <ul>@foreach(var stage in preview.Stages) { <li>@stage.Position. @stage.Name · @stage.PersonName · @stage.Minutes min</li> }</ul>
+            <form method="post" asp-page-handler="Prepare"><input type="hidden" asp-for="Input.Key" /><input type="hidden" asp-for="Input.ProcessId" /><input type="hidden" asp-for="Input.Name" /><input type="hidden" asp-for="Input.Mode" /><input type="hidden" asp-for="Input.From" /><input type="hidden" asp-for="Input.Through" /><input type="hidden" asp-for="Input.Fingerprint" />@foreach(var person in Model.Input.People) { <input type="hidden" name="Input.People[@person.Key]" value="@person.Value" /> }
+                <p>Guardar reserva todas las etapas. Todavía no crea asignaciones ni habilita trabajo.</p><button class="boton boton--primario" type="submit">Guardar plan preparado</button>
+            </form></section>
+        }
+    }
+}
+</section>

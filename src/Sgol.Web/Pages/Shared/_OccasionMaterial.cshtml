@@ -1,0 +1,21 @@
+@model (Guid AssignmentId, Sgol.Web.Infrastructure.Persistence.Planning.OccasionDetails? Occasion)
+@if (Model.Occasion is { } occasion) {
+    <section aria-label="Instrucciones y material de esta ocasión" data-occasion-material>
+        <h3>Instrucciones</h3><p class="supervision-text">@occasion.Instructions</p>
+        @if (occasion.Channels.Length > 0) { <p><strong>Dónde publicar:</strong> @occasion.Channels</p> }
+        @if (occasion.PublicationText.Length > 0) {
+            <label class="campo"><span class="campo__etiqueta">Texto para publicar</span><textarea class="campo__control" readonly data-publication-text rows="5">@occasion.PublicationText</textarea></label>
+            <button class="boton boton--secundario" type="button" data-copy-publication>Copiar texto</button><p role="status" data-copy-status></p>
+        }
+        @if (occasion.Files.Count > 0) {
+            <h3>Material de referencia</h3>
+            @foreach (var file in occasion.Files) {
+                var href = $"/mi-trabajo?handler=ReferenceFile&id={Model.AssignmentId:D}&fileId={file.Id:D}";
+                <div>
+                    @if (file.ContentType is "image/jpeg" or "image/png") { <img class="my-work-evidence-preview" src="@(href + "&preview=true")" alt="Material de referencia: @file.FileName" /> }
+                    <a class="boton boton--secundario" href="@href">Descargar @file.FileName</a>
+                </div>
+            }
+        }
+    </section>
+}

@@ -1,0 +1,31 @@
+@model Sgol.Web.Infrastructure.Http.SystemErrorPage
+@{
+    Layout = "/Pages/Shared/_Layout.cshtml";
+    var hasContext = ViewData["SystemErrorSession"] is Sgol.Identity.Contracts.SessionSnapshot;
+}
+<link rel="stylesheet" href="~/css/system-errors.css" asp-append-version="true" />
+<section class="error-sistema @(hasContext ? "error-sistema--contexto" : null)" aria-labelledby="error-titulo">
+    @if (!hasContext)
+    {
+        <div class="marca-loretta error-sistema__marca"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /><p>SGOL · Gestión operativa</p></div>
+    }
+    <div class="error-sistema__contenido">
+        <span class="error-sistema__simbolo"><partial name="_Icon" model="Model.Icon" /></span>
+        <p class="contexto-acceso">@Model.Label · @Model.Status</p>
+        <h1 class="encabezado-pagina__titulo" id="error-titulo">@Model.Title</h1>
+        <p class="error-sistema__descripcion">@Model.Description</p>
+        <p class="error-sistema__ayuda">@Model.Guidance</p>
+        <div class="error-sistema__acciones">
+            <a class="boton boton--primario" href="@Model.Destination"><partial name="_Icon" model='@("arrow")' />@Model.Action</a>
+            @if (Model.Destination != "/acceso" && !hasContext)
+            {
+                <a class="boton boton--secundario" href="/acceso">Ir al acceso</a>
+            }
+        </div>
+        <details class="error-sistema__detalles">
+            <summary>Detalles para soporte</summary>
+            <p>Comparte esta referencia para que podamos revisar lo ocurrido.</p>
+            <dl><dt>Referencia</dt><dd><code>@Model.Reference</code></dd><dt>Estado</dt><dd>@Model.Status</dd></dl>
+        </details>
+    </div>
+</section>

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="es-MX" data-screen-theme="@(Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User) ? "dark" : null)">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] — SGOL</title>
+    <script src="~/js/theme.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/live-board.css" asp-append-version="true" />
+</head>
+<body class="board-page" data-screen="@(Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User) ? "true" : "false")">
+    <main>@RenderBody()</main>
+    @if (Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User)) {
+        <script src="~/js/screen-session.js" asp-append-version="true" data-expires="@User.FindFirst(Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.Expires)?.Value" defer></script>
+    }
+</body>
+</html>

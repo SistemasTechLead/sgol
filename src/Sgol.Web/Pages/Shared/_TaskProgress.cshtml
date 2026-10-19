@@ -1,0 +1,6 @@
+@model Sgol.Web.Presentation.Components.TaskProgressViewModel
+<div class="task-progress task-progress--@Model.Color">
+    <div class="task-progress__label"><span>@Model.Label</span><strong>@Model.Percent%</strong></div>
+    <progress class="task-progress__track" value="@Model.Percent" max="100" aria-label="@Model.Label" aria-valuetext="@Model.Percent% · @Model.Description">@Model.Percent%</progress>
+    <small>@Model.Description</small>
+</div>

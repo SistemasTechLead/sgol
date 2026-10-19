@@ -1,0 +1,32 @@
+**/bin/
+**/obj/
+.local/
+
+# Resultados, respaldos y datos de esta computadora
+/output/
+/outputs/
+**/TestResults/
+**/node_modules/
+.vs/
+.idea/
+*.user
+*.suo
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.bak
+
+# Credenciales y configuracion privada
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.key
+*.pem
+**/appsettings.Local.json
+**/appsettings.*.local.json
+

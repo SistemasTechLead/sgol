@@ -1,0 +1,9 @@
+{
+  "source": "outputs\\tareas-crear-tarea-20261012\\Tareas_SGOL_Crear_Tarea_actualizado.xlsx",
+  "sha256": "def15b73cc6510472411baddefa61010e3e4156de41df4aa2eae1ed891927c5e",
+  "tasks": 202,
+  "pending": 202,
+  "operational_cells_filled": 0,
+  "cell_comments": 0,
+  "classification": "Pendiente; no se deducen reglas a partir del nombre."
+}

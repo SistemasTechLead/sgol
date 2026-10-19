@@ -1,0 +1,32 @@
+@model Sgol.Web.Presentation.MyWork.ProcessActionForm
+@using Sgol.Web.Pages.Tasks
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@{
+    var view = Model.View;
+    var active = view.Stages.Single(s => s.Position == view.Run.ActivePosition);
+    var rule = view.Rules.Single(s => s.Position == active.Position);
+    var attempt = view.Attempts.SingleOrDefault(a => a.Id == active.CurrentAttemptId);
+}
+        <p>@rule.Instructions</p>
+        @if(!string.IsNullOrWhiteSpace(attempt?.UnresolvedDifferences)) { <p><strong>Diferencias pendientes recibidas:</strong> @attempt.UnresolvedDifferences</p> }
+        @if(active.EnabledAt!=null) { <p>Disponible desde @active.EnabledAt.Value.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM/yyyy HH:mm") · Vence @active.EffectiveDueAt?.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM/yyyy HH:mm") · Ciudad de México</p> }
+        else { <p>@(active.BlockReason ?? "Espera su habilitación; todavía no hay un vencimiento efectivo.")</p> }
+        @if(attempt?.InputDocumentId is { } docId) { var doc=view.Documents.Single(d=>d.Id==docId); <div class="panel-seccion"><strong>PDF recibido · Versión @(doc.Number)</strong><p><a class="boton boton--secundario" href="/mi-trabajo/procesos?handler=Document&amp;id=@view.Run.Id&amp;documentId=@doc.Id">Abrir PDF</a></p></div> }
+        @if(view.Run.Status=="EN_CURSO" && active.Status=="DISPONIBLE" && active.ReservedPersonId==Model.PersonId && attempt!=null && (Model.AssignmentId == null || attempt.AssignmentId == Model.AssignmentId))
+        {
+            <form method="post" enctype="multipart/form-data" asp-page-handler="@Model.Handler" asp-antiforgery="false">
+                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />@if (Model.AssignmentId is { } assignmentId) { <input type="hidden" name="id" value="@assignmentId" /> }<input type="hidden" name="RunId" value="@view.Run.Id" /><input type="hidden" name="AttemptId" value="@attempt.Id" /><input type="hidden" name="Revision" value="@attempt.Revision" /><input type="hidden" name="Key" value="@(Model.Key ?? Guid.CreateVersion7())" />
+                <label class="campo"><span class="campo__etiqueta">PDF @(rule.Action=="SELLAR" ? "con el sello registrado (requerido)" : rule.Action=="ENTREGAR" ? "de entrega (requerido)" : "corregido, solo si cambió la hoja")</span><input class="campo__control" name="Document" type="file" accept="application/pdf" /></label>
+                <label><input type="checkbox" name="Declared" value="true" checked="@Model.Declared" required /> @(active.Position==1 ? "Declaro que registré todo el inventario o completé la búsqueda solicitada." : "Revisé el documento recibido y sus diferencias.")</label>
+                <label class="campo"><span class="campo__etiqueta">Conclusión o motivo de devolución</span><textarea class="campo__control" name="Conclusion" maxlength="4000" required>@Model.Conclusion</textarea></label>
+                <label class="campo"><span class="campo__etiqueta">Diferencias pendientes identificadas</span><textarea class="campo__control" name="Differences" maxlength="4000">@(Model.Differences ?? attempt?.UnresolvedDifferences)</textarea></label>
+                <div class="process-actions">
+                    @if(rule.Action=="ENTREGAR") { <button class="boton boton--primario" type="submit" name="Decision" value="ENTREGA">Entregar PDF</button> }
+                    else if(active.Position==view.Stages.Length) { <button class="boton boton--primario" type="submit" name="Decision" value="SIN_DIFERENCIAS">Aceptar sin diferencias y cerrar</button><button class="boton boton--primario" type="submit" name="Decision" value="ACEPTADA_CON_DIFERENCIAS">Aceptar con diferencias pendientes</button> }
+                    else { <button class="boton boton--primario" type="submit" name="Decision" value="APROBACION">Revisar y pasar a @IndexModel.RoleLabel(view.Stages.Single(s=>s.Position==active.Position+1).Role)</button> }
+                    @if(rule.ReturnToPosition is { } target) { <button class="boton boton--secundario" type="submit" name="Decision" value="DEVOLUCION">Devolver a @IndexModel.RoleLabel(view.Stages.Single(s=>s.Position==target).Role)</button> }
+                </div>
+                @if (Model.AssignmentId != null && Model.Conclusion != null) { <p>Selecciona nuevamente el archivo antes de enviar.</p> }
+            </form>
+        }
+

@@ -1,0 +1,21 @@
+.schedule-form { padding: var(--espacio-24); display: grid; gap: var(--espacio-24); min-width: 0; }
+.schedule-form fieldset { min-width: 0; padding: var(--espacio-16); border: var(--grosor-borde) solid var(--color-borde); border-radius: var(--radio-tarjeta); }
+.schedule-form legend { font: var(--tipografia-media); }
+.schedule-interval { display: flex; flex-wrap: wrap; align-items: end; gap: var(--espacio-16); margin-block: var(--espacio-16); }
+.schedule-interval .campo { flex: 1; min-width: 0; }
+.schedule-form [hidden] { display: none; }
+.schedule-form .campo__control { max-width: 100%; min-width: 0; }
+.schedule-form .casilla { min-height: var(--alto-control-minimo); display: flex; align-items: center; gap: var(--espacio-8); }
+.people-page .people-row-actions .boton { position: relative; }
+.closing-planning p { margin: 0; }
+.closing-planning td form { display: grid; gap: var(--espacio-8); }
+.closing-planning td .boton { justify-self: start; }
+.planificacion__header-actions--closing { width: 100%; justify-self: stretch; }
+.planificacion__header-actions > .closing-planning-open { margin-inline-start: auto; }
+.closing-planning-dialog { width: min(calc(100% - var(--espacio-32)), var(--ancho-tabla-bandeja)); max-height: min(calc(100dvh - var(--espacio-32)), var(--ancho-formulario)); overflow: auto; }
+.closing-planning-dialog__header { display: flex; align-items: center; justify-content: space-between; gap: var(--espacio-16); }
+@container sgol-viewport (max-width: 48rem) {
+    .schedule-form { padding: var(--espacio-16); gap: var(--espacio-16); }
+    .schedule-interval { flex-direction: column; align-items: stretch; }
+    .schedule-interval button { align-self: start; }
+}

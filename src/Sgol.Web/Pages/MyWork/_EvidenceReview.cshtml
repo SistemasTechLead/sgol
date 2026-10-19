@@ -1,0 +1,22 @@
+@model Sgol.Web.Pages.MyWork.DetailsModel
+@using Sgol.Web.Presentation.MyWork
+<section class="panel-seccion mi-trabajo__seccion" id="revision-evidencia" aria-labelledby="review-title">
+    <header class="panel-seccion__cabecera"><h2 id="review-title" tabindex="-1">Revisión de evidencia</h2></header>
+    <div class="evidencia__contenido">
+        <form method="post" asp-page-handler="ReviewEvidence" asp-route-returnToken="@Model.ReturnToken" data-front-query="revision-evidencia"><button class="boton boton--secundario" type="submit">Consultar revisión</button><span role="status" data-front-query-status hidden>Consultando revisión…</span></form>
+        @if (Model.ReviewError is not null) { <div tabindex="-1" data-front-error><partial name="_ProblemAlert" model="Model.ReviewError" /></div> }
+        else if (Model.Review is not { } review) { <partial name="_EmptyState" model='@(new EmptyStateViewModel("Consulta la revisión para conocer la evidencia faltante"))' /> }
+        else
+        {
+            <p role="status" tabindex="-1" data-front-success><partial name="_StatusBadge" model="@MyWorkPresentation.Badge(review.Result)" />
+                @(review.Result == "COMPLETA" ? "La evidencia está completa para esta revisión. El servidor volverá a comprobarla al concluir" : "Falta evidencia para concluir. Revisa los requisitos indicados")</p>
+            <p>Evaluada el <time datetime="@review.EvaluatedAt.ToString("O")">@MyWorkPresentation.Time(review.EvaluatedAt)</time></p>
+            <div class="tabla-contenedor" tabindex="0" role="region" aria-label="Requisitos evaluados"><table class="tabla"><caption>Requisitos evaluados</caption><thead class="tabla__encabezado"><tr><th scope="col">Requisito y tipo</th><th scope="col">Aplicabilidad</th><th scope="col">Satisfacción</th><th scope="col">Versión utilizada</th></tr></thead><tbody>
+                @foreach (var r in review.Requirements) { <tr class="tabla__fila"><td>@r.RequirementCode · @r.Kind</td><td>@EvidenceReviewPresentation.Applicability(r.Applicability)</td><td>@EvidenceReviewPresentation.Satisfaction(r)</td><td>@r.EvidenceVersionId</td></tr> }
+            </tbody></table></div>
+            <h3>Evidencia faltante</h3>
+            @if (review.MissingRequirements.Count == 0 && review.Result == "COMPLETA") { <p>No hay requisitos de evidencia faltantes en esta revisión</p> }
+            else { <ul>@foreach (var r in review.MissingRequirements) { <li>@r.RequirementCode · @EvidenceReviewPresentation.Missing(r.MissingReason)</li> }</ul> }
+        }
+    </div>
+</section>

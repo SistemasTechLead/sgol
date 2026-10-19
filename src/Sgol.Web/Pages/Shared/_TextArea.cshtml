@@ -1,0 +1,20 @@
+@model TextAreaViewModel
+@{
+    var hasError = !string.IsNullOrWhiteSpace(Model.ErrorMessage);
+    var errorId = $"{Model.Id}-error";
+    var fieldClass = hasError ? "campo campo--error" : "campo";
+}
+<label class="@fieldClass" for="@Model.Id">
+    <span class="campo__etiqueta">@Model.Label</span>
+    <textarea id="@Model.Id"
+              name="@Model.Id"
+              class="campo__control campo__control--textarea"
+              disabled="@Model.IsDisabled"
+              required="@Model.IsRequired"
+              aria-invalid="@hasError.ToString().ToLowerInvariant()"
+              aria-describedby="@(hasError ? errorId : null)">@Model.Value</textarea>
+    @if (hasError)
+    {
+        <span id="@errorId" class="campo__mensaje-error"><span aria-hidden="true">!</span> @Model.ErrorMessage</span>
+    }
+</label>

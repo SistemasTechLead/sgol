@@ -1,0 +1,13 @@
+@model EmptyStateViewModel
+<div class="estado-vacio">
+    <span class="estado-vacio__icono" aria-hidden="true">○</span>
+    <p class="estado-vacio__titulo">@Model.Title</p>
+    @if (!string.IsNullOrWhiteSpace(Model.Message))
+    {
+        <p class="estado-vacio__texto">@Model.Message</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ActionLabel) && !string.IsNullOrWhiteSpace(Model.ActionHref))
+    {
+        <a class="boton boton--secundario" href="@Model.ActionHref">@Model.ActionLabel</a>
+    }
+</div>

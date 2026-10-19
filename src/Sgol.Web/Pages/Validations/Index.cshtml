@@ -1,0 +1,79 @@
+@page "/validaciones"
+@model Sgol.Web.Pages.Validations.IndexModel
+@using Sgol.Web.Presentation.MyWork
+@using Sgol.Web.Presentation.Navigation
+@using TaskLabels = Sgol.Web.Pages.Tasks.IndexModel
+@{ ViewData["Title"] = "Supervisión"; }
+<header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo">Supervisión</h1></header>
+<p class="supervision-guide">Selecciona <strong>Supervisar</strong> para revisar la entrega y decidir si la tarea está concluida o no.</p>
+@if (Model.Error is not null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+<partial name="_Capacity" model="Model" />
+@foreach (var group in Model.Sections) {
+    <section class="panel-seccion supervision-section" id="@group.Key" aria-labelledby="title-@group.Key">
+        <header class="panel-seccion__cabecera"><h2 id="title-@group.Key">@group.Title <span class="badge badge--neutro">@group.All.Count</span></h2></header>
+        <partial name="_Filters" model="@(new Sgol.Web.Pages.Validations.SupervisionFilterModel(Model, group))" />
+        <p class="supervision-count">@group.Items.Count de @group.All.Count tareas</p>
+        @if (group.Items.Count == 0) { <p class="estado-vacio">@(group.All.Count == 0 ? "No hay tareas en este apartado." : "No hay tareas que coincidan con estos filtros.")</p> }
+        else {
+            <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th scope="col">Tarea / plan</th><th scope="col">Responsable</th><th scope="col">Inicio / vencimiento</th><th scope="col">Requisito</th><th scope="col">Carga</th><th scope="col">Estado</th><th class="supervision-action-cell" scope="col">Revisión</th></tr></thead><tbody>
+            @foreach (var item in group.Items) {
+                var a = item.Assignment;
+                var reviewed = a.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA";
+                var actionLabel = reviewed ? "Ver revisión" : "Supervisar";
+                <tr class="tabla__fila">
+                    <td>@a.Name<br /><small>@item.PlanName · @a.TaskCode</small></td>
+                    <td>@a.PersonName<br /><small>@SessionPresentation.RoleName(item.Role)</small></td>
+                    <td>@MyWorkPresentation.Time(a.StartsAt)<br /><small>@MyWorkPresentation.Time(a.DueAt)</small></td>
+                    <td>@TaskLabels.Label(a.Requirement)</td><td>@a.LoadMinutes min</td>
+                    <td><span class="badge @Model.Tone(a)">@Model.Status(a)</span></td>
+                    <td class="supervision-action-cell"><a class="boton @(reviewed ? "boton--secundario" : "boton--primario") supervision-action" href="@Model.TaskHref(a.Id)" aria-label="@actionLabel: @a.Name" aria-haspopup="dialog"><partial name="_Icon" model='@("eye")' /><span>@actionLabel</span></a></td>
+                </tr>
+            }
+            </tbody></table></div>
+        }
+    </section>
+}
+@if (Model.Selected is { } selected) {
+    var a = selected.Assignment;
+    <dialog class="supervision-dialog" data-supervision-detail aria-labelledby="supervision-task-title">
+        @if (Model.Error is not null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+        <header class="supervision-dialog__header"><h2 id="supervision-task-title">@a.Name</h2><button class="boton boton--secundario" type="button" data-dialog-close title="Cerrar"><partial name="_Icon" model='@("close")' /><span class="solo-lectores">Cerrar</span></button></header>
+        @if (!string.IsNullOrWhiteSpace(a.Description)) { <section aria-label="Descripción de la tarea"><h3>Descripción</h3><p class="supervision-text">@a.Description</p></section> }
+        <p>@a.PersonName · @SessionPresentation.RoleName(selected.Role) · @selected.PlanName</p><partial name="_OccasionMaterial" model="@((a.Id, Model.Occasion))" />
+        <p><span class="badge badge--neutro">@Model.Status(a)</span></p>
+        @if (a.ReassignedFromId is { } previous) { <p><a href="@Model.TaskHref(previous)">Ver entrega y revisión anterior</a></p><p class="supervision-text">@a.ReviewComment</p> }
+        <dl class="supervision-facts"><dt>Inicio</dt><dd>@MyWorkPresentation.Time(a.StartsAt)</dd><dt>Vencimiento</dt><dd>@MyWorkPresentation.Time(a.DueAt)</dd><dt>Requisito de conclusión</dt><dd>@TaskLabels.Label(a.Requirement)</dd><dt>Periodicidad</dt><dd>@TaskLabels.Label(a.PeriodType) @(a.PeriodType == "OCASIONAL" ? "· asignación única" : $"· {a.Repetitions} repeticiones")</dd><dt>Carga</dt><dd>@a.LoadMinutes min</dd><dt>Plazo</dt><dd>@((a.DueAt - a.StartsAt).TotalHours) horas</dd></dl>
+        @if (a.Comment is not null) { <h3>Requisito entregado</h3><p class="supervision-text">@a.Comment</p> }
+        @if (Model.Photographs.Count > 0) { <partial name="~/Pages/MyWork/_OperationalPhotoGallery.cshtml" model="@((a.Id, Model.Photographs))" /> }
+        else if (a.FileName is not null) {
+            var evidenceHref = $"/mi-trabajo?handler=OperationalFile&id={a.Id:D}";
+            <h3>Evidencia enviada</h3>
+            @if (a.Requirement is "CAPTURA_PANTALLA" or "FOTOGRAFIA") {
+                <img class="my-work-evidence-preview" src="@(evidenceHref + "&preview=true")" alt="Evidencia enviada por @a.PersonName para @a.Name" />
+                <a class="boton boton--secundario" href="@(evidenceHref + "&preview=true")" target="_blank" rel="noopener"><partial name="_Icon" model='@("eye")' />Ver tamaño completo</a>
+            }
+            <a class="boton boton--secundario" href="@evidenceHref">Descargar @a.FileName</a>
+        }
+        <h3>Conclusión del responsable</h3><p class="supervision-text">@(a.Conclusion ?? "No se ha registrado una conclusión.")</p>
+        @if (a.GoalUnits > 0) { <h3>Avances registrados</h3><p>@a.ProgressUnits / @a.GoalUnits @a.ProgressUnit</p><progress value="@a.ProgressUnits" max="@a.GoalUnits" aria-label="Progreso de la tarea"></progress><ul>@foreach (var entry in Model.ProgressHistory) { <li>@MyWorkPresentation.Time(entry.OccurredAt) · +@entry.Units @a.ProgressUnit · @entry.Note</li> }</ul> }
+        @if (a.CompletedAt is not null) { <p>Entrega: @MyWorkPresentation.Time(a.CompletedAt.Value)</p> }
+        @if (a.ReviewedAt is not null) { <h3>Decisión de supervisión</h3><p>@Model.Status(a) · @MyWorkPresentation.Time(a.ReviewedAt.Value)</p><p class="supervision-text">@a.ReviewComment</p> }
+        @if (a.StartsAt > Model.Now) { <p>Programada: la revisión y entrega estarán disponibles desde su inicio.</p> }
+        @if (a.StartsAt <= Model.Now && a.ReviewStatus is not ("CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA")) {
+            <form method="post" asp-page-handler="Review" data-supervision-review>
+                <input type="hidden" name="id" value="@a.Id" /><input type="hidden" name="revision" value="@a.Revision" />
+                <fieldset class="supervision-decision"><legend>Resultado de revisión</legend>
+                    <label><input type="radio" name="result" value="yes" checked="@(Model.AttemptedDecision is null or "CONCLUIDA")" />Concluida</label>
+                    <label><input type="radio" name="result" value="no" checked="@(Model.AttemptedDecision is not null and not "CONCLUIDA")" />No concluida</label>
+                </fieldset>
+                <input type="hidden" name="decision" value="CONCLUIDA" data-review-decision />
+                <div data-review-negative hidden>
+                    <label class="campo"><span class="campo__etiqueta">Comentario obligatorio</span><textarea class="campo__control" name="comment" maxlength="4000" data-review-comment>@Model.AttemptedComment</textarea></label>
+                    <label class="campo"><span class="campo__etiqueta">Qué hacer con la tarea</span><select class="campo__control" data-review-action><option value="MISMA_PERSONA">Reasignar a la misma persona</option><option value="ROL" selected="@(Model.AttemptedDecision == "ROL")">@(selected.Assignment.SpecializationId != null ? "Reasignar entre especialistas" : "Reasignar al rol " + SessionPresentation.RoleName(selected.Role))</option><option value="NO_SATISFECHA" selected="@(Model.AttemptedDecision == "NO_SATISFECHA")">Terminar como no satisfecha</option></select></label>
+                </div>
+                <button class="boton boton--primario" type="submit"><partial name="_Icon" model='@("check")' />Guardar revisión</button>
+            </form>
+        }
+    </dialog>
+}
+@section Scripts { <script src="~/js/occasion-material.js" asp-append-version="true"></script><script src="~/js/supervision.js" asp-append-version="true"></script><script src="~/js/capacity.js" asp-append-version="true"></script> }

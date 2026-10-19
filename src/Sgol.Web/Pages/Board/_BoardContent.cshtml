@@ -1,0 +1,68 @@
+@model Sgol.Web.Infrastructure.Persistence.Planning.LiveBoardSnapshot
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@{
+    var end = OperationalSchedule.Instant(Model.Day.AddDays(1));
+}
+<div class="board-content" data-server-now="@Model.Now.ToUnixTimeMilliseconds()" data-day-end="@end.ToUnixTimeMilliseconds()" data-day="@Model.Day.ToString("yyyy-MM-dd")" data-plan="@Model.PlanId" data-task="@Model.TaskId">
+    <header class="board-header">
+        <div class="board-heading">
+            @if (!Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User)) {
+                <a class="board-back" href="/mi-trabajo" aria-label="Regresar a la pantalla anterior" title="Regresar" data-board-back><partial name="_Icon" model='@("back")' /></a>
+            }
+            <h1>Tablero</h1>
+            <a class="board-action" href="/tablero/rol-de-tareas">Ver Rol de Tareas</a>
+        </div>
+        <form class="board-plan" method="get" action="/tablero">
+            <label class="solo-lectores" for="board-plan">Plan de trabajo</label>
+            <select id="board-plan" name="plan" aria-label="Plan de trabajo">
+                <option value="" selected="@(Model.PlanId is null)">Entregas con cierre hoy</option>
+                @foreach (var plan in Model.Plans) {
+                    <option value="@plan.Id" selected="@(plan.Id == Model.PlanId)">@plan.Name</option>
+                }
+            </select>
+            <label class="solo-lectores" for="board-task">Consultar tarea</label>
+            <select id="board-task" name="task" aria-label="Consultar tarea">
+                <option value="" selected="@(Model.TaskId is null)">Todas las tareas del día</option>
+                @foreach (var task in Model.TaskOptions) {
+                    <option value="@task.Id" selected="@(task.Id == Model.TaskId)">@task.Name · @task.PersonName · @task.PlanName</option>
+                }
+            </select>
+            <noscript><button type="submit">Ver plan</button></noscript>
+        </form>
+        <span class="board-day">@Model.DayName</span>
+    </header>
+    <section class="board-progress" aria-label="Progreso de entregas con cierre hoy">
+        <div class="board-progress__labels"><span>Entregas con cierre hoy <strong>@Model.Delivered / @Model.DayTasks.Count</strong></span><strong>@Model.Percent%</strong></div>
+        <progress value="@Model.Delivered" max="@Math.Max(1, Model.DayTasks.Count)" aria-label="@Model.Delivered de @Model.DayTasks.Count tareas entregadas, @Model.Percent por ciento"></progress>
+    </section>
+    <div class="board-meta">
+        <span>@Model.Day.ToString("dd/MM/yyyy") · Jornada 08:00–20:00 · Ciudad de México <span class="board-live" data-live-status>Conectando…</span></span>
+        <div class="board-legend" aria-label="Colores del tablero">
+            <span><i class="scheduled"></i>Por activar</span><span><i class="active"></i>Activa</span>
+            <span><i class="warning"></i>Último 30% del tiempo</span><span><i class="urgent"></i>≤10% restante o vencida</span><span><i class="delivered"></i>Entregada</span>
+        </div>
+    </div>
+    <div class="board-viewport" tabindex="0" aria-label="Tareas del tablero; usa las flechas para desplazarte">
+    @if (Model.Tasks.Count == 0) {
+        <div class="board-empty"><partial name="_Icon" model='@("calendar")' /><h2>No hay tareas para mostrar hoy</h2><p>@(Model.PlanId is not null ? "Este plan no tiene tareas asignadas hoy" : "No hay tareas asignadas con cierre hoy.")</p></div>
+    }
+    <div class="board-grid">
+            @foreach (var task in Model.OrderedTasks) {
+                var color = task.Color(Model.Now);
+                var state = color switch { "scheduled" => "Por activar", "active" => "Activa", "warning" => "Último 30% del tiempo", "urgent" => task.DueAt <= Model.Now ? "Vencida" : "Último 10% del tiempo", _ => "Entregada" };
+                <article class="board-card board-card--@color" data-task-id="@task.Id" data-start="@task.StartsAt.ToUnixTimeMilliseconds()" data-due="@task.DueAt.ToUnixTimeMilliseconds()" data-delivered="@(task.CompletedAt is not null ? "true" : "false")">
+                    <span class="board-card__state">@(color == "delivered" ? "✓ " : "")@state</span>
+                    <h3>@task.Name</h3>
+                    <p class="board-card__origin">@task.Origin · @task.PlanName</p>
+                    <dl><div class="board-card__person"><dt>Responsable</dt><dd>@task.PersonName<small class="board-card__role">@SessionPresentation.RoleName(task.Role)</small></dd></div>
+                        <div><dt>Activación</dt><dd><time datetime="@task.StartsAt.ToString("O")">@Model.Time(task.StartsAt)</time></dd></div>
+                        <div><dt>Cierre</dt><dd><time datetime="@task.DueAt.ToString("O")">@Model.Time(task.DueAt)</time></dd></div>
+                    </dl>
+                    @if (task.GoalUnits > 0) {
+                        <div class="board-card__progress"><span>@task.ProgressUnits / @task.GoalUnits @task.ProgressUnit</span><progress value="@task.ProgressUnits" max="@task.GoalUnits" aria-label="Avance de @task.Name"></progress></div>
+                    }
+                </article>
+            }
+    </div>
+    </div>
+</div>

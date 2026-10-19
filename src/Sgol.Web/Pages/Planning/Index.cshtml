@@ -1,0 +1,9 @@
+@page "/planificacion"
+@model Sgol.Web.Pages.Planning.IndexModel
+@{ ViewData["Title"] = "Planificación"; }
+@if (TempData["ProcessPlanDeleted"] is string message) { <p class="alerta alerta--exito" role="status">@message</p> }
+<partial name="_DirectionPlans" model="Model" />
+<partial name="_Closing" model="Model" />
+@section Scripts {
+    <script src="~/js/direction-plans.js" asp-append-version="true"></script>
+}

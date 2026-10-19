@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Organization domain contracts for SGOL.</Description>
+  </PropertyGroup>
+</Project>

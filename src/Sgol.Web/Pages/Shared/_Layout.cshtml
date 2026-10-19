@@ -1,0 +1,105 @@
+@inject Sgol.Web.Presentation.Navigation.IRazorSessionState SessionState
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@{
+    var title = ViewData["Title"] as string ?? "SGOL";
+    var navigationItems = RoleScreenAccess.Items;
+    var systemError = ViewData["SystemError"] is true;
+    var errorSession = ViewData["SystemErrorSession"] as Sgol.Identity.Contracts.SessionSnapshot;
+    var shell = systemError ? errorSession is not null : Context.Request.Path.StartsWithSegments("/tareas") || Context.Request.Path.StartsWithSegments("/mi-trabajo") ||
+        Context.Request.Path.StartsWithSegments("/validaciones") ||
+        Context.Request.Path.StartsWithSegments("/asignar-tarea") ||
+        Context.Request.Path.StartsWithSegments("/personas-y-accesos") ||
+        Context.Request.Path.StartsWithSegments("/configuracion") ||
+        Context.Request.Path.StartsWithSegments("/planificacion") ||
+        Context.Request.Path.StartsWithSegments("/reportes");
+    var session = systemError ? errorSession : shell ? await SessionState.GetAsync(Context.RequestAborted) : null;
+    var roleName = session is null ? null : SessionPresentation.RoleName(session.RoleCode);
+    if (roleName is null) session = null;
+    var visibleItems = RoleAwareNavigation.VisibleTo(session, navigationItems)
+        .OrderBy(item => item.Href == "/configuracion" ? 1 : 0).ToList();
+    var hasNavigation = visibleItems.Count > 0;
+    var initials = session is null ? "" : string.Concat(session.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[..1])).ToUpperInvariant();
+    var accessPage = ViewData["SkipSession"] is true;
+}
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@title — SGOL</title>
+    <script src="~/js/theme.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/camera-capture.css" asp-append-version="true" />
+</head>
+<body class="@(systemError ? "pagina-error-sistema" : accessPage ? "pagina-acceso" : null)">
+    <a class="salto-contenido" href="#contenido-principal">Saltar al contenido principal</a>
+    <div class="aplicacion @(!shell ? "aplicacion--acceso" : !hasNavigation ? "aplicacion--sin-navegacion" : null)">
+        <header class="encabezado-aplicacion">
+            <span class="encabezado-aplicacion__marca">@title</span>
+            @if (session is not null)
+            {
+                <details class="menu-sesion" data-session-menu>
+                    <summary class="avatar-sesion" aria-label="Opciones de la cuenta de @session.DisplayName">@initials</summary>
+                    <div class="menu-sesion__desplegable">
+                        <form method="post" action="/mi-trabajo" asp-antiforgery="false" class="encabezado-aplicacion__logout" data-logout-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+                            <button class="boton boton--textual" type="submit"><partial name="_Icon" model='@("logout")' />Cerrar sesión</button>
+                        </form>
+                    </div>
+                </details>
+                <div class="encabezado-aplicacion__identidad">
+                    <span class="encabezado-aplicacion__sesion">@session.DisplayName</span>
+                    <span class="encabezado-aplicacion__rol">@roleName</span>
+                </div>
+                @if (hasNavigation)
+                {
+                    <button class="boton boton--secundario navegacion-movil__abrir" type="button"
+                            data-dialog-open aria-controls="navegacion-movil"><partial name="_Icon" model='@("menu")' /><span class="solo-lectores">Navegación principal</span></button>
+                }
+            }
+        </header>
+        @if (hasNavigation)
+        {
+        <aside class="barra-lateral">
+            <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /><p>SGOL · Gestión operativa</p></div>
+            <nav class="navegacion-lateral navegacion-lateral--escritorio" aria-label="Navegación principal">
+                <ul class="navegacion-lateral__lista">
+                    @foreach (var item in visibleItems)
+                    {
+                        <li>
+                            <a class="navegacion-lateral__item"
+                               href="@item.Href"
+                               aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)">
+                                <partial name="_Icon" model='@(item.Label switch { "Mi trabajo" => "briefcase", "Tablero" => "calendar", "Supervisión" => "eye", "Configuración" => "settings", "Planificación" => "calendar", "Reportes" => "report", "Personas y accesos" => "users", _ => "list" })' />@item.Label
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </nav>
+            <div class="sucursal-contexto"><span>Sucursal</span><strong>Loretta · @session!.BranchCode</strong><small>Hora operativa de Ciudad de México</small></div>
+                <dialog id="navegacion-movil" class="navegacion-movil" aria-label="Navegación principal">
+                    <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /><p>SGOL · Gestión operativa</p></div>
+                    <form method="dialog"><button class="boton boton--secundario" type="submit" data-initial-focus><partial name="_Icon" model='@("close")' />Cerrar navegación</button></form>
+                    <nav aria-label="Navegación principal móvil">
+                        <ul class="navegacion-lateral__lista">
+                            @foreach (var item in visibleItems)
+                            {
+                                <li><a class="navegacion-lateral__item" href="@item.Href"
+                                       aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)"><partial name="_Icon" model='@(item.Label switch { "Mi trabajo" => "briefcase", "Tablero" => "calendar", "Supervisión" => "eye", "Configuración" => "settings", "Planificación" => "calendar", "Reportes" => "report", "Personas y accesos" => "users", _ => "list" })' />@item.Label</a></li>
+                            }
+                        </ul>
+                    </nav>
+                </dialog>
+        </aside>
+        }
+        <main id="contenido-principal" class="contenido-principal" tabindex="-1">
+            @RenderBody()
+        </main>
+    </div>
+    <script src="~/js/components.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
+
+

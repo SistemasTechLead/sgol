@@ -1,0 +1,10 @@
+.camera-capture { margin-block: 1rem; }
+.camera-dialog { width: min(94vw, 720px); max-height: 94dvh; overflow: auto; padding: 1.25rem; border: 1px solid var(--color-borde, #999); border-radius: 12px; background: var(--color-superficie, Canvas); color: var(--color-texto-primario, CanvasText); }
+.camera-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.camera-dialog video, .camera-dialog > img { display: block; width: 100%; max-height: 60dvh; object-fit: contain; background: #111; border-radius: 8px; }
+.camera-dialog [hidden] { display: none; }
+.camera-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 1rem; margin-block: 1rem; }
+.camera-gallery figure { margin: 0; padding: .5rem; border: 1px solid var(--color-borde, #999); border-radius: 8px; }
+.camera-gallery img { display: block; width: 100%; max-height: 240px; object-fit: contain; }
+.camera-gallery figcaption { overflow-wrap: anywhere; margin-block: .5rem; }
+.camera-gallery button { margin-top: .5rem; }

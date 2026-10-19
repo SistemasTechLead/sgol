@@ -1,0 +1,31 @@
+@model Sgol.Web.Pages.MyWork.DetailsModel
+@using Sgol.Web.Presentation.Validation
+@using Sgol.Web.Presentation.MyWork
+<section class="panel-seccion mi-trabajo__seccion" id="validaciones-historia" aria-labelledby="validaciones-historia-title">
+    <header class="panel-seccion__cabecera"><h2 id="validaciones-historia-title" tabindex="-1">Historial de validaciones</h2></header>
+    <div class="evidencia__contenido">
+    <p>La validación es una decisión separada. La ejecución permanece concluida.</p>
+    @if (Model.ValidationError is not null) { <div tabindex="-1" data-front-error><partial name="_ProblemAlert" model="Model.ValidationError" /></div> }
+    @if (Model.ValidationSuccess is not null) { <p class="alerta alerta--exito" role="status" tabindex="-1" data-front-success><partial name="_Icon" model='@("check")' /> @Model.ValidationSuccess</p> }
+    @if (Model.Validations is { } history)
+    {
+        @if (history.ValidationRequirement is { } requirement) { <partial name="_StatusBadge" model="@ValidationPresentation.Badge(requirement.Status)" /><p>Política capturada: @requirement.PolicyVersionId · @MyWorkPresentation.Time(requirement.CreatedAt)</p> }
+        @if (history.Decisions.Count == 0) { <partial name="_EmptyState" model='@(new EmptyStateViewModel("Aún no hay decisiones de validación"))' /> }
+        else
+        {
+            <div class="tabla-contenedor"><table class="tabla"><caption>Decisiones vigentes y sustituidas · Hora de Ciudad de México</caption><thead class="tabla__encabezado"><tr><th scope="col">Versión y estado</th><th scope="col">Resultado y fundamento</th><th scope="col">Validador y autoridad</th><th scope="col">Fecha y motivo</th><th scope="col">Referencias históricas</th></tr></thead><tbody>
+                @foreach (var decision in history.Decisions)
+                {
+                    <tr class="tabla__fila"><td>Versión @decision.VersionNo<br /><partial name="_StatusBadge" model="@ValidationPresentation.Badge(decision.Status)" /></td>
+                    <td><partial name="_StatusBadge" model="@ValidationPresentation.Badge(decision.Result)" /><p>@decision.Foundation</p></td>
+                    <td>@decision.ValidatorUserId<br />@SessionPresentation.RoleName(decision.ValidatorRole)<br />@ValidationPresentation.Authority(decision.AuthorityType)</td>
+                    <td>@MyWorkPresentation.Time(decision.DecidedAt)@if (decision.Reason is not null) { <p>@(decision.AuthorityType == "ESCALAMIENTO" ? "Motivo de escalamiento" : "Motivo de sustitución"): @decision.Reason</p> }</td>
+                    <td>Decisión: @decision.DecisionVersionId<br />Predecesora: @decision.SupersedesDecisionVersionId<br />Revisión: @decision.EvidenceReviewSnapshotId
+                    <ul>@foreach (var evidence in decision.EvidenceVersionIds) { <li>Versión de evidencia: @evidence</li> }</ul></td></tr>
+                }
+            </tbody></table></div>
+        }
+    }
+    @if (Model.ValidationConflict || Model.ValidationError is not null) { <a class="boton boton--secundario" href="@Model.ReloadHref#validaciones-historia">Recargar validaciones</a> }
+    </div>
+</section>

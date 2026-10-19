@@ -1,0 +1,39 @@
+@page "/asignar-tarea"
+@model Sgol.Web.Pages.Occasional.IndexModel
+@using Sgol.Web.Pages.Tasks
+@{ ViewData["Title"] = "Asignar tarea"; }
+<section class="panel-seccion tasks-editor" aria-labelledby="occasional-title">
+    <header class="panel-seccion__cabecera"><h1 id="occasional-title">Asignar tarea</h1></header>
+    <p>Elige una tarea ocasional existente o crea una nueva. Cada asignación se realiza una sola vez y conserva su evidencia.</p>
+    @if (TempData["OccasionalAssigned"] is string message) { <p class="alerta alerta--exito" role="status">@message</p> }
+    @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+    <form method="get" class="tasks-search occasional-search"><label class="campo"><span class="campo__etiqueta">Buscar tarea ocasional</span><input class="campo__control" asp-for="Search" type="search" /></label><button class="boton boton--secundario" type="submit">Buscar</button></form>
+    <h2>Tareas ocasionales disponibles</h2>
+    @if (Model.Items.Count == 0) { <p>No hay tareas ocasionales disponibles con esta búsqueda.</p> }
+    <ul>
+        @foreach (var task in Model.Items) {
+            <li><strong>@task.Name</strong> · @IndexModel.Label(task.Requirement) · @task.LoadMinutes min
+                <a class="boton boton--primario" href="/asignar-tarea/asignar?taskId=@task.Id">Asignar</a></li>
+        }
+    </ul>
+    <details class="occasional-create" open="@(Model.Error != null)"><summary class="boton boton--primario">Crear nueva tarea ocasional</summary>
+        <p>Se guardará en el catálogo para reutilizarla. Después elegirás destinatarios, instrucciones y fechas. Para tareas con especialización, utiliza una definición existente configurada por Dirección.</p>
+        <form method="post" asp-page-handler="Create" data-occasional-create>
+            <div class="planificacion__formulario">
+                <label class="campo"><span class="campo__etiqueta">Nombre</span><input class="campo__control" asp-for="Input.Name" maxlength="500" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Descripción (opcional)</span><textarea class="campo__control" asp-for="Input.Description" maxlength="4000" rows="5"></textarea><small>Explica qué se debe hacer. Hasta 4,000 caracteres.</small></label>
+                <label class="campo"><span class="campo__etiqueta">Evidencia requerida</span><select class="campo__control" asp-for="Input.Requirement" data-occasional-evidence>
+                    @foreach (var requirement in new[] { "NINGUNO", "COMENTARIO", "FOTOGRAFIA", "DOCUMENTO", "EXCEL", "CAPTURA_PANTALLA" }) { <option value="@requirement">@IndexModel.Label(requirement)</option> }
+                </select></label>
+                <label class="campo"><span class="campo__etiqueta">Carga por persona (minutos)</span><input class="campo__control" asp-for="Input.LoadMinutes" type="number" min="1" max="4800" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Plazo sugerido (horas)</span><input class="campo__control" asp-for="Input.DeadlineHours" type="number" min="1" max="8760" required /></label>
+                <label class="campo" data-occasional-photos hidden="@(Model.Input.Requirement is not ("FOTOGRAFIA" or "CAPTURA_PANTALLA"))"><span class="campo__etiqueta">Imágenes mínimas</span><input class="campo__control" asp-for="Input.MinimumPhotos" type="number" min="1" max="20" required disabled="@(Model.Input.Requirement is not ("FOTOGRAFIA" or "CAPTURA_PANTALLA"))" /></label>
+                <label class="campo" data-occasional-photos hidden="@(Model.Input.Requirement is not ("FOTOGRAFIA" or "CAPTURA_PANTALLA"))"><span class="campo__etiqueta">Imágenes máximas</span><input class="campo__control" asp-for="Input.MaximumPhotos" type="number" min="1" max="20" required disabled="@(Model.Input.Requirement is not ("FOTOGRAFIA" or "CAPTURA_PANTALLA"))" /></label>
+            </div>
+            <button class="boton boton--primario" type="submit">Crear y elegir destinatarios</button>
+        </form>
+    </details>
+</section>
+@section Scripts {
+    <script src="~/js/occasional-create.js" asp-append-version="true"></script>
+}

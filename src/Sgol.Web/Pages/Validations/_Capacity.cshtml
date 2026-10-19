@@ -1,0 +1,62 @@
+@model Sgol.Web.Pages.Validations.IndexModel
+@using Sgol.Web.Presentation.Navigation
+@using Sgol.Web.Presentation.MyWork
+<details id="capacity" class="panel-seccion supervision-section capacity-panel" aria-labelledby="capacity-title"
+         open="@(Model.CapacityPreview is not null || Model.CapacitySuccess is not null || Context.Request.Query.ContainsKey("CapacityFrom") || Context.Request.Query.ContainsKey("CapacityThrough") || Context.Request.Query["handler"].ToString() is "CapacityPreview" or "CapacityApply")">
+    <summary class="capacity-panel__summary">
+        <h2 id="capacity-title">Carga de trabajo por persona</h2>
+        <span class="capacity-panel__hint"><span class="capacity-panel__show">Ver carga</span><span class="capacity-panel__hide">Ocultar carga</span></span>
+    </summary>
+    <div class="capacity-panel__content">
+    <p>Reduce la capacidad cuando una persona tenga otras responsabilidades. El reparto conserva fechas y requisitos; mueve tareas a compañeros con espacio disponible del mismo rol o, en tareas especializadas, de otros roles que tengan la especialización requerida y no estén a prueba.</p>
+    <p><small>Base inicial: @(Sgol.Web.Infrastructure.Persistence.Planning.OperationalCapacity.DefaultDailyMinutes) minutos diarios para tareas operativas, editable. Los días registrados como no disponibles aportan 0 minutos; configura los descansos para reflejar la jornada real.</small></p>
+    @if (Model.CapacitySuccess is not null) { <p role="status" class="alerta alerta--info">@Model.CapacitySuccess</p> }
+    <form method="get" class="planificacion__formulario">
+        <label class="campo"><span class="campo__etiqueta">Desde</span><input class="campo__control" type="date" name="CapacityFrom" value="@Model.CapacityFrom?.ToString("yyyy-MM-dd")" required /></label>
+        <label class="campo"><span class="campo__etiqueta">Hasta</span><input class="campo__control" type="date" name="CapacityThrough" value="@Model.CapacityThrough?.ToString("yyyy-MM-dd")" required /></label>
+        <button class="boton boton--secundario" type="submit">Consultar carga</button>
+    </form>
+    @if (Model.CapacityRows.Count == 0) { <p>No hay colaboradores activos dentro de tu alcance de supervisión.</p> }
+    @foreach (var row in Model.CapacityRows) {
+        var percent = row.Available > 0 ? (int)Math.Min(999, Math.Ceiling(row.Load * 100m / row.Available)) : row.Load > 0 ? 100 : 0;
+        <details class="capacity-person">
+            <summary><strong>@row.Name</strong> · @SessionPresentation.RoleName(row.Role) · @row.Load min / @row.Available.ToString("0.#") min disponibles · @percent% de ocupación</summary>
+            <progress value="@Math.Min(100, percent)" max="100" aria-label="Ocupación de @row.Name"></progress>
+            @if (row.Load > row.Available) { <p class="alerta alerta--peligro">La carga supera la capacidad disponible.</p> }
+            @if (row.ProtectedLoad > 0) { <p>@row.ProtectedLoad minutos pertenecen a tareas con avances registrados u ocasiones asignadas. Las ocasionales conservan su responsable al ajustar capacidad.</p> }
+            <form method="post" asp-page-handler="CapacityPreview" data-capacity-form>
+                <input type="hidden" name="Change.PersonId" value="@row.PersonId" />
+                <input type="hidden" name="Change.From" value="@Model.CapacityFrom?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="Change.Through" value="@Model.CapacityThrough?.ToString("yyyy-MM-dd")" />
+                <p><strong>Ajustar únicamente a @row.Name</strong>. Sus compañeros de @SessionPresentation.RoleName(row.Role) podrán recibir las tareas que excedan esta capacidad.</p>
+                <label class="campo"><span class="campo__etiqueta">Capacidad de @row.Name: <output data-capacity-output>@row.Percent%</output></span><input type="range" name="Change.Percent" min="0" max="100" step="5" value="@row.Percent" data-capacity-slider aria-label="Capacidad disponible para @row.Name" /></label>
+                <label class="campo"><span class="campo__etiqueta">Minutos diarios de referencia al 100%</span><input class="campo__control" type="number" name="Change.DailyMinutes" min="1" max="480" value="@row.DailyMinutes" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Motivo</span><textarea class="campo__control" name="Change.Reason" maxlength="1000" required></textarea></label>
+                <label><input type="checkbox" name="Change.TransferStarted" value="true" /> Permitir transferir tareas con avances, conservando su progreso</label>
+                <p>La vigencia seleccionada se restaura automáticamente al terminar. Las tareas transferidas permanecen con su nuevo responsable.</p>
+                <button class="boton boton--primario" type="submit">Ver redistribución propuesta</button>
+            </form>
+        </details>
+    }
+    @if (Model.CapacityPreview is { } preview) {
+        <section class="capacity-preview" aria-labelledby="capacity-preview-title">
+            <h3 id="capacity-preview-title" tabindex="-1" data-capacity-preview>Redistribución de @(Model.CapacityRows.Single(r => r.PersonId == preview.Change.PersonId).Name)</h3>
+            <p>@preview.Change.Percent% de @preview.Change.DailyMinutes min diarios · @preview.Change.From.ToString("dd/MM/yyyy") — @preview.Change.Through.ToString("dd/MM/yyyy")</p>
+            <p>@preview.Moves.Count tareas · @preview.Moves.Sum(m => m.Minutes) minutos a transferir</p>
+            @if (preview.RemainingExcess > 0) { <p role="alert" class="alerta alerta--peligro">Quedan @preview.RemainingExcess minutos de exceso. No se encontró capacidad suficiente para transferirlos o pertenecen a trabajo protegido. El ajuste no elimina esas tareas.</p> }
+            @if (preview.Moves.Count > 0) {
+                <div class="tabla-contenedor"><table class="tabla"><thead><tr><th>Tarea</th><th>De</th><th>A</th><th>Esfuerzo restante</th><th>Inicio / vencimiento</th></tr></thead><tbody>
+                @foreach (var move in preview.Moves) { <tr><td>@move.TaskName</td><td>@move.FromName</td><td>@move.ToName</td><td>@move.Minutes min</td><td>@MyWorkPresentation.Time(move.StartsAt)<br />@MyWorkPresentation.Time(move.DueAt)</td></tr> }
+                </tbody></table></div>
+            }
+            <form method="post" asp-page-handler="CapacityApply">
+                <input type="hidden" asp-for="Change.PersonId" /><input type="hidden" asp-for="Change.From" /><input type="hidden" asp-for="Change.Through" />
+                <input type="hidden" asp-for="Change.Percent" /><input type="hidden" asp-for="Change.DailyMinutes" /><input type="hidden" asp-for="Change.Reason" />
+                <input type="hidden" asp-for="Change.TransferStarted" /><input type="hidden" asp-for="Fingerprint" />
+                <button class="boton boton--primario" type="submit">Aplicar capacidad y redistribuir</button>
+                <a class="boton boton--secundario" href="/validaciones#capacity">Cancelar</a>
+            </form>
+        </section>
+    }
+    </div>
+</details>

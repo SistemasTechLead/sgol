@@ -1,0 +1,19 @@
+@model Sgol.Web.Pages.MyWork.DetailsModel
+@using Sgol.Web.Presentation.MyWork
+<form method="post" asp-route-returnToken="@Model.ReturnToken" asp-page-handler="PrepareUpload" class="evidencia__formulario" data-photo-evidence data-reload="@Model.ReloadHref" data-replacement="@(Model.Replacement is not null ? "true" : "false")">
+    <input type="hidden" name="requirementCode" value="@Model.SelectedRequirement!.RequirementCode" />
+    @if (Model.Replacement is not null)
+    {
+        <input type="hidden" name="replacement" value="@Model.ReplacementToken" />
+        <label class="campo"><span class="campo__etiqueta">@(Model.ReplacementNeedsReason ? "Motivo" : "Motivo (opcional)")</span>
+        <textarea class="campo__control" name="reason" maxlength="500" required="@Model.ReplacementNeedsReason">@Model.ReplacementReason</textarea></label>
+    }
+    <partial name="_CameraCapture" model='@(new CameraPresentation("evidence-camera"))' />
+    <p role="status" aria-live="polite" data-photo-status></p>
+    <div class="acciones-formulario">
+        <button class="boton boton--primario" type="button" data-photo-upload disabled>Subir fotografías</button>
+        <button class="boton boton--secundario" type="button" data-photo-cancel hidden>Detener carga</button>
+        <button class="boton boton--secundario" type="button" data-photo-refresh hidden>Actualizar estado</button>
+        <button class="boton boton--primario" type="button" data-photo-contribute disabled>@(Model.Replacement is null ? "Aportar evidencia" : "Sustituir evidencia")</button>
+    </div>
+</form>

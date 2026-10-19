@@ -1,0 +1,8 @@
+@model (Guid AssignmentId, IReadOnlyList<Sgol.Web.Infrastructure.Persistence.Planning.OperationalPhotographDetails> Photos)
+<section class="camera-gallery" aria-label="Fotografías de evidencia">
+@foreach (var photo in Model.Photos)
+{
+    var href = $"/mi-trabajo?handler=OperationalFile&id={Model.AssignmentId:D}&photoId={photo.Id:D}";
+    <figure><img class="my-work-evidence-preview" src="@href" alt="Fotografía @(photo.Position + 1) de evidencia" loading="lazy" /><figcaption><a href="@href" target="_blank" rel="noopener">Abrir fotografía @(photo.Position + 1)</a></figcaption></figure>
+}
+</section>

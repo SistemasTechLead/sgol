@@ -1,0 +1,36 @@
+PANTALLA SGOL - ZAPATERIA
+
+Este paquete se instala en la computadora de la zapateria.
+No incluye una cuenta de administrador ni una credencial de pantalla ya vinculada.
+
+1. Copia y extrae la carpeta completa en la computadora de la zapateria.
+2. Entra con la cuenta de Windows que se quedara para la pantalla, preferentemente
+   una cuenta local estandar dedicada a este uso.
+3. Abre Instalar.cmd normalmente, sin Ejecutar como administrador.
+4. Se instalara el programa en LocalAppData, se confiara el certificado publico
+   de SGOL solo para esa cuenta y se agregara Pantalla SGOL al inicio de la sesion.
+5. Edge mostrara un codigo de vinculacion de 10 caracteres. Compartelo en la
+   conversacion donde se esta preparando esta pantalla. Caduca a los 15 minutos;
+   si vence, la pagina pedira uno nuevo automaticamente.
+6. Al aprobarlo, el tablero se abrira solo. La pantalla solo podra consultar
+   Tablero y Rol de tareas.
+
+La credencial se crea en esa computadora y se guarda protegida con DPAPI para
+esa cuenta de Windows. No copies device.bin a otra cuenta o computadora.
+El servidor conserva un hash de la credencial; Edge solo recibe pases de un uso.
+Las sesiones del navegador duran dos horas y se recuperan automaticamente.
+Si no hay red, se reintenta sin pedir la contrasena de una persona.
+
+FALTA CONFIGURAR DESPUES:
+El inicio automatico de Windows y la suspension de la computadora. Este paquete
+abre Edge cuando inicia la sesion de Windows; no cambia el acceso a Windows.
+Comunica si el equipo usa Windows 10 u 11 y si es Home o Pro para terminarlo.
+
+La computadora que sirve SGOL debe estar encendida y accesible en la misma red.
+Si cambia su direccion o su certificado, solicita una configuracion actualizada.
+
+Para salir del navegador de pantalla usa Alt+F4. El programa puede volver a
+abrirlo mientras siga ejecutandose. Para mantenimiento, termina
+Sgol.ScreenClient desde el Administrador de tareas y luego cierra Edge.
+Para desactivar el arranque, retira solo el acceso Pantalla SGOL de shell:startup.
+La revocacion del acceso a SGOL se hace desde la administracion del servidor.

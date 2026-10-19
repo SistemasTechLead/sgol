@@ -1,0 +1,22 @@
+@page "/pantalla"
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Conectando pantalla — SGOL</title>
+    <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
+</head>
+<body class="board-page">
+    <main><h1>Conectando pantalla</h1><p>Recuperando el acceso al tablero desde esta computadora…</p>
+        <p><a href="http://127.0.0.1:17841/">Volver a conectar</a></p>
+        <p>Si no se abre, inicia el programa Pantalla SGOL en esta computadora.</p>
+    </main>
+    <script src="~/js/screen-reconnect.js" asp-append-version="true" defer></script>
+</body>
+</html>

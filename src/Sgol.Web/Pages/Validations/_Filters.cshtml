@@ -1,0 +1,31 @@
+@model Sgol.Web.Pages.Validations.SupervisionFilterModel
+@{
+    var key = Model.Section.Key;
+    var screen = Model.Page;
+    var selects = new (string Field, string Label, IEnumerable<KeyValuePair<string, string>> Options)[] {
+        ("range", "Fechas", new Dictionary<string, string> { [""] = "Todas las fechas", ["SEMANAL"] = "En esta semana", ["MENSUAL"] = "En este mes", ["TRIMESTRAL"] = "En este trimestre", ["SEMESTRAL"] = "En este semestre", ["ANUAL"] = "En este año", ["CUSTOM"] = "Rango de fechas" }),
+        ("period", "Periodicidad", new Dictionary<string, string> { [""] = "Todas", ["SEMANAL"] = "Semanal", ["MENSUAL"] = "Mensual", ["TRIMESTRAL"] = "Trimestral", ["SEMESTRAL"] = "Semestral", ["ANUAL"] = "Anual", ["OCASIONAL"] = "Ocasional" }),
+        ("status", "Estado", new Dictionary<string, string> { [""] = "Todos", ["ASIGNADA"] = "Asignada", ["PROGRAMADA"] = "Programada", ["VENCIDA"] = "Vencida", ["PENDIENTE_REVISION"] = "Pendiente de revisión", ["CONCLUIDA"] = "Concluida", ["REASIGNADA"] = "Reasignada", ["NO_SATISFECHA"] = "No satisfecha" }),
+        ("requirement", "Requisito", new Dictionary<string, string> { [""] = "Todos", ["FOTOGRAFIA"] = "Fotografía", ["CAPTURA_PANTALLA"] = "Captura de pantalla", ["DOCUMENTO"] = "Documento PDF", ["EXCEL"] = "Documento Excel (.xlsx)", ["COMENTARIO"] = "Comentario", ["NINGUNO"] = "Ninguno" }),
+        ("person", "Responsable", new[] { new KeyValuePair<string, string>("", "Todos") }.Concat(Model.Section.All.DistinctBy(t => t.Assignment.PersonId).Select(t => new KeyValuePair<string, string>(t.Assignment.PersonId.ToString(), t.Assignment.PersonName)))),
+        ("plan", "Plan", new[] { new KeyValuePair<string, string>("", "Todos") }.Concat(Model.Section.All.DistinctBy(t => t.Assignment.PlanId).Select(t => new KeyValuePair<string, string>(t.Assignment.PlanId.ToString(), t.PlanName))))
+    };
+    var reset = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/validaciones", ViewContext.HttpContext.Request.Query.Where(q => !q.Key.StartsWith(key + ".") && q.Key != "task" && q.Key != "handler").ToDictionary(q => q.Key, q => (string?)q.Value.ToString())) + "#" + key;
+}
+<form method="get" action="/validaciones#@key" class="supervision-filters">
+    @foreach (var query in ViewContext.HttpContext.Request.Query.Where(q => !q.Key.StartsWith(key + ".") && q.Key != "task" && q.Key != "handler")) { <input type="hidden" name="@query.Key" value="@query.Value" /> }
+    <label class="campo"><span class="campo__etiqueta">Tarea</span><input class="campo__control" name="@(key).search" value="@screen.Value(key, "search")" type="search" /></label>
+    @foreach (var select in selects) {
+        <label class="campo"><span class="campo__etiqueta">@select.Label</span><select class="campo__control" name="@(key).@select.Field">
+        @foreach (var option in select.Options) { <option value="@option.Key" selected="@(screen.Value(key, select.Field) == option.Key)">@option.Value</option> }
+        </select></label>
+    }
+    <details class="supervision-custom" open="@(screen.Value(key, "range") == "CUSTOM")"><summary>Fechas específicas</summary><label class="campo"><span class="campo__etiqueta">Desde</span><input class="campo__control" type="date" name="@(key).from" value="@screen.Value(key, "from")" /></label><label class="campo"><span class="campo__etiqueta">Hasta</span><input class="campo__control" type="date" name="@(key).to" value="@screen.Value(key, "to")" /></label></details>
+    <details class="supervision-custom" open="@(new[] { "repetitions", "hours", "minutes" }.Any(f => screen.Value(key, f).Length > 0))"><summary>Parámetros de tarea</summary>
+        <label class="campo"><span class="campo__etiqueta">Repeticiones por periodo</span><input class="campo__control" type="number" min="1" max="100" name="@(key).repetitions" value="@screen.Value(key, "repetitions")" /></label>
+        <label class="campo"><span class="campo__etiqueta">Plazo en horas</span><input class="campo__control" type="number" min="1" max="8760" name="@(key).hours" value="@screen.Value(key, "hours")" /></label>
+        <label class="campo"><span class="campo__etiqueta">Carga en minutos</span><input class="campo__control" type="number" min="1" max="4800" name="@(key).minutes" value="@screen.Value(key, "minutes")" /></label>
+    </details>
+    <button class="boton boton--secundario" type="submit"><partial name="_Icon" model='@("filter")' />Filtrar</button>
+    <a class="boton boton--textual" href="@reset">Limpiar</a>
+</form>

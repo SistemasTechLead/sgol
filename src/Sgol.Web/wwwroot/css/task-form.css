@@ -1,0 +1,35 @@
+/* Presentation shared by creating and editing a task. */
+.task-form { max-width: 64rem; }
+.task-form [hidden] { display: none !important; }
+.task-form form { min-width: 0; }
+.task-form__section { display: grid; gap: 1.25rem; min-width: 0; padding-block: 1.5rem; border-bottom: 1px solid var(--color-borde); }
+.task-form__section:first-of-type { padding-top: 0; }
+.task-form .task-form__section > h3 { margin: 0; font: var(--tipografia-media); font-weight: 600; color: var(--color-texto-primario); }
+.task-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem 1.5rem; min-width: 0; align-items: start; }
+.task-form [data-periodic-fields]:not([hidden]) { display: grid; }
+.task-form__wide { grid-column: 1 / -1; }
+.task-form .campo { gap: .5rem; min-width: 0; max-width: 100%; margin: 0; align-content: start; }
+.task-form .campo.task-form__wide { max-width: 40rem; }
+.task-form .campo__etiqueta, .task-form__group > legend { font: var(--tipografia-base); font-weight: 600; color: var(--color-texto-primario); }
+.task-form .campo__control { min-width: 0; max-width: 100%; min-height: 44px; font: var(--tipografia-base); }
+.task-form .task-form__number .campo__control { width: min(100%, 10rem); }
+.task-form__section > .campo:not(.task-form__number) { max-width: 36rem; }
+.task-form__help, .task-form__note { display: block; margin: 0; color: var(--color-texto-secundario); font: var(--tipografia-pequena); line-height: 1.6; overflow-wrap: anywhere; }
+.task-form__note { padding: .875rem 1rem; border-inline-start: 3px solid var(--color-borde-fuerte); border-radius: var(--radio-control); background: var(--color-superficie-elevada); }
+.task-form__group { min-width: 0; margin: 0; padding: 1rem; border: 1px solid var(--color-borde); border-radius: var(--radio-tarjeta); }
+.task-form__group > legend { max-width: 100%; padding-inline: .375rem; overflow-wrap: anywhere; }
+.task-form__group > .task-form__help { margin-top: .875rem; }
+.task-form__specialization { display: grid; gap: 1rem; min-width: 0; }
+.task-form__check { display: flex; align-items: start; gap: .625rem; min-width: 0; font: var(--tipografia-base); color: var(--color-texto-primario); cursor: pointer; }
+.task-form__check input { flex: 0 0 1.125rem; width: 1.125rem; height: 1.125rem; margin: .0625rem 0 0; accent-color: var(--color-acento); }
+.task-form__check span { min-width: 0; overflow-wrap: anywhere; }
+.task-form__check-help { margin: .5rem 0 0 1.75rem; }
+.task-form__days { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .75rem; }
+.task-form__actions { padding-top: 1.5rem; }
+@container sgol-viewport (max-width: 48rem) {
+    .task-form__grid { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+    .task-form__section { padding-block: 1.25rem; }
+    .task-form .campo__control { font-size: 16px; }
+    .task-form__actions { flex-direction: column-reverse; }
+    .task-form__actions .boton { width: 100%; max-width: 100%; white-space: normal; }
+}

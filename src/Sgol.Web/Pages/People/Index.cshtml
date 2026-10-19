@@ -1,0 +1,118 @@
+@page "/personas-y-accesos"
+@model Sgol.Web.Pages.People.IndexModel
+@using Sgol.Web.Pages.People
+@using Sgol.Identity.Contracts
+@{ ViewData["Title"] = "Personas y accesos"; }
+<section class="people-page" aria-labelledby="people-title">
+    <header class="encabezado-pagina encabezado-pagina--catalogo">
+        <div class="encabezado-pagina__contenido"><p class="people-eyebrow">Gestión de usuarios</p><h1 id="people-title" class="encabezado-pagina__titulo">Personas y accesos</h1><p class="encabezado-pagina__descripcion">Gestiona los perfiles, roles y acceso de tu equipo.</p></div>
+        <div class="encabezado-pagina__acciones">
+            <a class="boton boton--primario" href="/personas-y-accesos?create=true">Crear usuario</a>
+            @if (Model.IsDirector)
+            {
+                <a class="boton boton--secundario" href="/personas-y-accesos/especializaciones">Ver especializaciones</a>
+            }
+        </div>
+    </header>
+    <p role="status">Asignación por horario: @(Model.TemporalPolicyEnabled ? "activa para nuevas asignaciones" : "pendiente de activación; los horarios se pueden configurar y revisar").</p>
+    @if (Model.Error is not null) { <p id="people-error" class="alerta alerta--peligro" role="alert" tabindex="-1">@Model.Error</p> }
+    @if (Model.Success is not null) { <p class="alerta alerta--exito" role="status">@Model.Success</p> }
+    @if (Model.TemporaryPassword is not null)
+    {
+        <section class="people-secret alerta alerta--advertencia" aria-labelledby="secret-title" data-sensitive-activation>
+            <h2 id="secret-title">Contraseña temporal</h2><p>Usuario: <strong>@Model.CreatedUserName</strong></p>
+            <code class="people-password">@Model.TemporaryPassword</code>
+            <p>Se muestra una sola vez. Compártela con el usuario; deberá cambiarla en su primer ingreso y configurar su acceso.</p>
+        </section>
+    }
+    @if (Model.Editing)
+    {
+        <section class="panel-seccion people-editor" aria-labelledby="editor-title">
+            <header class="panel-seccion__cabecera"><h2 id="editor-title">@(Model.Input.Id == Guid.Empty ? "Crear usuario" : Model.Input.Id == Model.CurrentUserId ? "Editar mi perfil" : "Editar usuario")</h2></header>
+            <form method="post" asp-page-handler="Save" data-progress-form>
+                <input asp-for="Input.Id" type="hidden" /><input asp-for="Input.Revision" type="hidden" /><input asp-for="Input.IntentKey" type="hidden" />
+                <div class="people-form-grid">
+                    <label class="campo" asp-for="Input.DisplayName"><span class="campo__etiqueta">Nombre completo</span><input asp-for="Input.DisplayName" class="campo__control" required minlength="2" maxlength="160" autocomplete="name" /></label>
+                    <label class="campo" asp-for="Input.UserName"><span class="campo__etiqueta">Usuario</span><input asp-for="Input.UserName" class="campo__control" required minlength="3" maxlength="80" autocomplete="off" spellcheck="false" /><span class="campo__ayuda">Nombre para iniciar sesión, sin espacios.</span></label>
+                    <label class="campo" asp-for="Input.RoleCode"><span class="campo__etiqueta">Rol</span>
+                        @if (Model.Input.Id == Model.CurrentUserId)
+                        { <input asp-for="Input.RoleCode" type="hidden" /><input class="campo__control" value="@IndexModel.RoleName(Model.Input.RoleCode)" readonly /><span class="campo__ayuda">Tu perfil conserva su rol de acceso.</span> }
+                        else
+                        { <select asp-for="Input.RoleCode" class="campo__control campo__control--select" required><option value="">Selecciona un rol</option>@foreach (var role in IndexModel.Roles) { <option value="@role">@IndexModel.RoleName(role)</option> }</select> }
+                    </label>
+                </div>
+                @if (Model.IsDirector)
+                {
+                    <input type="hidden" name="Input.ManageSpecializations" value="true" />
+                    <label><input asp-for="Input.IsOnTrial" /> A prueba</label>
+                    <fieldset class="campo"><legend>Especializaciones</legend>
+                        <p>Selecciona varias o deja todas sin marcar. Una persona A prueba no recibe tareas especializadas.</p>
+                        @foreach (var specialty in Model.Specializations.Where(s => s.Active || Model.Input.SpecializationIds.Contains(s.Id))) { <label><input type="checkbox" name="Input.SpecializationIds" value="@specialty.Id" checked="@Model.Input.SpecializationIds.Contains(specialty.Id)" /> @specialty.Name@(specialty.Active ? "" : " (inactiva)")</label> }
+                        @if (Model.Specializations.Count == 0) { <p>Crea especializaciones desde «Ver especializaciones».</p> }
+                    </fieldset>
+                }
+                @if (Model.Input.Id == Guid.Empty) { <p class="people-form-note">La contraseña temporal se genera automáticamente al crear el usuario.</p> }
+                <div class="people-actions"><a class="boton boton--secundario" href="/personas-y-accesos">Cancelar</a><button class="boton boton--primario" type="submit" data-progress-label="Guardando…">@(Model.Input.Id == Guid.Empty ? "Crear usuario" : "Guardar cambios")</button></div>
+            </form>
+        </section>
+    }
+    @if (Model.ShowSchedule) { <partial name="_Schedule" model="Model" /> }
+    <div class="people-counts" aria-label="Resumen de usuarios"><div><strong>@Model.Total</strong><span>Usuarios registrados</span></div><div><strong>@Model.Active</strong><span>Activos</span></div><div><strong>@(Model.Total - Model.Active)</strong><span>Inactivos</span></div></div>
+    <section class="panel-seccion" aria-labelledby="profiles-title">
+        <header class="panel-seccion__cabecera"><h2 id="profiles-title">Perfiles de usuarios</h2></header>
+        <form method="get" class="people-filters">
+            <label class="campo"><span class="campo__etiqueta">Buscar usuario</span><input class="campo__control" type="search" name="Search" value="@Model.Search" placeholder="Nombre o usuario" /></label>
+            <label class="campo"><span class="campo__etiqueta">Estado</span><select class="campo__control campo__control--select" name="State"><option value="">Todos</option><option value="ACTIVA" selected="@(Model.State == "ACTIVA")">Activos</option><option value="INACTIVA" selected="@(Model.State == "INACTIVA")">Inactivos</option></select></label>
+            <button class="boton boton--secundario" type="submit">Buscar</button>
+            @if (!string.IsNullOrEmpty(Model.Search) || !string.IsNullOrEmpty(Model.State)) { <a class="boton boton--terciario" href="/personas-y-accesos">Limpiar</a> }
+        </form>
+        @if (Model.Profiles.Count == 0)
+        { <div class="estado-vacio"><p class="estado-vacio__titulo">No hay usuarios para mostrar</p><p class="estado-vacio__texto">Ajusta la búsqueda o crea un nuevo usuario.</p></div> }
+        else
+        {
+            <div class="tabla-contenedor"><table class="tabla people-table"><caption class="solo-lectores">Perfiles, roles y estado de acceso</caption>
+                <thead class="tabla__encabezado"><tr><th scope="col">Perfil</th><th scope="col">Usuario</th><th scope="col">Rol</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead><tbody>
+                @foreach (var profile in Model.Profiles)
+                {
+                    var own = profile.Id == Model.CurrentUserId;
+                    var active = profile.Status == AccountStatus.Active;
+                    var dialogId = $"user-{profile.Id:D}";
+                    <tr class="tabla__fila @(own ? "people-own-row" : "")">
+                        <td><div class="people-profile"><span class="people-avatar" aria-hidden="true">@string.Concat(profile.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[..1])).ToUpperInvariant()</span><div><strong>@profile.DisplayName</strong>@if (own) { <span class="people-own-label">Tu perfil</span> }</div></div></td>
+                        <td>@profile.UserName</td><td>@IndexModel.RoleName(profile.RoleCode)@if (profile.IsOnTrial) { <br /><span class="badge badge--neutro">A prueba</span> }@if (Model.IsDirector) { <br /><small>@(string.IsNullOrEmpty(Model.SpecializationNames(profile)) ? "Sin especialización" : Model.SpecializationNames(profile))</small> }</td>
+                        <td><span class="badge @(active ? "badge--exito" : "badge--neutro")">@(active ? "Activo" : "Inactivo")</span>@if (active && profile.MustChangePassword) { <small class="people-pending">Primer ingreso pendiente</small> }</td>
+                        <td><div class="people-row-actions"><a class="boton boton--secundario tabla__accion" href="/personas-y-accesos?edit=@profile.Id">Editar<span class="solo-lectores"> @profile.DisplayName</span></a>
+                        @if (!own)
+                        {
+                            <button class="boton boton--secundario tabla__accion" type="button" data-dialog-open aria-controls="@(dialogId + "-status")">@(active ? "Desactivar" : "Reactivar")<span class="solo-lectores"> @profile.DisplayName</span></button>
+                            <button class="boton boton--destructivo tabla__accion" type="button" data-dialog-open aria-controls="@(dialogId + "-delete")">Eliminar<span class="solo-lectores"> @profile.DisplayName</span></button>
+                        }</div></td>
+                    </tr>
+                }
+                </tbody></table></div>
+            @foreach (var profile in Model.Profiles.Where(p => p.Id != Model.CurrentUserId))
+            {
+                var active = profile.Status == AccountStatus.Active;
+                var dialogId = $"user-{profile.Id:D}";
+                @foreach (var action in new[] { "status", "delete" })
+                {
+                    var deleting = action == "delete";
+                    var label = deleting ? "Eliminar usuario" : active ? "Desactivar usuario" : "Reactivar usuario";
+                    var handler = deleting ? "Delete" : active ? "Deactivate" : "Reactivate";
+                    var id = dialogId + "-" + action;
+                    <dialog id="@id" class="modal" aria-labelledby="@(id + "-title")" aria-describedby="@(id + "-description")">
+                        <form method="post" asp-page-handler="@handler" class="modal__contenido" data-progress-form>
+                            <input type="hidden" name="Input.Id" value="@profile.Id" /><input type="hidden" name="Input.Revision" value="@profile.Revision" /><input type="hidden" name="Input.IntentKey" value="@Guid.CreateVersion7()" />
+                            <h2 id="@(id + "-title")" class="modal__titulo">@label</h2>
+                            <p><strong>@profile.DisplayName</strong> · @profile.UserName</p>
+                            <p id="@(id + "-description")" class="modal__texto">@(deleting ? "El usuario perderá el acceso y se quitará de esta lista. Su historial de trabajo se conservará. Esta acción no se puede deshacer desde esta pantalla." : active ? "El usuario dejará de poder iniciar sesión. Puedes reactivarlo cuando lo necesites." : "El usuario volverá a tener acceso. Se generará una nueva contraseña temporal.")</p>
+                            <div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton @(deleting ? "boton--destructivo" : "boton--primario")" type="submit" data-progress-label="Guardando…">@label</button></div>
+                        </form>
+                    </dialog>
+                }
+            }
+        }
+    </section>
+</section>
+
+

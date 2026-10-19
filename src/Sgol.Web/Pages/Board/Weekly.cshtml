@@ -1,0 +1,11 @@
+@page "/tablero/rol-de-tareas"
+@model Sgol.Web.Pages.Board.WeeklyModel
+@{
+    Layout = "_BoardLayout";
+    ViewData["Title"] = "Rol de Tareas";
+}
+<div id="weekly-board" class="weekly-board" aria-busy="false">
+    <partial name="_WeeklyContent" model="Model.Snapshot" />
+</div>
+<p class="board-connection" id="weekly-connection" role="status" hidden></p>
+<script src="~/js/weekly-board.js" asp-append-version="true" defer></script>

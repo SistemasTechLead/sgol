@@ -1,0 +1,38 @@
+name: sgol-local
+services:
+  postgres:
+    image: postgres:18.6-alpine3.23
+    environment:
+      POSTGRES_DB: sgol_local
+      POSTGRES_USER: sgol_local
+      POSTGRES_PASSWORD: ${SGOL_LOCAL_DB_PASSWORD:?Run iniciar-local.ps1 first}
+    ports:
+      - "127.0.0.1:5440:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sgol_local -d sgol_local"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  storage:
+    image: chrislusf/seaweedfs:4.45@sha256:fc9f76fa993ad69966ffeb2f65d0318fcae39c6f8e20cf68ef7b3a5cb97769e5
+    command: ["mini", "-dir=/data"]
+    environment:
+      AWS_ACCESS_KEY_ID: sgol-local
+      AWS_SECRET_ACCESS_KEY: ${SGOL_LOCAL_S3_PASSWORD:?Run iniciar-local.ps1 first}
+    ports:
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - evidence-data:/data
+  scanner:
+    image: clamav/clamav:1.5.4-debian@sha256:be3cb41d9833ce9ffb98f3d3e1483c35c0d87060c2bda3624d75fd28bbf0b3bd
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - scanner-data:/var/lib/clamav
+volumes:
+  postgres-data:
+  evidence-data:
+  scanner-data:
+

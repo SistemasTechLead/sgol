@@ -1,0 +1,23 @@
+@model Sgol.Web.Presentation.MyWork.CameraPresentation
+<div class="camera-capture" data-camera-capture data-camera-min="@Model.Minimum" data-camera-max="@Model.Maximum" data-camera-bytes="@Model.MaximumBytes">
+    <p>Toma de @Model.Minimum a @Model.Maximum fotografías ahora. Hasta 15 MiB por foto y @(Model.MaximumBytes / 1048576) MiB en total.</p>
+    <button class="boton boton--secundario" type="button" data-camera-open>Tomar Foto</button>
+    <div class="camera-gallery" data-camera-gallery aria-label="Fotografías seleccionadas"></div>
+    <p role="status" aria-live="polite" data-camera-status></p>
+    <p class="alerta alerta--peligro" role="alert" data-camera-error hidden></p>
+    <dialog class="camera-dialog" data-camera-dialog aria-labelledby="@(Model.Id)-title">
+        <h3 id="@(Model.Id)-title">Tomar fotografía</h3>
+        <video data-camera-video autoplay muted playsinline aria-label="Vista en vivo de la cámara"></video>
+        <img data-camera-preview alt="Vista previa de la fotografía tomada" hidden />
+        <p role="status" aria-live="polite" data-camera-dialog-status></p>
+        <label class="campo" data-camera-selector hidden><span class="campo__etiqueta">Cámara</span><select class="campo__control" data-camera-device aria-label="Seleccionar cámara"></select></label>
+        <div class="acciones-formulario">
+            <button class="boton boton--primario" type="button" data-camera-shutter disabled>Capturar</button>
+            <button class="boton boton--secundario" type="button" data-camera-switch>Cambiar cámara</button>
+            <button class="boton boton--secundario" type="button" data-camera-retry hidden>Reintentar</button>
+            <button class="boton boton--primario" type="button" data-camera-use hidden>Usar foto</button>
+            <button class="boton boton--secundario" type="button" data-camera-close>Cancelar</button>
+        </div>
+    </dialog>
+    <noscript><p>Activa JavaScript para tomar fotografías y aportar esta evidencia.</p></noscript>
+</div>

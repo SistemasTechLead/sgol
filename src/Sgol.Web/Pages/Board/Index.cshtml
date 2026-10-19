@@ -1,0 +1,11 @@
+@page "/tablero"
+@model Sgol.Web.Pages.Board.IndexModel
+@{
+    Layout = "_BoardLayout";
+    ViewData["Title"] = "Tablero";
+}
+<div id="live-board" aria-busy="false">
+    <partial name="_BoardContent" model="Model.Snapshot" />
+</div>
+<p class="board-connection" id="board-connection" role="status" hidden></p>
+<script src="~/js/live-board.js" asp-append-version="true" defer></script>

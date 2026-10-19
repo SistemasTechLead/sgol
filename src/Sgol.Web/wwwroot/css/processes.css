@@ -1,0 +1,17 @@
+.process-page{min-width:0;overflow-wrap:anywhere}
+.process-editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:1.25rem;margin-block:1.25rem}
+.process-page form,.process-page .campo,.process-candidate>span,.process-actions>*{min-width:0;max-width:100%}
+.process-page .campo__control{min-width:0;max-width:100%}
+.process-page .boton{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:center}
+.process-stage{border:1px solid var(--color-borde);border-radius:.6rem;padding:1rem;margin-block:1rem;min-width:0}
+.process-stage legend{max-width:100%;white-space:normal;font-weight:700;padding-inline:.4rem}
+.process-delete-choice{display:grid;gap:.75rem}
+.process-delete-choice label{display:flex;align-items:flex-start;gap:.5rem}
+.process-delete-choice input{flex-shrink:0;margin-top:.25rem}
+.process-candidate{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-block:.7rem;border-bottom:1px solid var(--color-borde)}
+.process-actions{display:flex;flex-wrap:wrap;gap:.8rem;margin-block:1rem}
+.process-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem;margin-block:1rem}
+.process-stage--active{border-inline-start:.35rem solid var(--color-acento);background:var(--color-fila-propia);color:var(--color-texto-primario)}
+.process-stage--waiting{background:var(--color-superficie-elevada);color:var(--color-texto-secundario)}
+/* Follow the saved application composition, including mobile on a desktop viewport. */
+@container sgol-viewport (max-width:48rem){.process-editor{grid-template-columns:minmax(0,1fr)}.process-candidate{align-items:stretch;flex-direction:column}.process-actions{flex-direction:column}.process-actions .boton{width:100%}.process-page input[type="file"]::file-selector-button{max-width:100%;white-space:normal}}

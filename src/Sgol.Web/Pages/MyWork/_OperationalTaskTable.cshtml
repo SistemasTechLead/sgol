@@ -1,0 +1,30 @@
+@model (Sgol.Web.Pages.MyWork.IndexModel Page, IReadOnlyList<Sgol.Planning.Contracts.OperationalAssignmentDetails> Tasks, bool ShowPlan)
+@using Sgol.Web.Pages.Tasks
+@using Sgol.Web.Presentation.MyWork
+@using WorkModel = Sgol.Web.Pages.MyWork.IndexModel
+        <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Inicio</th><th scope="col">Vencimiento</th><th scope="col">Carga</th><th scope="col">Requisito</th><th scope="col">Estado</th><th class="my-work-action-cell" scope="col">Evidencia</th></tr></thead><tbody>
+        @foreach (var category in Model.Tasks.GroupBy(t => Model.Page.OperationalToday(t) ? "Tareas del día" : WorkModel.OperationalSubmitted(t) ? "Entregadas" : t.StartsAt > Model.Page.OperationalNow ? "Próximas tareas" : "Para realizar").OrderBy(g => g.Key == "Tareas del día" ? 0 : g.Key == "Para realizar" ? 1 : g.Key == "Próximas tareas" ? 2 : 3)) {
+            <tr data-work-day-header="@(category.Key == "Tareas del día" ? "true" : "false")"><th colspan="7" scope="colgroup">@category.Key · @category.Count() @if (category.Key == "Tareas del día") { <span>· @Model.Page.OperationalDay.ToString("dd/MM/yyyy")</span> }</th></tr>
+        @foreach (var task in category) {
+            var submitted = WorkModel.OperationalSubmitted(task);
+            var status = task.ReviewStatus switch { "CONCLUIDA" => "done", "NO_SATISFECHA" => "rejected", "REASIGNADA" => "reassigned", _ => submitted ? "review" : "pending" };
+            var color = Model.Page.OperationalColor(task);
+            var statusLabel = status switch { "done" => "✓ Concluida", "review" => "◷ En revisión", "rejected" => "No satisfecha", "reassigned" => "Reasignada", _ => Model.Page.OperationalTiming(task) };
+            var actionLabel = submitted ? "Ver evidencia" : task.StartsAt > Model.Page.OperationalNow ? "Ver programación" : task.GoalUnits > task.ProgressUnits ? "Registrar avance" : "Adjuntar evidencia";
+            <tr class="tabla__fila my-work-task my-work-task--@status my-work-color--@color" data-task-status="@status" data-work-task="@task.Id" data-work-day="@(Model.Page.OperationalToday(task) ? "true" : "false")" data-start="@task.StartsAt.ToUnixTimeMilliseconds()" data-due="@task.DueAt.ToUnixTimeMilliseconds()" data-delivered="@(task.CompletedAt is not null ? "true" : "false")">
+                <td>
+                    <div class="my-work-mobile-only"><span class="badge my-work-state">@statusLabel</span></div>
+                    <span class="my-work-task__name">@task.Name</span> @if (Model.ShowPlan && task.PlanName != null) { <br /><small>Asignación: @task.PlanName</small> } @if (task.SpecializationName != null) { <br /><small>Especialización: @task.SpecializationName</small> } @if (task.GoalUnits > 0) { <br /><small>@task.ProgressUnits / @task.GoalUnits @task.ProgressUnit</small><br /><progress value="@task.ProgressUnits" max="@task.GoalUnits" aria-label="Progreso de @task.Name"></progress> }
+                    <div class="my-work-mobile-only my-work-task__summary">
+                        <p><strong>Vencimiento:</strong> @MyWorkPresentation.Time(task.DueAt)<br /><small data-work-timing>@Model.Page.OperationalTiming(task)</small></p>
+                        <p>@IndexModel.Label(task.Requirement) · @task.LoadMinutes min</p>
+                        <details class="my-work-task__details"><summary>Ver detalles<span class="solo-lectores"> de @task.Name</span></summary><dl><dt>Inicio</dt><dd>@MyWorkPresentation.Time(task.StartsAt)</dd><dt>Requisito</dt><dd>@IndexModel.Label(task.Requirement)</dd><dt>Carga</dt><dd>@task.LoadMinutes min</dd></dl></details>
+                    </div>
+                </td><td>@MyWorkPresentation.Time(task.StartsAt)</td>
+                <td>@MyWorkPresentation.Time(task.DueAt)<br /><small data-work-timing>@Model.Page.OperationalTiming(task)</small></td>
+                <td>@task.LoadMinutes min</td><td>@IndexModel.Label(task.Requirement)</td><td><span class="badge my-work-state">@statusLabel</span></td>
+                <td class="my-work-action-cell"><a class="boton @(submitted ? "boton--secundario" : "boton--primario") my-work-action" href="@Model.Page.OperationalTaskHref(task.Id)" aria-label="@actionLabel: @task.Name" aria-haspopup="dialog" data-assigned-task="@task.Id"><partial name="_Icon" model='@(submitted || task.StartsAt > Model.Page.OperationalNow ? "eye" : "upload")' /><span>@actionLabel</span></a></td>
+            </tr>
+        }
+        }
+        </tbody></table></div>

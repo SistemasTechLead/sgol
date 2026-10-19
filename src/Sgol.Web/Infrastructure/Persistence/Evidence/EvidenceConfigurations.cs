@@ -1,0 +1,202 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Sgol.Configuration.Contracts;
+using Sgol.Evidence.Contracts;
+using Sgol.Generation.Contracts;
+using Sgol.Organization.Contracts;
+using Sgol.Web.Infrastructure.Persistence.Bootstrap;
+
+namespace Sgol.Web.Infrastructure.Persistence.Evidence;
+
+public sealed class FileObjectConfiguration : IEntityTypeConfiguration<FileObject>
+{
+    public void Configure(EntityTypeBuilder<FileObject> builder)
+    {
+        builder.ToTable("file_object", table =>
+        {
+            table.HasCheckConstraint("CK_file_object_branch", $"branch_id = '{BranchScope.LorettaId:D}'::uuid");
+            table.HasCheckConstraint("CK_file_object_key", "object_key ~ '^v1/[0-9a-f]{2}/[0-9a-f]{2}/[0-9a-f]{64}$'");
+            table.HasCheckConstraint("CK_file_object_size", "size_bytes BETWEEN 1 AND 15728640");
+            table.HasCheckConstraint("CK_file_object_sha256", "sha256 ~ '^[0-9a-f]{64}$'");
+            table.HasCheckConstraint("CK_file_object_kind", "requirement_kind IN ('FOTOGRAFIA','DOCUMENTO_REFERENCIADO')");
+            table.HasCheckConstraint("CK_file_object_media", "declared_media_type IN ('image/jpeg','image/png','application/pdf')");
+            table.HasCheckConstraint("CK_file_object_kind_media", "(requirement_kind = 'FOTOGRAFIA' AND declared_media_type IN ('image/jpeg','image/png')) OR (requirement_kind = 'DOCUMENTO_REFERENCIADO' AND declared_media_type = 'application/pdf')");
+            table.HasCheckConstraint("CK_file_object_subtype", "(requirement_code = 'DOCUMENTO_RECEPCION' AND document_subtype IN ('NOTA','REMISION','FACTURA')) OR (requirement_code <> 'DOCUMENTO_RECEPCION' AND document_subtype IS NULL)");
+            table.HasCheckConstraint("CK_file_object_original_name", "char_length(original_name) BETWEEN 1 AND 255 AND original_name = btrim(original_name) AND original_name !~ '[\\\\/]' AND original_name !~ '[[:cntrl:]]'");
+            table.HasCheckConstraint("CK_file_object_error_code", "scan_error_code IS NULL OR scan_error_code ~ '^[A-Z][A-Z0-9_]{0,63}$'");
+            table.HasCheckConstraint("CK_file_object_status", "scan_status IN ('PENDIENTE','LIMPIO','INFECTADO','INVALIDO','ERROR_ESCANEO')");
+            table.HasCheckConstraint("CK_file_object_bucket", "bucket_class IN ('QUARANTINE','CLEAN')");
+            table.HasCheckConstraint("CK_file_object_timeline", "upload_expires_at = created_at + interval '10 minutes' AND (upload_completed_at IS NULL OR upload_completed_at BETWEEN created_at AND upload_expires_at) AND (scanned_at IS NULL OR scanned_at >= created_at)");
+            table.HasCheckConstraint("CK_file_object_state", "(scan_status = 'PENDIENTE' AND bucket_class = 'QUARANTINE' AND detected_media_type IS NULL AND scanned_at IS NULL AND link_expires_at IS NULL) OR (scan_status = 'LIMPIO' AND bucket_class = 'CLEAN' AND detected_media_type = declared_media_type AND scanned_at IS NOT NULL AND link_expires_at = scanned_at + interval '24 hours') OR (scan_status IN ('INFECTADO','INVALIDO','ERROR_ESCANEO') AND bucket_class = 'QUARANTINE' AND scanned_at IS NOT NULL AND scan_error_code IS NOT NULL AND link_expires_at IS NULL)");
+            table.HasCheckConstraint("CK_file_object_link", "linked_evidence_item_id IS NULL OR (scan_status = 'LIMPIO' AND bucket_class = 'CLEAN')");
+            table.HasCheckConstraint("CK_file_object_replication_reserved", "replicated_at IS NULL");
+            table.HasCheckConstraint("CK_file_object_row_version", "row_version > 0");
+        });
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(x => x.CaptureSessionId).HasColumnName("capture_session_id");
+        builder.Property(x => x.CaptureExpiresAt).HasColumnName("capture_expires_at");
+        builder.Property(x => x.ReceivedSha256).HasColumnName("received_sha256").HasMaxLength(64);
+        builder.Property(x => x.ReceivedSizeBytes).HasColumnName("received_size_bytes");
+        builder.Property(x => x.ReceivedObjectKey).HasColumnName("received_object_key").HasMaxLength(73);
+        builder.Property(x => x.BranchId).HasColumnName("branch_id");
+        builder.Property(x => x.ObligationId).HasColumnName("obligation_id");
+        builder.Property(x => x.EvidencePolicyVersionId).HasColumnName("evidence_policy_version_id");
+        builder.Property(x => x.RequirementVersionId).HasColumnName("requirement_version_id");
+        builder.Property(x => x.RequirementCode).HasColumnName("requirement_code").HasMaxLength(64);
+        builder.Property(x => x.RequirementKind).HasColumnName("requirement_kind").HasMaxLength(32);
+        builder.Property(x => x.DocumentSubtype).HasColumnName("document_subtype").HasMaxLength(16);
+        builder.Property(x => x.BucketClass).HasColumnName("bucket_class").HasMaxLength(16);
+        builder.Property(x => x.ObjectKey).HasColumnName("object_key").HasMaxLength(73);
+        builder.Property(x => x.OriginalName).HasColumnName("original_name").HasMaxLength(255);
+        builder.Property(x => x.DeclaredMediaType).HasColumnName("declared_media_type").HasMaxLength(32);
+        builder.Property(x => x.DetectedMediaType).HasColumnName("detected_media_type").HasMaxLength(32);
+        builder.Property(x => x.SizeBytes).HasColumnName("size_bytes");
+        builder.Property(x => x.Sha256).HasColumnName("sha256").HasColumnType("character(64)");
+        builder.Property(x => x.ScanStatus).HasColumnName("scan_status").HasMaxLength(16);
+        builder.Property(x => x.ScanEngine).HasColumnName("scan_engine").HasMaxLength(64);
+        builder.Property(x => x.ScanErrorCode).HasColumnName("scan_error_code").HasMaxLength(64);
+        builder.Property(x => x.ScannedAt).HasColumnName("scanned_at").HasColumnType("timestamp with time zone");
+        builder.Property(x => x.UploadedBy).HasColumnName("uploaded_by");
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
+        builder.Property(x => x.UploadExpiresAt).HasColumnName("upload_expires_at").HasColumnType("timestamp with time zone");
+        builder.Property(x => x.UploadCompletedAt).HasColumnName("upload_completed_at").HasColumnType("timestamp with time zone");
+        builder.Property(x => x.LinkExpiresAt).HasColumnName("link_expires_at").HasColumnType("timestamp with time zone");
+        builder.Property(x => x.LinkedEvidenceItemId).HasColumnName("linked_evidence_item_id");
+        builder.Property(x => x.ReplicatedAt).HasColumnName("replicated_at").HasColumnType("timestamp with time zone");
+        builder.Property(x => x.RowVersion).HasColumnName("row_version").IsConcurrencyToken();
+        builder.HasIndex(x => x.ObjectKey).IsUnique();
+        builder.HasIndex(x => x.LinkedEvidenceItemId).HasFilter("linked_evidence_item_id IS NOT NULL");
+        builder.HasIndex(x => new { x.ScanStatus, x.CreatedAt });
+        builder.HasIndex(x => new { x.ObligationId, x.RequirementVersionId, x.ScanStatus });
+        builder.HasIndex(x => new { x.UploadedBy, x.CreatedAt });
+        builder.HasIndex(x => x.LinkExpiresAt).HasFilter("linked_evidence_item_id IS NULL AND link_expires_at IS NOT NULL");
+        builder.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<WorkObligation>().WithMany().HasForeignKey(x => x.ObligationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidencePolicyVersion>().WithMany().HasForeignKey(x => x.EvidencePolicyVersionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidenceRequirementVersion>().WithMany().HasForeignKey(x => x.RequirementVersionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UploadedBy).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidenceItem>().WithMany().HasForeignKey(x => x.LinkedEvidenceItemId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class EvidenceItemConfiguration : IEntityTypeConfiguration<EvidenceItem>
+{
+    public const string UniqueRequirementIndex = "UX_evidence_item_obligation_requirement";
+    public void Configure(EntityTypeBuilder<EvidenceItem> builder)
+    {
+        builder.ToTable("evidence_item", table => table.HasCheckConstraint("CK_evidence_item_row_version", "row_version > 0"));
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(x => x.ObligationId).HasColumnName("obligation_id");
+        builder.Property(x => x.EvidencePolicyVersionId).HasColumnName("evidence_policy_version_id");
+        builder.Property(x => x.RequirementVersionId).HasColumnName("requirement_version_id");
+        builder.Property(x => x.RequirementCode).HasColumnName("requirement_code").HasMaxLength(64);
+        builder.Property(x => x.RequirementKind).HasColumnName("requirement_kind").HasMaxLength(32);
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone");
+        builder.Property(x => x.RowVersion).HasColumnName("row_version").IsConcurrencyToken();
+        builder.HasIndex(x => new { x.ObligationId, x.RequirementVersionId }).IsUnique().HasDatabaseName(UniqueRequirementIndex);
+        builder.HasIndex(x => x.ObligationId);
+        builder.HasIndex(x => x.RequirementVersionId);
+        builder.HasOne<WorkObligation>().WithMany().HasForeignKey(x => x.ObligationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidencePolicyVersion>().WithMany().HasForeignKey(x => x.EvidencePolicyVersionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidenceRequirementVersion>().WithMany().HasForeignKey(x => x.RequirementVersionId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class EvidenceVersionConfiguration : IEntityTypeConfiguration<EvidenceVersion>
+{
+    public const string CurrentVersionIndex = "UX_evidence_version_current_item";
+    public void Configure(EntityTypeBuilder<EvidenceVersion> builder)
+    {
+        builder.ToTable("evidence_version", table =>
+        {
+            table.HasCheckConstraint("CK_evidence_version_number", "version_no > 0");
+            table.HasCheckConstraint("CK_evidence_version_status", "status IN ('VIGENTE','SUSTITUIDA')");
+            table.HasCheckConstraint("CK_evidence_version_source", "(file_object_id IS NULL) <> (structured_payload IS NULL)");
+            table.HasCheckConstraint("CK_evidence_version_file_count", "(file_object_id IS NULL AND file_count = 0) OR (file_object_id IS NOT NULL AND file_count BETWEEN 1 AND 5)");
+            table.HasCheckConstraint("CK_evidence_version_chain", "(version_no = 1 AND supersedes_id IS NULL) OR (version_no > 1 AND supersedes_id IS NOT NULL)");
+            table.HasCheckConstraint("CK_evidence_version_row_version", "row_version > 0");
+            table.HasCheckConstraint("CK_evidence_version_reason", "reason IS NULL OR (char_length(reason) BETWEEN 1 AND 500 AND reason = btrim(reason) AND reason !~ '[<>[:cntrl:]]')");
+        });
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(x => x.EvidenceItemId).HasColumnName("evidence_item_id");
+        builder.Property(x => x.VersionNo).HasColumnName("version_no");
+        builder.Property(x => x.FileObjectId).HasColumnName("file_object_id");
+        builder.Property(x => x.FileCount).HasColumnName("file_count");
+        builder.Property(x => x.StructuredPayload).HasColumnName("structured_payload").HasColumnType("jsonb");
+        builder.Property(x => x.Status).HasColumnName("status").HasMaxLength(16);
+        builder.Property(x => x.SubmittedBy).HasColumnName("submitted_by");
+        builder.Property(x => x.SubmittedAt).HasColumnName("submitted_at").HasColumnType("timestamp with time zone");
+        builder.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(500);
+        builder.Property(x => x.SupersedesId).HasColumnName("supersedes_id");
+        builder.Property(x => x.RowVersion).HasColumnName("row_version").IsConcurrencyToken();
+        builder.HasIndex(x => new { x.EvidenceItemId, x.VersionNo }).IsUnique();
+        builder.HasIndex(x => x.EvidenceItemId).IsUnique().HasFilter("status = 'VIGENTE'").HasDatabaseName(CurrentVersionIndex);
+        builder.HasIndex(x => x.FileObjectId).IsUnique().HasFilter("file_object_id IS NOT NULL");
+        builder.HasIndex(x => x.SupersedesId).IsUnique().HasFilter("supersedes_id IS NOT NULL");
+        builder.HasOne<EvidenceItem>().WithMany().HasForeignKey(x => x.EvidenceItemId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<FileObject>().WithMany().HasForeignKey(x => x.FileObjectId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasMany(x => x.Files).WithOne().HasForeignKey(x => x.EvidenceVersionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AppUser>().WithMany().HasForeignKey(x => x.SubmittedBy).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidenceVersion>().WithMany().HasForeignKey(x => x.SupersedesId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class EvidenceVersionFileConfiguration : IEntityTypeConfiguration<EvidenceVersionFile>
+{
+    public void Configure(EntityTypeBuilder<EvidenceVersionFile> b)
+    {
+        b.ToTable("evidence_version_file", t => t.HasCheckConstraint("CK_evidence_version_file_position", "position BETWEEN 0 AND 4"));
+        b.HasKey(x => new { x.EvidenceVersionId, x.FileObjectId });
+        b.Property(x => x.EvidenceVersionId).HasColumnName("evidence_version_id");
+        b.Property(x => x.FileObjectId).HasColumnName("file_object_id");
+        b.Property(x => x.Position).HasColumnName("position");
+        b.HasIndex(x => x.FileObjectId).IsUnique();
+        b.HasIndex(x => new { x.EvidenceVersionId, x.Position }).IsUnique();
+        b.HasOne<FileObject>().WithMany().HasForeignKey(x => x.FileObjectId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class EvidenceReviewSnapshotConfiguration : IEntityTypeConfiguration<EvidenceReviewSnapshot>
+{
+    public const string FingerprintIndex = "UX_evidence_review_snapshot_obligation_fingerprint";
+    public const string CanonicalInputIndex = "UX_evidence_review_snapshot_obligation_input";
+
+    public void Configure(EntityTypeBuilder<EvidenceReviewSnapshot> builder)
+    {
+        builder.ToTable("evidence_review_snapshot", table =>
+        {
+            table.HasCheckConstraint("CK_evidence_review_snapshot_result", "result IN ('COMPLETA','INCOMPLETA')");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_schema", "schema_version = 1");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_fingerprint", "input_fingerprint ~ '^[0-9a-f]{64}$'");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_json", "jsonb_typeof(canonical_input) = 'object' AND jsonb_typeof(requirements_snapshot) = 'array' AND jsonb_typeof(missing_requirements) = 'array'");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_actor", "evaluated_by = 'SYSTEM'");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_versions", "array_position(evidence_version_ids, NULL) IS NULL");
+            table.HasCheckConstraint("CK_evidence_review_snapshot_result_projection", "(result = 'COMPLETA') = (jsonb_array_length(missing_requirements) = 0 AND NOT jsonb_path_exists(requirements_snapshot, '$[*] ? (@.applicability == \"NO_RESUELTA\")'))");
+        });
+        builder.HasKey(snapshot => snapshot.Id);
+        builder.Property(snapshot => snapshot.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(snapshot => snapshot.ObligationId).HasColumnName("obligation_id");
+        builder.Property(snapshot => snapshot.EvidencePolicyVersionId).HasColumnName("evidence_policy_version_id");
+        builder.Property(snapshot => snapshot.Result).HasColumnName("result").HasMaxLength(16);
+        builder.Property(snapshot => snapshot.SchemaVersion).HasColumnName("schema_version");
+        builder.Property(snapshot => snapshot.InputFingerprint).HasColumnName("input_fingerprint").HasColumnType("character(64)");
+        builder.Property(snapshot => snapshot.CanonicalInput).HasColumnName("canonical_input").HasColumnType("jsonb");
+        builder.Property(snapshot => snapshot.RequirementsSnapshot).HasColumnName("requirements_snapshot").HasColumnType("jsonb");
+        builder.Property(snapshot => snapshot.MissingRequirements).HasColumnName("missing_requirements").HasColumnType("jsonb");
+        builder.Property(snapshot => snapshot.EvidenceVersionIds).HasColumnName("evidence_version_ids").HasColumnType("uuid[]");
+        builder.Property(snapshot => snapshot.EvaluatedBy).HasColumnName("evaluated_by").HasMaxLength(16);
+        builder.Property(snapshot => snapshot.RequestedByUserId).HasColumnName("requested_by_user_id");
+        builder.Property(snapshot => snapshot.EvaluatedAt).HasColumnName("evaluated_at").HasColumnType("timestamp with time zone");
+        builder.Property(snapshot => snapshot.CorrelationId).HasColumnName("correlation_id");
+        builder.HasIndex(snapshot => new { snapshot.ObligationId, snapshot.InputFingerprint })
+            .IsUnique().HasDatabaseName(FingerprintIndex);
+        builder.HasIndex(snapshot => new { snapshot.ObligationId, snapshot.EvaluatedAt, snapshot.Id }).IsDescending(false, true, true);
+        builder.HasIndex(snapshot => new { snapshot.EvidencePolicyVersionId, snapshot.EvaluatedAt }).IsDescending(false, true);
+        builder.HasOne<WorkObligation>().WithMany().HasForeignKey(snapshot => snapshot.ObligationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EvidencePolicyVersion>().WithMany().HasForeignKey(snapshot => snapshot.EvidencePolicyVersionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<AppUser>().WithMany().HasForeignKey(snapshot => snapshot.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

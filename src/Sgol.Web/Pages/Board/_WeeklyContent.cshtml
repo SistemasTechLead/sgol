@@ -1,0 +1,80 @@
+@model Sgol.Web.Infrastructure.Persistence.Planning.WeeklyBoardSnapshot
+@using System.Globalization
+@{
+    var culture = CultureInfo.GetCultureInfo("es-MX");
+}
+<header class="weekly-header">
+    <div class="board-heading">
+        <a class="board-back" href="/tablero" aria-label="Volver al tablero" title="Volver al tablero"><partial name="_Icon" model='@("back")' /></a>
+        <h1>Rol de Tareas</h1>
+    </div>
+    <nav class="weekly-navigation" aria-label="Semana del rol de tareas">
+        <a class="board-action" href="?week=@Model.StartsOn.AddDays(-7).ToString("yyyy-MM-dd")" aria-label="Semana anterior">← Anterior</a>
+        <a class="board-action" href="/tablero/rol-de-tareas">Semana actual</a>
+        <a class="board-action" href="?week=@Model.StartsOn.AddDays(7).ToString("yyyy-MM-dd")" aria-label="Semana siguiente">Siguiente →</a>
+    </nav>
+</header>
+<div class="board-meta">
+    <span><strong>Del @Model.StartsOn.ToString("dd/MM/yyyy") al @Model.EndsOn.ToString("dd/MM/yyyy")</strong> · Semana @ISOWeek.GetWeekOfYear(Model.StartsOn.ToDateTime(TimeOnly.MinValue))<br />Asignaciones por fecha de cierre · Ciudad de México · Carga por asignación</span>
+    <div class="board-legend" aria-label="Colores del tablero">
+        <span><i class="scheduled"></i>Por activar</span><span><i class="active"></i>Activa</span>
+        <span><i class="warning"></i>Último 30% del tiempo</span><span><i class="urgent"></i>≤10% restante o vencida</span><span><i class="delivered"></i>Entregada</span>
+    </div>
+</div>
+<div class="weekly-viewport" tabindex="0" role="region" aria-label="Rol de tareas semanal; desplázate para consultar todos los días">
+    <table class="weekly-table">
+        <caption class="solo-lectores">Tareas asignadas del @Model.StartsOn.ToString("dd/MM/yyyy") al @Model.EndsOn.ToString("dd/MM/yyyy"). Cada día muestra responsable y estado en columnas contiguas.</caption>
+        <thead><tr>
+            <th scope="col" class="weekly-activity">Actividad</th><th scope="col" class="weekly-load">Carga<br />(min)</th>
+            @foreach (var day in Model.Days) {
+                <th scope="col" class="weekly-day">@culture.TextInfo.ToTitleCase(day.ToString("dddd", culture))<small>@day.ToString("dd/MM")</small></th>
+                <th scope="col" class="weekly-state-heading"><span>Estado</span><span class="solo-lectores"> del @day.ToString("dd/MM")</span></th>
+            }
+        </tr></thead>
+        <tbody>
+        @foreach (var row in Model.Rows) {
+            <tr>
+                <th scope="row" class="weekly-activity">@row.Name<small>@row.TaskCode · @row.PlanName</small></th>
+                <td class="weekly-load">@row.LoadMinutes</td>
+                @foreach (var day in Model.Days) {
+                    var assignments = row.ForDay(day).ToArray();
+                    <td colspan="2"><div class="weekly-day-assignments">
+                        @foreach (var task in assignments) {
+                            var color = task.Color(Model.Now);
+                            var state = color switch { "scheduled" => "Por activar", "active" => "Activa", "warning" => "Último 30% del tiempo", "urgent" => task.DueAt <= Model.Now ? "Vencida" : "Último 10% del tiempo", _ => "Entregada" };
+                            <div class="weekly-person" title="Cierre: @TimeZoneInfo.ConvertTime(task.DueAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("dd/MM/yyyy HH:mm")">@task.PersonName</div>
+                            <div class="weekly-state weekly-state--@color" title="@task.PersonName: @state" aria-label="@task.PersonName: @state">@(color == "delivered" ? "✓" : color == "urgent" ? "!" : "●")<span class="solo-lectores"> @state</span></div>
+                        }
+                        @if (assignments.Length == 0) { <span class="solo-lectores">Sin asignación</span> }
+                    </div></td>
+                }
+            </tr>
+        }
+        @if (Model.Tasks.Count == 0) { <tr><td colspan="16" class="weekly-empty">No hay tareas asignadas con cierre en esta semana.</td></tr> }
+        </tbody>
+        <tfoot><tr>
+            <th scope="row" class="weekly-activity" colspan="2">Carga total por cierre (min)</th>
+            @foreach (var day in Model.Days) { <td colspan="2" class="weekly-total">@Model.ClosingLoad(day)</td> }
+        </tr></tfoot>
+    </table>
+    <section class="weekly-workload" aria-labelledby="weekly-workload-title">
+        <h2 id="weekly-workload-title">Carga diaria por trabajadora</h2>
+        <p>Minutos asignados al día de activación, incluidas tareas entregadas. Una tarea que vence otro día aparece en el rol según su cierre; aquí cuenta cuando empieza. No es tiempo registrado ni carga pendiente.</p>
+        <table class="weekly-table weekly-workload-table">
+            <caption class="solo-lectores">Carga asignada por fecha de activación, en minutos</caption>
+            <thead><tr><th scope="col" class="weekly-activity" colspan="2">Trabajadora</th>
+                @foreach (var day in Model.Days) { <th scope="col" colspan="2">@culture.TextInfo.ToTitleCase(day.ToString("dddd", culture))<small>@day.ToString("dd/MM")</small></th> }
+            </tr></thead>
+            <tbody>
+                @foreach (var worker in Model.Workers) {
+                    <tr><th scope="row" class="weekly-activity" colspan="2">@worker.First().PersonName</th>
+                        @foreach (var day in Model.Days) { <td colspan="2" class="weekly-total">@Model.ActivationLoad(day, worker.Key)</td> }
+                    </tr>
+                }
+            </tbody>
+            <tfoot><tr><th scope="row" class="weekly-activity" colspan="2">Carga total del día (min)</th>
+                @foreach (var day in Model.Days) { <td colspan="2" class="weekly-total">@Model.ActivationLoad(day)</td> }
+            </tr></tfoot>
+        </table>
+    </section>
+</div>

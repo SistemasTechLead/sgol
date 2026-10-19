@@ -1,0 +1,105 @@
+@model Sgol.Web.Pages.MyWork.IndexModel
+@using Sgol.Web.Presentation.MyWork
+@using WorkModel = Sgol.Web.Pages.MyWork.IndexModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@if (Model.OperationalSelectedTask is { } task) {
+    @if (Model.OperationalProcessForm is not null) { <link rel="stylesheet" href="~/css/processes.css" asp-append-version="true" /> }
+    var submitted = WorkModel.OperationalSubmitted(task);
+    var scheduled = task.StartsAt > Model.OperationalNow;
+    var fileHref = $"/mi-trabajo?handler=OperationalFile&id={task.Id:D}";
+    <dialog class="supervision-dialog my-work-dialog" data-assigned-task-detail="@task.Id" aria-labelledby="assigned-task-title">
+        <header class="supervision-dialog__header"><h2 id="assigned-task-title">@task.Name</h2><button class="boton boton--secundario" type="button" data-dialog-close aria-label="Cerrar"><partial name="_Icon" model='@("close")' /></button></header>
+        <p>@task.PersonName · @task.PlanName</p>
+        @if (!string.IsNullOrWhiteSpace(task.Description)) { <section aria-label="Descripción de la tarea"><h3>Descripción</h3><p class="supervision-text">@task.Description</p></section> }
+        <partial name="_OccasionMaterial" model="@((task.Id, Model.OperationalOccasion))" />
+        @if (Model.OperationalError is not null) { <p class="alerta alerta--peligro" role="alert">@Model.OperationalError</p> }
+        <dl class="supervision-facts"><dt>Inicio</dt><dd>@MyWorkPresentation.Time(task.StartsAt)</dd><dt>Vencimiento</dt><dd>@MyWorkPresentation.Time(task.DueAt)</dd><dt>Requisito de conclusión</dt><dd>@Sgol.Web.Pages.Tasks.IndexModel.Label(task.Requirement)</dd><dt>Carga</dt><dd>@task.LoadMinutes min</dd></dl>
+        @if (task.GoalUnits > 0) {
+            <h3>Progreso semanal</h3><p>@task.ProgressUnits / @task.GoalUnits @task.ProgressUnit</p>
+            <progress value="@task.ProgressUnits" max="@task.GoalUnits" aria-label="Progreso de la meta"></progress>
+            @if (!submitted && task.ProgressUnits < task.GoalUnits) {
+                <form method="post" asp-page-handler="OperationalProgress" asp-antiforgery="false">
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="id" value="@task.Id" /><input type="hidden" name="revision" value="@task.Revision" />
+                    <fieldset disabled="@scheduled"><legend>Registrar avance</legend>
+                        <label class="campo"><span class="campo__etiqueta">@task.ProgressUnit realizadas en este avance</span><input class="campo__control" type="number" name="units" min="1" max="@(task.GoalUnits - task.ProgressUnits)" required /></label>
+                        <label class="campo"><span class="campo__etiqueta">Qué realizaste</span><textarea class="campo__control" name="note" maxlength="1000" required></textarea></label>
+                        <button class="boton boton--secundario" type="submit">Guardar avance</button>
+                    </fieldset>
+                </form>
+            }
+            @if (Model.OperationalHistory.Count > 0) { <details><summary>Historial de avances</summary><ul>@foreach (var entry in Model.OperationalHistory) { <li>@MyWorkPresentation.Time(entry.OccurredAt): +@entry.Units @task.ProgressUnit · @entry.Note</li> }</ul></details> }
+        }
+            @if (Model.OperationalLifecycle.Count > 0) {
+                <details><summary>Historial de entrega y revisión</summary><ol>
+                @foreach (var entry in Model.OperationalLifecycle) {
+                    <li>
+                        <strong>@(entry.Kind switch { "ENTREGA" => "Entrega enviada", "SUPERVISION" => "Cierre por supervisión", "REVISION" => "Decisión de supervisión", "REASIGNACION" => "Reasignación recibida", _ => "Finalización histórica" })</strong>
+                        · @(entry.At is { } at ? MyWorkPresentation.Time(at) : "Fecha no registrada")
+                        @if (entry.ActorName is not null) { <span> · @entry.ActorName</span> }
+                        @if (entry.Decision is not null) { <span> · @(entry.Decision switch { "CONCLUIDA" => "Aprobada", "NO_SATISFECHA" => "No satisfecha", "MISMA_PERSONA" => "Reasignada a la misma persona", "ROL" => "Reasignada por rol", _ => "Decisión histórica" })</span> }
+                        @if (entry.Comment is not null) { <p class="supervision-text">@entry.Comment</p> }
+                        @if (entry.Conclusion is not null) { <p class="supervision-text">@entry.Conclusion</p> }
+                    </li>
+                }
+                </ol></details>
+            }
+        @if (submitted) {
+            <h3>Evidencia enviada</h3>
+            @if (task.Comment is not null) { <p class="supervision-text">@task.Comment</p> }
+            @if (Model.OperationalPhotographs.Count > 0) {
+                <partial name="_OperationalPhotoGallery" model="@((task.Id, Model.OperationalPhotographs))" />
+            } else if (task.FileName is not null) {
+                @if (task.Requirement is "FOTOGRAFIA" or "CAPTURA_PANTALLA") { <img class="my-work-evidence-preview" src="@(fileHref + "&preview=true")" alt="Evidencia de @task.Name" /> }
+                <a class="boton boton--secundario" href="@fileHref" target="_blank" rel="noopener"><partial name="_Icon" model='@("eye")' /><span>Abrir @task.FileName</span></a>
+            }
+            @if (task.Comment is null && task.FileName is null) { <p>Esta tarea no requiere un archivo ni un comentario de evidencia.</p> }
+            <h3>Tu conclusión</h3><p class="supervision-text">@(task.Conclusion ?? "No se registró una conclusión.")</p>
+            @if (task.CompletedAt is { } completedAt) { <p>@(Model.OperationalLifecycle.Any(e => e.Kind == "SUPERVISION") ? "Cerrada por supervisión:" : Model.OperationalLifecycle.Any(e => e.Kind == "HISTORICO") ? "Finalización histórica:" : "Enviada:") @MyWorkPresentation.Time(completedAt)</p> }
+            @if (task.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA") {
+                <h3>Decisión de supervisión</h3>
+                <p>@(task.ReviewStatus == "CONCLUIDA" ? "Concluida" : task.ReviewStatus == "REASIGNADA" ? "No concluida · reasignada" : "Terminada no satisfecha")</p>
+                @if (task.ReviewComment is not null) { <p class="supervision-text">@task.ReviewComment</p> }
+            } else { <p>Tu entrega fue enviada y está pendiente de revisión por Supervisión.</p> }
+            <button class="boton boton--secundario" type="button" disabled>Ya en revisión</button>
+        } else if (Model.OperationalProcessForm is { } processForm) {
+            <h3>Entrega del proceso</h3>
+            <partial name="_ProcessActionForm" model="processForm" />
+        } else {
+            <h3>Adjuntar evidencia</h3>
+            @if (scheduled) { <p class="alerta alerta--info">Podrás enviar la evidencia cuando inicie la tarea: @MyWorkPresentation.Time(task.StartsAt).</p> }
+            <form method="post" asp-page-handler="CompleteOperational" asp-antiforgery="false" enctype="multipart/form-data" data-assigned-task-submit>
+                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="id" value="@task.Id" />
+                @if (task.GoalUnits > task.ProgressUnits) { <p>Completa la meta para enviar la evidencia final a revisión.</p> }
+                <fieldset class="my-work-evidence-fields" disabled="@(scheduled || task.GoalUnits > task.ProgressUnits)">
+                    <legend class="solo-lectores">Evidencia y conclusión de la tarea</legend>
+                    @if (task.Requirement == "COMENTARIO") { <label class="campo"><span class="campo__etiqueta">Comentario de evidencia</span><textarea class="campo__control" name="comment" maxlength="4000" required>@Model.OperationalAttemptedComment</textarea></label> }
+                    @if (task.Requirement == "FOTOGRAFIA") {
+                        <input type="hidden" name="captureSessionId" /><input type="hidden" name="photographIds" />
+                        <partial name="_CameraCapture" model='@(new CameraPresentation("assigned-camera", task.MinimumPhotos, task.MaximumPhotos, task.MaximumPhotoBytes))' />
+                        <button class="boton boton--secundario" type="button" data-camera-upload disabled>Subir fotografías</button>
+                        <button class="boton boton--secundario" type="button" data-camera-cancel-upload hidden>Detener carga</button>
+                        <p class="campo__ayuda">Al enviar a revisión se subirán y verificarán las fotografías. La conclusión es opcional.</p>
+                        @if (Model.OperationalAttemptedTaskId is not null) { <p>La entrega no se confirmó. Vuelve a tomar las fotografías antes de enviar.</p> }
+                    }
+                    @if (task.Requirement == "CAPTURA_PANTALLA") {
+                        <label class="campo"><span class="campo__etiqueta">Capturas de pantalla JPG/PNG · de @task.MinimumPhotos a @task.MaximumPhotos imágenes</span>
+                            <input class="campo__control" type="file" name="screenshots" accept="image/jpeg,image/png" multiple required
+                                   data-screenshots data-min="@task.MinimumPhotos" data-max="@task.MaximumPhotos" data-max-bytes="@task.MaximumPhotoBytes" />
+                        </label>
+                        <small>Hasta 15 MiB por imagen y @(task.MaximumPhotoBytes / 1048576) MiB en total. Puedes seleccionar varios archivos.</small>
+                        <p role="status" aria-live="polite" data-screenshots-status></p>
+                    }
+                    @if (task.Requirement is "DOCUMENTO" or "EXCEL") {
+                        <div class="my-work-file-picker">
+                            <label class="campo"><span class="campo__etiqueta">@(task.Requirement == "CAPTURA_PANTALLA" ? "Captura de pantalla JPG/PNG" : task.Requirement == "EXCEL" ? "Documento Excel (.xlsx)" : "Documento PDF") · máximo 15 MB</span><input class="campo__control" type="file" name="file" accept="@(task.Requirement == "CAPTURA_PANTALLA" ? "image/jpeg,image/png" : task.Requirement == "EXCEL" ? ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf")" required /></label>
+                        </div>
+                        @if (Model.OperationalAttemptedTaskId is not null) { <p>Selecciona nuevamente el archivo antes de enviar.</p> }
+                    }
+                    <label class="campo"><span class="campo__etiqueta">Conclusión (opcional)</span><textarea class="campo__control" name="conclusion" maxlength="4000">@Model.OperationalAttemptedConclusion</textarea></label>
+                    <div class="acciones-formulario my-work-submit-actions"><button class="boton boton--primario" type="submit"><partial name="_Icon" model='@("check")' /><span>Enviar a revisión</span></button></div>
+                </fieldset>
+                <p role="status" data-assigned-task-busy hidden>Enviando evidencia a revisión…</p>
+            </form>
+        }
+    </dialog>
+}

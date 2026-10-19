@@ -1,0 +1,17 @@
+{
+  "sha256": {
+    "C:\\Users\\siste\\Desktop\\Tareas_SGOL_Crear_Tarea_actualizadoversion vale.xlsx": "2152a54d77e326482186b8b9cf0e46a38cab2e40cfe497fb64ee519e377f8489",
+    "C:\\Users\\siste\\Desktop\\ESPECIFICACION_TECNICA_PRIMERA_CARGA_001_025.md": "dfbc5c3e647faaeb392e6b69a60191f3969794b352834f77aa0d1ca2ab3018ea"
+  },
+  "filasExcel": 202,
+  "definicionesMD": 25,
+  "tiposCruce": {
+    "COINCIDENCIA_FUNCIONAL": 1,
+    "DESGLOSE": 3,
+    "RELACIONADA": 9,
+    "SIN_EQUIVALENTE_CONFIRMADO": 12
+  },
+  "cargasExcelInformadas": 6,
+  "plazosExcelInformados": 2,
+  "fuentesModificadas": false
+}

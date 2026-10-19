@@ -1,0 +1,15 @@
+@model Sgol.Web.Pages.MyWork.DetailsModel
+@if (Model.ReplacementError is not null) { <div tabindex="-1" data-front-error><partial name="_ProblemAlert" model="Model.ReplacementError" /></div> }
+@if (Model.ReplacementSuccess is not null) { <p class="alerta alerta--exito" role="status" tabindex="-1" data-front-success><partial name="_Icon" model='@("check")' /> @Model.ReplacementSuccess</p><p>La evidencia cambió. Consulta una nueva revisión antes de concluir</p> }
+@if (Model.PreparedReplacement is not null)
+{
+    <section class="panel-seccion mi-trabajo__seccion" aria-labelledby="replacement-confirm-title"><header class="panel-seccion__cabecera"><h2 id="replacement-confirm-title" tabindex="-1">Sustituir evidencia</h2></header><div class="evidencia__contenido">
+    <form method="post" asp-page-handler="SendReplacement" asp-route-returnToken="@Model.ReturnToken" data-front-confirm="Sustituir evidencia" data-front-busy="Sustituyendo evidencia…">
+        <input type="hidden" name="intention" value="@Model.PreparedReplacement" /><p>@Model.Detail?.Task.TaskCode · @Model.Replacement?.Requirement · Versión @Model.Replacement?.VersionNo</p>
+        <label class="campo"><span class="campo__etiqueta">@(Model.ReplacementNeedsReason ? "Motivo" : "Motivo (opcional)")</span><textarea class="campo__control" readonly>@Model.ReplacementReason</textarea></label>
+        <p>La versión vigente quedará en historia como sustituida. La nueva versión no cambiará una conclusión ni una decisión de validación anterior</p>
+        <div class="acciones-formulario"><a class="boton boton--secundario" href="@Model.ReloadHref#versiones-evidencia">Cancelar</a><button class="boton boton--primario" type="submit">@(Model.ReplacementError is null ? "Sustituir evidencia" : "Recuperar resultado")</button></div>
+    </form></div></section>
+}
+else if (Model.Replacement is not null) { <partial name="_EvidenceContribution" model="Model" /> }
+@if (Model.ReplacementConflict) { <a class="boton boton--secundario" href="@Model.ReloadHref#versiones-evidencia">Recargar detalle</a> }

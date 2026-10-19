@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Configuration domain contracts for SGOL.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Sgol.BuildingBlocks\Sgol.BuildingBlocks.csproj" />
+  </ItemGroup>
+</Project>

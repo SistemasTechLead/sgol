@@ -1,0 +1,26 @@
+@model MotivatedConfirmationViewModel
+@{
+    var descriptionId = $"{Model.DialogId}-description";
+    var titleId = $"{Model.DialogId}-title";
+}
+<dialog id="@Model.DialogId"
+        class="modal"
+        aria-modal="true"
+        aria-labelledby="@titleId"
+        aria-describedby="@descriptionId">
+    <form method="dialog" class="modal__contenido" asp-antiforgery="false">
+        <h2 id="@titleId" class="modal__titulo">@Model.Title</h2>
+        <p id="@descriptionId" class="modal__texto">@Model.ResourceSummary</p>
+        <partial name="_TextArea" model="@(new TextAreaViewModel(Model.ReasonId, Model.ReasonLabel, ErrorMessage: Model.ErrorMessage, IsDisabled: Model.IsBusy, IsRequired: true))" />
+        <div class="modal__acciones">
+            <button class="boton boton--secundario" type="submit" value="cancel" autofocus formnovalidate data-dialog-cancel disabled="@Model.IsBusy">Cancelar</button>
+            <button class="boton @(Model.IsDestructive ? "boton--destructivo" : "boton--primario")"
+                    type="submit"
+                    value="confirm"
+                    aria-busy="@Model.IsBusy.ToString().ToLowerInvariant()"
+                    disabled="@Model.IsBusy">
+                @Model.ConfirmLabel
+            </button>
+        </div>
+    </form>
+</dialog>

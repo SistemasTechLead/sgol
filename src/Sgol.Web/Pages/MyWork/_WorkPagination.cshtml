@@ -1,0 +1,7 @@
+@model CursorPaginationViewModel
+<nav class="paginacion" aria-label="Paginación de consulta">
+    @if (Model.PreviousHref is { } previous) { <a class="paginacion__boton" rel="prev" href="@previous">Anterior</a> }
+    else { <span class="paginacion__boton paginacion__boton--deshabilitado" aria-disabled="true">Anterior</span> }
+    @if (Model.NextHref is { } next) { <a class="paginacion__boton" rel="next" href="@next">Siguiente</a> }
+    else { <span class="paginacion__boton paginacion__boton--deshabilitado" aria-disabled="true">Siguiente</span> }
+</nav>

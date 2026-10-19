@@ -1,0 +1,37 @@
+@model Sgol.Web.Pages.MyWork.DetailsModel
+@using Sgol.Web.Presentation.Validation
+@{
+    var replace = Model.Validations?.ValidationActions?.CanReplace == true;
+    var authority = Model.Validations?.ValidationActions?.IssueAuthority;
+}
+@if (Model.PreparedValidation is not null && Model.ValidationIntention is { } intention)
+{
+    <section class="panel-seccion mi-trabajo__seccion" id="validacion-decision" aria-labelledby="validacion-title"><header class="panel-seccion__cabecera"><h2 id="validacion-title">@(intention.Decision is null ? "Emitir validación" : "Sustituir validación")</h2></header><div class="evidencia__contenido">
+    <form method="post" asp-page-handler="SendValidation" asp-route-returnToken="@Model.ReturnToken" data-front-confirm="@(intention.Decision is not null ? "Sustituir esta validación" : intention.EscalationReason is not null ? "Emitir validación por escalamiento" : authority == "AUTOVALIDACION_DIRECCION" ? "Autovalidar esta tarea como Dirección" : "Emitir esta validación")" data-front-busy="@(intention.Decision is null ? "Enviando validación…" : "Enviando sustitución…")">
+        <input type="hidden" name="intention" value="@Model.PreparedValidation" />
+        <input type="hidden" name="recovery" value="@(Model.ValidationError is not null ? "true" : "false")" />
+        <p>@Model.Detail?.Task.TaskCode · @Model.Detail?.Task.Name · @Model.Detail?.CurrentAssignment?.Responsible.DisplayName</p>
+        <p>Resultado: @ValidationPresentation.Result(intention.Result)</p><p>Fundamento: @intention.Foundation</p>
+        @if (intention.Reason is not null) { <p>Motivo de sustitución: @intention.Reason</p> }
+        @if (intention.EscalationReason is not null) { <p>Motivo de escalamiento: @intention.EscalationReason</p> }
+        <p>@(intention.Decision is not null ? "La decisión vigente pasará a Sustituida y seguirá en el historial. Se registrarán la nueva decisión y el motivo; la ejecución permanecerá concluida." : intention.EscalationReason is not null ? "Actúas como un nivel posterior. Se registrará el motivo de escalamiento y la ejecución permanecerá concluida." : authority == "AUTOVALIDACION_DIRECCION" ? "Esta excepción se registrará expresamente. La ejecución permanecerá concluida." : "Se registrará el resultado elegido con su fundamento. La ejecución permanecerá concluida.")</p>
+        <div class="acciones-formulario"><a class="boton boton--secundario" href="@Model.ReloadHref#validacion-decision">Cancelar</a><button class="boton boton--primario" type="submit">@(Model.ValidationError is not null ? "Recuperar resultado" : intention.Decision is null ? "Emitir validación" : "Sustituir validación")</button></div>
+    </form></div></section>
+}
+else if (!Model.ValidationConflict && (Model.ValidationError is null || Model.ValidationFields.Count > 0) && (replace || authority is not null))
+{
+    <section class="panel-seccion mi-trabajo__seccion" id="validacion-decision" aria-labelledby="validacion-title"><header class="panel-seccion__cabecera"><h2 id="validacion-title" tabindex="-1">@(replace ? "Sustituir validación" : "Emitir validación")</h2></header><div class="evidencia__contenido">
+    @if (!replace) { <p>@ValidationPresentation.Authority(authority!)</p> }
+    <p>Explica tu decisión sin copiar evidencia, nombres de archivo, hashes, rutas, enlaces ni secretos.</p>
+    <form method="post" asp-page-handler="PrepareValidation" asp-route-returnToken="@Model.ReturnToken" data-front-query>
+        <input type="hidden" name="mode" value="@(replace ? "replace" : "issue")" />
+        <partial name="_RadioGroup" model='@(new RadioGroupViewModel("result", "Resultado", new[] { "CUMPLIDA", "INCOMPLETA", "NO_CUMPLIDA" }.Select(r => new RadioOption(r, ValidationPresentation.Result(r), Model.ValidationValue("result") == r)).ToArray(), Model.ValidationFields.GetValueOrDefault("result")))' />
+        <partial name="_TextArea" model='@(new TextAreaViewModel("foundation", "Fundamento", Model.ValidationValue("foundation"), Model.ValidationFields.GetValueOrDefault("foundation"), IsRequired: true))' />
+        <p>Fundamento: de 1 a 1000 caracteres.</p>
+        @if (replace || authority == "ESCALAMIENTO")
+        {
+            <partial name="_TextArea" model='@(new TextAreaViewModel("reason", replace ? "Motivo de sustitución" : "Motivo de escalamiento", Model.ValidationValue("reason"), Model.ValidationFields.GetValueOrDefault("reason"), IsRequired: true))' /><p>Motivo: de 1 a 500 caracteres.</p>
+        }
+        <button class="boton boton--primario" type="submit">@(replace ? "Preparar sustitución" : "Preparar validación")</button><p role="status" hidden data-front-query-status>Consultando validaciones…</p>
+    </form></div></section>
+}

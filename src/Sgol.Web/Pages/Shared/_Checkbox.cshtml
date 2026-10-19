@@ -1,0 +1,27 @@
+@model CheckboxViewModel
+@{
+    var hasError = !string.IsNullOrWhiteSpace(Model.ErrorMessage);
+    var errorId = $"{Model.Id}-error";
+    var checkboxClass = hasError ? "casilla casilla--error" : "casilla";
+}
+<div class="casilla-contenedor">
+    <label class="@checkboxClass" for="@Model.Id">
+        <input id="@Model.Id"
+               name="@Model.Id"
+               type="checkbox"
+               class="casilla__control"
+               checked="@Model.IsChecked"
+               disabled="@Model.IsDisabled"
+               aria-invalid="@hasError.ToString().ToLowerInvariant()"
+               aria-describedby="@(hasError ? errorId : null)" />
+        <span class="casilla__caja" aria-hidden="true"></span>
+        <span class="casilla__texto">@Model.Label</span>
+    </label>
+    @if (hasError)
+    {
+        <span id="@errorId" class="campo__mensaje-error">
+            <span aria-hidden="true">!</span>
+            @Model.ErrorMessage
+        </span>
+    }
+</div>

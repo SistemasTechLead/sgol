@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><PackageReference Include="SkiaSharp" /><PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" /></ItemGroup>
+</Project>

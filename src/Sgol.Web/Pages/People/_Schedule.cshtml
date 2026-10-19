@@ -1,0 +1,63 @@
+@model Sgol.Web.Pages.People.IndexModel
+@using Sgol.Web.Pages.People
+<section class="panel-seccion schedule-editor" aria-labelledby="schedule-title">
+    <header class="panel-seccion__cabecera"><h2 id="schedule-title">Horario laboral</h2><p>Horario semanal global de esta persona, aplicable a cualquier fecha al planificar. Zona operativa: America/Mexico_City. Guardado independiente del perfil.</p></header>
+    <form method="post" class="schedule-form" data-schedule-form aria-describedby="@(Model.Error is null ? null : "people-error")">
+        <input asp-for="Schedule.UserId" type="hidden" /><input asp-for="Schedule.Key" type="hidden" /><input asp-for="Schedule.Revision" type="hidden" /><input asp-for="Schedule.Fingerprint" type="hidden" />
+        @foreach (var d in new[] { 1, 2, 3, 4, 5, 6, 0 })
+        {
+            <fieldset data-schedule-day><legend>@IndexModel.DayNames[d]</legend>
+                <label class="campo"><span class="campo__etiqueta">Tipo de día</span><select class="campo__control" asp-for="Schedule.Days[d].Mode" data-day-mode><option value="UNKNOWN">Sin configurar</option><option value="REST">Descanso</option><option value="WORK">Laborable</option></select></label>
+                <div data-day-intervals>
+                    @for (var i = 0; i < 4; i++)
+                    {
+                        <div class="schedule-interval" data-interval>
+                            <label class="campo"><span class="campo__etiqueta">Entrada @(i + 1)</span><input class="campo__control" asp-for="Schedule.Days[d].Intervals[i].Entry" type="time" step="60" /></label>
+                            <label class="campo"><span class="campo__etiqueta">Salida @(i + 1)</span><input class="campo__control" asp-for="Schedule.Days[d].Intervals[i].Exit" type="time" step="60" /></label>
+                            <button class="boton boton--secundario" type="button" data-remove-interval>Quitar tramo</button>
+                        </div>
+                    }
+                    <button class="boton boton--secundario" type="button" data-add-interval>Añadir tramo</button>
+                </div>
+            </fieldset>
+        }
+        <p>Los planes nuevos consultan el último horario guardado, incluso para semanas anteriores. Los planes y asignaciones existentes conservan su historial; los cambios requieren revisar los conflictos indicados.</p>
+        <div class="people-actions"><button class="boton boton--primario" asp-page-handler="SchedulePreview">Revisar impacto</button>
+        @if (Model.SchedulePreview != null) { <button class="boton boton--secundario" asp-page-handler="ScheduleSave">Guardar horario revisado</button> }</div>
+        @if (Model.SchedulePreview is { } preview)
+        {
+            <div role="status"><h3>Impacto en trabajo programado</h3><p>@preview.Conflicts.Length conflictos. Las asignaciones y su historial se conservan.</p></div>
+            @if (preview.Conflicts.Length > 0)
+            {
+                <div class="tabla-contenedor"><table class="tabla"><caption>Asignaciones a revisar</caption><thead><tr><th scope="col">Tarea</th><th scope="col">Inicio</th><th scope="col">Conflicto</th></tr></thead><tbody>
+                @foreach (var conflict in preview.Conflicts) { <tr><td>@conflict.Task</td><td>@TimeZoneInfo.ConvertTime(conflict.StartsAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("dd/MM/yyyy HH:mm")</td><td>@IndexModel.ScheduleMessage(conflict.Reason)</td></tr> }
+                </tbody></table></div>
+            }
+        }
+    </form>
+</section>
+<section class="panel-seccion schedule-editor" aria-labelledby="exception-title">
+    <header class="panel-seccion__cabecera"><h2 id="exception-title">Excepciones por fecha</h2><p>Sustituye el día completo. Una ausencia registrada en Disponibilidad tiene prioridad.</p></header>
+    <form method="get" class="schedule-form"><input type="hidden" name="edit" value="@Model.Input.Id" /><label class="campo"><span class="campo__etiqueta">Consultar excepción para editar</span><input class="campo__control" type="date" name="exceptionDay" value="@Model.Exception.Day.ToString("yyyy-MM-dd")" /></label><div class="people-actions"><button class="boton boton--secundario">Consultar fecha</button></div></form>
+    <form method="post" class="schedule-form" data-schedule-form>
+        <input asp-for="Exception.Fingerprint" type="hidden" />
+        <input asp-for="Exception.UserId" type="hidden" value="@Model.Input.Id" /><input asp-for="Exception.Key" type="hidden" /><input asp-for="Exception.Revision" type="hidden" />
+        <label class="campo"><span class="campo__etiqueta">Fecha</span><input class="campo__control" asp-for="Exception.Day" type="date" required /></label>
+        <fieldset data-schedule-day><legend>Horario excepcional</legend>
+            <label class="campo"><span class="campo__etiqueta">Tipo de día</span><select class="campo__control" asp-for="Exception.Hours.Mode" data-day-mode><option value="REST">Descanso / ausencia</option><option value="WORK">Laborable</option></select></label>
+            <div data-day-intervals>
+            @for (var i = 0; i < 4; i++)
+            {
+                <div class="schedule-interval" data-interval><label class="campo"><span class="campo__etiqueta">Entrada @(i+1)</span><input class="campo__control" asp-for="Exception.Hours.Intervals[i].Entry" type="time" /></label><label class="campo"><span class="campo__etiqueta">Salida @(i+1)</span><input class="campo__control" asp-for="Exception.Hours.Intervals[i].Exit" type="time" /></label><button class="boton boton--secundario" type="button" data-remove-interval>Quitar tramo</button></div>
+            }
+            <button class="boton boton--secundario" type="button" data-add-interval>Añadir tramo</button></div>
+        </fieldset>
+        <label class="campo"><span class="campo__etiqueta">Motivo</span><textarea class="campo__control" asp-for="Exception.Reason" required maxlength="1000"></textarea></label>
+        <div class="people-actions"><button class="boton boton--primario" asp-page-handler="ScheduleExceptionPreview">Revisar impacto de excepción</button>
+        @if(Model.ExceptionPreview is {} preview) { <button class="boton boton--secundario" asp-page-handler="ScheduleException">Guardar excepción revisada</button> }
+        </div>
+        @if(Model.ExceptionPreview is {} impact) { <p role="status">@impact.Conflicts.Length conflictos; se conservan las asignaciones existentes.</p><ul>@foreach(var conflict in impact.Conflicts) { <li>@conflict.Task · @IndexModel.ScheduleMessage(conflict.Reason)</li> }</ul> }
+    </form>
+</section>
+<link rel="stylesheet" href="~/css/personal-schedules.css" asp-append-version="true" />
+<script src="~/js/personal-schedules.js" asp-append-version="true" defer></script>

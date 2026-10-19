@@ -1,0 +1,37 @@
+@page "/tareas/asignar"
+@model Sgol.Web.Pages.Tasks.AssignModel
+@using Sgol.Web.Pages.Tasks
+@{ ViewData["Title"] = "Asignar tarea ocasional"; }
+<section class="panel-seccion tasks-editor" aria-labelledby="occasion-title">
+    <header class="panel-seccion__cabecera"><h1 id="occasion-title">Asignar tarea ocasional</h1></header>
+    <p>@Model.TaskDefinition?.Name · @IndexModel.Label(Model.TaskDefinition?.Requirement ?? "NINGUNO") · @Model.TaskDefinition?.LoadMinutes min por persona</p>
+    @if (!string.IsNullOrWhiteSpace(Model.TaskDefinition?.Description)) { <h2>Descripción de la tarea</h2><p class="supervision-text">@Model.TaskDefinition.Description</p> }
+    <p>Cada persona seleccionada recibe su propia tarea y entrega su evidencia.</p>
+    @if (Model.IsScopedAssignment) { <p>Puedes asignarte la tarea o elegir personas de Administración, Subcoordinación y Piso de Ventas. La revisión sigue los permisos de Supervisión; no puedes revisar tu propia entrega.</p> }
+    else { <p>El reparto automático asigna una sola tarea a la persona habilitada del rol @IndexModel.RoleLabel(Model.TaskDefinition?.AssignedRole) con menor ocupación. Las correcciones y reasignaciones se realizan desde Supervisión.</p> }
+    @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p><p>Si adjuntaste material, selecciónalo nuevamente antes de reintentar. Conserva los mismos datos para recuperar una solicitud enviada.</p> }
+    <form method="post" enctype="multipart/form-data" data-occasion-form>
+        <input type="hidden" asp-for="Key" /><input type="hidden" asp-for="Input.TaskId" /><input type="hidden" asp-for="Input.TaskRevision" />
+        <div class="planificacion__formulario">
+            <label class="campo"><span class="campo__etiqueta">Nombre de esta ocasión</span><input class="campo__control" asp-for="Input.Name" maxlength="120" required /></label>
+            <label class="campo"><span class="campo__etiqueta">Instrucciones</span><textarea class="campo__control" asp-for="Input.Instructions" maxlength="4000" required></textarea></label>
+            <label class="campo"><span class="campo__etiqueta">Texto para publicar (opcional)</span><textarea class="campo__control" asp-for="Input.PublicationText" maxlength="4000"></textarea></label>
+            <label class="campo"><span class="campo__etiqueta">Dónde publicar (opcional)</span><input class="campo__control" asp-for="Input.Channels" maxlength="500" placeholder="Ejemplo: estado de WhatsApp" /></label>
+            <label class="campo"><span class="campo__etiqueta">Material de referencia (opcional)</span><input class="campo__control" type="file" name="Material" accept="image/jpeg,image/png,application/pdf" multiple /><small>Hasta 5 archivos JPG, PNG o PDF, 15 MB por archivo y 30 MB en total. Este material se conserva para todas las destinatarias.</small></label>
+            <label class="campo"><span class="campo__etiqueta">Inicio · Ciudad de México</span><input class="campo__control" asp-for="Input.StartsAt" type="datetime-local" asp-format="{0:yyyy-MM-ddTHH:mm}" required /></label>
+            <label class="campo"><span class="campo__etiqueta">Vencimiento · Ciudad de México</span><input class="campo__control" asp-for="Input.DueAt" type="datetime-local" asp-format="{0:yyyy-MM-ddTHH:mm}" required /></label>
+            @if (!Model.IsScopedAssignment) {
+            <label class="campo"><span class="campo__etiqueta">Vincular a un plan (opcional)</span><select class="campo__control" asp-for="Input.PlanId"><option value="">Asignación independiente</option>@foreach (var plan in Model.Plans) { <option value="@plan.Id">@plan.Name · @plan.StartsOn.ToString("dd/MM/yyyy") — @plan.EndsOn.ToString("dd/MM/yyyy")</option> }</select><small>El inicio debe estar dentro de las fechas del plan.</small></label>
+            <label><input asp-for="Input.Automatic" data-occasion-automatic /> Asignar automáticamente a una persona</label>
+            }
+            <fieldset data-occasion-recipients><legend>Personas que deben realizarla</legend>
+                @if (Model.Workers.Length == 0) { <p>No hay personas habilitadas para esta tarea.</p> }
+                @foreach (var worker in Model.Workers) { <label class="campo"><span><input type="checkbox" name="Input.PersonIds" value="@worker.Id" checked="@Model.Input.PersonIds.Contains(worker.Id)" /> @worker.Name · @IndexModel.RoleLabel(worker.Role)</span></label> }
+                <small>La asignación verifica disponibilidad y capacidad de cada persona antes de guardar.</small>
+            </fieldset>
+        </div>
+        <div class="modal__acciones"><a class="boton boton--secundario" href="@Model.CancelUrl">Cancelar</a><button class="boton boton--primario" type="submit">Asignar tarea</button></div>
+        <p role="status" data-occasion-status></p>
+    </form>
+</section>
+@section Scripts { <script src="~/js/occasion-material.js" asp-append-version="true"></script> }

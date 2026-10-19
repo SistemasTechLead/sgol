@@ -1,0 +1,218 @@
+@page "/personas-y-accesos/personas/{personId:guid}"
+@model Sgol.Web.Pages.People.DetailsModel
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@{
+    ViewData["Title"] = "Historial laboral";
+}
+<section class="persona-detalle" aria-labelledby="detalle-persona-titulo">
+    <a class="boton boton--textual" href="/personas-y-accesos">Volver a personas<partial name="_Icon" model='@("back")' /></a>
+    @if (Model.Error is not null)
+    {
+        @if (Model.IsConflict || Model.Person is null)
+        {
+            <header class="encabezado-pagina"><h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">@(Model.IsConflict ? "Conflicto de versión" : "Persona no disponible")</h1></header>
+        }
+        <div id="person-detail-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div>
+    }
+    @if (Model.IsConflict)
+    {
+        <a class="boton boton--secundario" href="/personas-y-accesos/personas/@(RouteData.Values["personId"])">Recargar detalle</a>
+    }
+    else if (Model.Person is { } person)
+    {
+        var current = person.EmploymentHistory.SingleOrDefault(version => version.ValidTo is null);
+        <header class="encabezado-pagina"><h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">@person.DisplayName</h1></header>
+        @if (Model.Success is not null)
+        {
+            <p class="alerta alerta--exito" role="status"><span aria-hidden="true">✓</span>@Model.Success. El historial laboral está actualizado.</p>
+        }
+        <dl class="detalle-persona panel-seccion">
+            <div><dt>Código de persona</dt><dd>@person.StableCode</dd></div>
+            <div><dt>Fecha de registro</dt><dd><time datetime="@person.CreatedAt.ToString("O")">@Sgol.Web.Pages.People.DetailsModel.LocalDateTime(person.CreatedAt)</time> (Ciudad de México)</dd></div>
+        </dl>
+        @if (current is not null && Model.ETag is not null)
+        {
+            <section class="panel-seccion formulario-persona" aria-labelledby="empleo-titulo">
+                <header class="panel-seccion__cabecera"><h2 id="empleo-titulo">Actualizar empleo</h2></header>
+                <form method="post" asp-page-handler="Employment" asp-antiforgery="false" class="persona-detalle__empleo" data-progress-form>
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                    <input type="hidden" name="intentKey" value="@Model.EmploymentIntent.ToString("D")" />
+                    <input type="hidden" name="etag" value="@Model.ETag" />
+                    <input type="hidden" name="status" value="@current.Status" />
+                    <label class="campo" for="positionText">
+                        <span class="campo__etiqueta">Puesto</span>
+                        <input id="positionText" name="positionText" class="campo__control" type="text" value="@(Model.PositionText ?? current.PositionText)" />
+                    </label>
+                    <label class="campo" for="shiftText">
+                        <span class="campo__etiqueta">Turno</span>
+                        <input id="shiftText" name="shiftText" class="campo__control" type="text" value="@(Model.ShiftText ?? current.ShiftText)" />
+                    </label>
+                    <label class="campo persona-detalle__motivo" for="employmentReason">
+                        <span class="campo__etiqueta">Motivo</span>
+                        <textarea id="employmentReason" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-invalid="false" aria-describedby="employmentReason-error" data-required-reason></textarea>
+                        <span id="employmentReason-error" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span>
+                    </label>
+                    <div class="acciones-formulario"><button class="boton boton--primario" type="submit" data-progress-label="Guardando…">Guardar empleo</button></div>
+                </form>
+            </section>
+            <section class="panel-seccion formulario-persona" aria-labelledby="vigencia-titulo">
+                <header class="panel-seccion__cabecera"><h2 id="vigencia-titulo">Vigencia laboral</h2></header>
+                @if (current.Status == "ACTIVA")
+                {
+                    <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="deactivate-dialog">Dar de baja</button>
+                    <dialog id="deactivate-dialog" class="modal" aria-labelledby="deactivate-title" aria-describedby="deactivate-summary">
+                        <form method="post" asp-page-handler="Deactivate" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                            <input type="hidden" name="intentKey" value="@Model.DeactivateIntent.ToString("D")" />
+                            <input type="hidden" name="etag" value="@Model.ETag" />
+                            <h3 id="deactivate-title" class="modal__titulo">Dar de baja a esta persona</h3>
+                            <p id="deactivate-summary" class="modal__texto">@person.DisplayName (@person.StableCode). La persona quedará inactiva. Su historial laboral se conservará.</p>
+                            <label class="campo" for="deactivate-reason"><span class="campo__etiqueta">Motivo</span><textarea id="deactivate-reason" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-invalid="false" aria-describedby="deactivate-reason-error" data-required-reason></textarea><span id="deactivate-reason-error" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                            <div class="modal__acciones">
+                                <button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button>
+                                <button type="submit" class="boton boton--primario" data-progress-label="Guardando…">Dar de baja</button>
+                            </div>
+                        </form>
+                    </dialog>
+                }
+                else if (current.Status == "INACTIVA")
+                {
+                    <button type="button" class="boton boton--secundario" data-dialog-open aria-controls="reactivate-dialog">Reactivar</button>
+                    <dialog id="reactivate-dialog" class="modal" aria-labelledby="reactivate-title" aria-describedby="reactivate-summary">
+                        <form method="post" asp-page-handler="Reactivate" asp-antiforgery="false" class="modal__contenido" data-progress-form>
+                            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                            <input type="hidden" name="intentKey" value="@Model.ReactivateIntent.ToString("D")" />
+                            <input type="hidden" name="etag" value="@Model.ETag" />
+                            <h3 id="reactivate-title" class="modal__titulo">Reactivar a esta persona</h3>
+                            <p id="reactivate-summary" class="modal__texto">@person.DisplayName (@person.StableCode). La persona volverá a estar activa. Su historial laboral se conservará.</p>
+                            <label class="campo" for="reactivate-reason"><span class="campo__etiqueta">Motivo</span><textarea id="reactivate-reason" name="reason" class="campo__control campo__control--textarea" required aria-required="true" aria-invalid="false" aria-describedby="reactivate-reason-error" data-required-reason></textarea><span id="reactivate-reason-error" class="campo__mensaje-error" hidden>Ingresa el motivo antes de continuar.</span></label>
+                            <div class="modal__acciones">
+                                <button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cancelar</button>
+                                <button type="submit" class="boton boton--primario" data-progress-label="Guardando…">Reactivar</button>
+                            </div>
+                        </form>
+                    </dialog>
+                }
+            </section>
+        }
+        @if (Model.CanManageAvailability)
+        {
+            <section class="panel-seccion formulario-persona" aria-labelledby="disponibilidad-titulo">
+                <header class="panel-seccion__cabecera"><h2 id="disponibilidad-titulo">Disponibilidad</h2></header>
+                <p>Fechas locales de America/Mexico_City. Un día sin registro es distinto de No disponible.</p>
+                @if (Model.AvailabilityError is not null)
+                {
+                    <div id="availability-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.AvailabilityError" /></div>
+                }
+                @if (Model.IsAvailabilityConflict)
+                {
+                    <a class="boton boton--secundario" href="/personas-y-accesos/personas/@person.Id?fromDate=@Model.FromDate&amp;toDate=@Model.ToDate&amp;day=@Model.SelectedDay">Recargar disponibilidad</a>
+                }
+                else
+                {
+                    <form method="get" data-progress-form>
+                        <label class="campo" for="availability-from"><span class="campo__etiqueta">Desde</span><input id="availability-from" name="fromDate" class="campo__control" type="date" value="@Model.FromDate" required aria-invalid="@(Model.AvailabilityError is null ? "false" : "true")" aria-describedby="availability-zone @(Model.AvailabilityError is null ? null : "availability-error")" /></label>
+                        <label class="campo" for="availability-to"><span class="campo__etiqueta">Hasta</span><input id="availability-to" name="toDate" class="campo__control" type="date" value="@Model.ToDate" required aria-invalid="@(Model.AvailabilityError is null ? "false" : "true")" aria-describedby="availability-zone @(Model.AvailabilityError is null ? null : "availability-error")" /></label>
+                        <label class="campo" for="availability-day"><span class="campo__etiqueta">Día</span><input id="availability-day" name="day" class="campo__control" type="date" value="@Model.SelectedDay" required aria-invalid="@(Model.AvailabilityError is null ? "false" : "true")" aria-describedby="availability-zone @(Model.AvailabilityError is null ? null : "availability-error")" /></label>
+                        <p id="availability-zone">Zona operativa: America/Mexico_City. El día debe estar dentro del rango.</p>
+                        <button type="submit" class="boton boton--secundario" data-progress-label="Consultando disponibilidad…">Consultar disponibilidad</button>
+                    </form>
+                    @if (Model.AvailabilityDays.Count > 0)
+                    {
+                        <div aria-busy="false" aria-live="polite">
+                            @if (Model.AvailabilityDays.All(item => item.IsAvailable is null))
+                            {
+                                <div class="estado-vacio"><p class="estado-vacio__titulo">Aún no hay disponibilidad registrada en este rango</p><p class="estado-vacio__texto">Selecciona un día y guarda Disponible o No disponible.</p></div>
+                            }
+                            <ul class="disponibilidad-lista" aria-label="Días de disponibilidad">
+                                @foreach (var item in Model.AvailabilityDays)
+                                {
+                                    <li class="disponibilidad-dia">
+                                        <time datetime="@item.Date.ToString("yyyy-MM-dd")">@item.Date.ToString("dd/MM/yyyy")</time>
+                                        @if (item.IsAvailable is true) { <span class="badge badge--exito"><span aria-hidden="true">✓</span>Disponible</span> }
+                                        else if (item.IsAvailable is false) { <span class="badge badge--advertencia"><span aria-hidden="true">⊘</span>No disponible</span> }
+                                        else { <span class="badge badge--neutro"><span aria-hidden="true">○</span>Sin registro</span> }
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                        @if (current?.Status == "ACTIVA")
+                        {
+                            <form method="post" asp-page-handler="Availability" asp-antiforgery="false" data-progress-form>
+                                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(HttpContext)" />
+                                <input type="hidden" name="intentKey" value="@Model.AvailabilityIntent.ToString("D")" />
+                                <input type="hidden" name="fromDate" value="@Model.FromDate" />
+                                <input type="hidden" name="toDate" value="@Model.ToDate" />
+                                <input type="hidden" name="day" value="@Model.SelectedDay" />
+                                <input type="hidden" name="etag" value="@Model.SelectedEtag" />
+                                <p>Día seleccionado: <time datetime="@Model.SelectedDay">@Model.SelectedDay</time>. @(Model.SelectedEtag is null ? "Sin registro" : "Valor registrado")</p>
+                                <fieldset class="grupo-radio" aria-describedby="availability-value-help">
+                                    <legend class="grupo-radio__leyenda">Disponibilidad para el día</legend>
+                                    <label class="grupo-radio__opcion"><input type="radio" name="isAvailable" value="true" required checked="@(Model.SelectedValue is true)" />Disponible</label>
+                                    <label class="grupo-radio__opcion"><input type="radio" name="isAvailable" value="false" required checked="@(Model.SelectedValue is false)" />No disponible</label>
+                                </fieldset>
+                                <p id="availability-value-help">Selecciona exactamente un valor binario.</p>
+                                <button type="submit" class="boton boton--primario" data-progress-label="Guardando disponibilidad…">Guardar disponibilidad</button>
+                            </form>
+                        }
+                        else { <p>La persona está inactiva. La disponibilidad se conserva en lectura.</p> }
+                    }
+                    @if (Model.AvailabilitySuccess is not null)
+                    {
+                        <p class="alerta alerta--exito" role="status"><span aria-hidden="true">✓</span>@Model.AvailabilitySuccess.</p>
+                    }
+                }
+            </section>
+        }
+        <section class="panel-seccion" aria-labelledby="laboral-historia-title">
+        <header class="panel-seccion__cabecera"><h2 id="laboral-historia-title">Historial laboral</h2></header>
+        <div class="tabla-contenedor">
+            <table class="tabla">
+                <caption>Versiones laborales de la persona</caption>
+                <thead class="tabla__encabezado"><tr><th scope="col">Estado</th><th scope="col">Desde</th><th scope="col">Hasta</th><th scope="col">Puesto</th><th scope="col">Turno</th></tr></thead>
+                <tbody class="tabla__cuerpo">
+                    @foreach (var version in person.EmploymentHistory)
+                    {
+                        <tr class="tabla__fila">
+                            <td>
+                                @if (version.Status == "ACTIVA")
+                                {
+                                    <span class="badge badge--exito"><span aria-hidden="true">✓</span>Activa</span>
+                                }
+                                else if (version.Status == "INACTIVA")
+                                {
+                                    <span class="badge badge--neutro"><span aria-hidden="true">⊘</span>Inactiva</span>
+                                }
+                            </td>
+                            <td><time datetime="@version.ValidFrom.ToString("O")">@Sgol.Web.Pages.People.DetailsModel.LocalDateTime(version.ValidFrom)</time></td>
+                            <td>
+                                @if (version.ValidTo is { } validTo)
+                                {
+                                    <time datetime="@validTo.ToString("O")">@Sgol.Web.Pages.People.DetailsModel.LocalDateTime(validTo)</time>
+                                }
+                                else { <span>Vigente</span> }
+                            </td>
+                            <td>@(version.PositionText ?? "Sin registrar")</td>
+                            <td>@(version.ShiftText ?? "Sin registrar")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (person.EmploymentHistory.Count == 0)
+            {
+                <p class="estado-vacio__titulo">Aún no hay historial laboral</p>
+            }
+        </div>
+        </section>
+    }
+</section>
+@section Scripts {
+    @if (Model.Error is not null)
+    {
+        <script>document.getElementById('person-detail-error')?.focus();</script>
+    }
+    @if (Model.AvailabilityError is not null)
+    {
+        <script>document.getElementById('availability-error')?.focus();</script>
+    }
+}

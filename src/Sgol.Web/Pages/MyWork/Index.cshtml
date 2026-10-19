@@ -1,0 +1,34 @@
+@page "/mi-trabajo"
+@model Sgol.Web.Pages.MyWork.IndexModel
+@{ ViewData["Title"] = "Mi trabajo"; }
+<section aria-labelledby="mi-trabajo-titulo">
+    <header class="encabezado-pagina my-work-heading">
+        <h1 id="mi-trabajo-titulo" class="encabezado-pagina__titulo">Mi trabajo</h1>
+        <a class="boton boton--secundario" href="/mi-trabajo/procesos">Mis procesos</a>
+        @if (Model.ErrorTitle is null)
+        {
+            <span class="my-work-mobile-only my-work-heading__subtitle">Tus tareas asignadas</span>
+            <details class="my-work-mobile-only my-work-help">
+                <summary aria-label="Información sobre tus tareas y sus colores" title="Información sobre tus tareas"><span aria-hidden="true">i</span></summary>
+                <div class="my-work-help__content">
+                    <p>Tus tareas del día aparecen primero. Abre cada tarea para preparar tu entrega o consultar su evidencia.</p>
+                    <partial name="_TaskColorLegend" />
+                </div>
+            </details>
+        }
+    </header>
+    @if (Model.ErrorTitle is not null)
+    {
+        <div class="alerta alerta--peligro" role="alert"><strong>@Model.ErrorTitle</strong><p>@Model.ErrorMessage</p></div>
+    }
+    else
+    {
+        @if (TempData["OperationalSuccess"] is string success) { <p class="alerta alerta--exito" role="status">@success</p> }
+        <partial name="_OperationalTasks" model="Model" />
+    }
+</section>
+@section Scripts {
+    <script src="~/js/camera-capture.js" asp-append-version="true"></script>
+    <script src="~/js/occasion-material.js" asp-append-version="true"></script><script src="~/js/assigned-tasks.js" asp-append-version="true"></script>
+    <script src="~/js/my-work-timing.js" asp-append-version="true"></script>
+}

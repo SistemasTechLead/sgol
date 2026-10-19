@@ -1,0 +1,34 @@
+@page "/personas-y-accesos/especializaciones"
+@model Sgol.Web.Pages.People.SpecializationsModel
+@{ ViewData["Title"] = "Especializaciones"; }
+<section aria-labelledby="specializations-title">
+    <header class="encabezado-pagina encabezado-pagina--catalogo">
+        <div class="encabezado-pagina__contenido"><h1 id="specializations-title" class="encabezado-pagina__titulo">Especializaciones</h1><p class="encabezado-pagina__descripcion">Subroles del equipo. Asigna varias o ninguna desde el perfil de cada persona.</p></div>
+        <div class="encabezado-pagina__acciones">
+            <a class="boton boton--primario" href="?create=true">Crear especialización</a>
+            <a class="boton boton--secundario" href="/personas-y-accesos">Volver a Personas y accesos</a>
+        </div>
+    </header>
+    @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+    @if (Model.Editing) {
+        <section class="panel-seccion"><header class="panel-seccion__cabecera"><h2>@(Model.Input.Id == Guid.Empty ? "Crear especialización" : "Editar especialización")</h2></header>
+            <form method="post" asp-page-handler="Save"><input asp-for="Input.Id" type="hidden" /><input asp-for="Input.Revision" type="hidden" />
+                <label class="campo"><span class="campo__etiqueta">Nombre</span><input class="campo__control" asp-for="Input.Name" required minlength="2" maxlength="120" /></label>
+                <label><input asp-for="Input.Active" /> Activa</label>
+                <p>Los cambios conservan el historial. Para desactivarla, primero retira el requisito de las tareas activas y resuelve las asignaciones pendientes.</p>
+                <div class="people-actions"><a class="boton boton--secundario" href="/personas-y-accesos/especializaciones">Cancelar</a><button class="boton boton--primario" type="submit">Guardar especialización</button></div>
+            </form>
+        </section>
+    }
+    @if (Model.Items.Count == 0) { <p class="estado-vacio">Todavía no hay especializaciones.</p> }
+    @foreach (var view in Model.Items) {
+        <section class="panel-seccion"><header class="panel-seccion__cabecera"><h2>@view.Item.Name · @(view.Item.Active ? "Activa" : "Inactiva")</h2><a class="boton boton--secundario" href="?edit=@view.Item.Id">Editar</a></header>
+            <h3>Personas asignadas (@view.People.Length)</h3>
+            @if (view.People.Length == 0) { <p>Sin personas asignadas.</p> } else { <ul>@foreach (var person in view.People) { <li>@person</li> }</ul> }
+            <h3>Tareas que la requieren (@view.Tasks.Length)</h3>
+            @if (view.Tasks.Length == 0) { <p>Sin tareas en el catálogo.</p> } else { <ul>@foreach (var task in view.Tasks) { <li>@task.Name · @task.TaskCode · @(task.Active ? "Activa" : "Inactiva")</li> }</ul> }
+            <h3>Asignaciones pendientes (@view.PendingTasks.Length)</h3>
+            @if (view.PendingTasks.Length == 0) { <p>Sin asignaciones pendientes.</p> } else { <ul>@foreach (var task in view.PendingTasks) { <li>@task</li> }</ul> }
+        </section>
+    }
+</section>
