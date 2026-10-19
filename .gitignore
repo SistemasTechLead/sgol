@@ -30,3 +30,29 @@
 **/appsettings.Local.json
 **/appsettings.*.local.json
 
+# Utilidades locales de prototipos y operaciones puntuales ya realizadas
+# Se conservan en esta computadora, fuera del codigo compartido.
+/scripts/secuencias/
+/tools/Sgol.ProcessDemo/
+
+# Caches y resultados de herramientas de desarrollo
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+/coverage/
+.nyc_output/
+*.coverage
+*.coveragexml
+*.trx
+*.tsbuildinfo
+*.tmp
+*.temp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Desktop.ini

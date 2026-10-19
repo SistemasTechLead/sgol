@@ -1,6 +1,6 @@
 # SGOL para pruebas en la red del trabajo
 
-Desde la carpeta del proyecto, en PowerShell:
+Desde la carpeta raíz del proyecto (donde está `SistemaSGOL.slnx`), en PowerShell:
 
 ```powershell
 .\scripts\iniciar-red.ps1

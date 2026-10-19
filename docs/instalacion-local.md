@@ -1,13 +1,14 @@
 # SGOL en esta computadora
 
-Para compartirlo con compañeros de la red del trabajo, consulta [README.red.md](README.red.md).
+Para compartirlo con compañeros de la red del trabajo, consulta la
+[guía de acceso en red](acceso-red.md).
 
 El proyecto es una solución de .NET 10: `Sgol.Web` contiene Razor Pages y la API,
 los módulos contienen los contratos de negocio y PostgreSQL guarda los datos.
 El flujo operativo actual funciona en la web; `Sgol.Worker` conserva comandos de
 respaldo y compatibilidad con la cola anterior. ClamAV verifica los archivos;
 las evidencias operativas se guardan en tablas separadas. El circuito anterior usa S3.
-Consulta [la normalización del esquema](docs/normalizacion-bd.md) para las migraciones
+Consulta [la normalización del esquema](normalizacion-bd.md) para las migraciones
 y la preparación del despliegue.
 
 ## Abrir y probar

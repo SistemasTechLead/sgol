@@ -54,8 +54,8 @@ ejecución y evidencias.
 Puede utilizarse en esta computadora o compartirse dentro de la red local.
 Consulta las instrucciones de preparación y ejecución:
 
-- [Iniciar y trabajar en esta computadora](README.local.md)
-- [Compartir en la red local](README.red.md)
+- [Iniciar y trabajar en esta computadora](docs/instalacion-local.md)
+- [Compartir en la red local](docs/acceso-red.md)
 - [Esquema y migraciones](docs/normalizacion-bd.md)
 
 ## Actualizar GitHub
@@ -72,4 +72,8 @@ se detiene para que los integres antes de publicar. Requiere Git y acceso al rep
 
 Este repositorio contiene el código, las migraciones, herramientas y documentación.
 Las credenciales, bases locales, evidencias, respaldos y resultados generados no se
-publican. Una clonacion nueva necesita preparar su entorno siguiendo README.local.md.
+publican. Los prototipos y las utilidades de demostración de uso puntual también
+quedan fuera de Git. Se conservan las pruebas de regresión y las herramientas
+necesarias para preparar, ejecutar y mantener el sistema.
+Una clonación nueva necesita preparar su entorno siguiendo la
+[guía de instalación local](docs/instalacion-local.md).
