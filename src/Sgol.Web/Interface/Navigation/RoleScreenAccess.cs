@@ -39,6 +39,8 @@ public sealed class RoleScreenAccessFilter(IRazorSessionState sessions) : IAsync
             return;
         }
         var screen = RoleScreenAccess.Items.FirstOrDefault(item => context.HttpContext.Request.Path.StartsWithSegments(item.Href));
+        if (context.HttpContext.Request.Path.StartsWithSegments("/supervision"))
+            screen = RoleScreenAccess.Items.Single(item => item.Href == "/validaciones");
         // The legacy branch details screen belongs to organization administration.
         if (context.HttpContext.Request.Path.StartsWithSegments("/branches"))
             screen = RoleScreenAccess.Items.Single(item => item.Href == "/personas-y-accesos");

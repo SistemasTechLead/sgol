@@ -10,7 +10,11 @@ public sealed class IndexModel(IRazorSessionState sessions, LiveBoardReader boar
     Sgol.Web.Infrastructure.Persistence.Identity.ScreenDeviceService? screenDevices = null) : PageModel
 {
     [BindProperty(SupportsGet = true)] public Guid? Plan { get; set; }
-    [BindProperty(SupportsGet = true, Name = "task")] public Guid? SelectedTask { get; set; }
+    [BindProperty(SupportsGet = true, Name = "task")] public string? TaskFilter { get; set; }
+    private Guid? SelectedTask => Guid.TryParse(TaskFilter, out var id) ? id : null;
+    private string? StateFilter => TaskFilter?.StartsWith("state:", StringComparison.Ordinal) == true ? TaskFilter[6..] : null;
+    private bool ValidFilter => string.IsNullOrEmpty(TaskFilter) || SelectedTask is not null ||
+        StateFilter is not null && LiveBoardSnapshot.States.Contains(StateFilter);
     public LiveBoardSnapshot Snapshot { get; private set; } = null!;
 
     public Task<IActionResult> OnGetAsync(CancellationToken token) => LoadAsync(false, token);
@@ -20,7 +24,7 @@ public sealed class IndexModel(IRazorSessionState sessions, LiveBoardReader boar
     {
         var session = await sessions.GetAsync(token);
         if (session is null) return Unauthorized();
-        if (!ModelState.IsValid) return BadRequest();
+        if (!ModelState.IsValid || !ValidFilter) return BadRequest();
         Response.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-store";
         Response.Headers["X-Accel-Buffering"] = "no";
@@ -70,8 +74,8 @@ public sealed class IndexModel(IRazorSessionState sessions, LiveBoardReader boar
         Response.Headers["Referrer-Policy"] = "no-referrer";
         var session = await sessions.GetAsync(token);
         if (session is null) return Redirect("/acceso");
-        if (!ModelState.IsValid) return BadRequest();
-        try { Snapshot = await board.ReadAsync(session.UserId, Plan, token, SelectedTask); }
+        if (!ModelState.IsValid || !ValidFilter) return BadRequest();
+        try { Snapshot = (await board.ReadAsync(session.UserId, Plan, token, SelectedTask)) with { StateFilter = StateFilter }; }
         catch (DirectionPlanException e) { return StatusCode(e.Status); }
         return refresh ? Partial("_BoardContent", Snapshot) : Page();
     }

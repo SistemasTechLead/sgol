@@ -5,28 +5,36 @@
 @{ ViewData["Title"] = "Tareas";
     var showSundayTime = Model.Input.PeriodType == "SEMANAL" && (Model.Input.ScheduleMode == "DIAS_FIJOS" && Model.InputDays.Contains(0) || Model.Input.ScheduleMode == "DISTRIBUIDA" && Model.Input.Repetitions == 7);
 }
-<section aria-labelledby="tasks-title">
+<link rel="stylesheet" href="~/css/task-actions.css" asp-append-version="true" />
+<section aria-labelledby="tasks-title" data-task-catalog>
     <header class="encabezado-pagina encabezado-pagina--catalogo">
         <div class="encabezado-pagina__contenido">
             <h1 id="tasks-title" class="encabezado-pagina__titulo">Tareas</h1>
             <p class="encabezado-pagina__descripcion">Consulta las tareas, sus requisitos y el proceso al que pertenecen.</p>
         </div>
-        <div class="encabezado-pagina__acciones">
+        <div class="tasks-header-actions">
+            <partial name="_SectionNavigation" model='@("tasks")' />
             @if (Model.CanManage)
             {
-                <a class="boton boton--primario" href="/tareas?create=true">Crear Tarea</a>
-                <a class="boton boton--secundario" href="/tareas/procesos">Crear proceso</a>
+                <form method="get" asp-page="Refresh" class="tasks-global-refresh">
+                    <button class="boton boton--primario" type="submit" disabled="@(Model.RefreshCounts.Count == 0)" aria-describedby="global-refresh-status">Actualizar Asignaciones</button>
+                </form>
             }
-            else
-            {
-                <a class="boton boton--secundario" href="/tareas/procesos">Procesos</a>
-            }
-            <a class="boton boton--secundario tasks-assign-link" href="/asignar-tarea">Asignar tarea</a>
         </div>
     </header>
+    @if (Model.CanManage) { <p id="global-refresh-status" role="status">@(Model.RefreshCounts.Count > 0 ? $"En todo el catálogo: {Model.RefreshCounts.Values.Sum()} asignaciones pendientes con diferencias en {Model.RefreshCounts.Count} tareas. Revisa y actualiza todas juntas." : "Todas las asignaciones pendientes están actualizadas.")</p> }
     @if (!Model.CanManage) { <p>Consulta el catálogo de tareas. Dirección administra sus cambios.</p> }
     <form method="get" class="tasks-search"><label class="campo"><span class="campo__etiqueta">Buscar tareas</span><input class="campo__control" type="search" name="Search" value="@Model.Search" placeholder="Nombre o código de tarea" /></label><label class="campo"><span class="campo__etiqueta">Proceso</span><select class="campo__control" asp-for="ProcessFilter"><option value="">Todos</option>@foreach(var process in Model.Processes) { <option value="@process.Id">@process.Name</option> }</select></label><button class="boton boton--secundario" type="submit">Buscar</button></form>
+    @if (TempData["AssignmentsUpdated"] is string updated) { <p class="alerta" role="status">@updated</p> }
     @if (Model.Error is not null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+    @if (Model.CanManage && Model.AdjustClosure)
+    {
+        <section class="panel-seccion" aria-labelledby="closure-title"><h2 id="closure-title">Ajustar Porcentaje Para el Cierre</h2>
+            <p>Vigente: @(Model.SchedulingPolicy?.MarginPercent)% · versión @Model.SchedulingPolicy?.Revision. Se aplica a nuevos planes y asignaciones independientes. Los compromisos publicados conservan sus fechas y su política.</p>
+            <p>Con 50%, una carga de 20 minutos reserva 30 minutos hasta el cierre. El margen también ocupa espacio en la agenda; no aumenta la carga registrada.</p>
+            <form method="post" asp-page-handler="Closure"><input type="hidden" asp-for="PolicyRevision" /><label class="campo"><span class="campo__etiqueta">Margen global (%)</span><input class="campo__control" asp-for="ClosureMarginPercent" type="number" min="0" max="500" required /></label><p>Confirmar este cambio no recalcula asignaciones existentes.</p><button class="boton boton--primario" type="submit">Confirmar porcentaje para nuevas operaciones</button><a class="boton boton--secundario" href="/tareas">Cancelar</a></form>
+        </section>
+    }
     @if (Model.Editing)
     {
         <link rel="stylesheet" href="~/css/task-form.css" asp-append-version="true" />
@@ -66,7 +74,7 @@
                     <div class="task-form__grid" data-periodic-fields>
                         <label class="campo task-form__wide"><span class="campo__etiqueta">Calendario de ejecución</span><select class="campo__control" asp-for="Input.ScheduleMode" data-schedule-mode><option value="DISTRIBUIDA">Repeticiones distribuidas en el periodo</option><option value="DIAS_FIJOS">Días fijos de la semana</option><option value="PROGRESO">Progreso durante la semana (tarea pasiva)</option></select></label>
                         <label class="campo task-form__number"><span class="campo__etiqueta">Repeticiones por periodo</span><input class="campo__control" asp-for="Input.Repetitions" type="number" min="1" max="100" required /></label>
-                        <label class="campo task-form__number"><span class="campo__etiqueta">Hora de activación · Ciudad de México</span><input class="campo__control" asp-for="Input.StartTime" type="time" step="60" required /><small class="task-form__help">Hora local con precisión de minutos. La evidencia permanece bloqueada hasta el inicio.</small></label>
+                        <label class="campo task-form__number"><span class="campo__etiqueta">Hora de activación · Ciudad de México</span><input class="campo__control" asp-for="Input.StartTime" type="time" step="60" required /><small class="task-form__help">Hora local con precisión de minutos. El inicio organiza la agenda; la entrega puede realizarse anticipadamente.</small></label>
                         <label class="campo task-form__wide" data-month-days hidden="@(Model.Input.PeriodType != "MENSUAL")"><span class="campo__etiqueta">Días preferidos del mes</span><input class="campo__control" asp-for="Input.PreferredMonthDays" maxlength="83" placeholder="Ejemplo: 8,22" disabled="@(Model.Input.PeriodType != "MENSUAL")" /><small class="task-form__help">Fechas recurrentes. Si no hay capacidad o cae domingo se busca hasta dos días antes o después, en el mismo mes y plan. Las fechas inexistentes quedan pendientes.</small></label>
                         <fieldset class="task-form__group task-form__wide" data-fixed-days hidden="@(Model.Input.ScheduleMode != "DIAS_FIJOS")"><legend>Días de ejecución</legend>
                             <div class="task-form__days">@foreach (var d in new[] { 1, 2, 3, 4, 5, 6, 0 }) { <label class="task-form__check"><input type="checkbox" name="InputDays" value="@d" checked="@Model.InputDays.Contains(d)" /><span>@(new[] { "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" }[d])</span></label> }</div>
@@ -80,16 +88,17 @@
                     </div>
                     <p class="task-form__note" data-occasional-help hidden>Esta tarea solo se genera con Asignar tarea ocasional. En cada ocasión se eligen inicio, vencimiento, destinatarios y material.</p>
                     <label class="campo" data-sunday-time hidden="@(!showSundayTime)"><span class="campo__etiqueta">Horario dominical</span><input class="campo__control" asp-for="Input.SundayStartTime" type="time" step="60" disabled="@(!showSundayTime)" /><small>Opcional. Sustituye la hora de activación del domingo. Vacío conserva la hora habitual.</small></label>
-                    <label class="campo task-form__number"><span class="campo__etiqueta">Plazo (horas desde el inicio)</span><input class="campo__control" asp-for="Input.DeadlineHours" type="number" min="1" max="8760" required /></label>
+                    <p>El cierre de nuevas asignaciones se calcula desde la activación asignada, según carga y margen global. Las metas por progreso conservan cierre semanal; las asignaciones anteriores conservan sus fechas.</p>
                     <p class="task-form__note">Ejemplo: «Regar árboles», días fijos lunes y jueves, activación a las 9 y plazo de 12 horas. En tareas pasivas, la carga representa el esfuerzo de toda la meta; el plazo termina al cerrar la semana.</p>
                 </section>
 <section class="task-form__section" aria-labelledby="task-options-title">
                     <h3 id="task-options-title">Carga y opciones</h3>
+                    <label class="campo"><span class="campo__etiqueta">Criticidad operativa</span><select class="campo__control" asp-for="Input.OperationalCriticality" required><option value="">Selecciona criticidad</option><option value="CRITICA">Crítica</option><option value="IMPORTANTE">Importante</option><option value="FLEXIBLE">Flexible</option></select><small>Crítica conserva su hora; importante y flexible pueden retrasarse dentro del día. Las asignaciones publicadas conservan sus parámetros.</small></label>
                     <label class="campo task-form__number"><span class="campo__etiqueta">Carga por repetición (minutos estimados)</span><input class="campo__control" asp-for="Input.LoadMinutes" type="number" min="1" max="4800" required /></label>
                     <label class="task-form__check"><input asp-for="Input.Active" /><span>Activa para nuevas asignaciones</span></label>
                     <div>
-                        <label class="task-form__check"><input asp-for="Input.IsWeeklyOperationsTask" /><span>Es parte del plan de operaciones semanal</span></label>
-                        <small class="task-form__help task-form__check-help">Incluye esta tarea al preparar el maestro semanal. Debe ser una tarea periódica del proceso General.</small>
+                        <label class="task-form__check"><input asp-for="Input.IsWeeklyOperationsTask" data-task-weekly-operations disabled="@(Model.Input.PeriodType != "SEMANAL")" /><span>Es parte del plan de operaciones semanal</span></label>
+                        <small class="task-form__help task-form__check-help">Solo disponible para tareas de periodicidad semanal del proceso General.</small>
                     </div>
                 </section>
                 <div class="modal__acciones task-form__actions"><a class="boton boton--secundario" href="@Model.CancelUrl">Cancelar</a><button class="boton boton--primario" type="submit">Guardar tarea</button></div>
@@ -97,18 +106,31 @@
         </section>
     }
     <p>Un plan semanal incluye las fechas que correspondan de cada calendario, también las tareas mensuales. El reparto considera la capacidad disponible y los avances pendientes.</p>
+    @if (Model.CanManage) { <p id="task-selection-help">Selecciona una tarea haciendo clic en su fila o en su selector para habilitar las acciones del panel flotante.</p> }
     @if (Model.Items.Count == 0) { <p class="estado-vacio">No se encontraron tareas.</p> }
     else {
-        <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th>Proceso</th><th>Tarea</th><th>Rol asignado</th><th>Especialización</th><th>Requisito</th><th>Periodicidad</th><th>Repeticiones</th><th>Plazo</th><th>Carga</th><th>Estado</th>@if (Model.CanManage) { <th>Acciones</th> }</tr></thead><tbody>
+        <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th>Proceso</th><th>Tarea</th><th>Rol asignado</th><th>Especialización</th><th>Requisito</th><th>Periodicidad</th><th>Repeticiones</th><th>Plazo nuevo</th><th>Criticidad operativa</th><th>Carga</th><th>Estado</th></tr></thead><tbody>
         @foreach (var task in Model.Items) {
-            <tr class="tabla__fila"><td><a href="/tareas/procesos?id=@task.ProcessId">@Model.ProcessName(task.ProcessId)</a></td><td><strong>@task.Name</strong>@if (!string.IsNullOrWhiteSpace(task.Description)) { <details><summary>Ver descripción</summary><p class="supervision-text">@task.Description</p></details> }<br /><small>@task.TaskCode</small><br /><small>@(task.PreferredMonthDays.Length > 0 ? $"Días del mes: {task.PreferredMonthDays}" : task.PeriodType == "OCASIONAL" ? "Se asigna cuando se necesita" : task.ScheduleMode == "PROGRESO" ? $"Meta: {task.GoalUnits} {task.ProgressUnit}" : task.ScheduleMode == "DIAS_FIJOS" ? string.Join(", ", Enumerable.Range(0, 7).Where(d => (task.WeekDays & (1 << d)) != 0).Select(d => new[] { "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb" }[d])) : "Distribución por calendario") @(task.PeriodType == "OCASIONAL" ? "" : $"· {task.StartHour:00}:{task.StartMinute:00}")</small></td><td>@IndexModel.RoleLabel(task.AssignedRole)</td><td>@(task.SpecializationId == null ? "No requiere especialización" : Model.Specializations.SingleOrDefault(s => s.Id == task.SpecializationId)?.Name ?? "Especialización inactiva")</td><td>@IndexModel.Label(task.Requirement)</td><td>@(task.ProcessId == OperationalSequence.GeneralId ? IndexModel.Label(task.PeriodType) : "Inicio por proceso")</td><td>@(task.PeriodType == "OCASIONAL" ? "—" : task.Repetitions.ToString())</td><td>@(task.ProcessId != OperationalSequence.GeneralId ? "Reglas del proceso" : task.ScheduleMode == "PROGRESO" ? "Cierre semanal" : $"{task.DeadlineHours} h")</td><td>@task.LoadMinutes min</td><td>@(task.Active ? "Activa" : "Inactiva")</td>@if (Model.CanManage) { <td>
-                @if (task.ProcessId == OperationalSequence.GeneralId && task.PeriodType == "OCASIONAL" && task.Active) { <a class="boton boton--primario" href="/tareas/asignar?taskId=@task.Id">Asignar tarea ocasional</a> }<div class="tasks-actions"><a class="boton boton--secundario" href="/tareas?edit=@task.Id">Editar</a>
-                <form method="post" asp-page-handler="Change"><input type="hidden" name="id" value="@task.Id" /><input type="hidden" name="revision" value="@task.Revision" /><button class="boton boton--secundario" type="submit">@(task.Active ? "Desactivar" : "Activar")</button></form>
-                <button class="boton boton--secundario" type="button" data-dialog-open aria-controls="delete-@task.Id">Eliminar</button></div>
-                <dialog id="delete-@task.Id" class="modal" aria-labelledby="delete-title-@task.Id"><div class="modal__contenido"><h2 id="delete-title-@task.Id">Eliminar tarea</h2><p>Se quitará «@task.Name» del catálogo. Las asignaciones anteriores conservarán su historia.</p><form method="post" asp-page-handler="Change"><input type="hidden" name="id" value="@task.Id" /><input type="hidden" name="revision" value="@task.Revision" /><input type="hidden" name="delete" value="true" /><div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close>Cancelar</button><button class="boton boton--primario" type="submit">Eliminar tarea</button></div></form></div></dialog>
-            </td> }</tr>
+            <tr class="tabla__fila" data-task-row="@(Model.CanManage ? task.Id.ToString() : null)" data-task-name="@task.Name" data-task-code="@task.TaskCode" data-task-revision="@task.Revision" data-task-active="@task.Active.ToString().ToLowerInvariant()" data-task-assignable="@((task.ProcessId == OperationalSequence.GeneralId && task.PeriodType == "OCASIONAL" && task.Active).ToString().ToLowerInvariant())"><td><a href="/tareas/procesos?id=@task.ProcessId">@Model.ProcessName(task.ProcessId)</a></td><td>@if (Model.CanManage) { <input class="task-selection" type="radio" name="selected-task" value="@task.Id" aria-label="Seleccionar @task.TaskCode: @task.Name" aria-describedby="task-selection-help" /> }<strong>@task.Name</strong>@if (!string.IsNullOrWhiteSpace(task.Description)) { <details><summary>Ver descripción</summary><p class="supervision-text">@task.Description</p></details> }<br /><small>@task.TaskCode</small>@if (Model.RefreshCounts.GetValueOrDefault(task.Id) is var stale && stale > 0) { <br /><small>@stale asignaciones pendientes con cambios</small> }<br /><small>@(task.PreferredMonthDays.Length > 0 ? $"Días del mes: {task.PreferredMonthDays}" : task.PeriodType == "OCASIONAL" ? "Se asigna cuando se necesita" : task.ScheduleMode == "PROGRESO" ? $"Meta: {task.GoalUnits} {task.ProgressUnit}" : task.ScheduleMode == "DIAS_FIJOS" ? string.Join(", ", Enumerable.Range(0, 7).Where(d => (task.WeekDays & (1 << d)) != 0).Select(d => new[] { "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb" }[d])) : "Distribución por calendario") @(task.PeriodType == "OCASIONAL" ? "" : $"· {task.StartHour:00}:{task.StartMinute:00}")</small></td><td>@IndexModel.RoleLabel(task.AssignedRole)</td><td>@(task.SpecializationId == null ? "No requiere especialización" : Model.Specializations.SingleOrDefault(s => s.Id == task.SpecializationId)?.Name ?? "Especialización inactiva")</td><td>@IndexModel.Label(task.Requirement)</td><td>@(task.ProcessId == OperationalSequence.GeneralId ? IndexModel.Label(task.PeriodType) : "Inicio por proceso")</td><td>@(task.PeriodType == "OCASIONAL" ? "—" : task.Repetitions.ToString())</td><td>@(task.ProcessId != OperationalSequence.GeneralId ? "Reglas del proceso" : task.ScheduleMode == "PROGRESO" ? "Cierre semanal" : $"Carga + {Model.SchedulingPolicy?.MarginPercent ?? 50}%")</td><td>@OperationalAgenda.Label(task.OperationalCriticality)</td><td>@task.LoadMinutes min</td><td>@(task.Active ? "Activa" : "Inactiva")</td></tr>
         }
         </tbody></table></div>
     }
+    @if (Model.CanManage && Model.Items.Count > 0)
+    {
+        <aside class="task-action-panel" aria-label="Acciones de la tarea">
+            <div class="task-action-panel__selection" role="status" aria-live="polite"><strong data-task-selection-label>Ninguna tarea seleccionada</strong><small data-task-selection-hint>Selecciona una tarea para habilitar las acciones.</small></div>
+            <div class="task-action-panel__buttons">
+                <button class="boton boton--secundario" type="button" data-task-edit disabled>Editar</button>
+                <form method="post" asp-page-handler="Change" data-task-change><input type="hidden" name="id" disabled /><input type="hidden" name="revision" disabled /><button class="boton boton--secundario" type="submit" data-task-toggle disabled>Activar / Desactivar</button></form>
+                <button class="boton boton--secundario" type="button" data-dialog-open aria-controls="task-delete" data-task-delete disabled>Eliminar</button>
+                <button class="boton boton--primario" type="button" data-task-assign disabled>Asignar tarea ocasional</button>
+            </div>
+        </aside>
+        <dialog id="task-delete" class="modal" aria-labelledby="task-delete-title"><div class="modal__contenido">
+            <h2 id="task-delete-title">Eliminar tarea</h2><p>Se quitará «<strong data-task-delete-name></strong>» del catálogo. Las asignaciones anteriores conservarán su historia.</p>
+            <form method="post" asp-page-handler="Change" data-task-change><input type="hidden" name="id" disabled /><input type="hidden" name="revision" disabled /><input type="hidden" name="delete" value="true" /><div class="modal__acciones"><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cancelar</button><button class="boton boton--primario" type="submit" data-task-delete-confirm disabled>Eliminar tarea</button></div></form>
+        </div></dialog>
+        <noscript><p>Activa JavaScript para seleccionar tareas y usar el panel de acciones.</p></noscript>
+    }
 </section>
-@section Scripts { <script src="~/js/task-process.js" asp-append-version="true"></script> <script src="~/js/task-calendar.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/task-actions.js" asp-append-version="true"></script> <script src="~/js/task-process.js" asp-append-version="true"></script> <script src="~/js/task-calendar.js" asp-append-version="true"></script> }

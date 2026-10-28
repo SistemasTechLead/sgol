@@ -18,6 +18,7 @@ public sealed partial class ProcessesModel(IRazorSessionState sessions,Operation
     public ProcessPlanView? Plan { get; private set; }
     public bool CanManage { get; private set; }
     public string? Error { get; private set; }
+    public int[] AutomaticPositions { get; private set; }=[];
     private async Task<Guid?> Actor(CancellationToken token,bool write)
     {
         Response.Headers.CacheControl="no-store"; var session=await sessions.GetAsync(token); CanManage=session?.RoleCode==CanonicalRole.Direction;
@@ -31,14 +32,14 @@ public sealed partial class ProcessesModel(IRazorSessionState sessions,Operation
     public async Task<IActionResult> OnGetAsync(Guid? processId,Guid? planId,CancellationToken token)
     {
         var actor=await Actor(token,false); if(actor==null) return StatusCode(403);
-        try { if(planId!=null) Plan=await plans.ReadAsync(actor.Value,planId.Value,token); else { if(!CanManage) return StatusCode(403); Input.ProcessId=processId??Guid.Empty; await Load(actor.Value,token); } return Page(); }
+        try { if(planId!=null) Plan=await plans.ReadAsync(actor.Value,planId.Value,token); else { if(!CanManage) return StatusCode(403); Input.ProcessId=processId??Guid.Empty; await Load(actor.Value,token); if(Editor != null) { Input.Mode=Editor.Configuration?.StartKind == "OCASIONAL" ? "OCASION" : "CALENDARIO"; Input.Name=("Plan de " + Editor.Process.Name); if(Input.Name.Length>120) Input.Name=Input.Name[..120]; } } return Page(); }
         catch(DirectionPlanException e) { return StatusCode(e.Status); }
     }
     public async Task<IActionResult> OnPostPreviewAsync(CancellationToken token)
     {
         var actor=await Actor(token,true); if(actor==null) return StatusCode(403);
-        try { Preview=await plans.PreviewAsync(actor.Value,Input,token); Input.Fingerprint=Preview.Fingerprint; ModelState.Remove("Input.Fingerprint"); }
-        catch(DirectionPlanException e) { Response.StatusCode=e.Status; Error=Sgol.Web.Pages.Tasks.IndexModel.Message(e.Code); }
+        try { AutomaticPositions=Input.People.Where(p=>p.Value==Guid.Empty).Select(p=>p.Key).ToArray(); Preview=await plans.PreviewAsync(actor.Value,Input,token); Input.Fingerprint=Preview.Fingerprint; ModelState.Remove("Input.Fingerprint"); }
+        catch(DirectionPlanException e) { Response.StatusCode=e.Status; Error=(e.Data["StagePosition"] is {} position ? $"Etapa {position} ({e.Data["StageName"]}): " : "") + Sgol.Web.Pages.Tasks.IndexModel.Message(e.Code); }
         await Load(actor.Value,token); return Page();
     }
     public async Task<IActionResult> OnPostPrepareAsync(CancellationToken token)

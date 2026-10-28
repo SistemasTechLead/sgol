@@ -17,7 +17,19 @@ Complementa Adenda 55 y precisa sus reglas visuales. Prevalece sobre ejemplos vi
 - Poppins local para operación (400/500/600); Georgia del sistema sólo en bienvenida. La bienvenida usa tamaño propio por token y no transmite ese tamaño a formularios o celdas.
 - Se conservan los seis estados, áreas mínimas, reflow, textos ampliados y movimiento reducido. Iconos decorativos aria-hidden y etiqueta visible; no sustituyen el texto. Enlaces de contenido en prosa mantienen subrayado; controles de navegación/acción textual usan área de botón, flecha cuando corresponda y foco visible, sin contorno rojo.
 
+## Normalización móvil aprobada el 20 de octubre de 2026
+
+El [plan de normalización móvil](../plan-normalizacion-movil.md) establece una excepción móvil a la regla anterior de no transformar tablas: los registros operativos pueden leerse verticalmente dentro del contenedor móvil existente. Se conserva una sola tabla, sus encabezados y asociaciones accesibles, sus controles originales y el acceso desplegable a los datos secundarios. Las matrices semanales ofrecen selección visual del día; las matrices editables mantienen todos los campos. No se modifican consultas, permisos ni reglas de negocio.
+
+La adaptación usa los elementos visuales y tokens de SGOL. Los filtros se pliegan sin deshabilitar campos; las acciones principales quedan dentro del ancho disponible. La inicialización se difiere hasta entrar en vista móvil. El escritorio conserva su composición original y los elementos trasladados por presentación recuperan su posición al volver a escritorio. La impresión conserva las reglas anteriores.
+
 ## Correcciones aprobadas
+
+### Navegación y botones compartidos — 22 de octubre de 2026
+
+Se adopta el patrón aprobado en Supervisión para las pantallas del sistema. Los apartados de cada módulo utilizan `_SectionNavigation.cshtml` y `SectionNavigation`: mantienen sus opciones y orden al cambiar de pantalla, resaltan el apartado actual con el botón primario y `aria-current="page"`, y usan botones secundarios para los demás destinos. Las opciones respetan el rol y los permisos actuales. La navegación de Supervisión conserva sus filtros al cambiar de vista.
+
+`navigation.css` comparte separación, tipografía, tamaño mínimo de 44 px, foco y adaptación móvil. Los enlaces navegan con GET; guardar, cancelar, eliminar y abrir diálogos conservan sus contratos y estados. Las acciones del formulario permanecen junto al contenido correspondiente. Reportes y Configuración consumen el mismo estilo de botones sin agregar apartados ficticios. El Tablero de sesión normal utiliza el componente compartido; la pantalla de quiosco conserva su navegación propia.
 
 ### Detalle de persona
 

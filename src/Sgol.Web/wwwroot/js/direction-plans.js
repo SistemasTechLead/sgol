@@ -5,7 +5,7 @@
     if (!document.querySelector("#direction-plan-confirm")) document.getElementById("direction-plan-error")?.focus();
     const form = root.querySelector("[data-direction-create]");
     if (!form) return;
-    document.getElementById("direction-plan-confirm")?.addEventListener("close", () => form.querySelector('button[type="submit"]')?.focus());
+    document.getElementById("direction-plan-confirm")?.addEventListener("close", () => root.querySelector('button[form="direction-create-form"][type="submit"]')?.focus());
     const search = form.querySelector("#direction-search");
     const options = [...form.querySelectorAll("[data-task-option]")];
     const catalog = new Map(options.map(option => [option.dataset.code, option]));
@@ -13,7 +13,7 @@
     const selectedCodes = () => new Set([...selected.querySelectorAll("[data-selected-code]")].map(row => row.dataset.selectedCode));
     const selectionStatus = form.querySelector("[data-selection-status]");
     const capacityDialog = root.querySelector("#direction-capacity");
-    const capacityButton = form.querySelector("[data-plan-capacity-open]");
+    const capacityButton = root.querySelector("[data-plan-capacity-open]");
     const capacityValues = form.querySelector("[data-plan-capacity-values]");
     const capacityFingerprint = form.querySelector("[data-plan-capacity-fingerprint]");
     const capacitySummary = form.querySelector("[data-plan-capacity-summary]");
@@ -118,7 +118,7 @@
         describeCapacity(); capacityDialog.close();
     });
     describeCapacity();
-    const normalize = value => value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("es-MX");
+    const normalize = window.SgolSearch.normalize;
     function filter() {
         const query = normalize(search.value.trim());
         let count = 0;

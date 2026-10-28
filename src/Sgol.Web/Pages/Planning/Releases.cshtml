@@ -6,9 +6,11 @@
     ViewData["Title"] = "Versiones del calendario";
 }
 <header class="encabezado-pagina planificacion__navigation-header">
-    <h1 class="encabezado-pagina__titulo">Versiones del calendario</h1>
-    <p class="encabezado-pagina__descripcion">Prepara y publica los borradores de Loretta.</p>
-    <nav class="planificacion__header-actions" aria-label="Opciones de planificación"><a class="boton boton--secundario" href="/planificacion">Volver a Planes</a></nav>
+    <div class="encabezado-pagina__contenido">
+        <h1 class="encabezado-pagina__titulo">Versiones del calendario</h1>
+        <p class="encabezado-pagina__descripcion">Prepara y publica los borradores de Loretta.</p>
+    </div>
+    <partial name="_SectionNavigation" model='@("planning")' />
 </header>
 @if (Model.CanManage)
 {

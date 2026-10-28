@@ -13,7 +13,7 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Reports;
 
-public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IClock clock) : PageModel
+public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IClock clock, OperationalCarryoverReader carryovers) : PageModel
 {
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     [BindProperty(SupportsGet = true)] public ReportFilter F { get; set; } = new();
@@ -85,11 +85,24 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
             x.A.PersonName, x.Role, x.P.Name, x.P.Area, x.A.ReviewStatus ?? "", x.A.Requirement, x.A.ScheduleMode,
             x.A.PeriodType, x.A.Repetitions, 0, x.A.LoadMinutes, 0, x.A.StartsAt, x.A.DueAt,
             x.A.CompletedAt, x.A.ReviewedAt, x.A.GoalUnits, x.A.ProgressUnits, x.A.ProgressUnit,
-            x.A.SpecializationName ?? "", x.A.ReviewComment ?? "", x.A.ReassignedFromId)).ToArrayAsync(token);
+            x.A.SpecializationName ?? "", x.A.ReviewComment ?? "", x.A.ReassignedFromId) {
+                TransferRemainingMinutes = x.A.TransferRemainingMinutes, TransferProgressUnits = x.A.TransferProgressUnits
+            }).ToArrayAsync(token);
+        var transferredIds = raw.Where(r => r.TransferRemainingMinutes != null).Select(r => r.Id).ToArray();
+        var contributions = await (from e in db.OperationalProgressEntries.AsNoTracking()
+            join u in db.AppUsers.AsNoTracking() on e.ActorId equals u.Id
+            join p in db.People.AsNoTracking() on u.PersonId equals p.Id
+            where transferredIds.Contains(e.AssignmentId)
+            group e by new { e.AssignmentId, p.Id, p.DisplayName } into g
+            select new { g.Key.AssignmentId, g.Key.DisplayName, Units = g.Sum(x => x.Units) }).ToArrayAsync(token);
+        raw = raw.Select(r => r with { ProgressAuthors = string.Join(" · ", contributions.Where(c => c.AssignmentId == r.Id).OrderBy(c => c.DisplayName).Select(c => $"{c.DisplayName}: {c.Units}")) }).ToArray();
+        for (var i = 0; i < raw.Length; i++) raw[i] = raw[i] with { Carryover = await carryovers.ForAsync(raw[i].Id) };
         raw = raw.Select(r => r with {
             Status = r.Status is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA" ? r.Status : r.Delivered != null ? "PENDIENTE_REVISION" : r.Start > Cutoff ? "PROGRAMADA" : r.Due < Cutoff ? "VENCIDA" : "ASIGNADA",
             Hours = (decimal)(r.Due - r.Start).TotalHours,
-            RemainingMinutes = r.Delivered != null ? 0 : r.Goal > 0 ? (int)Math.Ceiling(r.Minutes * (1m - Math.Min(1m, (decimal)r.Units / r.Goal))) : r.Minutes }).ToArray();
+            RemainingMinutes = r.Delivered != null ? 0 : r.TransferRemainingMinutes is {} pending
+                ? r.Goal > r.TransferProgressUnits ? (int)Math.Ceiling(pending * Math.Max(0m, (decimal)(r.Goal - r.Units) / (r.Goal - r.TransferProgressUnits))) : pending
+                : r.Goal > 0 ? (int)Math.Ceiling(r.Minutes * (1m - Math.Min(1m, (decimal)r.Units / r.Goal))) : r.Minutes }).ToArray();
         Rows = ReportAnalysis.Filter(raw, F, Cutoff);
         var capacity = new Dictionary<Guid, decimal>();
         if (F.Kind == "load") {
@@ -98,6 +111,9 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
                 if (ledger.Workers.Any(w => w.Id == person)) capacity[person] = ledger.Available(person, From, Through);
         }
         Metrics = ReportAnalysis.Metrics(Rows, F.Kind, Cutoff);
+        Metrics = Metrics.Concat(new[] {
+            new ReportMetric("Con arrastre autorizado", Rows.Count(r => r.Status != "REASIGNADA" && r.Delivered > r.Due && r.Carryover.ApprovedCount > 0).ToString(), "Entregas tardías; una vez por asignación", "info"),
+            new ReportMetric("Cubiertas por arrastre", Rows.Count(r => r.Status != "REASIGNADA" && r.Delivered > r.Due && r.Carryover.ApprovedCount > 0 && r.Delivered <= r.Carryover.RecognizedDue).ToString(), "Dentro del plazo reconocido", "info") }).ToArray();
         Charts = ReportAnalysis.Charts(Rows, F, Cutoff, capacity);
         Templates = await db.ReportTemplates.AsNoTracking().Where(t => t.UserId == session.UserId).OrderBy(t => t.Name).ToArrayAsync(token);
         ReportFilter? applied = null;
@@ -126,6 +142,7 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
         if (F.Area.Length > 0) parts.Add("Área: " + F.Area);
         if (F.Task.Length > 0) parts.Add("Tarea: " + (Options.FirstOrDefault(r => r.Code == F.Task)?.Task ?? F.Task));
         if (F.Status.Length > 0) parts.Add("Estado: " + ReportCatalog.Statuses.GetValueOrDefault(F.Status, F.Status));
+        if (F.Carryover.Length > 0) parts.Add("Arrastre / puntualidad: " + F.Carryover);
         if (F.Specialization.Length > 0) parts.Add("Especialización: " + F.Specialization);
         foreach (var (label, value) in new[] { ("Requisito", F.Requirement), ("Programación", F.Schedule), ("Frecuencia", F.Frequency) })
             if (value.Length > 0) parts.Add(label + ": " + value);
@@ -170,3 +187,6 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
         db.ReportTemplates.Remove(template); await db.SaveChangesAsync(token); Success = "Plantilla eliminada."; return Redirect("/reportes");
     }
 }
+
+
+

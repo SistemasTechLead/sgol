@@ -13,13 +13,16 @@ public sealed record OperationalWorkPlan(Guid? Id, string Name, string PeriodTyp
 
     public static int Priority(OperationalAssignmentDetails task, DateOnly day, DateTimeOffset now)
     {
-        if (task.CompletedAt is not null || task.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA") return 3;
-        var start = OperationalSchedule.Instant(day);
-        var end = OperationalSchedule.Instant(day.AddDays(1));
-        if (task.DueAt >= start && task.DueAt < end) return 0;
-        if (task.StartsAt <= now) return 1;
-        return task.StartsAt >= start && task.StartsAt < end ? 2 : 4;
+        return task.ReviewStatus switch {
+            "NO_SATISFECHA" => 0,
+            "REASIGNADA" => 3,
+            _ => LiveBoardTask.FromAssignment(task).Priority(now)
+        };
     }
+
+    public static IReadOnlyList<OperationalAssignmentDetails> OrderedTasks(
+        IEnumerable<OperationalAssignmentDetails> tasks, DateOnly day, DateTimeOffset now) =>
+        tasks.OrderBy(t => Priority(t, day, now)).ThenBy(t => t.DueAt).ThenBy(t => t.Id).ToArray();
 
     // My Work includes active/overdue work and today's deliveries; the board uses deadline day only.
     public static bool IsForDay(OperationalAssignmentDetails task, DateOnly day)

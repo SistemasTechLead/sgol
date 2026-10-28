@@ -21,7 +21,7 @@ public sealed partial class EfDirectionPreparedPlanService
             FileOptions.Asynchronous | FileOptions.DeleteOnClose);
         try
         {
-            var assignments = db.OperationalAssignments.AsNoTracking().Where(a => a.PlanId == id);
+            var assignments = db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().Where(a => a.PlanId == id);
             var assignmentIds = assignments.Select(a => a.Id);
             var occasions = db.Set<OperationalOccasion>().AsNoTracking().Where(o => o.PlanId == id);
             var occasionIds = occasions.Select(o => o.Id);
@@ -50,6 +50,7 @@ public sealed partial class EfDirectionPreparedPlanService
                     await Add("referencias", file.Id, file.OccasionId, file.FileName, file.ContentType, file.Content);
                 if (files.Count != preview.EvidenceFiles) throw new InvalidOperationException("Archive file count differs from deletion preview.");
                 var manifest = new {
+                    Transfers = await db.Set<OperationalTransfer>().AsNoTracking().Where(t => assignmentIds.Contains(t.AssignmentId)).OrderBy(t => t.At).ToArrayAsync(token),
                     ExportedAt = clock.UtcNow, preview.Fingerprint,
                     Plan = (await DetailsAsync([await db.DirectionPreparedPlans.AsNoTracking().SingleAsync(p => p.Id == id, token)], token))[0], Files = files,
                     Starts = await db.Set<PreparedProcessStart>().AsNoTracking().Where(s => s.PlanId == id).ToArrayAsync(token),

@@ -4,33 +4,24 @@
 @using WorkModel = Sgol.Web.Pages.MyWork.IndexModel
 <section id="plan-tasks" class="panel-seccion" aria-labelledby="plan-tasks-title" data-work-now="@Model.OperationalNow.ToUnixTimeMilliseconds()" data-work-day-start="@Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Instant(Model.OperationalDay).ToUnixTimeMilliseconds()" data-work-day-end="@Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Instant(Model.OperationalDay.AddDays(1)).ToUnixTimeMilliseconds()">
     <header class="panel-seccion__cabecera"><h2 id="plan-tasks-title">Tus tareas asignadas</h2></header>
-    <p class="my-work-guide">Primero aparecen las pendientes que vencen o vencieron hoy; después, las demás activas y las que se activan hoy. Dentro de cada grupo se ordenan por vencimiento. Las entregadas hoy quedan después de las pendientes. Las próximas tareas y el historial conservan su agrupación por plan. Selecciona <strong>Adjuntar evidencia</strong> para preparar tu entrega y enviarla a revisión, o <strong>Ver evidencia</strong> para consultar una entrega enviada.</p>
+    <p class="my-work-guide">Las tareas se ordenan por color: rojas, verdes, amarillas, grises y azules, sin importar su fecha. Dentro de cada color aparecen primero las de vencimiento más antiguo. Selecciona <strong>Adjuntar evidencia</strong> para preparar tu entrega y enviarla a revisión, o <strong>Ver evidencia</strong> para consultar una entrega enviada.</p>
     <div class="my-work-desktop-legend"><partial name="_TaskColorLegend" /></div>
     @if (Model.OperationalError is not null && Model.OperationalSelectedTask is null) { <p class="alerta alerta--peligro" role="alert">@Model.OperationalError</p> }
     @if (Model.OperationalTasks.Count == 0 && Model.OperationalError is null) { <p class="estado-vacio">No tienes tareas asignadas.</p> }
     else if (Model.OperationalTasks.Count > 0) {
-        @if (Model.OperationalDayTasks.Count > 0) {
-        <section class="my-work-plan" aria-labelledby="daily-work-title">
+        <section class="my-work-plan" aria-labelledby="assigned-work-title">
             <header class="my-work-plan__header">
-                <div><h3 id="daily-work-title">Tareas del día</h3><p>@Model.OperationalDay.ToString("dd/MM/yyyy") · Todas tus asignaciones</p></div>
+                <div><h3 id="assigned-work-title">Todas tus asignaciones</h3></div>
                 <partial name="_TaskProgress" model="@(TaskProgressViewModel.FromAssignments(Model.OperationalDayTasks, "Tu progreso de hoy"))" />
-                <span class="my-work-plan__count"><span class="badge badge--info">@Model.OperationalDayTasks.Count tareas del día</span></span>
+                <span class="my-work-plan__count">@Model.OperationalTasks.Count tareas</span>
             </header>
-            <partial name="_OperationalTaskTable" model="@((Model, Model.OperationalDayTasks, true))" />
+            <partial name="_OperationalTaskTable" model="@((Model, Model.OperationalOrderedTasks, true))" />
         </section>
-        }
-        @foreach (var plan in Model.OperationalPlans) {
-        var remaining = plan.Tasks.Where(t => !Model.OperationalToday(t)).ToArray();
-        if (remaining.Length == 0) { continue; }
-        <section class="my-work-plan" aria-labelledby="plan-@plan.Id-title">
-        <header class="my-work-plan__header">
-            <div><h3 id="plan-@plan.Id-title">@plan.Name</h3><p>@Sgol.Web.Pages.Planning.IndexModel.DirectionPeriodLabel(plan.PeriodType) · @plan.StartsOn?.ToString("dd/MM/yyyy") — @plan.EndsOn?.ToString("dd/MM/yyyy")</p></div>
-            <partial name="_TaskProgress" model="@(TaskProgressViewModel.FromAssignments(plan.Tasks, "Tu progreso"))" />
-            <span class="my-work-plan__count">@remaining.Length tareas en este apartado</span>
-        </header>
-        <partial name="_OperationalTaskTable" model="@((Model, (IReadOnlyList<Sgol.Planning.Contracts.OperationalAssignmentDetails>)remaining, false))" />
-        </section>
-        }
     }
 </section>
 <partial name="_OperationalTaskDialog" model="Model" />
+@if (Model.OperationalTransfers.Count > 0) {
+    <details class="panel-seccion"><summary>Historial de transferencias (últimos 100 movimientos)</summary>
+        <ul>@foreach (var t in Model.OperationalTransfers) { <li><strong>@t.TaskName</strong> · @MyWorkPresentation.Time(t.At) · @t.FromName → @t.ToName · @t.ProgressUnits unidades conservadas · @t.RemainingMinutes min pendientes · @t.Reason</li> }</ul>
+    </details>
+}

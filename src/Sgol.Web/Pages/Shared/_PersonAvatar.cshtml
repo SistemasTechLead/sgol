@@ -1,0 +1,8 @@
+@model PersonAvatarViewModel
+@inject Sgol.Web.Infrastructure.Persistence.Identity.IPersonAvatarReader Avatars
+@{
+    var avatar = await Avatars.FindAsync(Model.PersonId, Context.RequestAborted);
+    var userName = Model.UserName ?? await Avatars.UserNameAsync(Model.PersonId, Context.RequestAborted);
+    var initial = (Model with { UserName = userName }).Initial;
+}
+<span class="person-avatar" aria-hidden="true" data-person-avatar="@Model.PersonId.ToString("N")" data-avatar-variant="@avatar?.Variant" data-avatar-palette="@(avatar?.Palette ?? 0)" data-avatar-seed="@(avatar?.Seed ?? 0)">@initial</span>

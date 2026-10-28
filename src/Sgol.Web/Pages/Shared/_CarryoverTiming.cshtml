@@ -1,0 +1,12 @@
+@model (System.Guid Id, System.DateTimeOffset Due, System.DateTimeOffset? Delivered)
+@inject Sgol.Web.Infrastructure.Persistence.Planning.OperationalCarryoverReader CarryoverReader
+@using Sgol.Web.Infrastructure.Persistence.Reporting
+@{ var timing = await CarryoverReader.ForAsync(Model.Id); }
+@if(timing.ApprovedCount > 0 || timing.Pending) {
+    <details class="carryover-timing"><summary>@timing.Label(Model.Due, Model.Delivered)</summary>
+        <p>Cierre efectivo: @ReportCatalog.Time(Model.Due). Entrega: @ReportCatalog.Time(Model.Delivered).</p>
+        @if(timing.ReferenceDue != null) { <p>Cierre anterior al primer arrastre: @ReportCatalog.Time(timing.ReferenceDue). Plazo reconocido: @ReportCatalog.Time(timing.RecognizedDue).</p> }
+        <p>Arrastres aprobados: @timing.References</p>
+        @if(timing.Pending) { <p>Arrastre solicitado, pendiente de autorización.</p> }
+    </details>
+}

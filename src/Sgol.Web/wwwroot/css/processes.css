@@ -15,3 +15,87 @@
 .process-stage--waiting{background:var(--color-superficie-elevada);color:var(--color-texto-secundario)}
 /* Follow the saved application composition, including mobile on a desktop viewport. */
 @container sgol-viewport (max-width:48rem){.process-editor{grid-template-columns:minmax(0,1fr)}.process-candidate{align-items:stretch;flex-direction:column}.process-actions{flex-direction:column}.process-actions .boton{width:100%}.process-page input[type="file"]::file-selector-button{max-width:100%;white-space:normal}}
+/* Compact process editor; shared process runtime cards keep their existing styles. */
+[data-process-rules].process-editor{grid-template-columns:minmax(0,1fr)}
+.process-toolbar{position:sticky;top:.5rem;z-index:5;background:var(--color-superficie-elevada,#fff);border:1px solid var(--color-borde);border-radius:.75rem;padding:1rem;box-shadow:0 3px 12px #00000012;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1.25rem}
+.process-toolbar small,.process-stage-title small{display:block;color:var(--color-texto-secundario)}
+.process-toolbar .process-actions{margin:0;flex:1;justify-content:flex-end;align-items:center}
+.process-toolbar p{flex-basis:100%;margin:0;font-size:.875rem}
+.process-save-hint{position:relative;display:inline-flex;border-radius:.4rem}
+.process-save-hint [role=tooltip]{display:none;position:absolute;top:100%;left:0;z-index:6;background:var(--color-texto-primario,#222);color:var(--color-superficie-elevada,#fff);padding:.5rem;border-radius:.4rem;min-width:12rem}
+.process-save-hint:hover [role=tooltip],.process-save-hint:focus [role=tooltip],.process-save-hint:focus-within [role=tooltip]{display:block}
+.process-save-hint:focus-visible{outline:2px solid var(--color-acento);outline-offset:3px}
+.process-save-hint button:disabled{pointer-events:none}
+.process-page button:disabled{opacity:.5;cursor:not-allowed}
+.process-settings>summary{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem;cursor:pointer;padding:.5rem}
+.process-settings>summary span:last-child{margin-inline-start:auto;text-decoration:underline}
+.process-settings-body{padding-block:1rem;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.process-settings-body [data-process-calendar]{grid-column:1/-1}
+.process-section-heading,.process-stage-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.process-section-heading h3,.process-section-heading p{margin-block:.4rem}
+.process-stage-title{flex:1;min-width:0}
+.process-position{align-self:flex-start;flex-shrink:0;font-weight:700;background:var(--color-fila-propia,#f2eee9);border-radius:2rem;padding:.3rem .65rem}
+.process-drag-handle{cursor:grab;font-size:1.4rem;min-width:44px}
+.process-stage-tools{display:flex;gap:.5rem;margin-block:.5rem}
+.process-stage-tools .boton{padding:.3rem .65rem;min-height:44px}
+.process-stage-details>summary,.process-advanced>summary{cursor:pointer;padding-block:.5rem;text-decoration:underline}
+.process-stage-details>div{padding-top:.75rem}
+.process-stage-error:empty{display:none}
+.process-stage-error{color:var(--color-peligro,#a32020)}
+.process-advanced{grid-column:1/-1}
+.process-dragging{opacity:.55}
+.process-drop-before{box-shadow:0 -4px 0 var(--color-acento)}
+.process-drop-after{box-shadow:0 4px 0 var(--color-acento)}
+.process-task-picker{width:min(48rem,calc(100% - 2rem));max-height:85dvh;overflow:auto;border:1px solid var(--color-borde);border-radius:.75rem;padding:1.5rem;background:var(--color-superficie-elevada,#fff);color:var(--color-texto-primario)}
+.process-task-picker::backdrop{background:#0007}
+.process-editor [hidden]{display:none!important}
+@container sgol-viewport (max-width:48rem){.process-toolbar{top:0;padding:.65rem;gap:.5rem}.process-toolbar .process-actions{flex-direction:row;justify-content:flex-start;gap:.4rem}.process-toolbar .process-actions .boton{width:auto;font-size:.85rem}.process-toolbar>p{font-size:.8rem}.process-settings-body{grid-template-columns:minmax(0,1fr)}.process-section-heading{flex-wrap:wrap}.process-stage{padding:.75rem}.process-stage-heading{gap:.5rem;align-items:flex-start}.process-position{font-size:.85rem}.process-task-picker{padding:1rem}.process-save-hint [role=tooltip]{min-width:10rem}}
+@container sgol-viewport (max-width:48rem){.process-toolbar>div:first-child{flex-basis:100%}.process-toolbar .process-actions{flex:1 1 100%}.process-toolbar .process-actions>*{flex:0 1 auto}.process-stage-heading{display:grid;grid-template-columns:44px minmax(0,1fr) auto}.process-stage-heading .process-drag-handle{grid-column:1;grid-row:1/3}.process-stage-title{grid-column:2/-1;grid-row:2}.process-stage-heading>.process-position{grid-column:3;grid-row:1}}
+.process-stage-heading .process-stage-tools{flex-shrink:0;margin:0}
+.process-stage-details>summary{min-height:44px;display:list-item;align-content:center}
+@container sgol-viewport (max-width:48rem){.process-toolbar .process-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.process-toolbar .process-actions .boton,.process-save-hint{width:100%}.process-toolbar .process-actions .boton{padding:.5rem;min-height:44px}.process-stage-heading .process-stage-tools{grid-column:2/-1;grid-row:3}.process-stage-heading .process-drag-handle{grid-row:1/4}}
+/* Ordered square slots. The task editor opens above the flow so every slot keeps its size. */
+.process-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr));gap:2.5rem;align-items:start;padding-block:1rem;container-type:inline-size}
+.process-flow>.process-stage,.process-flow>.process-add-slot{aspect-ratio:1;width:100%;margin:0;position:relative;border:1px solid var(--color-borde);border-radius:.6rem;background:var(--color-superficie-elevada,#fff);padding:.75rem;min-width:0;min-height:0}
+.process-flow>.process-stage{display:flex;flex-direction:column;gap:.25rem}
+.process-flow .process-stage-heading{display:grid;grid-template-columns:44px minmax(0,1fr) auto;grid-template-rows:44px minmax(0,1fr) 44px;gap:.25rem;flex:1;min-height:0;align-items:start}
+.process-flow .process-drag-handle{grid-column:1;grid-row:1;min-height:44px;height:44px;padding:.25rem}
+.process-flow .process-stage-heading>.process-position{grid-column:3;grid-row:1;align-self:center}
+.process-flow .process-stage-title{grid-column:1/-1;grid-row:2;align-self:center;overflow:hidden}
+.process-flow .process-stage-title strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3}
+.process-flow .process-stage-title small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:.8rem;line-height:1.3;margin-top:.25rem}
+.process-flow .process-stage-tools{grid-column:1/-1;grid-row:3;justify-content:center;align-self:end;gap:.25rem}
+.process-flow .process-stage-tools .boton{min-height:44px;padding:.25rem .5rem;font-size:.85rem}
+.process-flow .process-edit-button{min-height:44px;width:100%;flex-shrink:0}
+.process-flow-arrow{position:absolute;left:100%;top:50%;width:2.5rem;text-align:center;transform:translateY(-50%);font-size:1.9rem;line-height:1;color:var(--color-acento);pointer-events:none}
+.process-flow-row-end>.process-flow-arrow{top:100%;left:auto;right:0;transform:none;height:2.5rem;font-size:1.75rem}
+.process-add-slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;text-align:center;border-style:dashed!important;color:var(--color-texto-secundario)}
+.process-add-symbol{font-size:2.5rem;line-height:1}
+.process-stage-dialog{width:min(52rem,calc(100% - 2rem));max-height:85dvh;overflow:auto;padding:1.5rem;border:1px solid var(--color-borde);border-radius:.75rem;background:var(--color-superficie-elevada,#fff);color:var(--color-texto-primario)}
+.process-stage-dialog::backdrop{background:#0007}
+.process-stage-dialog .planificacion__formulario{grid-template-columns:repeat(2,minmax(0,1fr))}
+.process-stage-dialog textarea,.process-stage-dialog .campo:has(textarea){grid-column:1/-1}
+.process-flow>.process-stage.process-drop-before{box-shadow:-4px 0 0 var(--color-acento)}
+.process-flow>.process-stage.process-drop-after{box-shadow:4px 0 0 var(--color-acento)}
+@container sgol-viewport (max-width:48rem){.process-stage-dialog{padding:1rem}.process-stage-dialog .planificacion__formulario{grid-template-columns:minmax(0,1fr)}}
+/* Process planning uses the same flow, with the recipient visible in each square. */
+.process-plan-settings>summary{cursor:pointer;font-weight:600;padding-block:.5rem}
+.process-plan-settings>form,.process-plan-settings>.planificacion__formulario{margin-top:1rem}
+.process-flow>.process-plan-card{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto 44px;grid-template-areas:"position" "title" "meta" "recipient" "instructions";gap:.4rem;align-content:stretch}
+.process-plan-card>.process-position{justify-self:end;align-self:start;margin-inline-start:auto}
+.process-plan-task-name{align-self:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;min-height:0}
+.process-plan-card>small{font-size:.8rem;line-height:1.3}
+.process-plan-card>.campo{margin:0;gap:.25rem;min-width:0}
+.process-plan-card .campo__etiqueta{font-size:.8rem}
+.process-plan-card select{width:100%;min-height:44px;text-overflow:ellipsis}
+.process-plan-card>button{min-height:44px;padding:.35rem .5rem;font-size:.85rem}
+.process-plan-flow [data-process-flow-arrow][hidden]{display:none}
+.process-plan-preview-stale{border-inline-start:4px solid var(--color-acento)}
+.process-plan-card>p{font-size:.9rem;margin:.25rem 0}
+[data-process-plan-editor]>.panel-seccion{margin-block:1.25rem}
+@container sgol-viewport (max-width:48rem){.process-plan-settings>.planificacion__formulario{grid-template-columns:minmax(0,1fr)}}
+.process-plan-flow>.process-plan-card>.process-position{grid-area:position}
+.process-plan-flow>.process-plan-card>.process-plan-task-name{grid-area:title;min-width:0;width:100%}
+.process-plan-flow>.process-plan-card>small,.process-plan-flow>.process-plan-card>p{grid-area:meta}
+.process-plan-flow>.process-plan-card>.campo{grid-area:recipient;min-width:0;width:100%}
+.process-plan-flow>.process-plan-card>button,.process-plan-flow>.process-plan-card>strong:not(.process-plan-task-name){grid-area:instructions;min-width:0;width:100%;align-self:end}

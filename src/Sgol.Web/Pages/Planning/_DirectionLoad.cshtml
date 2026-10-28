@@ -1,5 +1,8 @@
 @model Sgol.Web.Pages.Planning.IndexModel
 @using Sgol.Web.Pages.Planning
+@if (Model.DirectionExcludedTasks.Length > 0) {
+    <p role="status">Se excluyen de esta generación por estar inactivas o eliminadas: @string.Join(", ", Model.DirectionExcludedTasks).</p>
+}
 @if (Model.DirectionAssignmentConflict is { } blocked)
 {
     <p role="alert"><strong>No se pudo asignar @blocked.TaskCode · @blocked.Task (@blocked.LoadMinutes min).</strong></p>
@@ -7,7 +10,7 @@
     <div class="tabla-contenedor"><table class="tabla">
         <thead><tr><th scope="col">Fecha / activación</th><th scope="col">Persona</th><th scope="col">Turno</th><th scope="col">Motivo</th><th scope="col">Carga / capacidad</th></tr></thead>
         <tbody>@foreach (var candidate in blocked.Candidates) {
-            <tr><td>@candidate.Day.ToString("dd/MM/yyyy") @TimeZoneInfo.ConvertTime(candidate.StartsAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("HH:mm")</td><td>@candidate.Person</td><td>@candidate.Hours</td><td>@(candidate.Reason switch {
+            <tr><td>@candidate.Day.ToString("dd/MM/yyyy") @TimeZoneInfo.ConvertTime(candidate.StartsAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("HH:mm")@if(candidate.NominalDueAt is {} due) { <br /><small>Cierre desde activación nominal: @TimeZoneInfo.ConvertTime(due, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("dd/MM HH:mm")</small> }</td><td>@candidate.Person</td><td>@candidate.Hours</td><td>@(candidate.Reason switch {
                 "PLAN_CAPACITY_EXCEEDED" => "La tarea excede la capacidad disponible.",
                 "PLAN_DAILY_REPETITIONS_RESERVED" => "Este día ya tiene las repeticiones permitidas de la tarea.",
                 _ => Sgol.Web.Infrastructure.Persistence.Planning.TemporalEligibilityContext.Message(candidate.Reason)
@@ -27,7 +30,7 @@
     <p>Vincula a las personas capacitadas en Personas y accesos. Deben tener cuenta activa y haber terminado su periodo de prueba. Después vuelve a preparar el plan.</p>
 }
 @if (Model.DirectionMonthlyPending.Length > 0) {
-    <p role="status"><strong>Ocurrencias mensuales pendientes (@Model.DirectionMonthlyPending.Length):</strong></p>
+    <p role="status"><strong>Ocurrencias sin asignación (@Model.DirectionMonthlyPending.Length):</strong></p>
     <ul>@foreach (var pending in Model.DirectionMonthlyPending) {
         <li>@pending.TaskCode · @pending.Name · @pending.PreferredDay/@pending.Month/@pending.Year · @Sgol.Web.Infrastructure.Persistence.Planning.MonthlyPendingPresentation.Reason(pending.Reason)</li>
     }</ul>
@@ -44,7 +47,7 @@
     </table></div>
     <p>Capacidad del equipo elegible. El reparto también depende del rol, la especialización y el horario.</p>
     <p>El reparto descarta a las personas sin horario compatible para cada tarea y elige entre las disponibles.</p>
-    @if (Model.DirectionOperations) { <p>Se asignan las tareas desde el día inicial del plan, incluidas las de ese día que ya vencieron. Las fechas anteriores quedan fuera del rango.</p> }
+    @if (Model.DirectionOperations) { <p>Se incluyen las tareas desde el inicio del día inicial, aunque su horario ya haya pasado. Las horas críticas se conservan y las tareas permanecen pendientes, sin marcarlas realizadas. Las fechas anteriores quedan fuera del rango.</p> }
     var uncovered = Model.DirectionTemporalRows.GroupBy(r => new { r.Day, r.Task }).Where(g => !g.Any(r => r.Eligible)).ToArray();
     @if (uncovered.Length > 0) {
         <p role="status"><strong>Fechas sin personal con horario compatible (@uncovered.Length):</strong></p>

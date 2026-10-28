@@ -1,3 +1,4 @@
+using Sgol.Web.Presentation.Search;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Sgol.Identity.Contracts;
@@ -13,19 +14,22 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
     [BindProperty] public OccasionalTaskForm Input { get; set; } = new("", "NINGUNO", 30, 24);
     public IReadOnlyList<OperationalTask> Items { get; private set; } = [];
     public string? Error { get; private set; }
+    public bool CanAccessTasks { get; private set; }
 
     private async Task<Guid?> ActorAsync(CancellationToken token)
     {
         Response.Headers.CacheControl = "no-store";
         var session = await sessions.GetAsync(token);
+        CanAccessTasks = session is not null && RoleScreenAccess.Items.Single(item => item.Href == "/tareas")
+            .AllowedRoles.Contains(session.RoleCode);
         return session?.RoleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination ? session.UserId : null;
     }
 
     private async Task LoadAsync(Guid actor, CancellationToken token)
     {
         var all = await tasks.OccasionalTasksAsync(actor, token);
-        Items = all.Where(t => string.IsNullOrWhiteSpace(Search) || t.Name.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase)
-            || t.TaskCode.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+        Items = all.Where(t => string.IsNullOrWhiteSpace(Search) || SearchText.Contains(t.Name, Search.Trim())
+            || SearchText.Contains(t.TaskCode, Search.Trim())).ToArray();
     }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken token)

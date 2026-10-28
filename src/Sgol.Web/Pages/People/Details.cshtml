@@ -5,12 +5,12 @@
     ViewData["Title"] = "Historial laboral";
 }
 <section class="persona-detalle" aria-labelledby="detalle-persona-titulo">
-    <a class="boton boton--textual" href="/personas-y-accesos">Volver a personas<partial name="_Icon" model='@("back")' /></a>
     @if (Model.Error is not null)
     {
         @if (Model.IsConflict || Model.Person is null)
         {
             <header class="encabezado-pagina"><h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">@(Model.IsConflict ? "Conflicto de versión" : "Persona no disponible")</h1></header>
+            <partial name="_SectionNavigation" model='@("people")' />
         }
         <div id="person-detail-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.Error" /></div>
     }
@@ -22,6 +22,7 @@
     {
         var current = person.EmploymentHistory.SingleOrDefault(version => version.ValidTo is null);
         <header class="encabezado-pagina"><h1 id="detalle-persona-titulo" class="encabezado-pagina__titulo">@person.DisplayName</h1></header>
+        <partial name="_SectionNavigation" model='@("people")' />
         @if (Model.Success is not null)
         {
             <p class="alerta alerta--exito" role="status"><span aria-hidden="true">✓</span>@Model.Success. El historial laboral está actualizado.</p>

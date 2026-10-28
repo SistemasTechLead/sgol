@@ -5,14 +5,8 @@
 @{ ViewData["Title"] = "Personas y accesos"; }
 <section class="people-page" aria-labelledby="people-title">
     <header class="encabezado-pagina encabezado-pagina--catalogo">
-        <div class="encabezado-pagina__contenido"><p class="people-eyebrow">Gestión de usuarios</p><h1 id="people-title" class="encabezado-pagina__titulo">Personas y accesos</h1><p class="encabezado-pagina__descripcion">Gestiona los perfiles, roles y acceso de tu equipo.</p></div>
-        <div class="encabezado-pagina__acciones">
-            <a class="boton boton--primario" href="/personas-y-accesos?create=true">Crear usuario</a>
-            @if (Model.IsDirector)
-            {
-                <a class="boton boton--secundario" href="/personas-y-accesos/especializaciones">Ver especializaciones</a>
-            }
-        </div>
+        <div class="encabezado-pagina__contenido"><h1 id="people-title" class="encabezado-pagina__titulo">Personas y accesos</h1><p class="encabezado-pagina__descripcion">Gestiona los perfiles, roles y acceso de tu equipo.</p></div>
+        <partial name="_SectionNavigation" model='@("people")' />
     </header>
     <p role="status">Asignación por horario: @(Model.TemporalPolicyEnabled ? "activa para nuevas asignaciones" : "pendiente de activación; los horarios se pueden configurar y revisar").</p>
     @if (Model.Error is not null) { <p id="people-error" class="alerta alerta--peligro" role="alert" tabindex="-1">@Model.Error</p> }
@@ -78,7 +72,7 @@
                     var active = profile.Status == AccountStatus.Active;
                     var dialogId = $"user-{profile.Id:D}";
                     <tr class="tabla__fila @(own ? "people-own-row" : "")">
-                        <td><div class="people-profile"><span class="people-avatar" aria-hidden="true">@string.Concat(profile.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[..1])).ToUpperInvariant()</span><div><strong>@profile.DisplayName</strong>@if (own) { <span class="people-own-label">Tu perfil</span> }</div></div></td>
+                        <td><div class="people-profile"><span class="people-avatar" aria-hidden="true"><partial name="_PersonAvatar" model="@(new PersonAvatarViewModel(profile.PersonId, profile.DisplayName, profile.UserName))" /></span><div><strong>@profile.DisplayName</strong>@if (own) { <span class="people-own-label">Tu perfil</span> }</div></div></td>
                         <td>@profile.UserName</td><td>@IndexModel.RoleName(profile.RoleCode)@if (profile.IsOnTrial) { <br /><span class="badge badge--neutro">A prueba</span> }@if (Model.IsDirector) { <br /><small>@(string.IsNullOrEmpty(Model.SpecializationNames(profile)) ? "Sin especialización" : Model.SpecializationNames(profile))</small> }</td>
                         <td><span class="badge @(active ? "badge--exito" : "badge--neutro")">@(active ? "Activo" : "Inactivo")</span>@if (active && profile.MustChangePassword) { <small class="people-pending">Primer ingreso pendiente</small> }</td>
                         <td><div class="people-row-actions"><a class="boton boton--secundario tabla__accion" href="/personas-y-accesos?edit=@profile.Id">Editar<span class="solo-lectores"> @profile.DisplayName</span></a>

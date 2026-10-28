@@ -113,7 +113,7 @@
     document.querySelectorAll("[data-progress-form]").forEach(form => {
         form.addEventListener("submit", () => {
             form.setAttribute("aria-busy", "true");
-            const button = form.querySelector('button[type="submit"]');
+            const button = Array.from(form.elements).find(element => element.matches('button[type="submit"]'));
             if (button) {
                 button.disabled = true;
                 button.setAttribute("aria-busy", "true");

@@ -68,13 +68,25 @@ public sealed record CapacityWorker(Guid Id, string Name, string Code, string Ro
         (specialization != null || Role == role) && Qualified(specialization);
     public bool Qualified(Guid? specialization) => specialization == null || !IsOnTrial && SpecializationIds.Contains(specialization.Value);
 }
-public sealed record CapacityRow(Guid PersonId, string Name, string Role, int Percent, int DailyMinutes, long Load, decimal Available, long ProtectedLoad);
-public sealed record CapacityChange(Guid PersonId, DateOnly From, DateOnly Through, int Percent, int DailyMinutes, string Reason, bool TransferStarted = false);
-public sealed record CapacityMove(Guid TaskId, string TaskName, string FromName, Guid ToId, string ToName, int Minutes, DateTimeOffset StartsAt, DateTimeOffset DueAt);
-public sealed record CapacityPreview(CapacityChange Change, IReadOnlyList<CapacityMove> Moves, long RemainingExcess, string Fingerprint);
+public sealed record CapacityRow(Guid PersonId, string Name, string Role, int Percent, int DailyMinutes, long Load, decimal Available, long ProtectedLoad)
+{
+    public CapacityActivatedTask[] ActivatedTasks { get; init; } = [];
+}
+public sealed record CapacityActivatedTask(Guid Id, string Name, DateTimeOffset StartsAt, DateTimeOffset DueAt);
+public sealed record CapacityChange(Guid PersonId, DateOnly From, DateOnly Through, int Percent, int DailyMinutes, string Reason, bool TransferStarted = false, Guid[]? ActivatedTaskIds = null, DateTimeOffset? SchedulingNotBefore = null);
+public sealed record CapacityMove(Guid TaskId, string TaskName, string FromName, Guid ToId, string ToName, int Minutes, DateTimeOffset StartsAt, DateTimeOffset DueAt)
+{
+    public DateTimeOffset? PreviousStartsAt { get; init; }
+    public DateTimeOffset? PreviousDueAt { get; init; }
+    public string? OperationalCriticality { get; init; }
+}
+public sealed record CapacityPreview(CapacityChange Change, IReadOnlyList<CapacityMove> Moves, long RemainingExcess, string Fingerprint)
+{
+    public PlanningAssignmentConflict[] Conflicts { get; init; } = [];
+}
 
 // One balancing policy is shared by plan generation, reviews and supervisor adjustments.
-public sealed class OperationalCapacityService(SgolDbContext db, IClock clock, OperationalSupervisionService supervision)
+public sealed partial class OperationalCapacityService(SgolDbContext db, IClock clock, OperationalSupervisionService supervision)
 {
     public static async Task<CapacityWorker[]> WorkersAsync(SgolDbContext db, DateTimeOffset now, CancellationToken token)
     {
@@ -100,12 +112,13 @@ public sealed class OperationalCapacityService(SgolDbContext db, IClock clock, O
         var workers = await WorkersAsync(db, now, token);
         workers = workers.GroupBy(w => w.Id).Where(g => g.Count() == 1).Select(g => g.Single()).OrderBy(w => w.Id).ToArray();
         var ids = workers.Select(w => w.Id).ToArray();
-        var tasks = await db.OperationalAssignments.AsNoTracking().Where(a => ids.Contains(a.PersonId) && a.CompletedAt == null)
-            .Select(a => new OperationalAssignment { Id = a.Id, PersonId = a.PersonId, PersonName = a.PersonName, Name = a.Name,
+        var tasks = await db.OperationalAssignments.AsNoTracking().Where(a => ids.Contains(a.PersonId) && (a.CompletedAt == null || a.SchedulingPolicyId != null && a.DueAt > now))
+            .Select(a => new OperationalAssignment { Id = a.Id, SchedulingPolicyId = a.SchedulingPolicyId, ClosureMarginPercent = a.ClosureMarginPercent, OperationalCriticality = a.OperationalCriticality, NominalStartsAt = a.NominalStartsAt, ScheduleMode = a.ScheduleMode, TaskCode = a.TaskCode, CompletedAt = a.CompletedAt, ReviewStatus = a.ReviewStatus, PersonId = a.PersonId, PersonName = a.PersonName, Name = a.Name,
                 AssignedRole = a.AssignedRole, TaskId = a.TaskId, PlanId = a.PlanId, OccasionId = a.OccasionId, StartsAt = a.StartsAt, DueAt = a.DueAt,
                 SpecializationId = a.SpecializationId, SpecializationName = a.SpecializationName,
                 PeriodType = a.PeriodType,
                 LoadMinutes = a.LoadMinutes, GoalUnits = a.GoalUnits, ProgressUnits = a.ProgressUnits, DifferentPeople = a.DifferentPeople,
+                TransferRemainingMinutes = a.TransferRemainingMinutes, TransferProgressUnits = a.TransferProgressUnits,
                 TemporalPolicyJson = a.TemporalPolicyJson, TemporalDecisionJson = a.TemporalDecisionJson, Revision = a.Revision, ReassignedFromId = a.ReassignedFromId }).OrderBy(a => a.Id).ToArrayAsync(token);
         var capacities = await db.Set<OperationalCapacity>().AsNoTracking().Where(c => ids.Contains(c.PersonId)).OrderBy(c => c.Id).ToArrayAsync(token);
         var reserved = await (from s in db.Set<OperationalSequenceStage>().AsNoTracking()
@@ -133,13 +146,15 @@ public sealed class OperationalCapacityService(SgolDbContext db, IClock clock, O
         return ledger.Workers.Where(w => roles.Contains(w.Role) && w.Id != own).OrderBy(w => w.Role).ThenBy(w => w.Name)
             .Select(w => { var c = ledger.Setting(w.Id, from); var relevant = ledger.Relevant(w.Id, from, through);
                 return new CapacityRow(w.Id, w.Name, w.Role, c?.Percent ?? 100, c?.DailyMinutes ?? OperationalCapacity.DefaultDailyMinutes,
-                    ledger.Load(w.Id, from, through), ledger.Available(w.Id, from, through), relevant.Where(t => t.ProgressUnits > 0 || t.OccasionId != null).Sum(t => (long)t.RemainingMinutes)); }).ToArray();
+                    ledger.Load(w.Id, from, through), ledger.Available(w.Id, from, through), relevant.Where(t => t.ProgressUnits > 0 || t.OccasionId != null).Sum(t => (long)t.RemainingMinutes)) {
+                    ActivatedTasks = relevant.Where(t => t.SchedulingPolicyId != null && t.OperationalCriticality != "CRITICA" && t.CompletedAt == null && t.ProgressUnits == 0 && t.OccasionId == null && t.StartsAt <= clock.UtcNow && t.DueAt > clock.UtcNow).Select(t => new CapacityActivatedTask(t.Id, t.Name, t.StartsAt, t.DueAt)).ToArray() }; }).ToArray();
     }
 
     public async Task<CapacityPreview> PreviewAsync(Guid actor, CapacityChange change, CancellationToken token)
     {
         await using var tx = await db.Database.BeginTransactionAsync(token);
         await OperationalTaskService.LockAsync(db, token);
+        change = change with { SchedulingNotBefore = clock.UtcNow.AddMinutes(1) };
         var preview = await BuildAsync(actor, change, token);
         await tx.CommitAsync(token); return preview;
     }
@@ -154,8 +169,14 @@ public sealed class OperationalCapacityService(SgolDbContext db, IClock clock, O
         var worker = ledger.Workers.SingleOrDefault(w => w.Id == change.PersonId && roles.Contains(w.Role))
             ?? throw new DirectionPlanException("ACCESO_DENEGADO", 403);
         if (await db.AppUsers.AnyAsync(u => u.Id == actor && u.PersonId == worker.Id, token)) throw new DirectionPlanException("ACCESO_DENEGADO", 403);
+        var selectedActive = (change.ActivatedTaskIds ?? []).ToHashSet();
+        if (selectedActive.Count > 1000 || selectedActive.Any(id => !ledger.Tasks.Any(t => t.Id == id && t.PersonId == worker.Id && t.SchedulingPolicyId != null && t.CompletedAt == null && t.DueAt > clock.UtcNow && t.ProgressUnits == 0 && t.OccasionId == null && t.OperationalCriticality != "CRITICA"))) throw new DirectionPlanException("CAPACITY_STALE", 409);
+        var protectedIds = (await db.OperationalPhotographs.AsNoTracking().Select(p => p.AssignmentId).Distinct().ToArrayAsync(token)).Concat(await db.OperationalAttachments.AsNoTracking().Select(p => p.AssignmentId).ToArrayAsync(token)).ToHashSet();
+        protectedIds.UnionWith(await db.Set<OperationalSequenceStage>().AsNoTracking().Select(s => s.Id).ToArrayAsync(token));
+        protectedIds.UnionWith((await ProcessPlanningService.PreparedReservationsAsync(db, token)).Select(r => r.Id));
+        protectedIds.UnionWith(ledger.Tasks.Where(t => t.ReassignedFromId != null).Select(t => t.Id));
         // Capture the input state before simulating any transfers, for stale-preview detection.
-        var state = JsonSerializer.Serialize(new { change, DefaultDailyMinutes = OperationalCapacity.DefaultDailyMinutes, ledger.Today, ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Temporal,
+        var state = JsonSerializer.Serialize(new { change, ProtectedIds = protectedIds.Order().ToArray(), DefaultDailyMinutes = OperationalCapacity.DefaultDailyMinutes, ledger.Today, ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Temporal,
             Unavailable = ledger.Unavailable.OrderBy(x => x.Item1).ThenBy(x => x.Item2).Select(x => new { Person = x.Item1, Day = x.Item2 }), ledger.Legacy });
         ledger.Override = change;
         var completedPeers = await db.OperationalAssignments.AsNoTracking().Where(a => a.CompletedAt != null && a.ReviewStatus != "REASIGNADA")
@@ -169,48 +190,100 @@ public sealed class OperationalCapacityService(SgolDbContext db, IClock clock, O
                 completedPeers.Count(a => a.Id != task.Id && a.TaskId == task.TaskId && a.PersonId == person && WeekContract.LocalToday(a.StartsAt) >= first && WeekContract.LocalToday(a.StartsAt) <= last);
         }
         var moves = new List<CapacityMove>();
+        var conflicts = new List<PlanningAssignmentConflict>();
         var candidates = ledger.Relevant(worker.Id, change.From, change.Through)
-            .Where(t => worker.EligibleFor(t.AssignedRole, t.SpecializationId) && t.OccasionId == null && (change.TransferStarted || t.ProgressUnits == 0))
-            .OrderBy(t => t.ProgressUnits > 0).ThenBy(t => t.StartsAt <= clock.UtcNow).ThenByDescending(t => t.StartsAt)
+            .Where(t => t.CompletedAt == null && t.TransferRemainingMinutes == null && worker.EligibleFor(t.AssignedRole, t.SpecializationId) && t.OccasionId == null && (change.TransferStarted || t.ProgressUnits == 0) &&
+                (t.SchedulingPolicyId == null || t.DueAt > clock.UtcNow && t.ProgressUnits == 0 && !protectedIds.Contains(t.Id) && (t.StartsAt > clock.UtcNow || selectedActive.Contains(t.Id) || t.OperationalCriticality == "CRITICA")))
+            .OrderBy(t => t.SchedulingPolicyId == null ? 3 : OperationalAgenda.Priority(t.OperationalCriticality)).ThenBy(t => t.ProgressUnits > 0).ThenBy(t => t.StartsAt <= clock.UtcNow).ThenByDescending(t => t.StartsAt)
             .ThenByDescending(t => t.RemainingMinutes).ThenBy(t => t.Id).ToArray();
         foreach (var task in candidates)
         {
-            if (ledger.Excess(worker.Id, change.From, change.Through) <= 0) break;
-            var target = ledger.Workers.Where(w => w.Id != worker.Id && roles.Contains(w.Role) && w.EligibleFor(task.AssignedRole, task.SpecializationId) && ledger.CanAssign(w.Id, task, task.StartsAt <= clock.UtcNow ? clock.UtcNow : null))
-                .OrderBy(w => RotationCount(w.Id, task))
-                .ThenBy(w => task.SpecializationId == null ? ledger.Occupancy(w.Id, change.From, change.Through) : ledger.SpecializedPeriodLoad(w.Id, task)).ThenBy(w => w.Code, StringComparer.Ordinal).ThenBy(w => w.Id).FirstOrDefault();
-            if (target == null) continue;
-            moves.Add(new(task.Id, task.Name, worker.Name, target.Id, target.Name, task.RemainingMinutes, task.StartsAt, task.DueAt));
-            task.PersonId = target.Id; task.AssignedRole = target.Role;
+            var timeConflict = task.SchedulingPolicyId != null && (!ledger.CheckTime(worker.Id, task, task.StartsAt <= clock.UtcNow ? clock.UtcNow : null).Eligible || !OperationalAgenda.Find(ledger, worker.Id, task, task.StartsAt).Eligible);
+            if (ledger.Excess(worker.Id, change.From, change.Through) <= 0 && !timeConflict) continue;
+            var previousStart = task.StartsAt; var previousDue = task.DueAt;
+            var valid = new List<CapacityPlacementChoice>();
+            if (timeConflict && task.SchedulingPolicyId != null && task.GoalUnits == 0 && ledger.Excess(worker.Id, change.From, change.Through) <= 0) {
+                var ownState = new CapacityLedger(ledger.Workers, ledger.Tasks.Where(t => t.Id != task.Id).ToArray(), ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) { Temporal = ledger.Temporal, PlannedChanges = ledger.PlannedChanges, Override = ledger.Override };
+                var ownPlacement = OperationalAgenda.Find(ownState, worker.Id, task, task.OperationalCriticality == "CRITICA" ? task.StartsAt : new[] { task.StartsAt, change.SchedulingNotBefore ?? clock.UtcNow }.Max());
+                if (ownPlacement.Eligible) { OperationalAgenda.Apply(task, ownPlacement); if (ownState.CanAssign(worker.Id, task, task.StartsAt <= clock.UtcNow ? clock.UtcNow : null)) valid.Add(new(worker, ownPlacement, [])); }
+                task.StartsAt = previousStart; task.DueAt = previousDue;
+            }
+            foreach (var candidate in ledger.Workers.Where(w => w.Id != worker.Id && roles.Contains(w.Role) && w.EligibleFor(task.AssignedRole, task.SpecializationId))) {
+                task.StartsAt = previousStart; task.DueAt = previousDue;
+                var notBefore = task.OperationalCriticality == "CRITICA" ? task.StartsAt : ledger.Temporal.UsesBaseSchedule(task) && task.OperationalCriticality == "FLEXIBLE" && task.StartsAt > clock.UtcNow ? change.SchedulingNotBefore ?? clock.UtcNow : new[] { task.StartsAt, change.SchedulingNotBefore ?? clock.UtcNow }.Max();
+                var placed = task.SchedulingPolicyId == null ? new SchedulingPlacement(true, task.StartsAt, task.DueAt, "LEGACY_CONTRACT") : OperationalAgenda.Find(ledger, candidate.Id, task, notBefore);
+                if (placed.Eligible) {
+                    OperationalAgenda.Apply(task, placed);
+                    if (ledger.CanAssign(candidate.Id, task, task.StartsAt <= clock.UtcNow ? clock.UtcNow : null)) { valid.Add(new(candidate, placed, [])); continue; }
+                }
+                task.StartsAt = previousStart; task.DueAt = previousDue;
+                var reflow = WithTargetReflow(ledger, candidate, task, clock.UtcNow, notBefore, protectedIds);
+                if (reflow != null) valid.Add(reflow);
+            }
+            task.StartsAt = previousStart; task.DueAt = previousDue;
+            var target = valid.OrderBy(p => p.Placement.StartsAt).ThenBy(p => p.Reflow.Length).ThenBy(p => RotationCount(p.Worker.Id, task))
+                .ThenBy(p => ledger.Occupancy(p.Worker.Id, change.From, change.Through)).ThenBy(p => p.Worker.Code, StringComparer.Ordinal).FirstOrDefault();
+            if (target == null) {
+                var day = WeekContract.LocalToday(task.StartsAt);
+                var rejected = ledger.Workers.Where(w => w.Id != worker.Id && roles.Contains(w.Role) && w.EligibleFor(task.AssignedRole, task.SpecializationId)).Select(w => {
+                    var attempt = task.SchedulingPolicyId == null ? new SchedulingPlacement(true, task.StartsAt, task.DueAt, "ELIGIBLE") : OperationalAgenda.Find(ledger,w.Id,task,task.OperationalCriticality=="CRITICA" ? task.StartsAt : new[]{task.StartsAt,change.SchedulingNotBefore??clock.UtcNow}.Max());
+                    var spans=ledger.Temporal.Day(w.Id,day).Intervals;
+                    var hours=spans==null?"Sin configurar":spans.Length==0?"Descanso":string.Join(" · ",spans.Select(i=>$"{i.Entry/60:00}:{i.Entry%60:00}–{i.Exit/60:00}:{i.Exit%60:00}"));
+                    return new PlanningCandidateConflict(day,task.StartsAt,w.Name,attempt.Eligible?"PLAN_CAPACITY_EXCEEDED":attempt.Reason,hours,ledger.DayLoad(w.Id,day),ledger.DayCapacity(w.Id,day));
+                }).ToArray();
+                conflicts.Add(new(task.TaskCode,task.Name,task.LoadMinutes,rejected)); continue;
+            }
+            var transferred = task.PersonId != target.Worker.Id;
+            var recipientName = transferred ? target.Worker.Name : task.PersonName;
+            moves.Add(new(task.Id, task.Name, worker.Name, target.Worker.Id, recipientName, task.RemainingMinutes, target.Placement.StartsAt, target.Placement.DueAt) {
+                PreviousStartsAt = previousStart, PreviousDueAt = previousDue, OperationalCriticality = task.OperationalCriticality });
+            OperationalAgenda.Apply(task, target.Placement);
+            task.PersonId = target.Worker.Id; task.PersonName = recipientName; if (transferred) task.AssignedRole = target.Worker.Role;
+            foreach (var rescheduled in target.Reflow) {
+                var peer = ledger.Tasks.Single(t => t.Id == rescheduled.TaskId);
+                peer.StartsAt = rescheduled.StartsAt; peer.DueAt = rescheduled.DueAt; moves.Add(rescheduled);
+            }
             ledger.InvalidateLoads();
         }
+        var finalMoves = moves.GroupBy(m => m.TaskId).Select(g => g.Last() with {
+            FromName = g.First().FromName, PreviousStartsAt = g.First().PreviousStartsAt, PreviousDueAt = g.First().PreviousDueAt }).ToArray();
+        moves.Clear(); moves.AddRange(finalMoves);
         var excess = (long)Math.Ceiling(ledger.Excess(worker.Id, change.From, change.Through));
         return new(change, moves, excess,
-            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state + JsonSerializer.Serialize(new { Moves=moves,Excess=excess })))));
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state + JsonSerializer.Serialize(new { Moves=moves,Excess=excess }))))) { Conflicts = conflicts.ToArray() };
     }
 
     public async Task<CapacityPreview> ApplyAsync(Guid actor, CapacityChange change, string fingerprint, CancellationToken token)
     {
+        bool ledgerTimePassed(CapacityMove m) => m.OperationalCriticality != null && m.StartsAt > (m.PreviousStartsAt ?? m.StartsAt) && m.StartsAt < clock.UtcNow;
         await using var tx = await db.Database.BeginTransactionAsync(token);
         await OperationalTaskService.LockAsync(db, token);
         var preview = await BuildAsync(actor, change, token);
-        if (preview.Fingerprint != fingerprint) throw new DirectionPlanException("CAPACITY_STALE", 409);
+        if (preview.Moves.Any(m => ledgerTimePassed(m)) || preview.Fingerprint != fingerprint) throw new DirectionPlanException("CAPACITY_STALE", 409);
         var moveIds=preview.Moves.Select(m=>m.TaskId).ToArray();
         if(await db.Set<OperationalSequenceAttempt>().AnyAsync(a=>a.AssignmentId!=null && moveIds.Contains(a.AssignmentId.Value),token) ||
             await db.Set<OperationalSequenceStage>().AnyAsync(s=>moveIds.Contains(s.Id),token) ||
             (await ProcessPlanningService.PreparedReservationsAsync(db,token)).Any(r=>moveIds.Contains(r.Id)))
             throw new DirectionPlanException("PROCESS_CAPACITY_ADJUSTMENT_REQUIRED",409);
+        var applyingAt = clock.UtcNow;
+        var selectedActive = change.ActivatedTaskIds ?? [];
+        if (change.From < WeekContract.LocalToday(applyingAt) || await db.OperationalAssignments.AnyAsync(a => moveIds.Contains(a.Id) && a.SchedulingPolicyId != null &&
+            (a.CompletedAt != null || a.DueAt <= applyingAt || a.ProgressUnits > 0 || a.StartsAt <= applyingAt && a.OperationalCriticality != "CRITICA" && !selectedActive.Contains(a.Id)), token)) throw new DirectionPlanException("CAPACITY_STALE", 409);
+        var newMoveIds = await db.OperationalAssignments.Where(a => moveIds.Contains(a.Id) && a.SchedulingPolicyId != null).Select(a => a.Id).ToArrayAsync(token);
+        if (await db.OperationalPhotographs.AnyAsync(p => newMoveIds.Contains(p.AssignmentId), token) || await db.OperationalAttachments.AnyAsync(p => newMoveIds.Contains(p.AssignmentId), token)) throw new DirectionPlanException("CAPACITY_STALE", 409);
         var setting = await StoreSettingAsync(db, change, token);
         var currentLedger = await LedgerAsync(db, clock.UtcNow, token);
         var decisions = new List<object>();
         foreach (var move in preview.Moves)
         {
             var task = await db.OperationalAssignments.SingleAsync(a => a.Id == move.TaskId, token);
-            var before = new { task.PersonId, task.TemporalPolicyJson, task.TemporalDecisionJson };
+            var before = new { task.PersonId, task.StartsAt, task.DueAt, task.OperationalCriticality, task.SchedulingPolicyId, task.TemporalPolicyJson, task.TemporalDecisionJson };
+            if (task.SchedulingPolicyId != null) { task.StartsAt = move.StartsAt; task.DueAt = move.DueAt; }
+            var transferred = task.PersonId != move.ToId;
             task.PersonId = move.ToId; task.PersonName = move.ToName;
-            task.AssignedRole = currentLedger.Workers.Single(w => w.Id == move.ToId).Role; task.Revision++;
+            if (transferred) task.AssignedRole = currentLedger.Workers.Single(w => w.Id == move.ToId).Role; task.Revision++;
             currentLedger.CaptureTime(task, task.StartsAt <= clock.UtcNow ? clock.UtcNow : null);
-            decisions.Add(new { AssignmentId=task.Id,Before=before,After=new { task.PersonId,task.TemporalPolicyJson,task.TemporalDecisionJson } });
+            decisions.Add(new { AssignmentId=task.Id,Before=before,After=new { task.PersonId, task.StartsAt, task.DueAt, task.OperationalCriticality, task.SchedulingPolicyId, task.TemporalPolicyJson,task.TemporalDecisionJson } });
         }
         db.AuditEvents.Add(new AuditEvent { Id = Guid.CreateVersion7(), ActorUserId = actor, ActorType = "USER", OccurredAt = clock.UtcNow,
             ResourceId = setting.Id, ResourceType = "OPERATIONAL_CAPACITY", BranchId = BranchScope.LorettaId, Action = "CAPACITY_REDISTRIBUTED",
@@ -259,6 +332,11 @@ public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignme
     {
         var decision = CheckTime(person, task, reception);
         if (!decision.Eligible || !CanFit(person, task)) return false;
+        if (task.SchedulingPolicyId != null && task.ScheduleMode != "PROGRESO")
+        {
+            var placed = OperationalAgenda.FindExact(this, person, task);
+            if (!placed.Eligible || placed.StartsAt != task.StartsAt || placed.DueAt != task.DueAt) return false;
+        }
         return true;
     }
     public void CaptureTime(OperationalAssignment task, DateTimeOffset? reception = null)
@@ -268,7 +346,30 @@ public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignme
         if (!decision.Eligible) throw new DirectionPlanException(decision.Reason, 422);
         var worker=Workers.Single(w=>w.Id==task.PersonId);
         task.TemporalDecisionJson = JsonSerializer.Serialize(new { decision.Eligible,decision.Reason,decision.ScheduleId,decision.ExceptionId,decision.RotationId,decision.CoverageId,decision.Limit,worker.EmploymentEnd,worker.RoleEnd,PolicyStateRevision=Temporal.StateRevision });
-        if (task.TaskId == Temporal.ClosingTaskId && decision.Limit is { } limit) task.DueAt = limit;
+        if (task.SchedulingPolicyId == null && task.TaskId == Temporal.ClosingTaskId && decision.Limit is { } limit) task.DueAt = limit;
+    }
+    public CapacityLedger WithAdded(OperationalAssignment task)
+    {
+        var next = new CapacityLedger(Workers, Tasks.Append(task).ToArray(), Capacities, Unavailable, Legacy, Today)
+            { Temporal = Temporal, PlannedChanges = PlannedChanges, Override = Override };
+        next.capacityByDay = capacityByDay;
+        if (dailyLoads != null) {
+            next.dailyLoads = new(dailyLoads);
+            foreach (var footprint in next.Footprint(task)) {
+                var key = (task.PersonId, footprint.Day); next.dailyLoads[key] = next.dailyLoads.GetValueOrDefault(key) + footprint.Minutes;
+            }
+        }
+        if (agendaByDay != null && legacyAgendaByPerson != null) {
+            next.agendaByDay = new(agendaByDay); next.legacyAgendaByPerson = legacyAgendaByPerson;
+            if (task.ScheduleMode != "PROGRESO" && task.GoalUnits == 0) {
+                if (task.SchedulingPolicyId != null) {
+                    var key = (task.PersonId, WeekContract.LocalToday(task.StartsAt)); next.agendaByDay[key] = (next.agendaByDay.GetValueOrDefault(key) ?? []).Append(task).ToArray();
+                } else {
+                    next.legacyAgendaByPerson = new(legacyAgendaByPerson); next.legacyAgendaByPerson[task.PersonId] = (next.legacyAgendaByPerson.GetValueOrDefault(task.PersonId) ?? []).Append(task).ToArray();
+                }
+            }
+        }
+        return next;
     }
     public CapacityWorker[] Workers { get; } = workers;
     public OperationalAssignment[] Tasks { get; } = tasks;
@@ -283,10 +384,28 @@ public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignme
         get => capacityOverride;
         set { capacityOverride = value; InvalidateLoads(); }
     }
-    public void InvalidateLoads() => dailyLoads = null;
+    private Dictionary<(Guid Person, DateOnly Day), OperationalAssignment[]>? agendaByDay;
+    private Dictionary<Guid, OperationalAssignment[]>? legacyAgendaByPerson;
+    internal IEnumerable<OperationalAssignment> SchedulingPeers(Guid person, DateOnly day)
+    {
+        if (agendaByDay == null) {
+            var blocks = Tasks.Where(t => t.ScheduleMode != "PROGRESO" && t.GoalUnits == 0).ToArray();
+            agendaByDay = blocks.Where(t => t.SchedulingPolicyId != null).GroupBy(t => (t.PersonId, WeekContract.LocalToday(t.StartsAt))).ToDictionary(g => g.Key, g => g.ToArray());
+            legacyAgendaByPerson = blocks.Where(t => t.SchedulingPolicyId == null).GroupBy(t => t.PersonId).ToDictionary(g => g.Key, g => g.ToArray());
+        }
+        return (agendaByDay.GetValueOrDefault((person, day)) ?? []).Concat(legacyAgendaByPerson!.GetValueOrDefault(person) ?? []);
+    }
+    public void InvalidateLoads() { dailyLoads = null; agendaByDay = null; legacyAgendaByPerson = null; capacityByDay = []; }
     public IReadOnlyList<CapacityChange> PlannedChanges { get; init; } = [];
     public OperationalCapacity? Setting(Guid person, DateOnly day) => Capacities.SingleOrDefault(c => c.PersonId == person && c.From <= day && c.Through >= day);
+    private Dictionary<(Guid Person, DateOnly Day), decimal> capacityByDay = [];
     public decimal DayCapacity(Guid person, DateOnly day)
+    {
+        var key = (person, day);
+        if (!capacityByDay.TryGetValue(key, out var value)) { value = CalculateDayCapacity(person, day); capacityByDay[key] = value; }
+        return value;
+    }
+    private decimal CalculateDayCapacity(Guid person, DateOnly day)
     {
         var w = Workers.SingleOrDefault(w => w.Id == person);
         if (w == null) return 0;
@@ -296,7 +415,7 @@ public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignme
             if(!Temporal.Enabled) return minutes;
             var limits=new[] { w.EmploymentEnd,w.RoleEnd }.Where(e=>e!=null).Select(e=>e!.Value).ToArray();
             var end=limits.Length==0?DateTimeOffset.MaxValue:limits.Min();
-            var usable=(Temporal.Day(person,day).Intervals??[]).Sum(i=>Math.Max(0,(Math.Min(TemporalEligibilityContext.At(day,i.Exit).UtcTicks,end.UtcTicks)-TemporalEligibilityContext.At(day,i.Entry).UtcTicks)/(decimal)TimeSpan.TicksPerMinute));
+            var usable=(Temporal.Day(person,day,!Temporal.BaseSchedulesForCapacity).Intervals??[]).Sum(i=>Math.Max(0,(Math.Min(TemporalEligibilityContext.At(day,i.Exit).UtcTicks,end.UtcTicks)-TemporalEligibilityContext.At(day,i.Entry).UtcTicks)/(decimal)TimeSpan.TicksPerMinute));
             return Math.Min(minutes,usable);
         }
         if (Override is { } o && o.PersonId == person && o.From <= day && o.Through >= day) return Limit(o.DailyMinutes * o.Percent / 100m);

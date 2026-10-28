@@ -1,0 +1,17 @@
+@model Sgol.Web.Infrastructure.Persistence.Planning.OperationalCarryoverRequest
+@using Sgol.Web.Infrastructure.Persistence.Reporting
+@inject Sgol.Web.Infrastructure.Persistence.Planning.OperationalCarryoverReader CarryoverReader
+<details class="panel-seccion"><summary>@Model.Items().FirstOrDefault()?.PersonName · @(Model.Kind == "POSPONER" ? "Posponer tareas" : "Incidente") · @Model.State · @Model.CauseDescription · @Model.Minutes min · @ReportCatalog.Time(Model.SubmittedAt)</summary>
+@if(Model.Kind == "POSPONER") { <p>Ventana autorizable: @Model.From?.ToString("dd/MM/yyyy") – @Model.Through?.ToString("dd/MM/yyyy"). @Model.Items().Length tareas seleccionadas.</p> }
+@if(Model.Items().FirstOrDefault()?.BeforeDate is {} before) { <p>Condición: asignar antes del @before.ToString("dddd dd/MM/yyyy"), sin incluir ese día.</p> }
+<p>Solicitud @Model.Id · enviada @ReportCatalog.Time(Model.SubmittedAt)</p><p>@Model.Explanation</p>
+@if(Model.State == "PENDIENTE") { <p>Arrastre solicitado, pendiente de autorización.</p> }
+<partial name="~/Pages/Shared/_CarryoverItems.cshtml" model="Model.Items()" />
+@if(Model.DecidedAt != null) { <p>@ReportCatalog.Time(Model.DecidedAt) · @Model.DecisionComment</p> }
+@foreach(var result in Model.Results()) {
+    @if(await CarryoverReader.IsRestoredAsync(Model.Id, result.AssignmentId)) { <p>La posposición de la tarea @result.AssignmentId fue restaurada posteriormente a sus fechas anteriores. Esta aprobación se conserva como historial.</p> }
+    <p>Tarea @result.AssignmentId · @result.Kind · Cierre efectivo: @ReportCatalog.Time(result.After) · Cierre reconocido: @ReportCatalog.Time(result.RecognizedDue).
+    @if(result.CompletedAt is {} completed) { <span>Entrega: @ReportCatalog.Time(completed). @(result.Kind == "ENTREGADA_SIN_CAMBIOS" ? "Entregada durante la espera: sin posposición ni reconocimiento retroactivo." : completed > result.Before ? "Entrega tardía con arrastre autorizado" : "A tiempo") · @(completed <= result.RecognizedDue ? "Dentro del plazo reconocido" : "Fuera del plazo reconocido").</span> }
+    </p>
+}
+</details>

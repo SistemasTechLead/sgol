@@ -46,6 +46,8 @@ public static class PersistenceServiceCollectionExtensions
             .AddCheck<PostgreSqlReadinessHealthCheck>("postgresql", tags: ["ready"])
             .AddCheck<DataProtectionReadinessHealthCheck>("data-protection", tags: ["ready"]);
         services.AddScoped<AuditTransaction>();
+        services.AddScoped<PersonAvatarService>();
+        services.AddScoped<IPersonAvatarReader>(sp => sp.GetRequiredService<PersonAvatarService>());
         services.AddScoped<ScreenAccountService>();
         services.AddScoped<ScreenDeviceService>();
         services.AddScoped<VersioningTransaction>();
@@ -63,6 +65,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IDirectionPlanningCatalogReader, DirectionPlanningCatalogReader>();
         services.AddScoped<IDirectionPreparedPlanService, EfDirectionPreparedPlanService>();
         services.AddScoped<OperationalTaskService>();
+        services.AddScoped<AssignmentRefreshService>();
+        services.AddScoped<OperationalSchedulingPolicyService>();
+        services.AddScoped<OperationalWeeklyRepairService>();
         services.AddScoped<PersonalScheduleService>();
         services.AddScoped<OperationalProcessCatalogService>();
         services.AddScoped<OperationalProcessService>();
@@ -70,6 +75,8 @@ public static class PersistenceServiceCollectionExtensions
         if(configuration.GetValue<bool>("Processes:OperationsEnabled")) services.AddHostedService<OperationalProcessTimer>();
         services.AddScoped<LiveBoardReader>();
         services.AddScoped<OperationalSupervisionService>();
+        services.AddScoped<OperationalCarryoverService>();
+        services.AddScoped<OperationalCarryoverReader>();
         services.AddScoped<OperationalCapacityService>();
         services.AddScoped<IPlanPublicationService, EfPlanPublicationService>();
         services.AddScoped<EfGenerationRequestService>();
@@ -113,4 +120,6 @@ public static class PersistenceServiceCollectionExtensions
         return services;
     }
 }
+
+
 

@@ -1,0 +1,14 @@
+.workload-person > summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .35rem;
+    cursor: pointer;
+}
+.workload-person > summary > span { min-width: 0; overflow-wrap: anywhere; }
+.workload-person > summary strong { display: inline; }
+section.workload-preview { display: block; margin-top: 1rem; }
+.workload-preview > p { margin: .75rem 0; }
+.workload-preview form { display: flex; flex-wrap: wrap; gap: .75rem; }
+.workload-transfer-form > p,
+.workload-transfer-form > button { grid-column: 1 / -1; }
+.workload-transfer-form > button { justify-self: start; align-self: start; }

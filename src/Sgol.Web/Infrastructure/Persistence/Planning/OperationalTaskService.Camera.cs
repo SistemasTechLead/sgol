@@ -31,7 +31,6 @@ public sealed partial class OperationalTaskService
             ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
         if (assignment.Requirement != "FOTOGRAFIA" || assignment.CompletedAt is not null ||
             assignment.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA") throw new DirectionPlanException("TASK_CONFLICT", 409);
-        if (assignment.StartsAt > clock.UtcNow) throw new DirectionPlanException("TASK_NOT_STARTED", 422);
         if (assignment.GoalUnits > assignment.ProgressUnits) throw new DirectionPlanException("TASK_GOAL_PENDING", 422);
         return assignment;
     }
@@ -168,7 +167,8 @@ public sealed partial class OperationalTaskService
     private async Task AuthorizePhotoReadAsync(Guid actor, Guid id, CancellationToken token)
     {
         var person = await PersonAsync(actor, token);
-        if (!await db.OperationalAssignments.AnyAsync(x => x.Id == id && x.PersonId == person, token))
+        if (!await db.OperationalAssignments.AnyAsync(x => x.Id == id && x.PersonId == person, token) &&
+            !await new OperationalProcessService(db, direction, clock, validator, scanner).CanReadDocumentAsync(actor, id, token))
             await new OperationalSupervisionService(db, clock, direction).AuthorizeAssignmentAsync(actor, id, token);
     }
 

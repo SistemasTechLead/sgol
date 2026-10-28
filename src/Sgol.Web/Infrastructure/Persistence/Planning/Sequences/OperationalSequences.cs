@@ -22,6 +22,7 @@ public sealed class OperationalSequence
 // A published version is immutable. Editing creates another version.
 public sealed class OperationalSequenceVersion
 {
+    public int? AgendaVersion { get; set; }
     public Guid Id { get; set; }
     public Guid SequenceId { get; set; }
     public int Number { get; set; }
@@ -58,6 +59,7 @@ public sealed class OperationalSequenceStep
 
 public sealed class OperationalSequenceRun
 {
+    public bool UsesTaskEvidence { get; set; }
     public Guid Id { get; set; }
     public Guid VersionId { get; set; }
     public Guid PlanId { get; set; }
@@ -81,6 +83,10 @@ public sealed class OperationalSequenceRun
 // is inserted while a stage is waiting or has an expired fixed deadline.
 public sealed class OperationalSequenceStage
 {
+    public Guid? SchedulingPolicyId { get; set; }
+    public int? ClosureMarginPercent { get; set; }
+    public string? OperationalCriticality { get; set; }
+    public DateTimeOffset? NominalStartsAt { get; set; }
     public string? Description { get; set; }
     public Guid Id { get; set; }
     public Guid RunId { get; set; }
@@ -88,9 +94,11 @@ public sealed class OperationalSequenceStage
     public int Position { get; set; }
     public Guid TaskId { get; set; }
     public long TaskRevision { get; set; }
+    public string? DefinitionSnapshotJson { get; set; }
     public string TaskCode { get; set; } = "";
     public string Name { get; set; } = "";
     public string Role { get; set; } = "";
+    public string ChecklistJson { get; set; } = "[]";
     public string Requirement { get; set; } = "";
     public Guid? SpecializationId { get; set; }
     public string? SpecializationName { get; set; }
@@ -205,7 +213,7 @@ internal static class OperationalSequenceSchema
         var run = model.Entity<OperationalSequenceRun>();
         run.ToTable("operational_sequence_run", t => {
             t.HasCheckConstraint("CK_sequence_run_state", "\"Status\" IN ('EN_CURSO','CONCLUIDA','CANCELADA') AND \"Round\" > 0 AND \"ActivePosition\" BETWEEN 1 AND 32 AND \"Revision\" > 0");
-            t.HasCheckConstraint("CK_sequence_run_closure", "(\"Status\" = 'EN_CURSO' AND \"ClosedAt\" IS NULL AND \"ClosedBy\" IS NULL AND \"ClosureOutcome\" IS NULL AND \"AuthorizedDocumentId\" IS NULL) OR (\"Status\" = 'CONCLUIDA' AND \"ClosedAt\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL AND \"AuthorizedDocumentId\" IS NOT NULL AND \"ClosureOutcome\" IS NOT NULL AND \"ClosureComment\" IS NOT NULL AND \"ClosureOutcome\" IN ('SIN_DIFERENCIAS','ACEPTADA_CON_DIFERENCIAS') AND length(trim(\"ClosureComment\")) > 0) OR (\"Status\" = 'CANCELADA' AND \"ClosedAt\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL AND \"ClosureOutcome\" = 'CANCELACION' AND \"ClosureOutcome\" IS NOT NULL AND \"ClosureComment\" IS NOT NULL AND length(trim(\"ClosureComment\")) > 0 AND \"AuthorizedDocumentId\" IS NULL)");
+            t.HasCheckConstraint("CK_sequence_run_closure", "(\"Status\" = 'EN_CURSO' AND \"ClosedAt\" IS NULL AND \"ClosedBy\" IS NULL AND \"ClosureOutcome\" IS NULL AND \"AuthorizedDocumentId\" IS NULL) OR (\"Status\" = 'CONCLUIDA' AND \"ClosedAt\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL AND (\"UsesTaskEvidence\" OR \"AuthorizedDocumentId\" IS NOT NULL) AND \"ClosureOutcome\" IS NOT NULL AND \"ClosureComment\" IS NOT NULL AND \"ClosureOutcome\" IN ('SIN_DIFERENCIAS','ACEPTADA_CON_DIFERENCIAS') AND length(trim(\"ClosureComment\")) > 0) OR (\"Status\" = 'CANCELADA' AND \"ClosedAt\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL AND \"ClosureOutcome\" = 'CANCELACION' AND \"ClosureOutcome\" IS NOT NULL AND \"ClosureComment\" IS NOT NULL AND length(trim(\"ClosureComment\")) > 0 AND \"AuthorizedDocumentId\" IS NULL)");
         });
         run.HasKey(x => x.Id); run.HasAlternateKey(x => new { x.Id, x.VersionId }); run.HasAlternateKey(x => new { x.Id, x.PlanId });
         run.HasIndex(x => x.StartKey).IsUnique(); run.Property(x => x.StartKey).HasMaxLength(160);
@@ -218,8 +226,10 @@ internal static class OperationalSequenceSchema
         run.HasOne<AppUser>().WithMany().HasForeignKey(x => x.ClosedBy).OnDelete(DeleteBehavior.Restrict);
 
         var stage = model.Entity<OperationalSequenceStage>();
+        stage.Property(s => s.OperationalCriticality).HasMaxLength(12);
+        stage.HasOne<OperationalSchedulingPolicy>().WithMany().HasForeignKey(s => s.SchedulingPolicyId).OnDelete(DeleteBehavior.Restrict);
         stage.ToTable("operational_sequence_stage", t => {
-            t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
+            t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
             t.HasCheckConstraint("CK_sequence_stage_dates", "\"PlannedDueAt\" > \"PlannedStartsAt\" AND ((\"EnabledAt\" IS NULL AND \"EffectiveDueAt\" IS NULL) OR (\"EnabledAt\" IS NOT NULL AND \"EligibleAt\" IS NOT NULL AND \"EffectiveDueAt\" IS NOT NULL AND \"EffectiveDueAt\" > \"EnabledAt\" AND \"EnabledAt\" >= \"EligibleAt\"))");
             t.HasCheckConstraint("CK_sequence_stage_state", "\"Status\" IN ('EN_ESPERA','PROGRAMADA','DISPONIBLE','PENDIENTE_ASIGNACION','FUERA_DE_PLAZO','CONCLUIDA','CANCELADA') AND (\"Status\" NOT IN ('DISPONIBLE','CONCLUIDA') OR (\"CurrentAttemptId\" IS NOT NULL AND \"EnabledAt\" IS NOT NULL))");
             t.HasCheckConstraint("CK_sequence_stage_dependency", "(\"DependencySatisfiedAt\" IS NULL AND \"DependencyEventId\" IS NULL) OR (\"DependencySatisfiedAt\" IS NOT NULL AND \"DependencyEventId\" IS NOT NULL)");
@@ -231,6 +241,7 @@ internal static class OperationalSequenceSchema
         stage.HasOne<OperationalTask>().WithMany().HasForeignKey(x => x.TaskId).OnDelete(DeleteBehavior.Restrict);
         stage.HasOne<Person>().WithMany().HasForeignKey(x => x.ReservedPersonId).OnDelete(DeleteBehavior.Restrict);
         stage.HasOne<Sgol.Web.Infrastructure.Persistence.Organization.Specialization>().WithMany().HasForeignKey(x => x.SpecializationId).OnDelete(DeleteBehavior.Restrict);
+        stage.Property(x => x.DefinitionSnapshotJson).HasColumnType("jsonb");
         stage.Property(x => x.TaskCode).HasMaxLength(100); stage.Property(x => x.Name).HasMaxLength(500);
         stage.Property(x => x.Description).HasMaxLength(4000);
         stage.Property(x => x.Role).HasMaxLength(20); stage.Property(x => x.Requirement).HasMaxLength(24);

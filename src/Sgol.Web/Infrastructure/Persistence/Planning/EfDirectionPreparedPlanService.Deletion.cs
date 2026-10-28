@@ -62,8 +62,9 @@ public sealed partial class EfDirectionPreparedPlanService
                             DailyMinutes = previous.DailyMinutes, Reason = previous.Reason, Revision = previous.Revision + 1 });
                     }
                 }
-                var assignments = db.OperationalAssignments.Where(a => a.PlanId == id);
+                var assignments = db.OperationalAssignments.IgnoreQueryFilters().Where(a => a.PlanId == id);
                 var assignmentIds = assignments.Select(a => a.Id);
+                await db.Set<OperationalTransfer>().Where(t => assignmentIds.Contains(t.AssignmentId)).ExecuteDeleteAsync(ct);
                 await db.Set<OperationalProgressEntry>().Where(p => assignmentIds.Contains(p.AssignmentId)).ExecuteDeleteAsync(ct);
                 // Detach self references before deleting the entire reassignment history.
                 await assignments.ExecuteUpdateAsync(s => s.SetProperty(a => a.ReassignedFromId, (Guid?)null), ct);
@@ -97,14 +98,15 @@ public sealed partial class EfDirectionPreparedPlanService
         var attempts = await db.Set<OperationalSequenceAttempt>().AsNoTracking().Where(a => runIds.Contains(a.RunId)).OrderBy(a => a.Id).ToArrayAsync(token);
         var documents = await db.Set<OperationalSequenceDocument>().AsNoTracking().Where(d => runIds.Contains(d.RunId)).OrderBy(d => d.Id).ToArrayAsync(token);
         var events = await db.Set<OperationalSequenceEvent>().AsNoTracking().Where(e => runIds.Contains(e.RunId)).OrderBy(e => e.Id).ToArrayAsync(token);
-        var assignments = await db.OperationalAssignments.AsNoTracking().Where(a => a.PlanId == id).OrderBy(a => a.Id)
+        var assignments = await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().Where(a => a.PlanId == id).OrderBy(a => a.Id)
             .Select(a => new { a.Id, a.Revision, a.CompletedAt, FileName = a.Attachment != null ? a.Attachment.FileName : null, a.ProgressUnits, a.ReviewStatus, a.PersonId, a.ReassignedFromId }).ToArrayAsync(token);
         var ids = assignments.Select(a => a.Id).ToArray();
         var photographs = await db.OperationalPhotographs.AsNoTracking().Where(p => ids.Contains(p.AssignmentId))
             .OrderBy(p => p.Id).Select(p => new { p.Id, p.AssignmentId, p.Sha256, p.AttachedAt }).ToArrayAsync(token);
-        if (await db.OperationalAssignments.AnyAsync(a => a.PlanId != id && a.ReassignedFromId != null && ids.Contains(a.ReassignedFromId.Value), token))
+        if (await db.OperationalAssignments.IgnoreQueryFilters().AnyAsync(a => a.PlanId != id && a.ReassignedFromId != null && ids.Contains(a.ReassignedFromId.Value), token))
             throw new DirectionPlanException("PLAN_DELETE_DEPENDENCIES", 409);
         var progress = await db.Set<OperationalProgressEntry>().AsNoTracking().Where(p => ids.Contains(p.AssignmentId)).OrderBy(p => p.Id).ToArrayAsync(token);
+        var transfers = await db.Set<OperationalTransfer>().AsNoTracking().Where(t => ids.Contains(t.AssignmentId)).OrderBy(t => t.Id).ToArrayAsync(token);
         var occasions = await db.Set<OperationalOccasion>().AsNoTracking().Where(o => o.PlanId == id).OrderBy(o => o.Id).ToArrayAsync(token);
         var occasionIds = occasions.Select(o => o.Id).ToArray();
         var material = await db.Set<OperationalReferenceFile>().AsNoTracking().Where(f => occasionIds.Contains(f.OccasionId))
@@ -113,7 +115,7 @@ public sealed partial class EfDirectionPreparedPlanService
         var capacities = new List<OperationalCapacity>();
         foreach (var entry in adjustments)
             capacities.Add(await OwnedCapacityAsync(entry, token) ?? throw new DirectionPlanException("PLAN_DELETE_CAPACITY_CHANGED", 409));
-        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { plan, tasks, assignments, progress, capacities, adjustments, photographs, occasions, material, processStarts, runs, stages, attempts, documents, events }))));
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { plan, tasks, assignments, progress, transfers, capacities, adjustments, photographs, occasions, material, processStarts, runs, stages, attempts, documents, events }))));
         return new(id, plan.Name, tasks.Length, assignments.Length, assignments.Count(a => a.CompletedAt != null),
             material.Length + photographs.Length + assignments.Count(a => a.FileName != null), progress.Length, adjustments.Length, fingerprint);
     }

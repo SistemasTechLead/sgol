@@ -2,24 +2,23 @@
 @using System.Globalization
 @{
     var culture = CultureInfo.GetCultureInfo("es-MX");
+    var weekButton = Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User) ? "board-action" : "boton boton--secundario";
 }
 <header class="weekly-header">
     <div class="board-heading">
-        <a class="board-back" href="/tablero" aria-label="Volver al tablero" title="Volver al tablero"><partial name="_Icon" model='@("back")' /></a>
         <h1>Rol de Tareas</h1>
+        @if (Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User)) {
+            <a class="board-action" href="/tablero">Volver al tablero</a>
+        } else { <partial name="_SectionNavigation" model='@("board")' /> }
     </div>
     <nav class="weekly-navigation" aria-label="Semana del rol de tareas">
-        <a class="board-action" href="?week=@Model.StartsOn.AddDays(-7).ToString("yyyy-MM-dd")" aria-label="Semana anterior">← Anterior</a>
-        <a class="board-action" href="/tablero/rol-de-tareas">Semana actual</a>
-        <a class="board-action" href="?week=@Model.StartsOn.AddDays(7).ToString("yyyy-MM-dd")" aria-label="Semana siguiente">Siguiente →</a>
+        <a class="@weekButton" href="?week=@Model.StartsOn.AddDays(-7).ToString("yyyy-MM-dd")" aria-label="Semana anterior">← Anterior</a>
+        <a class="@weekButton" href="/tablero/rol-de-tareas">Semana actual</a>
+        <a class="@weekButton" href="?week=@Model.StartsOn.AddDays(7).ToString("yyyy-MM-dd")" aria-label="Semana siguiente">Siguiente →</a>
     </nav>
 </header>
 <div class="board-meta">
     <span><strong>Del @Model.StartsOn.ToString("dd/MM/yyyy") al @Model.EndsOn.ToString("dd/MM/yyyy")</strong> · Semana @ISOWeek.GetWeekOfYear(Model.StartsOn.ToDateTime(TimeOnly.MinValue))<br />Asignaciones por fecha de cierre · Ciudad de México · Carga por asignación</span>
-    <div class="board-legend" aria-label="Colores del tablero">
-        <span><i class="scheduled"></i>Por activar</span><span><i class="active"></i>Activa</span>
-        <span><i class="warning"></i>Último 30% del tiempo</span><span><i class="urgent"></i>≤10% restante o vencida</span><span><i class="delivered"></i>Entregada</span>
-    </div>
 </div>
 <div class="weekly-viewport" tabindex="0" role="region" aria-label="Rol de tareas semanal; desplázate para consultar todos los días">
     <table class="weekly-table">
@@ -34,7 +33,7 @@
         <tbody>
         @foreach (var row in Model.Rows) {
             <tr>
-                <th scope="row" class="weekly-activity">@row.Name<small>@row.TaskCode · @row.PlanName</small></th>
+                <th scope="row" class="weekly-activity">@row.Name</th>
                 <td class="weekly-load">@row.LoadMinutes</td>
                 @foreach (var day in Model.Days) {
                     var assignments = row.ForDay(day).ToArray();

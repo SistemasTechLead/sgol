@@ -122,7 +122,10 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyConfiguration(new OperationalTransferConfiguration());
+        modelBuilder.ApplyConfiguration(new OperationalCarryoverConfiguration());
         modelBuilder.ApplyConfiguration(new Identity.ScreenAccountConfiguration());
+        modelBuilder.ApplyConfiguration(new Identity.PersonAvatarConfiguration());
         var screenDevices = new Identity.ScreenDeviceConfiguration();
         modelBuilder.ApplyConfiguration<Identity.ScreenLinkRequest>(screenDevices);
         modelBuilder.ApplyConfiguration<Identity.ScreenBrowserTicket>(screenDevices);
@@ -136,6 +139,10 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
         modelBuilder.ApplyConfiguration(new DirectionPreparedPlanConfiguration());
         modelBuilder.ApplyConfiguration(new DirectionPreparedPlanItemConfiguration());
         modelBuilder.ApplyConfiguration(new OperationalTaskConfiguration());
+        var scheduling = new OperationalSchedulingConfiguration();
+        modelBuilder.ApplyConfiguration<OperationalSchedulingPolicy>(scheduling);
+        modelBuilder.ApplyConfiguration<OperationalSchedulingSettings>(scheduling);
+        modelBuilder.Entity<DirectionPreparedPlan>().HasOne<OperationalSchedulingPolicy>().WithMany().HasForeignKey(p => p.SchedulingPolicyId).OnDelete(DeleteBehavior.Restrict);
         var schedules = new PersonalScheduleConfiguration();
         modelBuilder.ApplyConfiguration<PersonalScheduleVersion>(schedules);
         modelBuilder.ApplyConfiguration<PersonalScheduleException>(schedules);
@@ -195,3 +202,4 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
         modelBuilder.ApplyConfiguration(new ScheduledJobRunConfiguration());
     }
 }
+

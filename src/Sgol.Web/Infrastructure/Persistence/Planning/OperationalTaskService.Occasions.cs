@@ -35,7 +35,7 @@ public sealed class OperationalReferenceFile
 
 public sealed record OccasionInput(Guid TaskId, long TaskRevision, string Name, string Instructions,
     string PublicationText, string Channels, DateTimeOffset StartsAt, DateTimeOffset DueAt,
-    Guid[] PersonIds, bool Automatic = false, Guid? PlanId = null);
+    Guid[] PersonIds, bool Automatic = false, Guid? PlanId = null, string? SchedulingFingerprint = null, DateTimeOffset? SchedulingNotBefore = null);
 public sealed record ReferenceFileDetails(Guid Id, string FileName, string ContentType);
 public sealed record OccasionDetails(string Name, string Instructions, string PublicationText,
     string Channels, IReadOnlyList<ReferenceFileDetails> Files);
@@ -138,32 +138,13 @@ public sealed partial class OperationalTaskService
         else
         {
             plan = DirectionPreparedPlan.ForOccasion(Guid.CreateVersion7(), BranchScope.LorettaId, actor, now,
-                input.Name, WeekContract.LocalToday(input.StartsAt), WeekContract.LocalToday(input.DueAt));
+                input.Name, WeekContract.LocalToday(input.StartsAt), WeekContract.LocalToday(input.StartsAt));
         }
+        var policy = input.PlanId == null ? await OperationalSchedulingPolicyService.CurrentAsync(db, token) : plan.SchedulingPolicyId is {} policyId ? await db.Set<OperationalSchedulingPolicy>().AsNoTracking().SingleAsync(p => p.Id == policyId, token) : null;
+        if (input.PlanId == null && policy != null) plan.CaptureSchedulingPolicy(policy.Id);
         var ledger = await OperationalCapacityService.LedgerAsync(db, now, token);
-        var candidates = ledger.Workers.Where(w => EligibleOccasionalRecipient(actorRole, task, w)).ToArray();
-        if (!input.Automatic && input.PersonIds.Any(id => candidates.All(w => w.Id != id)))
-            throw new DirectionPlanException("OCCASION_RECIPIENT_INVALID", 422);
-        var assignments = new List<OperationalAssignment>();
-        foreach (var recipient in input.Automatic ? new Guid?[] { null } : input.PersonIds.Select(id => (Guid?)id))
-        {
-            var assignment = new OperationalAssignment { Id = Guid.CreateVersion7(), PlanId = plan.Id, OccasionId = key,
-                TaskId = task.Id, TaskRevision = task.Revision, TaskCode = task.TaskCode, Name = input.Name, Description = task.Description, Requirement = task.Requirement,
-                AssignedRole = task.AssignedRole, SpecializationId = task.SpecializationId, SpecializationName = specialty?.Name,
-                StartsAt = input.StartsAt, DueAt = input.DueAt, LoadMinutes = task.LoadMinutes,
-                MinimumPhotos = task.MinimumPhotos, MaximumPhotos = task.MaximumPhotos, MaximumPhotoBytes = task.MaximumPhotoBytes,
-                PeriodType = "OCASIONAL", Repetitions = 1 };
-            var day = WeekContract.LocalToday(input.StartsAt);
-            var worker = candidates.Where(w => (recipient == null || w.Id == recipient) && ledger.CanAssign(w.Id, assignment, now))
-                .OrderBy(w => ledger.Occupancy(w.Id, day, day)).ThenBy(w => ledger.Tasks.Where(a => a.PersonId == w.Id).Sum(a => (long)a.RemainingMinutes) + ledger.Legacy.GetValueOrDefault(w.Id))
-                .ThenBy(w => w.Code, StringComparer.Ordinal).ThenBy(w => w.Id).FirstOrDefault()
-                ?? throw new DirectionPlanException("PLAN_NO_AVAILABLE_WORKER", 422);
-            assignment.PersonId = worker.Id; assignment.PersonName = worker.Name;
-            assignment.AssignedRole = worker.Role;
-            assignment.PreviousLoadMinutes = ledger.Tasks.Where(a => a.PersonId == worker.Id).Sum(a => (long)a.RemainingMinutes) + ledger.Legacy.GetValueOrDefault(worker.Id);
-            ledger.CaptureTime(assignment, now); assignments.Add(assignment);
-            ledger = new(ledger.Workers, ledger.Tasks.Append(assignment).ToArray(), ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) { Temporal = ledger.Temporal };
-        }
+        var assignments = OccasionAssignments(task, plan.Id, key, policy, actorRole, input, ledger, now, specialty?.Name);
+        if (policy != null && (input.SchedulingFingerprint != OccasionFingerprint(task, policy, input, ledger, assignments) || assignments.Any(a => a.StartsAt < clock.UtcNow))) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
         if (input.PlanId == null)
         {
             db.DirectionPreparedPlans.Add(plan);

@@ -1,0 +1,212 @@
+/* Mobile presentation only. The container also honours the saved mobile view. */
+.mobile-fold-toggle, .mobile-record-toggle, .mobile-section-nav, .mobile-day-picker { display: none; }
+
+/* Keep automatic phone composition when rotated, without changing a saved
+   desktop preference or the desktop layout on a fine-pointer computer. */
+@media screen and (hover: none) and (pointer: coarse) and (max-height: 32rem) and (max-width: 64rem) {
+    html[data-layout="auto"] { max-width: 48rem; margin-inline: auto; }
+}
+
+@media screen {
+@container sgol-viewport (max-width: 48rem) {
+    .aplicacion, .contenido-principal, .barra-lateral, .panel-seccion,
+    .planificacion, .people-page, .process-editor, .report-result { min-width: 0; }
+    .contenido-principal { padding: 12px; overflow-wrap: anywhere; }
+    .encabezado-aplicacion { padding: 8px 12px; min-height: 60px; gap: 8px; }
+    .encabezado-aplicacion__marca { font-size: 28px; }
+    .encabezado-aplicacion__identidad { min-width: 0; }
+    .encabezado-aplicacion__sesion { overflow-wrap: anywhere; }
+    .encabezado-pagina { margin-block-end: 8px; gap: 8px; }
+    .encabezado-pagina__titulo { font-size: 21px; line-height: 1.35; }
+    .encabezado-pagina__acciones, .planificacion__header-actions,
+    .people-row-actions, .report-actions { flex-wrap: wrap; gap: 8px; min-width: 0; }
+    .encabezado-pagina__acciones > *, .planificacion__header-actions > * { max-width: 100%; }
+    .boton, .board-action, .board-back, .campo__control,
+    .board-plan select, .avatar-sesion, summary { min-height: 44px; }
+    .boton, .board-action, .board-back, .avatar-sesion { min-width: 44px; }
+    .boton, .board-action { white-space: normal; overflow-wrap: anywhere; }
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea {
+        font-size: 16px; max-width: 100%; min-width: 0;
+    }
+    input[type="file"] { width: 100%; }
+    input[type="file"]::file-selector-button { max-width: 100%; white-space: normal; }
+    fieldset, legend, .campo, .people-form-grid, .schedule-interval { min-width: 0; max-width: 100%; }
+    label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+    .people-form-grid, .planificacion__formulario { grid-template-columns: minmax(0, 1fr); }
+    .people-filters { flex-wrap: wrap; }
+    .people-page { gap: 8px; }
+    .people-page [aria-labelledby="profiles-title"] > .panel-seccion__cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; margin-bottom: 8px; }
+    .people-page [aria-labelledby="profiles-title"] > .panel-seccion__cabecera h2 { font-size: 18px; line-height: 1.4; }
+    .people-page [aria-labelledby="profiles-title"] > .panel-seccion__cabecera > .mobile-fold-toggle { margin: 0; flex: none; }
+    .people-filters .campo { min-width: 0; flex-basis: 100%; }
+    .people-password, .people-secret code { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .encabezado-pagina__descripcion { margin-block: 8px; }
+    .mobile-heading { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 4px 8px; }
+    .mobile-heading > h1 { grid-column: 1; grid-row: 1; }
+    .mobile-heading > .mobile-info-toggle { grid-column: 2; grid-row: 1; margin: 0; justify-content: center; min-width: 44px; border-radius: 50%; }
+    .mobile-heading > .mobile-info-toggle::after { content: none; }
+    .mobile-heading > p { grid-column: 1 / -1; }
+    .planificacion__header-actions.planificacion__header-actions { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+    .planificacion__header-actions.planificacion__header-actions > * { width: auto; margin-inline-start: 0; }
+    .planificacion__header-actions > .mobile-fold-toggle { margin: 0; }
+    .report-heading .report-actions { flex-direction: row; align-items: center; gap: 8px; }
+    .people-counts { margin-block: 8px; }
+    .people-page > .mobile-fold-toggle { margin: 0; }
+
+    /* Native modal top layer is bounded by both the chosen view and the screen. */
+    #navegacion-movil[open] {
+        box-sizing: border-box; width: min(28rem, calc(100cqw - 24px));
+        max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px);
+        margin: auto; padding: 16px; overflow: auto; overscroll-behavior: contain;
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+    #navegacion-movil .marca-loretta { margin-bottom: 12px; }
+    #navegacion-movil .marca-loretta__logo { max-width: 180px; }
+    #navegacion-movil .navegacion-lateral__item { min-width: 0; white-space: normal; }
+    #navegacion-movil > form { position: sticky; top: 0; z-index: 1; background: var(--color-superficie); padding-block: 4px; }
+    dialog.modal, dialog.supervision-dialog, dialog.report-dialog, dialog.direction-capacity,
+    dialog.closing-planning-dialog {
+        box-sizing: border-box; width: calc(100cqw - 24px); max-width: calc(100vw - 24px);
+        max-height: calc(100dvh - 24px); margin: auto; overflow: auto;
+        overscroll-behavior: contain; scroll-padding-block: 16px;
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+    dialog .modal__contenido { padding: 16px; min-width: 0; }
+    dialog .modal__acciones { flex-wrap: wrap; gap: 8px; }
+    dialog .modal__acciones > * { min-width: 0; max-width: 100%; }
+    .supervision-facts { grid-template-columns: minmax(0, 1fr); }
+    .supervision-facts dd { margin-inline-start: 0; }
+    .supervision-dialog__header, .closing-planning-dialog__header { align-items: start; gap: 8px; }
+    .supervision-dialog__header h2, .closing-planning-dialog__header h2 { min-width: 0; overflow-wrap: anywhere; }
+
+    .mobile-fold-toggle {
+        display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+        min-height: 44px; max-width: 100%; padding: 8px 12px; margin-block: 4px 8px;
+        border: 1px solid var(--color-borde); border-radius: var(--radio-tarjeta);
+        background: var(--color-superficie); color: var(--color-texto-primario);
+        font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere;
+    }
+    .mobile-fold-toggle::after { content: '+'; flex: none; font-size: 20px; }
+    .mobile-fold-toggle[aria-expanded="true"]::after { content: '−'; }
+    .mobile-fold-target:not(.mobile-fold-open) { display: none !important; }
+    .mobile-fold-toggle:focus-visible, .mobile-record-toggle:focus-visible,
+    .mobile-day-picker select:focus-visible { outline: 2px solid var(--color-acento); outline-offset: 3px; }
+    .mobile-section-nav { display: block; margin-block-end: 8px; }
+    .mobile-section-nav label { font-size: 0; }
+    .mobile-day-picker { font-size: 14px; }
+    .mobile-section-nav select, .mobile-day-picker select { width: 100%; min-height: 44px; margin-top: 4px; }
+    .supervision-section.supervision-section { margin-block: 8px 12px; }
+    .capacity-panel .capacity-panel__summary { flex-wrap: nowrap; padding: 8px 0; gap: 8px; }
+    .capacity-panel .capacity-panel__summary h2 { font-size: 14px; line-height: 1.4; }
+    .capacity-panel .capacity-panel__hint { gap: 6px; font-size: 12px; }
+    .supervision-section > .panel-seccion__cabecera { padding: 12px; }
+    .supervision-section > .panel-seccion__cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .supervision-section > .panel-seccion__cabecera > .mobile-fold-toggle { flex: none; margin: 0; padding-inline: 10px; }
+    .supervision-section .panel-seccion__cabecera h2 { font-size: 18px; line-height: 1.4; }
+    .supervision-section .supervision-filters { grid-template-columns: minmax(0, 1fr); }
+    .supervision-section > .mobile-fold-toggle { margin-inline: 12px; }
+    .supervision-count { margin-block: 4px 8px; }
+
+    /* One table and one set of controls. Explicit table roles and headers are
+       retained by mobile.js when CSS changes the visual row composition. */
+    .mobile-table-container { overflow: visible; min-width: 0; max-width: 100%; max-height: none; border: 0; box-shadow: none; }
+    table.mobile-records.mobile-records { display: block; width: 100%; min-width: 0; max-width: 100%; border: 0; }
+    .mobile-records > thead {
+        position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+        overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+    }
+    .mobile-records > tbody, .mobile-records > tfoot { display: grid; gap: 12px; width: 100%; }
+    .mobile-records > tbody > tr, .mobile-records > tfoot > tr {
+        display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; min-width: 0;
+        padding: 12px; border: 1px solid var(--color-borde); border-radius: var(--radio-tarjeta);
+        background: var(--color-superficie); gap: 8px;
+    }
+    .mobile-records > tbody > tr > :is(td, th), .mobile-records > tfoot > tr > :is(td, th) {
+        display: block; position: static; width: auto; min-width: 0; max-width: none;
+        padding: 0; border: 0; white-space: normal; overflow-wrap: anywhere;
+        text-align: start; box-shadow: none;
+    }
+    .mobile-records > tbody > tr > :is(td, th)::before,
+    .mobile-records > tfoot > tr > :is(td, th)::before {
+        content: attr(data-mobile-label); display: block; font-size: 12px;
+        line-height: 1.5; font-weight: 500; color: var(--color-texto-secundario);
+    }
+    .mobile-records > tbody > tr > .mobile-record-title { font-weight: 600; font-size: 16px; }
+    .mobile-records > tbody > tr > .mobile-record-title::before { content: none; }
+    .mobile-records > tbody > tr:not(.mobile-record-expanded) > .mobile-record-secondary { display: none; }
+    .mobile-records > tbody > tr > .mobile-record-actions::before { content: none; }
+    .mobile-record-actions .boton { min-height: 44px; }
+    .mobile-record-toggle {
+        display: flex; align-items: center; min-height: 44px; width: fit-content;
+        margin-top: 4px; padding: 6px 0; border: 0; background: transparent;
+        color: var(--color-acento); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer;
+    }
+    .mobile-record-toggle::before { content: 'Más datos +'; }
+    .mobile-record-toggle[aria-expanded="true"]::before { content: 'Menos datos −'; }
+    .mobile-record-actions > .mobile-record-toggle { display: inline-flex; margin: 0 0 0 12px; vertical-align: middle; }
+    .mobile-records caption { display: block; padding-block: 8px; }
+    .mobile-records [hidden] { display: none !important; }
+    .mobile-records .boton, .mobile-records form, .mobile-records .people-profile { max-width: 100%; min-width: 0; }
+    .mobile-records .people-profile > div { min-width: 0; }
+    .mobile-records .people-avatar { flex-shrink: 0; }
+    .mobile-records .campo__control { max-width: 100%; }
+
+    .mobile-day-picker { display: block; margin-block: 8px 12px; }
+    .mobile-records > tbody > tr > .mobile-day-hidden { display: none; }
+    .mobile-records > tfoot > tr > .mobile-day-hidden { display: none; }
+    .weekly-viewport.mobile-table-container { flex: none; }
+    .weekly-header, .weekly-navigation { flex-wrap: wrap; gap: 8px; }
+    .weekly-header h1 { font-size: 21px; }
+    .weekly-workload { min-width: 0; }
+    .mobile-records.direction-capacity__table tr > :first-child,
+    .mobile-records.direction-capacity__table tr > :last-child { position: static; min-width: 0; max-width: none; border: 0; }
+    .mobile-records.direction-capacity__table input { width: 100%; }
+
+    /* The mobile board scrolls with the page; kiosk/desktop scrolling is unchanged. */
+    .board-shell .contenido-principal, .board-page main { height: auto; min-height: 0; padding: 12px; }
+    #live-board, .board-content, .weekly-board { height: auto; min-height: 0; }
+    .board-content { gap: 8px; }
+    .board-header { grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 8px; padding: 10px; border-radius: 12px; }
+    .board-header h1 { font-size: 21px; }
+    .board-header > .board-heading { grid-column: 1; grid-row: 1; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+    .board-context { grid-column: 1 / -1; grid-row: 2; text-align: start; }
+    .board-context__date { justify-content: start; }
+    .board-context > span { font-size: 11px; }
+    .board-header > .mobile-fold-toggle { grid-column: 2; grid-row: 1; margin: 0; padding-inline: 10px; font-size: 13px; gap: 4px; }
+    .board-header > [data-mobile-control="board-people"] { grid-column: 3; }
+    .board-heading .board-action { max-width: 100%; }
+    .board-header > .board-plan { grid-column: 1 / -1; grid-row: 3; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .board-filter label { font-size: 13px; line-height: 1.5; }
+    .board-plan select { min-height: 44px; }
+    .board-progress-pair { gap: 8px; }
+    .board-progress-pair .board-progress { padding: 8px; border-radius: 12px; }
+    .board-progress-pair .board-progress__labels { gap: 4px; margin-bottom: 4px; }
+    .board-progress-pair .board-progress__summary strong { font-size: 12px; line-height: 1.4; }
+    .board-progress-pair .board-progress__status > strong { font-size: 16px; line-height: 1.2; }
+    .board-progress-pair .board-progress__pace { font-size: 11px; line-height: 1.4; }
+    .board-collaborator-progress { grid-template-columns: minmax(0, 1fr); }
+    .board-viewport { flex: none; height: auto; max-height: none; overflow: visible; }
+    .board-grid { grid-template-columns: minmax(0, 1fr); }
+    .report-heading > .report-actions { width: auto; }
+    .report-heading.report-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+    .report-heading > .encabezado-pagina__contenido { grid-column: 1; grid-row: 1; }
+    .report-heading.report-heading > .report-actions { grid-column: 2; grid-row: 1; margin: 0; width: auto; }
+    .report-heading > .report-actions > .boton { padding-inline: 10px; font-size: 13px; }
+    .report-heading .report-actions > [data-report-save], .report-heading .report-actions > [data-report-export] { flex: 1; min-width: 0; }
+    .report-heading > .report-actions > .mobile-fold-toggle { margin: 0; }
+    .report-controls { margin-block: 8px 12px; }
+    .report-filter-grid { grid-template-columns: minmax(0, 1fr); }
+    .report-metrics { gap: 8px; margin-block: 12px; }
+    .report-metric { min-width: 0; }
+    .report-metric strong { font-size: 24px; }
+    .report-result .report-result-heading { gap: 4px; }
+    .report-result .report-result-heading h2 { font-size: 20px; margin-block: 4px; }
+    .report-period { margin-top: 4px; }
+    .report-result .report-period { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; width: 100%; }
+    .report-result .report-period > span { flex-basis: 100%; }
+    .report-result .report-period > .mobile-fold-toggle { margin: 0; }
+    .report-result .report-period strong { font-size: 14px; }
+    .report-dialog iframe { height: 50dvh; }
+}
+
+}

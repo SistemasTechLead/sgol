@@ -13,7 +13,12 @@
     var reset = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/validaciones", ViewContext.HttpContext.Request.Query.Where(q => !q.Key.StartsWith(key + ".") && q.Key != "task" && q.Key != "handler").ToDictionary(q => q.Key, q => (string?)q.Value.ToString())) + "#" + key;
 }
 <form method="get" action="/validaciones#@key" class="supervision-filters">
-    @foreach (var query in ViewContext.HttpContext.Request.Query.Where(q => !q.Key.StartsWith(key + ".") && q.Key != "task" && q.Key != "handler")) { <input type="hidden" name="@query.Key" value="@query.Value" /> }
+    @foreach (var query in ViewContext.HttpContext.Request.Query.Where(q => !q.Key.StartsWith(key + ".") && q.Key != "task" && q.Key != "handler" && (!screen.Validation || q.Key != "Section"))) { <input type="hidden" name="@query.Key" value="@query.Value" /> }
+    @if (screen.Validation) {
+        <label class="campo"><span class="campo__etiqueta">Apartado</span><select class="campo__control" name="Section" data-validation-section>
+        @foreach (var part in screen.Sections) { <option value="@part.Key" selected="@(part.Key == Model.Section.Key)">@part.Title</option> }
+        </select></label>
+    }
     <label class="campo"><span class="campo__etiqueta">Tarea</span><input class="campo__control" name="@(key).search" value="@screen.Value(key, "search")" type="search" /></label>
     @foreach (var select in selects) {
         <label class="campo"><span class="campo__etiqueta">@select.Label</span><select class="campo__control" name="@(key).@select.Field">

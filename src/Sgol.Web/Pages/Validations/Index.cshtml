@@ -4,10 +4,20 @@
 @using Sgol.Web.Presentation.Navigation
 @using TaskLabels = Sgol.Web.Pages.Tasks.IndexModel
 @{ ViewData["Title"] = "Supervisión"; }
-<header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo">Supervisión</h1></header>
-<p class="supervision-guide">Selecciona <strong>Supervisar</strong> para revisar la entrega y decidir si la tarea está concluida o no.</p>
+<header class="encabezado-pagina">
+    <div class="encabezado-pagina__contenido">
+        <h1 class="encabezado-pagina__titulo">Supervisión</h1>
+        <p class="encabezado-pagina__descripcion">@(Model.Validation ? "Consulta la evidencia, selecciona tus decisiones y guarda la revisión del grupo." : "Selecciona Supervisar para revisar la entrega y decidir si la tarea está concluida o no.")</p>
+    </div>
+</header>
+<partial name="_SectionNavigation" model='@("supervision")' />
+@if (Model.ReviewSuccess is not null) { <p class="alerta alerta--exito" role="status">@Model.ReviewSuccess</p> }
 @if (Model.Error is not null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+@if (Model.Validation) {
+    <partial name="_ValidationCards" model="Model" />
+} else {
 <partial name="_Capacity" model="Model" />
+@if (Model.PendingAuthorizedCarryoverCount > 0) { <partial name="_Carryovers" model="Model" /> }
 @foreach (var group in Model.Sections) {
     <section class="panel-seccion supervision-section" id="@group.Key" aria-labelledby="title-@group.Key">
         <header class="panel-seccion__cabecera"><h2 id="title-@group.Key">@group.Title <span class="badge badge--neutro">@group.All.Count</span></h2></header>
@@ -23,7 +33,7 @@
                 <tr class="tabla__fila">
                     <td>@a.Name<br /><small>@item.PlanName · @a.TaskCode</small></td>
                     <td>@a.PersonName<br /><small>@SessionPresentation.RoleName(item.Role)</small></td>
-                    <td>@MyWorkPresentation.Time(a.StartsAt)<br /><small>@MyWorkPresentation.Time(a.DueAt)</small></td>
+                    <td><partial name="~/Pages/Shared/_CarryoverTiming.cshtml" model="@((a.Id, a.DueAt, a.CompletedAt))" />@MyWorkPresentation.Time(a.StartsAt)<br /><small>@MyWorkPresentation.Time(a.DueAt)</small></td>
                     <td>@TaskLabels.Label(a.Requirement)</td><td>@a.LoadMinutes min</td>
                     <td><span class="badge @Model.Tone(a)">@Model.Status(a)</span></td>
                     <td class="supervision-action-cell"><a class="boton @(reviewed ? "boton--secundario" : "boton--primario") supervision-action" href="@Model.TaskHref(a.Id)" aria-label="@actionLabel: @a.Name" aria-haspopup="dialog"><partial name="_Icon" model='@("eye")' /><span>@actionLabel</span></a></td>
@@ -32,8 +42,10 @@
             </tbody></table></div>
         }
     </section>
+    @if (group.Key == "pending" && Model.PendingAuthorizedCarryoverCount == 0) { <partial name="_Carryovers" model="Model" /> }
 }
-@if (Model.Selected is { } selected) {
+}
+@if (!Model.Validation && Model.Selected is { } selected) {
     var a = selected.Assignment;
     <dialog class="supervision-dialog" data-supervision-detail aria-labelledby="supervision-task-title">
         @if (Model.Error is not null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
@@ -58,8 +70,8 @@
         @if (a.GoalUnits > 0) { <h3>Avances registrados</h3><p>@a.ProgressUnits / @a.GoalUnits @a.ProgressUnit</p><progress value="@a.ProgressUnits" max="@a.GoalUnits" aria-label="Progreso de la tarea"></progress><ul>@foreach (var entry in Model.ProgressHistory) { <li>@MyWorkPresentation.Time(entry.OccurredAt) · +@entry.Units @a.ProgressUnit · @entry.Note</li> }</ul> }
         @if (a.CompletedAt is not null) { <p>Entrega: @MyWorkPresentation.Time(a.CompletedAt.Value)</p> }
         @if (a.ReviewedAt is not null) { <h3>Decisión de supervisión</h3><p>@Model.Status(a) · @MyWorkPresentation.Time(a.ReviewedAt.Value)</p><p class="supervision-text">@a.ReviewComment</p> }
-        @if (a.StartsAt > Model.Now) { <p>Programada: la revisión y entrega estarán disponibles desde su inicio.</p> }
-        @if (a.StartsAt <= Model.Now && a.ReviewStatus is not ("CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA")) {
+        @if (a.StartsAt > Model.Now && a.CompletedAt is null) { <p>Programada: el colaborador puede enviar su evidencia antes del inicio.</p> }
+        @if ((a.StartsAt <= Model.Now || a.CompletedAt is not null) && a.ReviewStatus is not ("CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA")) {
             <form method="post" asp-page-handler="Review" data-supervision-review>
                 <input type="hidden" name="id" value="@a.Id" /><input type="hidden" name="revision" value="@a.Revision" />
                 <fieldset class="supervision-decision"><legend>Resultado de revisión</legend>
@@ -70,10 +82,13 @@
                 <div data-review-negative hidden>
                     <label class="campo"><span class="campo__etiqueta">Comentario obligatorio</span><textarea class="campo__control" name="comment" maxlength="4000" data-review-comment>@Model.AttemptedComment</textarea></label>
                     <label class="campo"><span class="campo__etiqueta">Qué hacer con la tarea</span><select class="campo__control" data-review-action><option value="MISMA_PERSONA">Reasignar a la misma persona</option><option value="ROL" selected="@(Model.AttemptedDecision == "ROL")">@(selected.Assignment.SpecializationId != null ? "Reasignar entre especialistas" : "Reasignar al rol " + SessionPresentation.RoleName(selected.Role))</option><option value="NO_SATISFECHA" selected="@(Model.AttemptedDecision == "NO_SATISFECHA")">Terminar como no satisfecha</option></select></label>
+                    <p class="texto-secundario">La reasignación conserva la entrega anterior y activa una corrección ahora, dentro del turno, aunque haya otras tareas. El plazo usa carga más margen y se limita a la salida del tramo de turno vigente.</p>
                 </div>
                 <button class="boton boton--primario" type="submit"><partial name="_Icon" model='@("check")' />Guardar revisión</button>
             </form>
         }
     </dialog>
 }
-@section Scripts { <script src="~/js/occasion-material.js" asp-append-version="true"></script><script src="~/js/supervision.js" asp-append-version="true"></script><script src="~/js/capacity.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/occasion-material.js" asp-append-version="true"></script><script src="~/js/supervision.js" asp-append-version="true"></script><script src="~/js/validation-cards.js" asp-append-version="true"></script><script src="~/js/capacity.js" asp-append-version="true"></script> }
+
+

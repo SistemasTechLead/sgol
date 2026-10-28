@@ -5,6 +5,7 @@
 # Resultados, respaldos y datos de esta computadora
 /output/
 /outputs/
+/artifacts/
 **/TestResults/
 **/node_modules/
 .vs/

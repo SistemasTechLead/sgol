@@ -5,7 +5,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 // Only changes recipients of newly generated work, never its dates or saved assignments.
 internal static class OperationalPlanBalancer
 {
-    public const int PolicyVersion = 2;
+    public const int PolicyVersion = 3;
 
     public static void Balance(CapacityLedger ledger, IReadOnlyList<OperationalAssignment> generated,
         bool operations, DateTimeOffset now, CancellationToken token)
@@ -59,11 +59,12 @@ internal static class OperationalPlanBalancer
                     .ThenBy(w => w.Id != task.PersonId).ThenBy(w => w.Code, StringComparer.Ordinal).ThenBy(w => w.Id).FirstOrDefault();
                 if (worker == null) break; // Keep the already valid generation if this ordering cannot fit.
                 placements.Add((task, worker));
-                proposed = WithTasks(proposed.Tasks.Append(new OperationalAssignment {
+                proposed = proposed.WithAdded(new OperationalAssignment {
                     Id=task.Id, TaskId=task.TaskId, PersonId=worker.Id, AssignedRole=worker.Role,
                     StartsAt=task.StartsAt, DueAt=task.DueAt, LoadMinutes=task.LoadMinutes,
+                    SchedulingPolicyId=task.SchedulingPolicyId, ClosureMarginPercent=task.ClosureMarginPercent, OperationalCriticality=task.OperationalCriticality, NominalStartsAt=task.NominalStartsAt, ScheduleMode=task.ScheduleMode,
                     ProgressUnits=task.ProgressUnits, GoalUnits=task.GoalUnits, PeriodType=task.PeriodType,
-                    SpecializationId=task.SpecializationId }).ToArray());
+                    SpecializationId=task.SpecializationId });
             }
             if (placements.Count == tasks.Length &&
                 workers.Sum(w => Cost(w.Id, proposed.DayLoad(w.Id, day))) < workers.Sum(w => Cost(w.Id, ledger.DayLoad(w.Id, day))))

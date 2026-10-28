@@ -1,0 +1,95 @@
+@page "/tareas/actualizar"
+@model Sgol.Web.Pages.Tasks.RefreshModel
+@using Sgol.Web.Pages.Tasks
+@{ ViewData["Title"] = "Actualizar Asignaciones"; }
+<link rel="stylesheet" href="~/css/assignment-refresh.css" asp-append-version="true" />
+<section class="assignment-refresh" aria-labelledby="refresh-title">
+    <header class="assignment-refresh__header">
+        <div><h1 id="refresh-title" class="encabezado-pagina__titulo">Actualizar Asignaciones</h1><p>Revisa los pendientes que cambiarán. Nada se guarda hasta que confirmes.</p></div>
+        <a class="boton boton--secundario" href="/tareas">Volver a Tareas</a>
+    </header>
+    @if (Model.Error != null) { <div class="assignment-refresh__issues" role="alert"><p>@Model.Error</p></div> }
+    @if (Model.Preview is {} preview)
+    {
+        var retired = preview.Differences.Count(d => d.Retire || d.After == null);
+        var updated = preview.Differences.Length - retired;
+        var pendingDecisions = preview.Decisions.Count(d => !d.Accepted);
+        var otherConflicts = preview.Conflicts.Except(preview.DecisionConflicts).ToArray();
+        var reviewStep = preview.Decisions.Length > 0 ? 2 : 1;
+        <div class="assignment-refresh__summary" role="status">
+            <div><strong>@updated</strong><span>@(updated == 1 ? "pendiente para actualizar" : "pendientes para actualizar")</span></div>
+            <div><strong>@retired</strong><span>@(retired == 1 ? "pendiente para retirar" : "pendientes para retirar")</span></div>
+            <div><strong>@preview.Excluded</strong><span>entregas y cierres que se conservan</span></div>
+        </div>
+        <form method="post" asp-page-handler="Preview" class="assignment-refresh__options" data-refresh-options>
+            <input type="hidden" name="Reason" value="@Model.Reason" />
+            @if (preview.Decisions.Length > 0)
+            {
+                <h2>1. Resuelve los casos pendientes</h2>
+                <p>Marca las opciones que autorizas y pulsa <strong>Revisar cambios</strong>. Debajo verás el resultado antes de guardar.</p>
+                @foreach (var decision in preview.Decisions)
+                {
+                    var field = RefreshModel.DecisionField(decision.Code);
+                    <label class="assignment-refresh__choice @(decision.Accepted ? "assignment-refresh__choice--accepted" : "")">
+                        <input type="checkbox" name="@field" value="true" checked="@decision.Accepted" />
+                        <span><strong>@decision.Title</strong><span>@decision.Help</span><small data-refresh-choice-status>@(decision.Accepted ? "Incluido en esta revisión" : "Marca esta opción para continuar")</small>
+                        <span class="assignment-refresh__affected">@string.Join(" · ", decision.TaskCodes.Select(c => $"{c}: {Model.DecisionTasks.GetValueOrDefault(c, c)}"))</span></span>
+                    </label>
+                }
+                @if (pendingDecisions > 0) { <p class="assignment-refresh__pending" role="status">@(pendingDecisions == 1 ? "Falta 1 opción por autorizar para poder continuar." : $"Faltan {pendingDecisions} opciones por autorizar para poder continuar.")</p> }
+            }
+            <button type="submit" class="boton boton--primario">@(preview.Decisions.Length > 0 ? "Revisar cambios" : "Volver a revisar")</button>
+            <p data-refresh-dirty hidden role="status">Cambiaste las opciones. Pulsa Revisar cambios para ver el nuevo resultado antes de confirmar.</p>
+        </form>
+        @if (otherConflicts.Length > 0)
+        {
+            <section class="assignment-refresh__issues" role="alert"><h2>Estos casos necesitan una corrección</h2><ul>@foreach (var conflict in otherConflicts) { <li>@conflict</li> }</ul><p>Corrige los casos indicados y vuelve a revisar. Todavía no se ha guardado ningún cambio.</p><a href="/tareas">Editar tareas</a></section>
+        }
+        @foreach (var notice in preview.Notices) { <p class="assignment-refresh__notice">@notice</p> }
+        @if (preview.Differences.Length > 0)
+        {
+            <section aria-labelledby="refresh-results-title"><h2 id="refresh-results-title">@reviewStep. Revisa el resultado propuesto</h2>
+            @foreach (var group in preview.Differences.GroupBy(d => (d.After ?? d.Before)!.TaskId).OrderBy(g => (g.First().After ?? g.First().Before)!.TaskCode))
+            {
+                var task = (group.First().After ?? group.First().Before)!;
+                var withdrawn = group.Count(d => d.Retire || d.After == null);
+                var changes = group.Where(d => !d.Retire && d.After != null).SelectMany(RefreshModel.Changes).Distinct().ToArray();
+                <article class="assignment-refresh__task">
+                    <header><div><small>@task.TaskCode</small><h3>@task.Name</h3></div><span>@(group.Count() - withdrawn) para actualizar · @withdrawn para retirar</span></header>
+                    @if (withdrawn > 0) { <p>@(withdrawn == 1 ? "Se quitará 1 pendiente" : $"Se quitarán {withdrawn} pendientes") del trabajo activo. Sus avances y archivos se conservarán como historial.</p> }
+                    @if (group.All(d => d.MetadataOnly)) { <p>Solo cambian los datos de la tarea. Se conservan el responsable, el horario, el estado y el avance.</p> }
+                    @if (changes.Length > 0) { <ul class="assignment-refresh__changes">@foreach (var change in changes) { <li>@change</li> }</ul> }
+                    <details><summary>@(group.Count() == 1 ? "Ver la asignación" : $"Ver las {group.Count()} asignaciones")</summary>
+                        <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th>Responsable</th><th>Acción</th><th>Fechas</th><th>Avance conservado</th></tr></thead><tbody>
+                        @foreach (var diff in group)
+                        {
+                            var row = (diff.After ?? diff.Before)!;
+                            <tr class="tabla__fila"><td>@row.PersonName<br /><small>@Model.Plans.GetValueOrDefault(row.PlanId, "Plan")</small></td>
+                                <td>@(diff.Retire || diff.After == null ? "Retirar del trabajo activo" : diff.Before == null ? "Agregar" : "Actualizar")</td>
+                                <td>@if (diff.Retire || diff.After == null) { <span>Dejará de aparecer como pendiente.</span> } else if (diff.Before is {} before && (before.StartsAt != row.StartsAt || before.DueAt != row.DueAt)) { <span>Antes: @RefreshModel.Date(before.StartsAt) → @RefreshModel.Date(before.DueAt)</span><br /><strong>Nuevo: @RefreshModel.Date(row.StartsAt) → @RefreshModel.Date(row.DueAt)</strong> } else { <span>Se conserva el horario.</span><br /><small>Vence: @RefreshModel.Date(row.DueAt)</small> }</td>
+                                <td>@if (row.ProgressUnits > 0 || row.ScheduleMode == "PROGRESO") { <span>@row.ProgressUnits @row.ProgressUnit</span> } else { <span>Sin avance registrado</span> }</td>
+                            </tr>
+                        }
+                        </tbody></table></div>
+                    </details>
+                </article>
+            }
+            </section>
+        }
+        @if (preview.CanApply)
+        {
+            <form method="post" asp-page-handler="Apply" class="assignment-refresh__confirm" data-refresh-apply>
+                <h2>@(reviewStep + 1). Confirma la actualización</h2>
+                <input type="hidden" asp-for="Key" /><input type="hidden" asp-for="NotBefore" /><input type="hidden" asp-for="Fingerprint" />
+                <input type="hidden" asp-for="ReplaceRemainingEstimate" /><input type="hidden" asp-for="ChangeAuthorizedDeadline" /><input type="hidden" asp-for="AdoptLegacyCalendar" /><input type="hidden" asp-for="RetireInactiveAssignments" /><input type="hidden" asp-for="RetireExcludedAssignments" />
+                <label class="campo"><span class="campo__etiqueta">Motivo para el historial</span><textarea class="campo__control" asp-for="Reason" maxlength="1000" required rows="2" placeholder="Por ejemplo: Actualizar requisitos y retirar tareas que ya no se realizan"></textarea></label>
+                <p>Se guardarán todos los cambios mostrados arriba.</p>
+                <button class="boton boton--primario" type="submit">@(retired == 0 ? "Confirmar cambios" : updated == 0 ? "Confirmar retiros" : "Confirmar cambios y retiros")</button>
+            </form>
+        }
+        else if (preview.Differences.Length == 0 && preview.Conflicts.Length == 0) { <p>No hay pendientes que necesiten cambios.</p> }
+    }
+</section>
+<script src="~/js/assignment-refresh.js" asp-append-version="true" defer></script>
+
+

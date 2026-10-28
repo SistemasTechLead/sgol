@@ -91,7 +91,7 @@ public sealed partial class PersonalScheduleService(SgolDbContext db, IDirection
         var latest = ledger.Temporal.Schedules.Where(s => s.PersonId == person).OrderByDescending(s => s.Revision).FirstOrDefault();
         if ((latest?.Revision ?? 0) != input.Revision) throw new DirectionPlanException("SCHEDULE_STALE", 409);
         var proposed = new PersonalScheduleVersion { Id = input.Key, PersonId = person, From = today, Revision = input.Revision + 1, DaysJson = json };
-        var context = new TemporalEligibilityContext { Enabled = true, Now = clock.UtcNow, Schedules = ledger.Temporal.Schedules.Append(proposed).ToArray(),
+        var context = new TemporalEligibilityContext { Enabled = true, Now = clock.UtcNow, BaseSchedulePolicyIds = ledger.Temporal.BaseSchedulePolicyIds, BaseSchedulesForCapacity = ledger.Temporal.BaseSchedulesForCapacity, StateRevision = ledger.Temporal.StateRevision, Schedules = ledger.Temporal.Schedules.Append(proposed).ToArray(),
             Exceptions = ledger.Temporal.Exceptions, Rotations = ledger.Temporal.Rotations, Coverages = ledger.Temporal.Coverages, ClosingTaskId=ledger.Temporal.ClosingTaskId };
         var relevant = ledger.Tasks.Where(a => a.PersonId == person && WeekContract.LocalToday(a.DueAt) >= today).ToArray();
         var temporalLedger=new CapacityLedger(ledger.Workers,ledger.Tasks,ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal=context };
@@ -156,14 +156,14 @@ public sealed partial class PersonalScheduleService(SgolDbContext db, IDirection
         var version=new PersonalScheduleException { Id=input.Key,PersonId=person,Day=input.Day,Revision=input.Revision+1,IntervalsJson=JsonSerializer.Serialize(spans) };
         var covers=ledger.Temporal.Coverages;
 
-        var context=new TemporalEligibilityContext { Enabled=true,Schedules=ledger.Temporal.Schedules,Exceptions=ledger.Temporal.Exceptions.Append(version).ToArray(),
+        var context=new TemporalEligibilityContext { Enabled=true,BaseSchedulePolicyIds=ledger.Temporal.BaseSchedulePolicyIds,BaseSchedulesForCapacity=ledger.Temporal.BaseSchedulesForCapacity,StateRevision=ledger.Temporal.StateRevision,Schedules=ledger.Temporal.Schedules,Exceptions=ledger.Temporal.Exceptions.Append(version).ToArray(),
             Rotations=ledger.Temporal.Rotations,Coverages=covers,ClosingTaskId=ledger.Temporal.ClosingTaskId };
         var tasks=ledger.Tasks.Where(t=>WeekContract.LocalToday(t.StartsAt)<=input.Day && WeekContract.LocalToday(t.DueAt)>=input.Day && t.PersonId==person).ToArray();
         var temporalLedger=new CapacityLedger(ledger.Workers,ledger.Tasks,ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal=context };
         var conflicts=tasks.Select(t=>(Task:t,Decision:temporalLedger.CheckTime(t.PersonId,t))).Where(t=>!t.Decision.Eligible)
             .Select(t=>new ScheduleImpact(t.Task.Id,t.Task.Name,t.Task.StartsAt,t.Decision.Reason)).ToArray();
         return new(Hash(new { input.UserId,input.Key,input.Day,input.Revision,input.Reason,spans,
-            ledger.Temporal.Schedules,ledger.Temporal.Exceptions,ledger.Temporal.Rotations,ledger.Temporal.Coverages,tasks,ledger.Temporal.ClosingTaskId,ledger.Temporal.StateRevision,Absences=ledger.Unavailable.OrderBy(a=>a.Item1).ThenBy(a=>a.Item2) }),conflicts);
+            ledger.Temporal.Schedules,ledger.Temporal.Exceptions,ledger.Temporal.Rotations,ledger.Temporal.Coverages,tasks,ledger.Temporal.ClosingTaskId,ledger.Temporal.StateRevision,ledger.Temporal.BaseSchedulePolicyIds,ledger.Temporal.BaseSchedulesForCapacity,Absences=ledger.Unavailable.OrderBy(a=>a.Item1).ThenBy(a=>a.Item2) }),conflicts);
     }
     private void Audit(Guid actor, Guid resource, Guid key, string action, object data) => db.AuditEvents.Add(new AuditEvent {
         Id = Guid.CreateVersion7(), ActorUserId = actor, ActorType = "USER", OccurredAt = clock.UtcNow, BranchId = Sgol.Organization.Contracts.BranchScope.LorettaId,

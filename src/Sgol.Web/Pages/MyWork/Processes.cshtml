@@ -3,7 +3,14 @@
 @using Sgol.Web.Pages.Tasks
 @{ ViewData["Title"]="Procesos de trabajo"; }
 <link rel="stylesheet" href="~/css/processes.css" asp-append-version="true" />
-<section class="process-page"><header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo">Procesos de trabajo</h1><a class="boton boton--secundario" href="/mi-trabajo">Mi trabajo</a></header>
+<section class="process-page" aria-labelledby="my-processes-title">
+    <header class="encabezado-pagina encabezado-pagina--catalogo">
+        <div class="encabezado-pagina__contenido">
+            <h1 id="my-processes-title" class="encabezado-pagina__titulo">Procesos de trabajo</h1>
+            <p class="encabezado-pagina__descripcion">Consulta tus procesos asignados, revisa sus etapas y registra las entregas que te corresponden.</p>
+        </div>
+        <partial name="_SectionNavigation" model='@("my-work")' />
+    </header>
 @if(Model.Error!=null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
 @if(Model.View is not { } view)
 {

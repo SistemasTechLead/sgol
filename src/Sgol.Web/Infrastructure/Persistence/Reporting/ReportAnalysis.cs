@@ -15,6 +15,7 @@ public static class ReportAnalysis
             f.ProgressMin is < 0 or > 100 || f.ProgressMax is < 0 or > 100 ||
             f.ProgressMin > f.ProgressMax || f.Minutes is < 1 or > 4800 ||
             f.Hours is < 1 or > 8760 || f.Repetitions is < 1 or > 100 ||
+            f.Carryover is not ("" or "approved" or "covered" or "pending" or "late") ||
             f.Status.Length > 0 && !ReportCatalog.Statuses.ContainsKey(f.Status))
             throw new ArgumentException("Revisa los parámetros del reporte.");
         DateOnly from, to;
@@ -37,6 +38,7 @@ public static class ReportAnalysis
 
     public static ReportRow[] Filter(IEnumerable<ReportRow> rows, ReportFilter f, DateTimeOffset now)
     {
+        rows = rows.Where(r => f.Carryover switch { "approved" => r.Carryover.ApprovedCount > 0, "pending" => r.Carryover.Pending, "covered" => r.Delivered > r.TimelinessDue && r.Carryover.ApprovedCount > 0 && r.Delivered <= r.Carryover.RecognizedDue, "late" => r.Delivered > r.TimelinessDue, _ => true });
         var selected = rows.Where(r =>
             (f.Person.Length == 0 || r.PersonId.ToString() == f.Person) &&
             (f.Role.Length == 0 || r.Role == f.Role) && (f.Plan.Length == 0 || r.PlanId.ToString() == f.Plan) &&
@@ -78,7 +80,7 @@ public static class ReportAnalysis
             new("Vencidas", active.Count(r => r.Status == "VENCIDA").ToString(), "Pendientes fuera de plazo", "danger", "VENCIDA")];
         if (kind == "review") return [new("Por revisar", total.ToString(), "Entregas pendientes de decisión", "warning"),
             new("Espera máxima", total == 0 ? "Sin datos" : $"{active.Max(r => (now - r.Delivered!.Value).TotalHours):0.#} h", "Desde la entrega registrada", "warning"),
-            new("Entregas fuera de plazo", active.Count(r => r.Delivered > r.Due).ToString(), "Entrega posterior al vencimiento", "danger"),
+            new("Entregas fuera de plazo", active.Count(r => r.Delivered > r.TimelinessDue).ToString(), "Entrega posterior al vencimiento", "danger"),
             new("Responsables", active.Select(r => r.PersonId).Distinct().Count().ToString(), "Con entregas por revisar", "info")];
         if (kind == "results") return [new("Concluidas", done.ToString(), "Resultado satisfactorio", "success", "CONCLUIDA"),
             new("No satisfechas", active.Count(r => r.Status == "NO_SATISFECHA").ToString(), "Resultado no satisfactorio", "danger", "NO_SATISFECHA"),
@@ -135,3 +137,5 @@ public static class ReportAnalysis
         return [state, comparison];
     }
 }
+
+

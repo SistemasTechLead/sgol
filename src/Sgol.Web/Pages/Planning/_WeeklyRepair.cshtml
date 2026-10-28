@@ -1,0 +1,36 @@
+@model Sgol.Web.Pages.Planning.IndexModel
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+@if (Model.CanPrepareDirectionPlan && Model.DirectionDetail is { PeriodType: "SEMANAL", Year: 2026, PeriodNumber: 43 } plan && Model.DirectionToday <= new DateOnly(2026,10,25)) {
+    var repairFrom = Model.DirectionToday > new DateOnly(2026,10,22) ? Model.DirectionToday : new DateOnly(2026,10,22);
+    <details open="@(Model.WeeklyRepair != null)"><summary>Revisar ajustes de criticidad de Semana 43</summary>
+        <p>Calcula los ajustes acordados del catálogo y una agenda para las pendientes del 22 al 25. Conserva días y responsables; muestra el retiro del rol de limpieza inactivo y el alta del precorte dominical.</p>
+        <form method="post" asp-page-handler="PreviewWeeklyRepair" asp-antiforgery="false" data-progress-form>
+            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+            <input type="hidden" name="planId" value="@plan.PlanId" /><input type="hidden" name="from" value="@repairFrom.ToString("yyyy-MM-dd")" /><input type="hidden" name="through" value="2026-10-25" />
+            <button class="boton boton--secundario" type="submit" data-progress-label="Calculando agenda…">Revisar propuesta</button>
+        </form>
+        @if (Model.WeeklyRepair is {} preview) {
+            @foreach (var conflict in preview.Conflicts) { <p role="alert">@conflict</p> }
+            <h3>Cambios de catálogo</h3>
+            <div class="tabla-contenedor"><table class="tabla"><thead><tr><th>Tarea</th><th>Criticidad</th><th>Carga</th><th>Hora nominal</th><th>Domingo</th></tr></thead><tbody>
+            @foreach (var change in preview.Catalog) {
+                <tr><td>@change.Before.TaskCode · @change.After.Name</td><td>@OperationalAgenda.Label(change.Before.OperationalCriticality) → @OperationalAgenda.Label(change.After.OperationalCriticality)</td><td>@change.Before.LoadMinutes → @change.After.LoadMinutes min</td><td>@change.Before.StartTime → @change.After.StartTime</td><td>@change.Before.SundayStartTime → @change.After.SundayStartTime</td></tr>
+            }</tbody></table></div>
+            @if (preview.Differences.Length > 0) {
+                <h3>Asignaciones propuestas</h3>
+                <div class="tabla-contenedor"><table class="tabla"><thead><tr><th>Tarea / ID</th><th>Responsable</th><th>Criticidad / carga</th><th>Nominal</th><th>Agenda anterior</th><th>Agenda propuesta</th></tr></thead><tbody>
+                @foreach (var change in preview.Differences) {
+                    var row = change.After ?? change.Before!;
+                    <tr><td>@row.TaskCode · @(change.Before == null ? "Alta" : change.After == null ? "Retiro" : "Ajuste")<br /><small>@row.Id</small></td><td>@row.PersonName</td><td>@OperationalAgenda.Label(change.Before?.OperationalCriticality) → @OperationalAgenda.Label(change.After?.OperationalCriticality)<br />@change.Before?.LoadMinutes → @change.After?.LoadMinutes min</td><td>@(change.After?.NominalStartsAt is {} nominal ? TimeZoneInfo.ConvertTime(nominal, OperationalSchedule.Zone).ToString("dd/MM HH:mm") : "—")</td><td>@(change.Before is {} before ? $"{TimeZoneInfo.ConvertTime(before.StartsAt, OperationalSchedule.Zone):dd/MM HH:mm}–{TimeZoneInfo.ConvertTime(before.DueAt, OperationalSchedule.Zone):dd/MM HH:mm}" : "—")</td><td>@(change.After is {} after ? $"{TimeZoneInfo.ConvertTime(after.StartsAt, OperationalSchedule.Zone):dd/MM HH:mm}–{TimeZoneInfo.ConvertTime(after.DueAt, OperationalSchedule.Zone):HH:mm}" : "Retiro sin actividad")</td></tr>
+                }</tbody></table></div>
+            }
+            @if (preview.CanApply) {
+                <form method="post" asp-page-handler="ApplyWeeklyRepair" asp-antiforgery="false" data-progress-form>
+                    <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="planId" value="@preview.PlanId" /><input type="hidden" name="from" value="@preview.From.ToString("yyyy-MM-dd")" /><input type="hidden" name="through" value="@preview.Through.ToString("yyyy-MM-dd")" /><input type="hidden" name="fingerprint" value="@preview.Fingerprint" />
+                    <button class="boton boton--primario" type="submit" data-progress-label="Aplicando propuesta…">Confirmar estos cambios</button>
+                </form>
+            }
+        }
+    </details>
+}

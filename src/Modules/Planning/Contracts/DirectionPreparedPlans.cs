@@ -12,7 +12,8 @@ public sealed class DirectionPlanException(string code, int status) : Exception(
 public sealed record DirectionPlanInput(string Name, string Area, string PeriodType, int Year,
     int? PeriodNumber, IReadOnlyList<string> TaskCodes,
     IReadOnlyList<PlanCapacityAdjustment>? CapacityAdjustments = null, string? CapacityFingerprint = null,
-    bool IsWeeklyOperationsPlan = false);
+    bool IsWeeklyOperationsPlan = false, DateTimeOffset? SchedulingNotBefore = null, int SchedulingSearchMultiplier = 1,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] DateOnly? RollingMonthStartsOn = null);
 public sealed record PlanCapacityAdjustment(Guid PersonId, int Percent);
 public sealed record DirectionPlanTask(string TaskCode, string Name);
 public sealed record MonthlyPlanPending(string ScheduleKey, string TaskCode, string Name, int Year, int Month, int PreferredDay, string Reason);
@@ -24,7 +25,8 @@ public sealed record OperationalAssignmentDetails(Guid Id, string TaskCode, stri
     DateOnly? PlanStartsOn = null, DateOnly? PlanEndsOn = null,
     string ScheduleMode = "DISTRIBUIDA", int GoalUnits = 0, int ProgressUnits = 0, string ProgressUnit = "unidades", long Revision = 1,
     Guid? SpecializationId = null, string? SpecializationName = null, int MinimumPhotos = 1, int MaximumPhotos = 20, long MaximumPhotoBytes = 31457280,
-    Guid? OccasionId = null, string? Description = null, string? TemporalPolicyJson = null, string? TemporalDecisionJson = null);
+    Guid? OccasionId = null, string? Description = null, string? TemporalPolicyJson = null, string? TemporalDecisionJson = null, string? OperationalCriticality = null, DateTimeOffset? NominalStartsAt = null, Guid? SchedulingPolicyId = null,
+    int? TransferRemainingMinutes = null, int TransferProgressUnits = 0, string ChecklistJson = "[]", string ChecklistDraftJson = "null");
 public sealed record DirectionPlanDetails(Guid PlanId, string BranchCode, string Name, string Area,
     string PeriodType, int Year, int? PeriodNumber, DateOnly StartsOn, DateOnly EndsOn,
     int StartIsoYear, int StartIsoWeek, int EndIsoYear, int EndIsoWeek, string Status,
@@ -68,6 +70,15 @@ public static class DirectionPlanContract
     }
     public static readonly IReadOnlyList<string> PeriodTypes = ["SEMANAL", "MENSUAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL"];
 
+    public static WeekRange Calculate(DirectionPlanInput input, DateOnly? operationsToday = null)
+    {
+        if (input.RollingMonthStartsOn is not { } start) return Calculate(input.PeriodType, input.Year, input.PeriodNumber, operationsToday);
+        if (input.PeriodType != "MENSUAL" || input.IsWeeklyOperationsPlan || input.Year != start.Year || input.PeriodNumber != start.Month)
+            throw PeriodError();
+        try { return new(start, start.AddMonths(1)); }
+        catch (ArgumentOutOfRangeException) { throw PeriodError(); }
+    }
+
     public static WeekRange Calculate(string periodType, int year, int? number, DateOnly? operationsToday = null)
     {
         try
@@ -99,6 +110,8 @@ public static class DirectionPlanContract
 
     public static DirectionPlanInput Normalize(DirectionPlanInput input)
     {
+        if (input.RollingMonthStartsOn != null) Calculate(input);
+        if (input.SchedulingSearchMultiplier is < 1 or > 4) throw new DirectionPlanException("DIRECTION_PLAN_REQUEST_INVALID", 400);
         if (input.IsWeeklyOperationsPlan)
         {
             if (input.PeriodType != "SEMANAL") throw new DirectionPlanException("DIRECTION_PLAN_PERIOD_INVALID", 422);
@@ -141,13 +154,15 @@ public sealed class DirectionPreparedPlan
     public DirectionPreparedPlan(Guid id, Guid branchId, Guid actor, DateTimeOffset createdAt, DirectionPlanInput input)
     {
         var normalized = DirectionPlanContract.Normalize(input);
-        var range = DirectionPlanContract.Calculate(normalized.PeriodType, normalized.Year, normalized.PeriodNumber,
+        var range = DirectionPlanContract.Calculate(normalized,
             normalized.IsWeeklyOperationsPlan ? WeekContract.LocalToday(createdAt) : null);
         if (id == Guid.Empty || branchId == Guid.Empty || actor == Guid.Empty || createdAt.Offset != TimeSpan.Zero)
             throw new ArgumentException("Plan identifiers and a UTC instant are required.");
         Id = id; BranchId = branchId; CreatedBy = actor; CreatedAt = createdAt;
         Name = normalized.Name; Area = normalized.Area; PeriodType = normalized.PeriodType;
         IsWeeklyOperationsPlan = normalized.IsWeeklyOperationsPlan;
+        SchedulingSearchMultiplier = normalized.SchedulingSearchMultiplier;
+        SchedulingNotBefore = normalized.SchedulingNotBefore;
         Year = normalized.Year; PeriodNumber = normalized.PeriodNumber; StartsOn = range.StartsOn; EndsOn = range.EndsOn;
     }
     public Guid Id { get; private init; }
@@ -161,8 +176,14 @@ public sealed class DirectionPreparedPlan
     public int? PeriodNumber { get; private init; }
     public DateOnly StartsOn { get; private init; }
     public DateOnly EndsOn { get; private init; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped] public bool IsRollingMonthPlan => PeriodType == "MENSUAL" &&
+        (EndsOn.Year - StartsOn.Year) * 12 + EndsOn.Month - StartsOn.Month == 1 && StartsOn.AddMonths(1) == EndsOn;
     public string Status { get; private set; } = WorkPlanStatuses.Draft;
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped] public int SchedulingSearchMultiplier { get; set; } = 1;
     public bool IsWeeklyOperationsPlan { get; private init; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped] public DateTimeOffset? SchedulingNotBefore { get; private init; }
+    public Guid? SchedulingPolicyId { get; private set; }
+    public void CaptureSchedulingPolicy(Guid id) => SchedulingPolicyId = id;
     public string MonthlyPendingJson { get; private set; } = "[]";
     public void CaptureMonthlyPending(IReadOnlyList<MonthlyPlanPending> pending) =>
         MonthlyPendingJson = System.Text.Json.JsonSerializer.Serialize(pending);

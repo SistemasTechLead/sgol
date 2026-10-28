@@ -23,14 +23,14 @@ internal static class MonthlyImportChecks
         var actor = await db.RoleAssignmentVersions.Where(r => r.RoleCode == CanonicalRole.Direction && r.Status == RoleAssignmentStatus.Active && r.ValidTo == null).Select(r=>r.UserId).FirstAsync();
         var person = await db.People.Select(p=>p.Id).FirstAsync();
         CapacityWorker[] workers = [new(person,"A","A",CanonicalRole.SalesFloor,null,null)];
-        var temporal = new TemporalEligibilityContext { Enabled = true, Schedules = [new PersonalScheduleVersion {
+        var temporal = new TemporalEligibilityContext { Enabled = true, Now = now, Schedules = [new PersonalScheduleVersion {
             Id=Guid.NewGuid(),PersonId=person,DaysJson=JsonSerializer.Serialize(Enumerable.Range(0,7).ToDictionary(d=>d,d=>new[]{new WorkInterval(540,1140)})) }] };
         CapacityLedger Ledger(OperationalAssignment[]? loads=null, HashSet<(Guid,DateOnly)>? absent=null, CapacityWorker[]? staff=null) =>
             new(staff??workers,loads??[],[],absent??[],[],new(2026,11,1)) { Temporal=temporal };
         OperationalAssignment Load(int day,int minutes) => new() { Id=Guid.NewGuid(),PersonId=person,TaskId=Guid.NewGuid(),StartsAt=OperationalSchedule.Instant(new(2026,11,day),9),DueAt=OperationalSchedule.Instant(new(2026,11,day),19),LoadMinutes=minutes };
         DirectionPreparedPlan Plan(string period="MENSUAL",int number=11) => new(Guid.CreateVersion7(),BranchScope.LorettaId,actor,now,
             new("Comprobación mensual","Prueba",period,2026,number,[]));
-        var task = new OperationalTask { Id=Guid.CreateVersion7(),TaskCode="TAR-9000",Name="Prueba mensual aislada",PeriodType="MENSUAL",PreferredMonthDays="10",StartHour=9,DeadlineHours=4,LoadMinutes=30 };
+        var task = new OperationalTask { Id=Guid.CreateVersion7(),TaskCode="TAR-9000",Name="Prueba mensual aislada",PeriodType="MENSUAL",PreferredMonthDays="10",StartHour=9,DeadlineHours=4,LoadMinutes=30,OperationalCriticality="FLEXIBLE" };
         task.Validate(); db.Add(task); await db.SaveChangesAsync();
         async Task<(OperationalAssignment[] Assignments,DirectionPreparedPlan Plan)> Generate(CapacityLedger ledger,DirectionPreparedPlan? plan=null,string[]? codes=null)
         {

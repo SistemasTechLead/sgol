@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 using Sgol.Planning.Contracts;
 internal static class PersonalScheduleChecks
@@ -55,6 +55,21 @@ internal static class PersonalScheduleChecks
         Check(selected.Evaluate(a,Task(wed,1190,id:closing),[]).Limit==TemporalEligibilityContext.At(wed,1260),"Shared operating limit is 21:00");
         Check(selected.ClosingPerson(wed.AddDays(7))==null,"Choice affects its date only");
         Check(!selected.Evaluate(a,Task(wed,1190,id:closing),[(a,wed)]).Eligible,"Absence still wins over coverage");
+        var agendaPolicy = new OperationalSchedulingPolicy { Id=Guid.NewGuid(),AgendaVersion=2,MarginPercent=50,Revision=1 };
+        var agendaCoverage = new TemporalEligibilityContext { Enabled=true,ClosingTaskId=closing,BaseSchedulePolicyIds=[agendaPolicy.Id],
+            Schedules=context.Schedules,Rotations=context.Rotations,Coverages=selected.Coverages };
+        var closingTask=Task(wed,1192,id:closing); closingTask.LoadMinutes=5; closingTask.TaskCode="TAR-0200";
+        OperationalAgenda.Capture(closingTask,agendaPolicy,"CRITICA",closingTask.StartsAt);
+        var closingLedger=new CapacityLedger([new(a,"Coverage","CHECK","SUBCOORDINACION",null,null)],[],[],[],[],wed) { Temporal=agendaCoverage };
+        var closingPlacement=OperationalAgenda.Find(closingLedger,a,closingTask,TemporalEligibilityContext.At(wed,540));
+        Check(closingPlacement.Eligible && closingPlacement.DueAt==TemporalEligibilityContext.At(wed,1200),"Agenda closing honors selected extension and finishes exactly at 20:00");
+        Check(agendaCoverage.Evaluate(a,closingTask,[]).Eligible,"Agenda temporal validation also honors closing coverage");
+        Check(!agendaCoverage.Evaluate(a,closingTask,[(a,wed)]).Eligible,"Agenda coverage cannot bypass absence");
+        var ordinary=Task(wed,1192); ordinary.LoadMinutes=5;
+        OperationalAgenda.Capture(ordinary,agendaPolicy,"CRITICA",ordinary.StartsAt);
+        Check(!OperationalAgenda.Find(closingLedger,a,ordinary,TemporalEligibilityContext.At(wed,540)).Eligible,"Ordinary agenda tasks retain the base shift ending at 19:00");
+        closingTask.LoadMinutes=6;
+        Check(!OperationalAgenda.Find(closingLedger,a,closingTask,TemporalEligibilityContext.At(wed,540)).Eligible,"Closing cannot exceed the selected extended shift");
         Check(context.Evaluate(mar,Task(sun,600),[]).Eligible,"Any task can be scheduled Sunday without a whitelist");
         Check(!context.Evaluate(a,Task(mon,840,3),[]).Eligible,"A long deadline never permits waiting for personal entry");
         Check(!context.Evaluate(mar,Task(mon,540,8),[]).Eligible,"09:00 activation rejects Mariana entering at 11:00 despite a 17:00 deadline");

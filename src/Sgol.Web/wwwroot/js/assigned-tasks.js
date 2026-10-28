@@ -97,8 +97,10 @@
         }
         upload.addEventListener('click', () => { if (!submitting) uploadPhotographs(); });
         form.addEventListener('submit', async event => {
+            if (event.submitter?.value === 'DEVOLUCION') return;
             if (preparedSubmission) return;
             event.preventDefault();
+            const chosenSubmit = event.submitter || submit;
             if (uploading || submitting) return;
             if (!camera.valid() || !form.reportValidity()) { camera.error('Toma las fotografías requeridas y revisa los campos antes de enviar.'); return; }
             submitting = true; updateControls();
@@ -109,7 +111,7 @@
             submitting = false; updateControls();
             if (!verified || !form.reportValidity()) return;
             preparedSubmission = true;
-            form.requestSubmit(submit);
+            form.requestSubmit(chosenSubmit);
         });
         form.querySelector('[data-camera-cancel-upload]').addEventListener('click', () => request?.abort());
     }
@@ -126,11 +128,18 @@
     });
     form?.addEventListener('submit', event => {
         if (event.defaultPrevented) return;
-        if (camera && !preparedSubmission) return;
-        if (uploading || camera && (!camera.valid() || camera.photos.some(p => !p.clean))) {
+        const returning = event.submitter?.value === 'DEVOLUCION';
+        if (camera && !preparedSubmission && !returning) return;
+        if (uploading || !returning && camera && (!camera.valid() || camera.photos.some(p => !p.clean))) {
             event.preventDefault(); camera?.error('Toma y sube todas las fotografías antes de enviar la tarea.'); return;
         }
         form.setAttribute('aria-busy', 'true');
+        if (event.submitter?.name) {
+            const choice = document.createElement('input');
+            choice.type = 'hidden'; choice.name = event.submitter.name; choice.value = event.submitter.value;
+            form.appendChild(choice);
+            event.submitter.disabled = true;
+        }
         form.querySelector('button[type="submit"]').disabled = true;
         close.disabled = true;
         form.querySelector('[data-assigned-task-busy]').hidden = false;

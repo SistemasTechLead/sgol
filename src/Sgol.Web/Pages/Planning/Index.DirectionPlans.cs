@@ -27,6 +27,7 @@ public sealed partial class IndexModel
         operations && role == CanonicalRole.Subcoordination;
     public bool DirectionCreating { get; private set; }
     public bool DirectionOperations { get; private set; }
+    public int DirectionSearchMultiplier { get; private set; } = 1;
     public bool DirectionConfirming { get; private set; }
     public bool DirectionUncertain { get; private set; }
     public string DirectionName { get; private set; } = "";
@@ -51,6 +52,7 @@ public sealed partial class IndexModel
     public MonthlyPlanPending[] DirectionMonthlyPending { get; private set; } = [];
     public DateOnly DirectionToday => WeekContract.LocalToday(HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow);
     public PlanDailyLoad[] DirectionDailyLoad { get; private set; } = [];
+    public string[] DirectionExcludedTasks { get; private set; } = [];
     public PlanningSpecialistGap[] DirectionSpecialistGaps { get; private set; } = [];
     public PlanningAssignmentConflict? DirectionAssignmentConflict { get; private set; }
     public static string DirectionHours(decimal minutes)
@@ -169,28 +171,37 @@ public sealed partial class IndexModel
                 !int.TryParse(DirectionYear, NumberStyles.None, CultureInfo.InvariantCulture, out var year) ||
                 DirectionPeriodType != "ANUAL" && !int.TryParse(DirectionNumber, NumberStyles.None, CultureInfo.InvariantCulture, out _)) throw new DirectionPlanException("DIRECTION_PLAN_REQUEST_INVALID", 400);
             if (DirectionCapacityJson.Length > 131072) throw new DirectionPlanException("PLAN_CAPACITY_INVALID", 422);
+            if (form["searchMultiplier"].Count > 1 || form["searchMultiplier"].Count == 1 && !int.TryParse(form["searchMultiplier"], NumberStyles.None, CultureInfo.InvariantCulture, out _)) throw new DirectionPlanException("DIRECTION_PLAN_REQUEST_INVALID", 400);
+            DirectionSearchMultiplier = form["searchMultiplier"].Count == 0 ? 1 : int.Parse(form["searchMultiplier"]!, CultureInfo.InvariantCulture);
             var adjustments = string.IsNullOrEmpty(DirectionCapacityJson) ? [] : JsonSerializer.Deserialize<PlanCapacityAdjustment[]>(DirectionCapacityJson, JsonSerializerOptions.Web);
             var input = DirectionPlanContract.Normalize(new(DirectionName, DirectionArea, DirectionPeriodType, year,
                 DirectionPeriodType == "ANUAL" ? null : int.Parse(DirectionNumber, CultureInfo.InvariantCulture), DirectionSelectedCodes,
-                adjustments, DirectionCapacityFingerprint, DirectionOperations));
+                adjustments, DirectionCapacityFingerprint, DirectionOperations, SchedulingSearchMultiplier: DirectionSearchMultiplier));
             DirectionRange = DirectionPlanContract.Calculate(input.PeriodType, input.Year, input.PeriodNumber, input.IsWeeklyOperationsPlan ? DirectionToday : null);
             await LoadDirectionPlansAsync(token);
             if (DirectionError is not null) return Page();
-            if (input.TaskCodes.Any(code => DirectionTaskOptions.All(t => t.TaskCode != code))) throw new DirectionPlanException("DIRECTION_PLAN_TASK_INVALID", 422);
+
             DirectionName = input.Name; DirectionArea = input.Area;
+            var preparationNow = HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow;
+            input = input with { SchedulingNotBefore = DirectionOperations
+                ? OperationalSchedule.Instant(WeekContract.LocalToday(preparationNow)) : preparationNow.AddMinutes(1) };
+            var capacityDb = HttpContext.RequestServices.GetRequiredService<SgolDbContext>();
+            await using var captureTx = await capacityDb.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, token);
             var temporalState = await PlanningCapacity.ReadAsync(HttpContext.RequestServices.GetRequiredService<SgolDbContext>(),input,HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow,token);
-            if(!string.IsNullOrWhiteSpace(input.CapacityFingerprint) && input.CapacityFingerprint!=temporalState.Preview.Fingerprint) throw new DirectionPlanException("PLAN_CAPACITY_STALE",409);
+            // Preparation is read-only and always shows a fresh agenda; only confirmation requires the exact fingerprint.
             DirectionTemporalRows=temporalState.Preview.TemporalRows;
+            DirectionExcludedTasks = temporalState.Preview.ExcludedTasks;
             DirectionSpecialistGaps = temporalState.Preview.SpecialistGaps;
             DirectionDailyLoad = await PlanningCapacity.DailyLoadAsync(HttpContext.RequestServices.GetRequiredService<SgolDbContext>(),
                 input, temporalState.Preview, temporalState.Ledger, token);
+            await captureTx.CommitAsync(token);
             DirectionMonthlyPending = temporalState.Preview.MonthlyPending;
             DirectionTemporalRows = temporalState.Preview.TemporalRows;
-            input=input with { CapacityFingerprint=temporalState.Preview.Fingerprint };
+            input=input with { CapacityFingerprint=temporalState.Preview.AgendaFingerprint };
             if (input.CapacityAdjustments is { Count: > 0 })
             {
                 var state = temporalState;
-                if (state.Preview.Fingerprint != input.CapacityFingerprint) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
+                if (state.Preview.AgendaFingerprint != input.CapacityFingerprint) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
                 var changes = PlanningCapacity.Changes(input, state.Preview, state.Ledger);
                 DirectionCapacitySummary = changes.Select(c => $"{state.Preview.Workers.Single(w => w.PersonId == c.PersonId).Name}: {c.Percent}% de {c.DailyMinutes} min diarios · {c.From:dd/MM/yyyy} — {c.Through:dd/MM/yyyy}").ToArray();
             }
@@ -203,7 +214,9 @@ public sealed partial class IndexModel
             HttpContext.RequestServices.GetRequiredService<ILogger<IndexModel>>()
                 .LogWarning("Plan preparation rejected: {Code}", e.Code);
             SetDirectionError(new ApiResponse<object>(e.Status, null, null, "", null, null, null, false, e.Code, null));
+            if (e.Code == "SCHEDULING_SEARCH_INCONCLUSIVE") DirectionSearchMultiplier = Math.Min(4, DirectionSearchMultiplier * 2);
             DirectionAssignmentConflict = e.Data[nameof(PlanningAssignmentConflict)] as PlanningAssignmentConflict;
+            if (e.Data["Tasks"] is string missing) DirectionError = new("Falta clasificar la criticidad: " + missing, "", null);
         }
         return DirectionConfirming ? Page() : await LoadDirectionPlansAsync(token);
     }
@@ -287,6 +300,8 @@ public sealed partial class IndexModel
             422 when response.ErrorCode == "PLAN_NO_WORKERS" => "Registra al menos un trabajador activo con cuenta y rol antes de crear el plan",
             422 when response.ErrorCode == "PLAN_NO_WORKER_FOR_ROLE" => "No hay una persona activa para el rol asignado de alguna tarea. Revisa los roles de las tareas y las personas antes de crear el plan",
             422 when response.ErrorCode == "PLAN_NO_SPECIALIST" => "No hay una persona con la especialización requerida que haya terminado su periodo de prueba. Revisa Personas y accesos",
+            422 when response.ErrorCode == "SCHEDULING_SEARCH_INCONCLUSIVE" => TemporalEligibilityContext.Message(response.ErrorCode),
+            422 when response.ErrorCode == "SCHEDULING_CRITICALITY_REQUIRED" => "Falta clasificar la criticidad de tareas del plan nuevo",
             422 when response.ErrorCode == "PLAN_NO_AVAILABLE_WORKER" => "Hay tareas sin personal disponible. Revisa la carga, los roles y los horarios por fecha",
             422 when response.ErrorCode == "PLAN_DISTINCT_WORKERS_REQUIRED" => "No hay suficientes personas distintas del rol para las repeticiones de la semana",
             422 when response.ErrorCode == "PLAN_OCCURRENCES_RESERVED" => "Estas repeticiones ya pertenecen a otro plan. Abre el plan existente para agregar tareas",

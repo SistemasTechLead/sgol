@@ -135,7 +135,7 @@ public static class DirectionPreparedPlanApiEndpoints
     public static DirectionPlanInput Parse(JsonElement body)
     {
         string[] fields = ["name", "area", "periodType", "year", "periodNumber", "taskCodes"];
-        string[] optional = ["capacityAdjustments", "capacityFingerprint", "isWeeklyOperationsPlan"];
+        string[] optional = ["capacityAdjustments", "capacityFingerprint", "isWeeklyOperationsPlan", "schedulingNotBefore", "schedulingSearchMultiplier", "rollingMonthStartsOn"];
         if (body.ValueKind != JsonValueKind.Object) throw new FormatException();
         var props = body.EnumerateObject().ToArray();
         if (props.Select(p => p.Name).Distinct(StringComparer.Ordinal).Count() != props.Length ||
@@ -160,7 +160,22 @@ public static class DirectionPreparedPlanApiEndpoints
         var fingerprint = body.TryGetProperty("capacityFingerprint", out var fingerprintJson) && fingerprintJson.ValueKind != JsonValueKind.Null
             ? Text("capacityFingerprint") : null;
         var master = body.TryGetProperty("isWeeklyOperationsPlan", out var masterJson) ? masterJson.GetBoolean() : false;
-        return new(Text("name"), Text("area"), Text("periodType"), year, number, tasks.EnumerateArray().Select(t => t.GetString()!).ToArray(), adjustments, fingerprint, master);
+        DateTimeOffset? notBefore = null;
+        if (body.TryGetProperty("schedulingNotBefore", out var notBeforeJson) && notBeforeJson.ValueKind != JsonValueKind.Null)
+        {
+            if (notBeforeJson.ValueKind != JsonValueKind.String || !notBeforeJson.TryGetDateTimeOffset(out var parsedNotBefore)) throw new FormatException();
+            notBefore = parsedNotBefore;
+        }
+        var multiplier = 1;
+        if (body.TryGetProperty("schedulingSearchMultiplier", out var multiplierJson) &&
+            (multiplierJson.ValueKind != JsonValueKind.Number || !multiplierJson.TryGetInt32(out multiplier) || multiplier is < 1 or > 4)) throw new FormatException();
+        DateOnly? rollingStart = null;
+        if (body.TryGetProperty("rollingMonthStartsOn", out var rollingJson) && rollingJson.ValueKind != JsonValueKind.Null)
+        {
+            if (rollingJson.ValueKind != JsonValueKind.String || !DateOnly.TryParseExact(rollingJson.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedStart)) throw new FormatException();
+            rollingStart = parsedStart;
+        }
+        return new(Text("name"), Text("area"), Text("periodType"), year, number, tasks.EnumerateArray().Select(t => t.GetString()!).ToArray(), adjustments, fingerprint, master, notBefore, multiplier, rollingStart);
     }
 
     private static bool Query(HttpContext c, string[] allowed) => c.Request.ContentLength is null or 0 && c.Request.Query.All(q => allowed.Contains(q.Key) && q.Value.Count == 1);

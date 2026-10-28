@@ -55,6 +55,7 @@ public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectio
 
     public async Task<Guid> CreateAsync(Guid actor, Guid key, string name, string description, CancellationToken token)
     {
+        description ??= "";
         ValidateIdentity(name, description);
         if (key == Guid.Empty || key == OperationalSequence.GeneralId) throw Error("PROCESS_INVALID");
         await direction.AuthorizeAsync(actor, token);
@@ -84,6 +85,8 @@ public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectio
 
     public async Task SaveAsync(Guid actor, ProcessDraftInput input, CancellationToken token)
     {
+        input.Description ??= "";
+        foreach (var step in input.Steps) step.Instructions ??= "";
         ValidateIdentity(input.Name, input.Description); ValidateRules(input, false);
         await direction.AuthorizeAsync(actor, token);
         await using var tx = await db.Database.BeginTransactionAsync(token);
@@ -116,12 +119,17 @@ public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectio
         if (task.ProcessId != OperationalSequence.GeneralId && task.ProcessId != id) throw Error("PROCESS_TRANSFER_REQUIRES_PUBLICATION", 409);
         var draft = await EnsureDraft(root, actor, token);
         if (await db.Set<OperationalSequenceStep>().AnyAsync(s => s.VersionId == draft.Id && s.TaskId == taskId, token)) { await tx.CommitAsync(token); return; }
-        var position = (await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).Select(s => (int?)s.Position).MaxAsync(token) ?? 0) + 1;
+        var previous = await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id)
+            .OrderByDescending(s => s.Position).FirstOrDefaultAsync(token);
+        var position = (previous?.Position ?? 0) + 1;
         if (position > 32) throw Error("PROCESS_INVALID");
         if (task.IsWeeklyOperationsTask && id != OperationalSequence.GeneralId) throw Error("WEEKLY_OPERATIONS_TASK_INVALID", 422);
+        // Move the default acceptance to the new final stage, preserving custom actions.
+        if (previous?.Action == "AUTORIZAR") previous.Action = "ENTREGAR";
         task.ProcessId = id; task.Revision++; root.Revision++;
         db.Add(new OperationalSequenceStep { VersionId = draft.Id, Position = position, TaskId = task.Id,
-            ReleaseCondition = position == 1 ? "INICIO" : "ENTREGA", DeadlineHours = task.DeadlineHours });
+            Action = "AUTORIZAR", ReleaseCondition = previous == null ? "INICIO" :
+                previous.Action == "ENTREGAR" ? "ENTREGA" : "APROBACION", DeadlineHours = task.DeadlineHours });
         Audit(actor, "PROCESS_TASK_ADDED", id, new { task.Id, task.Revision, IndependentGenerationSuspended = true });
         await db.SaveChangesAsync(token); await tx.CommitAsync(token);
     }
@@ -139,10 +147,16 @@ public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectio
             WindowThroughDay = draft.WindowThroughDay, PreferredWeekDay = draft.PreferredWeekDay,
             StartHour = draft.StartHourConfirmed ? draft.StartHour : null, Steps = steps.ToList() }, true);
         if (!steps.Select(s => s.TaskId).Order().SequenceEqual(members.Select(t => t.Id).Order()) || members.Any(t => !t.Active)) throw Error("PROCESS_MEMBERSHIP_INVALID");
-        if(members.Any(t=>t.Requirement!="DOCUMENTO")) throw Error("PROCESS_DOCUMENT_FLOW_REQUIRED");
+        if (members.Any(t => t.Requirement != "DOCUMENTO") && steps.Any(s => s.Action == "SELLAR"))
+            throw Error("PROCESS_SEAL_REQUIRES_DOCUMENT_FLOW");
         var specialties = await db.Set<Sgol.Web.Infrastructure.Persistence.Organization.Specialization>().Where(s => s.Active).Select(s => s.Id).ToArrayAsync(token);
         if (members.Any(t => t.SpecializationId != null && !specialties.Contains(t.SpecializationId.Value))) throw Error("TASK_SPECIALIZATION_INVALID");
-        foreach (var s in steps) { var task = members.Single(t => t.Id == s.TaskId); task.Validate(); s.TaskSnapshot = JsonSerializer.Serialize(task); }
+        foreach (var s in steps) { var task = members.Single(t => t.Id == s.TaskId); task.Validate();
+            if (task.ScheduleMode == "PROGRESO") throw Error("PROCESS_PROGRESS_SCHEDULING_UNSUPPORTED");
+            if (!OperationalAgenda.IsDefined(task.OperationalCriticality)) throw Error("SCHEDULING_CRITICALITY_REQUIRED");
+            if (s.Position > 1 && task.OperationalCriticality == "CRITICA" && s.MinimumStartOffsetHours == null) throw Error("PROCESS_CRITICAL_ANCHOR_REQUIRED");
+            s.TaskSnapshot = JsonSerializer.Serialize(task); }
+        draft.AgendaVersion = 1;
         // Save snapshots while the version is still mutable, then freeze it atomically.
         await db.SaveChangesAsync(token);
         draft.PublishedAt = clock.UtcNow; draft.PublishedBy = actor; draft.Revision++;

@@ -2572,6 +2572,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("period_type");
 
+                    b.Property<Guid?>("SchedulingPolicyId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("StartsOn")
                         .HasColumnType("date")
                         .HasColumnName("starts_on");
@@ -2589,6 +2592,8 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedBy");
+
+                    b.HasIndex("SchedulingPolicyId");
 
                     b.HasIndex("CreatedAt", "Id");
 
@@ -3500,6 +3505,30 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatar", b =>
+                {
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Palette")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Seed")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Variant")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
+
+                    b.HasKey("PersonId");
+
+                    b.ToTable("person_avatar", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_person_avatar_options", "\"Variant\" IN ('marble','beam','pixel','sunset','ring','bauhaus') AND \"Palette\" BETWEEN 0 AND 3 AND \"Seed\" BETWEEN 0 AND 999999");
+                        });
+                });
+
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Identity.ScreenAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3818,6 +3847,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<int?>("ClosureMarginPercent")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Comment")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
@@ -3835,6 +3867,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<string>("Conclusion")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("DefinitionSnapshotJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("Description")
                         .HasMaxLength(4000)
@@ -3872,8 +3907,15 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<DateTimeOffset?>("NominalStartsAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("OccasionId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("OperationalCriticality")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
 
                     b.Property<string>("PeriodType")
                         .IsRequired()
@@ -3924,6 +3966,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("RetiredAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ReviewComment")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
@@ -3957,6 +4002,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("DISTRIBUIDA");
 
+                    b.Property<Guid?>("SchedulingPolicyId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("SpecializationId")
                         .HasColumnType("uuid");
 
@@ -3983,6 +4031,12 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<string>("TemporalPolicyJson")
                         .HasColumnType("text");
 
+                    b.Property<int>("TransferProgressUnits")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TransferRemainingMinutes")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CompletedAt");
@@ -3999,7 +4053,10 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.HasIndex("ReviewedBy");
 
                     b.HasIndex("ScheduleKey")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"RetiredAt\" IS NULL");
+
+                    b.HasIndex("SchedulingPolicyId");
 
                     b.HasIndex("SpecializationId");
 
@@ -4007,11 +4064,17 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OccasionId", "PlanId");
 
+                    b.HasIndex("PersonId", "StartsAt", "DueAt");
+
                     b.ToTable("operational_assignment", null, t =>
                         {
+                            t.HasCheckConstraint("CK_assignment_scheduling", "(\"SchedulingPolicyId\" IS NULL AND \"ClosureMarginPercent\" IS NULL AND \"NominalStartsAt\" IS NULL) OR (\"SchedulingPolicyId\" IS NOT NULL AND \"ClosureMarginPercent\" IS NOT NULL AND \"ClosureMarginPercent\" BETWEEN 0 AND 500 AND \"NominalStartsAt\" IS NOT NULL AND (\"StartsAt\" >= \"NominalStartsAt\" OR \"OperationalCriticality\" = 'FLEXIBLE') AND \"OperationalCriticality\" IS NOT NULL AND \"OperationalCriticality\" IN ('CRITICA','IMPORTANTE','FLEXIBLE'))");
+
+                            t.HasCheckConstraint("CK_assignment_transfer_load", "\"TransferProgressUnits\" BETWEEN 0 AND \"ProgressUnits\" AND (\"TransferRemainingMinutes\" IS NULL OR \"TransferRemainingMinutes\" BETWEEN 1 AND 4800)");
+
                             t.HasCheckConstraint("CK_operational_assignment_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
 
-                            t.HasCheckConstraint("CK_operational_assignment_progress", "\"GoalUnits\" BETWEEN 0 AND 1000000 AND \"ProgressUnits\" BETWEEN 0 AND \"GoalUnits\" AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND (\"TaskRevision\" IS NULL OR \"TaskRevision\" > 0)");
+                            t.HasCheckConstraint("CK_operational_assignment_progress", "\"GoalUnits\" BETWEEN 0 AND 1000000 AND \"ProgressUnits\" BETWEEN 0 AND 1000000 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND (\"TaskRevision\" IS NULL OR \"TaskRevision\" > 0)");
 
                             t.HasCheckConstraint("CK_operational_assignment_range", "\"DueAt\" > \"StartsAt\"");
 
@@ -4158,6 +4221,119 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.HasIndex("ActorId", "CreatedAt");
 
                     b.ToTable("operational_capture_session", (string)null);
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalCarryoverRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AlgorithmVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Cause")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CauseDescription")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("CauseVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DecisionComment")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("From")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("IncidentEnd")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("IncidentStart")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("IntentKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasDefaultValue("INCIDENTE");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RequestedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResultsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ScheduleFingerprint")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("Through")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntentKey")
+                        .IsUnique();
+
+                    b.HasIndex("BranchId", "State", "SubmittedAt");
+
+                    b.HasIndex("PersonId", "IncidentStart", "IncidentEnd");
+
+                    b.ToTable("operational_carryover_request", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_carryover_interval", "\"Minutes\" > 0 AND ((\"Kind\" = 'INCIDENTE' AND \"IncidentEnd\" = \"IncidentStart\" + \"Minutes\" * interval '1 minute' AND \"From\" IS NULL AND \"Through\" IS NULL) OR (\"Kind\" = 'POSPONER' AND \"From\" IS NOT NULL AND \"Through\" IS NOT NULL AND \"Through\" BETWEEN \"From\" AND \"From\" + 6))");
+
+                            t.HasCheckConstraint("CK_carryover_state", "\"Revision\" > 0 AND ((\"State\" = 'PENDIENTE' AND \"DecidedBy\" IS NULL AND \"DecidedAt\" IS NULL) OR (\"State\" IN ('APROBADA','RECHAZADA') AND \"DecidedBy\" IS NOT NULL AND \"DecidedAt\" IS NOT NULL AND length(\"DecisionComment\") > 0))");
+                        });
                 });
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalOccasion", b =>
@@ -4343,6 +4519,82 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("operational_reference_file", (string)null);
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedulingPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AgendaVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ChangedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("FormulaVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MarginPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Revision")
+                        .IsUnique();
+
+                    b.ToTable("operational_scheduling_policy", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_scheduling_policy", "\"MarginPercent\" BETWEEN 0 AND 500 AND \"Revision\" > 0 AND \"FormulaVersion\" = 1 AND \"AgendaVersion\" IN (1,2)");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("d2a5d1af-5886-4b9c-bfb1-590399c8f734"),
+                            AgendaVersion = 1,
+                            ChangedAt = new DateTimeOffset(new DateTime(2026, 10, 21, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FormulaVersion = 1,
+                            MarginPercent = 50,
+                            Revision = 1L
+                        });
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedulingSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CurrentPolicyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrentPolicyId");
+
+                    b.ToTable("operational_scheduling_settings", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_scheduling_settings", "\"Id\" = 1 AND \"Revision\" > 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CurrentPolicyId = new Guid("d2a5d1af-5886-4b9c-bfb1-590399c8f734"),
+                            Revision = 1L
+                        });
                 });
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequence", b =>
@@ -4648,6 +4900,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(24)
                         .HasColumnType("character varying(24)");
 
+                    b.Property<bool>("UsesTaskEvidence")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("VersionId")
                         .HasColumnType("uuid");
 
@@ -4668,7 +4923,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.ToTable("operational_sequence_run", null, t =>
                         {
-                            t.HasCheckConstraint("CK_sequence_run_closure", "(\"Status\" = 'EN_CURSO' AND \"ClosedAt\" IS NULL AND \"ClosedBy\" IS NULL AND \"ClosureOutcome\" IS NULL AND \"AuthorizedDocumentId\" IS NULL) OR (\"Status\" = 'CONCLUIDA' AND \"ClosedAt\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL AND \"AuthorizedDocumentId\" IS NOT NULL AND \"ClosureOutcome\" IS NOT NULL AND \"ClosureComment\" IS NOT NULL AND \"ClosureOutcome\" IN ('SIN_DIFERENCIAS','ACEPTADA_CON_DIFERENCIAS') AND length(trim(\"ClosureComment\")) > 0) OR (\"Status\" = 'CANCELADA' AND \"ClosedAt\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL AND \"ClosureOutcome\" = 'CANCELACION' AND \"ClosureOutcome\" IS NOT NULL AND \"ClosureComment\" IS NOT NULL AND length(trim(\"ClosureComment\")) > 0 AND \"AuthorizedDocumentId\" IS NULL)");
+                            t.HasCheckConstraint("CK_sequence_run_closure", "(\"Status\" = 'EN_CURSO' AND \"ClosedAt\" IS NULL AND \"ClosedBy\" IS NULL AND \"ClosureOutcome\" IS NULL AND \"AuthorizedDocumentId\" IS NULL) OR (\"Status\" = 'CONCLUIDA' AND \"ClosedAt\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL AND (\"UsesTaskEvidence\" OR \"AuthorizedDocumentId\" IS NOT NULL) AND \"ClosureOutcome\" IS NOT NULL AND \"ClosureComment\" IS NOT NULL AND \"ClosureOutcome\" IN ('SIN_DIFERENCIAS','ACEPTADA_CON_DIFERENCIAS') AND length(trim(\"ClosureComment\")) > 0) OR (\"Status\" = 'CANCELADA' AND \"ClosedAt\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL AND \"ClosureOutcome\" = 'CANCELACION' AND \"ClosureOutcome\" IS NOT NULL AND \"ClosureComment\" IS NOT NULL AND length(trim(\"ClosureComment\")) > 0 AND \"AuthorizedDocumentId\" IS NULL)");
 
                             t.HasCheckConstraint("CK_sequence_run_state", "\"Status\" IN ('EN_CURSO','CONCLUIDA','CANCELADA') AND \"Round\" > 0 AND \"ActivePosition\" BETWEEN 1 AND 32 AND \"Revision\" > 0");
                         });
@@ -4683,8 +4938,14 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<int?>("ClosureMarginPercent")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("CurrentAttemptId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("DefinitionSnapshotJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<Guid?>("DependencyEventId")
                         .HasColumnType("uuid");
@@ -4728,6 +4989,13 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<DateTimeOffset?>("NominalStartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OperationalCriticality")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
+
                     b.Property<DateTimeOffset>("PlannedDueAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4759,6 +5027,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.Property<Guid>("RunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SchedulingPolicyId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("SpecializationId")
@@ -4793,6 +5064,8 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("ReservedPersonId");
+
+                    b.HasIndex("SchedulingPolicyId");
 
                     b.HasIndex("SpecializationId");
 
@@ -4881,6 +5154,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("AgendaVersion")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -5017,6 +5293,10 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("OperationalCriticality")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
+
                     b.Property<string>("PeriodType")
                         .IsRequired()
                         .HasColumnType("text");
@@ -5101,6 +5381,8 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_operational_task_schedule", "\"ScheduleMode\" IN ('DISTRIBUIDA','DIAS_FIJOS','PROGRESO') AND \"WeekDays\" BETWEEN 0 AND 127 AND \"StartHour\" BETWEEN 0 AND 23 AND (\"GoalUnits\" IS NULL OR \"GoalUnits\" BETWEEN 1 AND 1000000) AND length(\"ProgressUnit\") <= 60 AND ((NOT \"Active\" AND \"ScheduleMode\" = 'PROGRESO') OR (\"GoalUnits\" IS NOT NULL AND length(\"ProgressUnit\") >= 1)) AND (\"ScheduleMode\" <> 'DIAS_FIJOS' OR (\"PeriodType\" = 'SEMANAL' AND \"WeekDays\" > 0)) AND (\"ScheduleMode\" <> 'PROGRESO' OR (\"PeriodType\" = 'SEMANAL' AND (NOT \"Active\" OR NOT \"DifferentPeople\"))) AND (\"PeriodType\" <> 'OCASIONAL' OR (\"ScheduleMode\" = 'DISTRIBUIDA' AND \"WeekDays\" = 0 AND \"StartHour\" = 0 AND \"Repetitions\" = 1 AND NOT \"DifferentPeople\"))");
 
                             t.HasCheckConstraint("CK_operational_task_time", "\"StartMinute\" BETWEEN 0 AND 59 AND (\"SundayStartMinute\" IS NULL OR \"SundayStartMinute\" BETWEEN 0 AND 1439)");
+
+                            t.HasCheckConstraint("CK_task_criticality", "\"OperationalCriticality\" IS NULL OR \"OperationalCriticality\" IN ('CRITICA','IMPORTANTE','FLEXIBLE')");
                         });
 
                     b.HasData(
@@ -5330,6 +5612,82 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FromName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("FromPersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("NewDueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("PreviousDueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("PreviousStartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ProgressUnits")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("RemainingMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("TaskName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ToName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("ToPersonId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("AssignmentId", "At");
+
+                    b.HasIndex("FromPersonId", "At");
+
+                    b.HasIndex("ToPersonId", "At");
+
+                    b.ToTable("operational_transfer", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_transfer_values", "\"FromPersonId\" <> \"ToPersonId\" AND \"RemainingMinutes\" BETWEEN 1 AND 4800 AND \"ProgressUnits\" >= 0 AND \"NewDueAt\" > \"At\"");
+                        });
+                });
+
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.PersonalScheduleException", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5476,6 +5834,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("AgendaJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("Participants")
                         .IsRequired()
@@ -6197,6 +6558,11 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CreatedBy")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedulingPolicy", null)
+                        .WithMany()
+                        .HasForeignKey("SchedulingPolicyId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Sgol.Planning.Contracts.DirectionPreparedPlanItem", b =>
@@ -6406,6 +6772,15 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatar", b =>
+                {
+                    b.HasOne("Sgol.Organization.Contracts.Person", null)
+                        .WithOne()
+                        .HasForeignKey("Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatar", "PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Identity.ScreenAccount", b =>
                 {
                     b.HasOne("Sgol.Organization.Contracts.Branch", null)
@@ -6503,6 +6878,11 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ReassignedFromId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedulingPolicy", null)
+                        .WithMany()
+                        .HasForeignKey("SchedulingPolicyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Sgol.Web.Infrastructure.Persistence.Organization.Specialization", null)
                         .WithMany()
                         .HasForeignKey("SpecializationId")
@@ -6551,6 +6931,15 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("AssignmentId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalCarryoverRequest", b =>
+                {
+                    b.HasOne("Sgol.Organization.Contracts.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -6605,6 +6994,15 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("OccasionId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedulingSettings", b =>
+                {
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedulingPolicy", null)
+                        .WithMany()
+                        .HasForeignKey("CurrentPolicyId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -6743,6 +7141,11 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ReservedPersonId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedulingPolicy", null)
+                        .WithMany()
+                        .HasForeignKey("SchedulingPolicyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Sgol.Web.Infrastructure.Persistence.Organization.Specialization", null)
                         .WithMany()
                         .HasForeignKey("SpecializationId")
@@ -6829,6 +7232,33 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("SpecializationId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalTransfer", b =>
+                {
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Bootstrap.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalAssignment", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sgol.Organization.Contracts.Person", null)
+                        .WithMany()
+                        .HasForeignKey("FromPersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sgol.Organization.Contracts.Person", null)
+                        .WithMany()
+                        .HasForeignKey("ToPersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.PersonalScheduleException", b =>

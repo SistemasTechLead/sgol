@@ -6,6 +6,7 @@
     let pauseUntil = 0, scrollDirection = 1, scrollWaitUntil = performance.now() + 7000;
     let retryAfter = 0;
     let events = null, eventPlan = null, realtime = false, dirty = false;
+    let progressStates = [];
     const liveStatus = () => {
         const label = root.querySelector('[data-live-status]');
         if (label) label.textContent = realtime ? '● En vivo' : 'Actualización automática';
@@ -35,19 +36,64 @@
         liveStatus();
     }
     const now = () => serverAt + performance.now() - syncedAt;
+    function animateProgress(previous) {
+        root.querySelectorAll('[data-progress-key]').forEach(progress => {
+            const fill = progress?.querySelector('[data-board-progress-fill]');
+            const next = Number(progress?.dataset.progressPercent);
+            const old = previous.get(progress.dataset.progressKey);
+            if (!fill?.animate || !old || !Number.isFinite(old.percent) || old.percent === next ||
+                old.period !== progress.dataset.progressPeriod ||
+                window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            fill.animate([
+                { width: `${old.percent}%` },
+                { width: `${next}%` }
+            ], { duration: 650, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+        });
+    }
     function synchronize() {
         serverAt = Number(root.querySelector('[data-server-now]').dataset.serverNow);
         syncedAt = performance.now();
+        progressStates = [...root.querySelectorAll('[data-pace-schedule]')].map(progress => ({
+            progress, schedule: JSON.parse(progress.dataset.paceSchedule || '[]')
+        }));
+    }
+    function pace(instant) {
+        for (const {progress, schedule} of progressStates) {
+            let expected = 0;
+            const delivered = Number(progress.dataset.progressDelivered);
+            for (const [due, count] of schedule) {
+                if (due > instant) break;
+                expected += count;
+            }
+            const color = expected === 0 ? 'neutral' : delivered * 100 >= expected * Number(progress.dataset.paceGreen) ? 'green' :
+                delivered * 100 >= expected * Number(progress.dataset.paceYellow) ? 'yellow' : 'red';
+            progress.className = `board-progress board-progress--${color}`;
+            if (Number(progress.dataset.paceExpected) === expected && Number(progress.dataset.paceDelivered) === delivered) continue;
+            progress.dataset.paceExpected = expected;
+            progress.dataset.paceDelivered = delivered;
+            const total = Number(progress.dataset.progressTotal);
+            const position = `${total === 0 ? 0 : expected * 100 / total}%`;
+            const marker = progress.querySelector('[data-pace-marker]');
+            marker.setAttribute('x1', position); marker.setAttribute('x2', position);
+            progress.querySelector('[data-pace-detail]').textContent = `${delivered}/${expected} para esta hora`;
+            progress.querySelector('[data-pace-reference]').title = `Referencia: ${expected} de ${total} tareas para esta hora`;
+            progress.querySelector('progress').setAttribute('aria-label',
+                `${progress.getAttribute('aria-label')}: ${delivered} de ${total} tareas entregadas, ${progress.dataset.progressPercent} por ciento; ${delivered} de ${expected} para esta hora`);
+        }
     }
     function colors() {
         if (stopped) return;
         const instant = now();
+        const stateFilter = root.querySelector('[data-state]')?.dataset.state;
+        pace(instant);
         root.querySelectorAll('.board-card').forEach(card => {
             const due = Number(card.dataset.due), remaining = due - instant;
             const duration = due - Number(card.dataset.start);
             const color = card.dataset.delivered === 'true' ? 'delivered' : instant < Number(card.dataset.start) ? 'scheduled' :
                 remaining <= 0 || remaining <= duration * 0.10 ? 'urgent' : remaining <= duration * 0.30 ? 'warning' : 'active';
             card.className = `board-card board-card--${color}`;
+            const state = color === 'urgent' && remaining <= 0 ? 'overdue' : color;
+            card.hidden = Boolean(stateFilter && stateFilter !== state);
             card.dataset.priority = { urgent: 0, active: 1, warning: 2, scheduled: 3, delivered: 4 }[color];
             card.querySelector('.board-card__state').textContent = {
                 delivered: '✓ Entregada', scheduled: 'Por activar', active: 'Activa', warning: 'Último 30% del tiempo',
@@ -55,6 +101,8 @@
             }[color];
         });
         const grid = root.querySelector('.board-grid');
+        const empty = root.querySelector('[data-board-empty]');
+        if (empty) empty.hidden = Boolean(root.querySelector('.board-card:not([hidden])'));
         if (grid) {
             const cards = [...grid.querySelectorAll('.board-card')];
             const ordered = [...cards].sort((a, b) => Number(a.dataset.priority) - Number(b.dataset.priority) ||
@@ -93,7 +141,11 @@
             const html = await response.text();
             const template = document.createElement('template'); template.innerHTML = html;
             if (!template.content.querySelector('.board-content')) throw new Error('content');
+            const previousProgress = new Map([...root.querySelectorAll('[data-progress-key]')].map(progress => [
+                progress.dataset.progressKey, { percent: Number(progress.dataset.progressPercent), period: progress.dataset.progressPeriod }
+            ]));
             root.replaceChildren(template.content);
+            animateProgress(previousProgress);
             synchronize(); colors();
             root.querySelector('.board-viewport').scrollTop = scroll;
             if (focused) root.querySelector(`#${focused}`).focus({ preventScroll: true });
@@ -120,19 +172,10 @@
     }
     const selected = () => root.querySelector('[data-plan]')?.dataset.plan;
     const selectedTask = () => root.querySelector('[data-task]')?.dataset.task;
-    root.addEventListener('click', event => {
-        const back = event.target.closest('[data-board-back]');
-        if (!back || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || !document.referrer) return;
-        const previous = new URL(document.referrer);
-        if (previous.origin === location.origin && previous.pathname !== '/tablero' && history.length > 1) {
-            event.preventDefault();
-            history.back();
-        }
-    });
     root.addEventListener('change', event => {
         if (event.target.id === 'board-plan') {
             if (refreshing) { event.target.value = selected(); return; }
-            scrollDirection = 1; refresh(event.target.value, true, '');
+            scrollDirection = 1; refresh(event.target.value, true, selectedTask()?.startsWith('state:') ? selectedTask() : '');
         }
         if (event.target.id === 'board-task') {
             if (refreshing) { event.target.value = selectedTask(); return; }

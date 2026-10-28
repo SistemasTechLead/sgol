@@ -29,7 +29,7 @@ internal static class ImportFormChecks
             var input=await db.OperationalTasks.AsNoTracking().SingleAsync(t=>t.TaskCode==code);
             if(activate)input.Active=true;
             var page=new Sgol.Web.Pages.Tasks.IndexModel(new ImportCheckSession(actor),services.GetRequiredService<OperationalTaskService>(),
-                services.GetRequiredService<SpecializationService>(),services.GetRequiredService<OperationalProcessCatalogService>()) {
+                services.GetRequiredService<SpecializationService>(),services.GetRequiredService<OperationalProcessCatalogService>(),services.GetRequiredService<OperationalSchedulingPolicyService>(),services.GetRequiredService<AssignmentRefreshService>()) {
                 Input=input,RequiresSpecialization=input.SpecializationId!=null,
                 InputDays=Enumerable.Range(0,7).Where(d=>(input.WeekDays&(1<<d))!=0).ToArray(),
                 PageContext=new PageContext {HttpContext=new DefaultHttpContext {RequestServices=services}} };

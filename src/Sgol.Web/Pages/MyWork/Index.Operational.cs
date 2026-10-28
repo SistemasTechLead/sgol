@@ -11,9 +11,13 @@ public sealed partial class IndexModel
 {
     public IReadOnlyList<OperationalAssignmentDetails> OperationalTasks { get; private set; } = [];
     public IReadOnlyList<OperationalLifecycleEntry> OperationalLifecycle { get; private set; } = [];
+    public IReadOnlyList<OperationalTransfer> OperationalTransfers { get; private set; } = [];
+    public IReadOnlyList<OperationalContribution> OperationalContributions { get; private set; } = [];
     public IReadOnlyList<OperationalWorkPlan> OperationalPlans => OperationalWorkPlan.Group(OperationalTasks, OperationalDay, OperationalNow);
     public IReadOnlyList<OperationalAssignmentDetails> OperationalDayTasks =>
         OperationalWorkPlan.TodayTasks(OperationalTasks, OperationalDay, OperationalNow);
+    public IReadOnlyList<OperationalAssignmentDetails> OperationalOrderedTasks =>
+        OperationalWorkPlan.OrderedTasks(OperationalTasks, OperationalDay, OperationalNow);
     public string? OperationalError { get; private set; }
     public OperationalAssignmentDetails? OperationalSelectedTask { get; private set; }
     public Sgol.Web.Presentation.MyWork.ProcessActionForm? OperationalProcessForm { get; private set; }
@@ -42,6 +46,7 @@ public sealed partial class IndexModel
         OperationalNow = HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow;
         try {
             OperationalTasks = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().MineAsync(actor, token);
+            OperationalTransfers = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().MyTransfersAsync(actor, token);
             var selected = OperationalAttemptedTaskId?.ToString("D") ?? Request.Query["assignedTask"].ToString();
             if (!string.IsNullOrEmpty(selected)) {
                 if (!Guid.TryParseExact(selected, "D", out var id)) throw new DirectionPlanException("TASK_NOT_FOUND", 404);
@@ -54,6 +59,7 @@ public sealed partial class IndexModel
                         OperationalAttemptedTaskId is not null && Guid.TryParse(Request.Form["Key"], out var key) ? key : null,
                         OperationalAttemptedTaskId is not null && Request.Form["Declared"].Contains("true"));
                 OperationalHistory = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().ProgressHistoryAsync(actor, id, token);
+                OperationalContributions = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().ContributionsAsync(actor, id, token);
                 OperationalLifecycle = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().LifecycleHistoryAsync(actor, id, token);
                 OperationalPhotographs = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().PhotographsAsync(actor, id, token);
                 if (OperationalSelectedTask.OccasionId != null)
@@ -87,14 +93,18 @@ public sealed partial class IndexModel
         return await LoadWorkAsync(session, token, true);
     }
     public async Task<IActionResult> OnPostCompleteProcessAsync(Guid id, Guid attemptId, long revision, Guid key,
-        string decision, string conclusion, string? differences, IFormFile? document, bool declared, CancellationToken token)
+        string decision, string conclusion, string? differences, IFormFile? document, bool declared, CancellationToken token,
+        Guid? captureSessionId, string? photographIds, List<IFormFile>? screenshots)
     {
         NoStore();
         var session = await sessionState.GetAsync(token); if (session is null) return Redirect("/acceso");
         try { await HttpContext.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(HttpContext); }
         catch (AntiforgeryValidationException) { return BadRequest(); }
         try {
-            if (!ModelState.IsValid || Request.Form.Files.Count > 1 || Request.Form.Files.Any(f => f.Name != "Document"))
+            Guid[]? photoIds = null;
+            try { if (photographIds is not null && photographIds.Length <= 1000) photoIds = System.Text.Json.JsonSerializer.Deserialize<Guid[]>(photographIds); }
+            catch (System.Text.Json.JsonException) { throw new DirectionPlanException("TASK_PHOTO_LIMIT", 422); }
+            if (!ModelState.IsValid || Request.Form.Files.Count > 21 || Request.Form.Files.Count(f => f.Name == "Document") > 1 || Request.Form.Files.Any(f => f.Name is not ("Document" or "screenshots")))
                 throw new DirectionPlanException("TASK_FILE_INVALID", 422);
             var service = HttpContext.RequestServices.GetRequiredService<OperationalProcessService>();
             var process = await service.ReadAssignmentAsync(session.UserId, id, token)
@@ -102,7 +112,7 @@ public sealed partial class IndexModel
             if (!process.Attempts.Any(a => a.Id == attemptId && a.AssignmentId == id))
                 throw new DirectionPlanException("PROCESS_CONFLICT", 409);
             await service.DecideAsync(session.UserId, process.Run.Id, attemptId, revision, key,
-                decision, conclusion, differences, document, declared, token);
+                decision, conclusion, differences, document, declared, token, captureSessionId, photoIds, screenshots?.Count > 0 ? screenshots : null);
             return Redirect(OperationalTaskHref(id));
         } catch (DirectionPlanException e) {
             Response.StatusCode = e.Status; OperationalError = Pages.Tasks.IndexModel.Message(e.Code);

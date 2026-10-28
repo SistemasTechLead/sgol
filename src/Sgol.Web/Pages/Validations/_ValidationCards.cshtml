@@ -1,0 +1,75 @@
+@model Sgol.Web.Pages.Validations.IndexModel
+@using Sgol.Web.Pages.Validations
+@using Sgol.Web.Presentation.MyWork
+@using Sgol.Web.Presentation.Navigation
+@{
+    var group = Model.ValidationSection;
+}
+<section class="panel-seccion validation-panel" aria-labelledby="validation-title">
+    <header class="panel-seccion__cabecera"><div><h2 id="validation-title">Validación</h2><p class="texto-secundario">Revisa las entregas y guarda tus decisiones en conjunto.</p></div></header>
+    <partial name="_Filters" model="@(new SupervisionFilterModel(Model, group))" />
+    <div class="validation-section-title"><h3>@group.Title</h3><span class="badge badge--neutro">@group.Items.Count de @group.All.Count tareas</span></div>
+    @if (group.Items.Count == 0) { <p class="estado-vacio">No hay tareas que coincidan con este apartado y sus filtros.</p> }
+    <form method="post" asp-page-handler="BatchReview" asp-all-route-data="Model.ValidationRoutes" data-validation-batch>
+        <input type="hidden" name="Validation" value="true" /><input type="hidden" name="Section" value="@group.Key" />
+        <div class="validation-grid">
+        @foreach (var item in group.Items) {
+            var a = item.Assignment;
+            var prefix = $"Reviews[{a.Id:N}]";
+            var previous = Model.Reviews.FirstOrDefault(r => r.Id == a.Id);
+            var editable = (a.StartsAt <= Model.Now || a.CompletedAt is not null) && a.ReviewStatus is not ("CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA");
+            var photos = Model.CardPhotos.GetValueOrDefault(a.Id) ?? [];
+            var file = $"/mi-trabajo?handler=OperationalFile&id={a.Id:D}";
+            <article class="validation-card" data-validation-card>
+                <header class="validation-card__header"><h3>@a.Name</h3></header>
+                @if (Model.FailedReviewId == a.Id) { <p class="alerta alerta--peligro" role="alert">Esta tarea impidió guardar el grupo. Revisa el aviso antes de volver a guardar.</p> }
+                <div class="validation-card__evidence">
+                    @if (a.Comment is not null) { <p class="supervision-text">@a.Comment</p> }
+                    @if (photos.Length > 0) {
+                        <div class="validation-gallery" data-validation-gallery aria-label="Evidencia de @a.Name">
+                        @for (var p = 0; p < photos.Length; p++) {
+                            var href = $"{file}&photoId={photos[p]:D}";
+                            <a href="@href" target="_blank" rel="noopener" data-validation-photo hidden="@(p != 0)"><img src="@href" alt="Evidencia @(p + 1) de @photos.Length: @a.Name" loading="lazy" /></a>
+                        }
+                        @if (photos.Length > 1) {
+                            <div class="validation-gallery__controls"><button class="boton boton--secundario" type="button" data-photo-step="-1" aria-label="Foto anterior">←</button><span data-photo-count aria-live="polite">1 / @photos.Length</span><button class="boton boton--secundario" type="button" data-photo-step="1" aria-label="Foto siguiente">→</button></div>
+                        }
+                        </div>
+                    } else if (a.FileName is not null) {
+                        @if (a.Requirement is "FOTOGRAFIA" or "CAPTURA_PANTALLA") { <a href="@(file + "&preview=true")" target="_blank" rel="noopener"><img class="validation-image" src="@(file + "&preview=true")" alt="Evidencia: @a.Name" loading="lazy" /></a> }
+                        else { <a class="boton boton--secundario" href="@file">@a.FileName</a> }
+                    } else if (a.Comment is null) {
+                        <p class="texto-secundario">@(a.Requirement == "NINGUNO" ? a.Conclusion ?? "Sin requisito de evidencia." : "Sin evidencia entregada.")</p>
+                    }
+                    @if (a.GoalUnits > 0) { <p>@a.ProgressUnits / @a.GoalUnits @a.ProgressUnit</p> }
+                </div>
+                <dl class="validation-card__facts">
+                    <div><dt>Responsable</dt><dd>@a.PersonName</dd></div>
+                    <div><dt>Activación</dt><dd>@MyWorkPresentation.Time(a.StartsAt)</dd></div>
+                    <div><dt>Carga</dt><dd>@a.LoadMinutes min</dd></div>
+                    <div><dt>Entrega</dt><dd>@(a.CompletedAt is {} delivered ? MyWorkPresentation.Time(delivered) : "Sin entrega")</dd></div>
+                </dl>
+                @if (editable) {
+                    <input type="hidden" name="Reviews.Index" value="@a.Id.ToString("N")" />
+                    <input type="hidden" name="@(prefix).Id" value="@a.Id" />
+                    <input type="hidden" name="@(prefix).Revision" value="@(previous?.Revision ?? a.Revision)" />
+                    <fieldset class="validation-choices"><legend class="solo-lectores">Revisión de @a.Name</legend>
+                        <label><input type="checkbox" name="@(prefix).Result" value="yes" checked="@(previous?.Result == "yes")" data-validation-choice />Concluida</label>
+                        <label><input type="checkbox" name="@(prefix).Result" value="no" checked="@(previous?.Result == "no")" data-validation-choice />No concluida</label>
+                    </fieldset>
+                    <div class="validation-negative" data-validation-negative hidden="@(previous?.Result != "no")">
+                        <label class="campo"><span class="campo__etiqueta">Comentario obligatorio</span><textarea class="campo__control" name="@(prefix).Comment" maxlength="4000">@previous?.Comment</textarea></label>
+                        <label class="campo"><span class="campo__etiqueta">Qué hacer con la tarea</span><select class="campo__control" name="@(prefix).Action">
+                            <option value="MISMA_PERSONA" selected="@(previous?.Action is null or "MISMA_PERSONA")">Reasignar a la misma persona</option>
+                            <option value="ROL" selected="@(previous?.Action == "ROL")">@(a.SpecializationId != null ? "Reasignar entre especialistas" : "Reasignar al rol " + SessionPresentation.RoleName(item.Role))</option>
+                            <option value="NO_SATISFECHA" selected="@(previous?.Action == "NO_SATISFECHA")">Terminar como no satisfecha</option>
+                        </select></label>
+                        <p class="texto-secundario">La corrección se activa ahora dentro del turno, aunque haya otras tareas o la capacidad esté llena. El plazo usa carga más margen y se limita a la salida del tramo vigente. La entrega original se conserva.</p>
+                    </div>
+                } else { <p class="badge @Model.Tone(a)">@Model.Status(a)</p> }
+            </article>
+        }
+        </div>
+        <footer class="validation-save"><span data-validation-count role="status" aria-live="polite">Selecciona las tareas que deseas revisar.</span><button class="boton boton--primario" type="submit" data-validation-save disabled>Guardar Revisión</button></footer>
+    </form>
+</section>

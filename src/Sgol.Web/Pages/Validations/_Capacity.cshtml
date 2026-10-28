@@ -8,7 +8,8 @@
         <span class="capacity-panel__hint"><span class="capacity-panel__show">Ver carga</span><span class="capacity-panel__hide">Ocultar carga</span></span>
     </summary>
     <div class="capacity-panel__content">
-    <p>Reduce la capacidad cuando una persona tenga otras responsabilidades. El reparto conserva fechas y requisitos; mueve tareas a compañeros con espacio disponible del mismo rol o, en tareas especializadas, de otros roles que tengan la especialización requerida y no estén a prueba.</p>
+    <p>Reduce la capacidad cuando una persona tenga otras responsabilidades. Las asignaciones anteriores conservan sus fechas y requisitos. Para nuevas asignaciones, la vista previa puede retrasar importantes y flexibles dentro del día; mueve tareas a compañeros con espacio disponible del mismo rol o, en tareas especializadas, de otros roles que tengan la especialización requerida y no estén a prueba.</p>
+    <p>La propuesta también puede retrasar importantes y flexibles futuras del destinatario para recibir una tarea prioritaria. Todos los cambios se muestran juntos antes de confirmar; no se mueven tareas activadas del destinatario sin selección ni se renuevan vencimientos.</p>
     <p><small>Base inicial: @(Sgol.Web.Infrastructure.Persistence.Planning.OperationalCapacity.DefaultDailyMinutes) minutos diarios para tareas operativas, editable. Los días registrados como no disponibles aportan 0 minutos; configura los descansos para reflejar la jornada real.</small></p>
     @if (Model.CapacitySuccess is not null) { <p role="status" class="alerta alerta--info">@Model.CapacitySuccess</p> }
     <form method="get" class="planificacion__formulario">
@@ -33,6 +34,7 @@
                 <label class="campo"><span class="campo__etiqueta">Minutos diarios de referencia al 100%</span><input class="campo__control" type="number" name="Change.DailyMinutes" min="1" max="480" value="@row.DailyMinutes" required /></label>
                 <label class="campo"><span class="campo__etiqueta">Motivo</span><textarea class="campo__control" name="Change.Reason" maxlength="1000" required></textarea></label>
                 <label><input type="checkbox" name="Change.TransferStarted" value="true" /> Permitir transferir tareas con avances, conservando su progreso</label>
+                @if (row.ActivatedTasks.Length > 0) { <fieldset><legend>Activadas no vencidas que confirmas disponibles para mover</legend><p>Selecciona solo las que todavía pueden reprogramarse. Las no seleccionadas conservan su bloque.</p>@foreach(var task in row.ActivatedTasks) { <label><input type="checkbox" name="Change.ActivatedTaskIds" value="@task.Id" /> @task.Name · @MyWorkPresentation.Time(task.StartsAt) — @MyWorkPresentation.Time(task.DueAt)</label> }</fieldset> }
                 <p>La vigencia seleccionada se restaura automáticamente al terminar. Las tareas transferidas permanecen con su nuevo responsable.</p>
                 <button class="boton boton--primario" type="submit">Ver redistribución propuesta</button>
             </form>
@@ -42,16 +44,19 @@
         <section class="capacity-preview" aria-labelledby="capacity-preview-title">
             <h3 id="capacity-preview-title" tabindex="-1" data-capacity-preview>Redistribución de @(Model.CapacityRows.Single(r => r.PersonId == preview.Change.PersonId).Name)</h3>
             <p>@preview.Change.Percent% de @preview.Change.DailyMinutes min diarios · @preview.Change.From.ToString("dd/MM/yyyy") — @preview.Change.Through.ToString("dd/MM/yyyy")</p>
-            <p>@preview.Moves.Count tareas · @preview.Moves.Sum(m => m.Minutes) minutos a transferir</p>
+            <p>@preview.Moves.Count tareas · @preview.Moves.Sum(m => m.Minutes) minutos de tareas con cambios de responsable u horario</p>
             @if (preview.RemainingExcess > 0) { <p role="alert" class="alerta alerta--peligro">Quedan @preview.RemainingExcess minutos de exceso. No se encontró capacidad suficiente para transferirlos o pertenecen a trabajo protegido. El ajuste no elimina esas tareas.</p> }
             @if (preview.Moves.Count > 0) {
-                <div class="tabla-contenedor"><table class="tabla"><thead><tr><th>Tarea</th><th>De</th><th>A</th><th>Esfuerzo restante</th><th>Inicio / vencimiento</th></tr></thead><tbody>
-                @foreach (var move in preview.Moves) { <tr><td>@move.TaskName</td><td>@move.FromName</td><td>@move.ToName</td><td>@move.Minutes min</td><td>@MyWorkPresentation.Time(move.StartsAt)<br />@MyWorkPresentation.Time(move.DueAt)</td></tr> }
+                <div class="tabla-contenedor"><table class="tabla"><thead><tr><th>Tarea</th><th>De</th><th>A</th><th>Esfuerzo restante</th><th>Criticidad</th><th>Horario anterior</th><th>Inicio / vencimiento propuesto</th></tr></thead><tbody>
+                @foreach (var move in preview.Moves) { <tr><td>@move.TaskName</td><td>@move.FromName</td><td>@move.ToName</td><td>@move.Minutes min</td><td>@Sgol.Web.Infrastructure.Persistence.Planning.OperationalAgenda.Label(move.OperationalCriticality)</td><td>@MyWorkPresentation.Time(move.PreviousStartsAt ?? move.StartsAt)<br />@MyWorkPresentation.Time(move.PreviousDueAt ?? move.DueAt)</td><td>@MyWorkPresentation.Time(move.StartsAt)<br />@MyWorkPresentation.Time(move.DueAt)</td></tr> }
                 </tbody></table></div>
             }
+            @foreach(var conflict in preview.Conflicts) { <details><summary>Sin acomodo: @conflict.TaskCode · @conflict.Task (@conflict.LoadMinutes min)</summary><ul>@foreach(var candidate in conflict.Candidates) { <li>@candidate.Person · @candidate.Day.ToString("dd/MM/yyyy") · @candidate.Hours · @Sgol.Web.Infrastructure.Persistence.Planning.TemporalEligibilityContext.Message(candidate.Reason)</li> }</ul></details> }
             <form method="post" asp-page-handler="CapacityApply">
                 <input type="hidden" asp-for="Change.PersonId" /><input type="hidden" asp-for="Change.From" /><input type="hidden" asp-for="Change.Through" />
                 <input type="hidden" asp-for="Change.Percent" /><input type="hidden" asp-for="Change.DailyMinutes" /><input type="hidden" asp-for="Change.Reason" />
+                <input type="hidden" asp-for="Change.SchedulingNotBefore" />
+                @foreach(var selected in preview.Change.ActivatedTaskIds ?? []) { <input type="hidden" name="Change.ActivatedTaskIds" value="@selected" /> }
                 <input type="hidden" asp-for="Change.TransferStarted" /><input type="hidden" asp-for="Fingerprint" />
                 <button class="boton boton--primario" type="submit">Aplicar capacidad y redistribuir</button>
                 <a class="boton boton--secundario" href="/validaciones#capacity">Cancelar</a>

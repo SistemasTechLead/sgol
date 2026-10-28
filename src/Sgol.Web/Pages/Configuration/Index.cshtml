@@ -4,9 +4,41 @@
     ViewData["Title"] = "Configuración";
 }
 <header class="encabezado-pagina">
-    <h1 class="encabezado-pagina__titulo">Configuración</h1>
-    <p class="encabezado-pagina__descripcion">Personaliza la apariencia de SGOL.</p>
+    <div class="encabezado-pagina__contenido">
+        <h1 class="encabezado-pagina__titulo">Configuración</h1>
+        <p class="encabezado-pagina__descripcion">Personaliza la apariencia de SGOL.</p>
+    </div>
 </header>
+<section class="panel-seccion avatar-settings" aria-labelledby="avatar-title">
+    <header class="panel-seccion__cabecera"><h2 id="avatar-title">Tu avatar</h2></header>
+    <p>Elige cómo aparecer junto a tu nombre y en el tablero. Tu elección se guarda en tu cuenta para todos tus dispositivos.</p>
+    @if (Model.AvatarMessage is not null) { <p role="status">@Model.AvatarMessage</p> }
+    <form method="post" asp-page-handler="Avatar" data-avatar-editor>
+        @if (!ViewData.ModelState.IsValid) { <div asp-validation-summary="All" role="alert"></div> }
+        <div class="avatar-settings__preview">
+            <span class="avatar-settings__image" data-avatar-preview>
+                <partial name="_PersonAvatar" model="@(new PersonAvatarViewModel(Model.CurrentSession.PersonId, Model.CurrentSession.DisplayName, Model.CurrentSession.UserName))" />
+            </span>
+            <div><strong>@Model.CurrentSession.DisplayName</strong><p>Vista previa</p></div>
+        </div>
+        <fieldset class="avatar-settings__styles">
+            <legend>Estilo</legend>
+            <label><input type="radio" asp-for="AvatarVariant" id="avatar-letter" value="" checked="@(string.IsNullOrEmpty(Model.AvatarVariant))" /><span class="avatar-settings__sample person-avatar" aria-hidden="true">@(new PersonAvatarViewModel(Model.CurrentSession.PersonId, Model.CurrentSession.DisplayName, Model.CurrentSession.UserName).Initial)</span><span>Usar mi letra</span></label>
+            @foreach (var variant in Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatarService.Variants) {
+                <label><input type="radio" asp-for="AvatarVariant" id="avatar-@variant" value="@variant" /><span class="avatar-settings__sample person-avatar" aria-hidden="true" data-avatar-option="@variant" data-person-avatar="@Model.CurrentSession.PersonId.ToString("N")" data-avatar-variant="@variant" data-avatar-palette="@Model.AvatarPalette" data-avatar-seed="@Model.AvatarSeed"></span><span>@(variant switch { "marble" => "Mármol", "beam" => "Caritas", "pixel" => "Píxeles", "sunset" => "Atardecer", "ring" => "Anillos", _ => "Bauhaus" })</span></label>
+            }
+        </fieldset>
+        <div class="avatar-settings__customize" data-avatar-customize hidden="@(string.IsNullOrEmpty(Model.AvatarVariant))">
+            <label for="AvatarPalette">Colores</label>
+            <select asp-for="AvatarPalette" disabled="@(string.IsNullOrEmpty(Model.AvatarVariant))"><option value="0">Original</option><option value="1">Loretta</option><option value="2">Océano</option><option value="3">Tierra</option></select>
+            <input type="hidden" asp-for="AvatarSeed" disabled="@(string.IsNullOrEmpty(Model.AvatarVariant))" />
+            <button type="button" class="boton boton--secundario" data-avatar-shuffle disabled="@(string.IsNullOrEmpty(Model.AvatarVariant))">Generar otro</button>
+        </div>
+        <p>Sin un avatar configurado, se muestra la primera letra de tu usuario.</p>
+        <button type="submit" class="boton boton--primario">Guardar avatar</button>
+        <span class="solo-lectores" role="status" data-avatar-status></span>
+    </form>
+</section>
 <section class="panel-seccion apariencia" aria-labelledby="appearance-title">
     <header class="panel-seccion__cabecera"><h2 id="appearance-title">Apariencia</h2></header>
     <p id="theme-help">Elige cómo quieres ver el programa. El cambio se aplica al instante y se guarda en este navegador.</p>

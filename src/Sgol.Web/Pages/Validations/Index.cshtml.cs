@@ -1,7 +1,9 @@
+using Sgol.Web.Presentation.Search;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
 using Sgol.BuildingBlocks.Time;
+using Sgol.Identity.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Planning;
 using Sgol.Web.Presentation.Navigation;
@@ -11,7 +13,7 @@ namespace Sgol.Web.Pages.Validations;
 public sealed record SupervisionSection(string Key, string Title, IReadOnlyList<SupervisedTask> All, IReadOnlyList<SupervisedTask> Items);
 public sealed record SupervisionFilterModel(IndexModel Page, SupervisionSection Section);
 
-public sealed class IndexModel(IRazorSessionState sessions, OperationalSupervisionService supervision, OperationalCapacityService capacity, OperationalTaskService tasks, IClock clock) : PageModel
+public sealed partial class IndexModel(IRazorSessionState sessions, OperationalSupervisionService supervision, OperationalCapacityService capacity, OperationalTaskService tasks, IClock clock, OperationalCarryoverService carryovers) : PageModel
 {
     [BindProperty(SupportsGet = true)] public DateOnly? CapacityFrom { get; set; }
     [BindProperty(SupportsGet = true)] public DateOnly? CapacityThrough { get; set; }
@@ -68,21 +70,27 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalSupervisi
         CapacityThrough ??= today.AddDays(6 - (((int)today.DayOfWeek + 6) % 7));
         if (CapacityFrom < today || CapacityThrough < CapacityFrom || CapacityThrough.Value.DayNumber - CapacityFrom.Value.DayNumber > 90)
             throw new DirectionPlanException("CAPACITY_INVALID", 422);
+        Carryovers = await carryovers.InboxAsync(actor, token);
         CapacityRows = await capacity.RowsAsync(actor, CapacityFrom.Value, CapacityThrough.Value, token);
         var all = await supervision.ListAsync(actor, token);
+        CarryoverCurrent = all.ToDictionary(x => x.Assignment.Id, x => x.Assignment);
         if (selected is not null) Selected = all.SingleOrDefault(t => t.Assignment.Id == selected)
             ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
         if (Selected?.Assignment.GoalUnits > 0) ProgressHistory = await tasks.ProgressHistoryAsync(actor, selected!.Value, token);
         if (Selected is not null) Photographs = await tasks.PhotographsAsync(actor, Selected.Assignment.Id, token);
         if (Selected?.Assignment.OccasionId != null) Occasion = await tasks.OccasionAsync(actor, Selected.Assignment.Id, token);
         var sections = new List<SupervisionSection>();
-        var pending = all.Where(t => Pending(t.Assignment)).OrderByDescending(t => t.Assignment.CompletedAt).ToArray();
+        var pending = all.Where(t => Pending(t.Assignment) &&
+            (Role != CanonicalRole.Direction || t.Role == CanonicalRole.Subcoordination || t.Assignment.SpecializationId != null))
+            .OrderByDescending(t => t.Assignment.CompletedAt).ToArray();
         sections.Add(new("pending", "Pendientes de revisión", pending, Filter("pending", pending)));
         foreach (var role in OperationalSupervisionService.RolesFor(Role)) {
             var tasks = all.Where(t => t.Role == role).ToArray();
             sections.Add(new(role, SessionPresentation.RoleName(role)!, tasks, Filter(role, tasks)));
         }
         Sections = sections;
+        if (Validation)
+            CardPhotos = await supervision.PhotoIdsAsync(actor, ValidationSection.Items.Select(t => t.Assignment.Id).ToArray(), token);
     }
     private IReadOnlyList<SupervisedTask> Filter(string key, IEnumerable<SupervisedTask> tasks)
     {
@@ -106,7 +114,7 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalSupervisi
         return tasks.Where(t => {
             var a = t.Assignment; var day = WeekContract.LocalToday(a.StartsAt);
             return (start == null || day >= start) && (end == null || day <= end) &&
-                (search.Length == 0 || a.Name.Contains(search, StringComparison.OrdinalIgnoreCase) || a.TaskCode.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
+                (search.Length == 0 || SearchText.Contains(a.Name, search) || SearchText.Contains(a.TaskCode, search)) &&
                 (Value(key, "period") == "" || t.Period == Value(key, "period")) &&
                 (Value(key, "requirement") == "" || a.Requirement == Value(key, "requirement")) &&
                 (Value(key, "status") == "" || StatusCode(a) == Value(key, "status")) &&
@@ -122,8 +130,8 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalSupervisi
         Guid? actor = null;
         try {
             actor = await ActorAsync(token); if (actor is null) return Redirect("/acceso");
-            await supervision.ReviewAsync(actor.Value, id, revision, decision, comment, token);
-            return Redirect(TaskHref(id));
+            var correctionId = await supervision.ReviewAsync(actor.Value, id, revision, decision, comment, token);
+            return Redirect(TaskHref(correctionId ?? id));
         } catch (DirectionPlanException e) {
             if (actor is null || e.Status == 403) return StatusCode(e.Status);
             Response.StatusCode = e.Status; Error = Message(e.Code);
@@ -132,11 +140,21 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalSupervisi
         }
     }
     public static string Message(string code) => code switch {
+        "REVIEW_BATCH_INVALID" => "Selecciona entre 1 y 500 tareas distintas para revisar.",
+        "REASSIGNMENT_NO_ELIGIBLE_RECIPIENT" => "No hay un destinatario activo y autorizado con el rol y la especialidad requeridos para esta devolución.",
+        "REASSIGNMENT_NO_VALID_SLOT" => "Ningún destinatario autorizado está en turno y disponible para recibir la corrección ahora. La entrega anterior se conservó sin cambios.",
+        "REASSIGNMENT_CAPACITY_EXCEEDED" => "La corrección supera la capacidad disponible del destinatario. La entrega anterior se conservó sin cambios.",
+        "SCHEDULING_NO_CONTIGUOUS_SLOT" or "SCHEDULING_CRITICAL_ANCHOR_PASSED" or "SCHEDULING_CRITICAL_OVERLAP" or "SCHEDULING_LEGACY_RESERVATION" or
+        "SCHEDULE_EMPLOYMENT_END" or "SCHEDULE_ACCOUNT_INACTIVE" or "SCHEDULE_ABSENT" or "SCHEDULE_MISSING" or "SCHEDULE_DEADLINE_PASSED" or
+        "SCHEDULE_NOT_PRESENT_AT_ACTIVATION" or "SCHEDULE_NOT_PRESENT_AT_RECEPTION" or "CLOSING_COVERAGE_REQUIRED" => Sgol.Web.Infrastructure.Persistence.Planning.TemporalEligibilityContext.Message(code),
+        "SCHEDULING_CRITICALITY_REQUIRED" => "Configura la criticidad de la tarea antes de generar la corrección.",
         "CAPACITY_INVALID" => "Revisa la vigencia (desde hoy, máximo 91 días), el porcentaje, los minutos diarios y el motivo.",
         "CAPACITY_OVERLAP" => "Ya hay un ajuste que se cruza con estas fechas. Usa la misma vigencia del ajuste existente o un intervalo que no se cruce.",
         "CAPACITY_STALE" => "La carga o disponibilidad cambió. Calcula de nuevo la vista previa antes de aplicar.",
         "REVIEW_COMMENT_REQUIRED" => "Para marcar una tarea como no concluida, escribe un comentario de hasta 4,000 caracteres.",
         "REVIEW_INVALID" => "Selecciona una decisión para esta tarea.",
+        "SCHEDULING_SEARCH_INCONCLUSIVE" => Sgol.Web.Infrastructure.Persistence.Planning.TemporalEligibilityContext.Message(code),
+        "SCHEDULING_CIRCUIT_ORDER" => Sgol.Web.Infrastructure.Persistence.Planning.TemporalEligibilityContext.Message(code),
         "PLAN_NO_AVAILABLE_WORKER" => "No hay una persona disponible con capacidad suficiente para estas fechas. Revisa disponibilidad y minutos diarios en Supervisión.",
         "PLAN_DISTINCT_WORKERS_REQUIRED" => "No hay suficientes personas distintas del rol para las repeticiones de esta semana.",
         "PLAN_NO_WORKER_FOR_ROLE" => "El plan contiene un rol sin personas disponibles.",
@@ -159,6 +177,8 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalSupervisi
                 return Redirect(QueryHelpers.AddQueryString("/validaciones", new Dictionary<string, string?> { ["CapacityFrom"] = change.From.ToString("yyyy-MM-dd"), ["CapacityThrough"] = change.Through.ToString("yyyy-MM-dd") }) + "#capacity");
             }
             CapacityPreview = await capacity.PreviewAsync(actor.Value, change, token);
+            Change.SchedulingNotBefore = CapacityPreview.Change.SchedulingNotBefore;
+            ModelState.Remove("Change.SchedulingNotBefore");
             Fingerprint = CapacityPreview.Fingerprint;
             ModelState.Remove(nameof(Fingerprint));
             await LoadAsync(actor.Value, null, token); return Page();
@@ -180,5 +200,9 @@ public sealed class CapacityForm
     public int DailyMinutes { get; set; } = OperationalCapacity.DefaultDailyMinutes;
     public string Reason { get; set; } = "";
     public bool TransferStarted { get; set; }
-    public CapacityChange Value() => new(PersonId, From, Through, Percent, DailyMinutes, Reason, TransferStarted);
+    public Guid[] ActivatedTaskIds { get; set; } = [];
+    public DateTimeOffset? SchedulingNotBefore { get; set; }
+    public CapacityChange Value() => new(PersonId, From, Through, Percent, DailyMinutes, Reason, TransferStarted, ActivatedTaskIds, SchedulingNotBefore);
 }
+
+

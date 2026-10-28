@@ -1,3 +1,4 @@
+using Sgol.Web.Presentation.Search;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Sgol.Identity.Contracts;
@@ -142,8 +143,8 @@ public sealed class IndexModel(IRazorSessionState sessions, UserProfileService p
         RotationPeople = all;
         Total = all.Count; Active = all.Count(p => p.Status == AccountStatus.Active);
         Profiles = all.Where(p => (string.IsNullOrWhiteSpace(Search) ||
-            p.DisplayName.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase) ||
-            p.UserName.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            SearchText.Contains(p.DisplayName, Search.Trim()) ||
+            SearchText.Contains(p.UserName, Search.Trim())) &&
             (string.IsNullOrEmpty(State) || p.Status == State)).OrderByDescending(p => p.Id == CurrentUserId).ToArray();
         return all;
     }

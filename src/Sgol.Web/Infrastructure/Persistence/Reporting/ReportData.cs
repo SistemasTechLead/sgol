@@ -20,6 +20,7 @@ public sealed class ReportFilter
     [DisplayFormat(ConvertEmptyStringToNull = false)] public string Requirement { get; set; } = "";
     [DisplayFormat(ConvertEmptyStringToNull = false)] public string Schedule { get; set; } = "";
     [DisplayFormat(ConvertEmptyStringToNull = false)] public string Frequency { get; set; } = "";
+    [DisplayFormat(ConvertEmptyStringToNull = false)] public string Carryover { get; set; } = "";
     public int? Repetitions { get; set; }
     public int? Hours { get; set; }
     public int? Minutes { get; set; }
@@ -42,7 +43,12 @@ public sealed record ReportRow(Guid Id, Guid PersonId, Guid PlanId, string Task,
     DateTimeOffset Due, DateTimeOffset? Delivered, DateTimeOffset? Reviewed, int Goal, int Units,
     string Unit, string Specialization, string ReviewComment, Guid? ReassignedFrom)
 {
+    public CarryoverTiming Carryover { get; init; } = new(null, null, 0, false, "");
+    public int? TransferRemainingMinutes { get; init; }
+    public int TransferProgressUnits { get; init; }
+    public string ProgressAuthors { get; init; } = "";
     public decimal Progress => Goal > 0 ? Math.Min(100, Math.Round(100m * Units / Goal, 1)) : 0;
+    public DateTimeOffset TimelinessDue => Carryover.RefreshCount > 0 ? Carryover.ReferenceDue ?? Due : Due;
     public bool Terminal => Status is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA";
 }
 
@@ -71,6 +77,7 @@ public static class ReportCatalog
         ["PENDIENTE_REVISION"] = "Pendiente de revisión", ["CONCLUIDA"] = "Concluida",
         ["REASIGNADA"] = "Reasignada", ["NO_SATISFECHA"] = "No satisfecha" };
     public static readonly Dictionary<string, string> Columns = new() {
+        ["carryover"] = "Arrastre / puntualidad", ["referenceDue"] = "Plazo de referencia original", ["recognizedDue"] = "Plazo reconocido", ["carryoverRefs"] = "Arrastres aprobados",
         ["task"] = "Tarea", ["person"] = "Responsable", ["plan"] = "Plan", ["status"] = "Estado",
         ["start"] = "Inicio", ["due"] = "Vencimiento", ["delivered"] = "Entrega", ["reviewed"] = "Revisión",
         ["progress"] = "Avance", ["minutes"] = "Carga estimada", ["requirement"] = "Requisito",
@@ -85,11 +92,13 @@ public static class ReportCatalog
     public static DateOnly Day(DateTimeOffset at) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(at, OperationalSchedule.Zone).DateTime);
     public static string Time(DateTimeOffset? at) => at is { } value ? TimeZoneInfo.ConvertTime(value, OperationalSchedule.Zone).ToString("dd/MM/yyyy HH:mm") : "Sin registro";
     public static string Cell(ReportRow row, string column) => column switch {
+        "carryover" => row.Carryover.Label(row.Due, row.Delivered), "referenceDue" => Time(row.Carryover.ReferenceDue), "recognizedDue" => Time(row.Carryover.RecognizedDue), "carryoverRefs" => row.Carryover.References,
         "task" => row.Task, "person" => row.Person, "plan" => row.Plan, "status" => Statuses[row.Status],
         "start" => Time(row.Start), "due" => Time(row.Due), "delivered" => Time(row.Delivered), "reviewed" => Time(row.Reviewed),
-        "progress" => row.Goal > 0 ? $"{row.Units} / {row.Goal} {row.Unit} ({row.Progress:0.#} %)" : "Sin meta",
-        "minutes" => $"{row.Minutes} min", "requirement" => row.Requirement.ToLowerInvariant(),
+        "progress" => row.Goal > 0 ? $"{row.Units} / {row.Goal} {row.Unit} ({row.Progress:0.#} %)" + (row.ProgressAuthors.Length > 0 ? $" · Autores: {row.ProgressAuthors}" : "") : "Sin meta",
+        "minutes" => row.TransferRemainingMinutes != null ? $"{row.RemainingMinutes} min pendientes ({row.Minutes} min originales)" : $"{row.Minutes} min", "requirement" => row.Requirement.ToLowerInvariant(),
         "specialization" => string.IsNullOrEmpty(row.Specialization) ? "Sin especialización" : row.Specialization,
         "comment" => string.IsNullOrEmpty(row.ReviewComment) ? "Sin comentario" : row.ReviewComment, _ => "" };
 }
+
 

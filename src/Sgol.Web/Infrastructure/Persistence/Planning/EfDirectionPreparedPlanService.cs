@@ -73,10 +73,11 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                 catch (DirectionPlanException e) { normalized = input; validation = e; }
                 var scope = IdempotencyProtocol.Scope(actor.ToString("D"), Operation, BranchScope.LorettaCode);
                 object hashInput = !normalized.IsWeeklyOperationsPlan && normalized.CapacityAdjustments is not { Count: > 0 }
-                    ? new { normalized.Name, normalized.Area, normalized.PeriodType, normalized.Year, normalized.PeriodNumber, normalized.TaskCodes }
+                    ? new { normalized.Name, normalized.Area, normalized.PeriodType, normalized.Year, normalized.PeriodNumber, normalized.TaskCodes, normalized.CapacityFingerprint, normalized.SchedulingNotBefore, normalized.SchedulingSearchMultiplier }
                     : normalized.IsWeeklyOperationsPlan ? normalized
                     : new { normalized.Name, normalized.Area, normalized.PeriodType, normalized.Year, normalized.PeriodNumber, normalized.TaskCodes,
-                        normalized.CapacityAdjustments, normalized.CapacityFingerprint };
+                        normalized.CapacityAdjustments, normalized.CapacityFingerprint, normalized.SchedulingNotBefore, normalized.SchedulingSearchMultiplier };
+                if (normalized.RollingMonthStartsOn != null) hashInput = new { RollingMonth = normalized };
                 var hash = IdempotencyProtocol.HashCanonical(Operation, actor.ToString("D"), BranchScope.LorettaCode, hashInput);
                 var replay = await db.IdempotencyRecords.FromSqlInterpolated($"SELECT * FROM idempotency_record WHERE scope = {scope} AND key = {key} FOR UPDATE")
                     .AsNoTracking().SingleOrDefaultAsync(ct);
@@ -102,6 +103,8 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                 {
                     if (validation is not null) throw validation;
                     var options = (await catalog.ReadTaskOptionsAsync(ct)).ToDictionary(t => t.TaskCode, StringComparer.Ordinal);
+                    var excluded = await db.OperationalTasks.Where(t => normalized.TaskCodes.Contains(t.TaskCode) && (!t.Active || t.Deleted)).Select(t => t.TaskCode).ToArrayAsync(ct);
+                    var activeCodes = normalized.TaskCodes.Except(excluded).ToArray();
                     if (normalized.IsWeeklyOperationsPlan)
                     {
                         if (await db.DirectionPreparedPlans.AnyAsync(p => p.BranchId == BranchScope.LorettaId &&
@@ -109,22 +112,29 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                             throw new DirectionPlanException("WEEKLY_OPERATIONS_PLAN_EXISTS", 409);
                         var expected = options.Values.Where(t => t.IsWeeklyOperationsTask).Select(t => t.TaskCode).ToHashSet(StringComparer.Ordinal);
                         if (expected.Count == 0) throw new DirectionPlanException("WEEKLY_OPERATIONS_TASKS_REQUIRED", 422);
-                        if (!expected.SetEquals(normalized.TaskCodes)) throw new DirectionPlanException("WEEKLY_OPERATIONS_CATALOG_CHANGED", 409);
+                        if (!expected.SetEquals(activeCodes)) throw new DirectionPlanException("WEEKLY_OPERATIONS_CATALOG_CHANGED", 409);
                     }
-                    if (normalized.TaskCodes.Any(code => !options.ContainsKey(code))) throw new DirectionPlanException("DIRECTION_PLAN_TASK_INVALID", 422);
+                    if (activeCodes.Any(code => !options.ContainsKey(code))) throw new DirectionPlanException("DIRECTION_PLAN_TASK_INVALID", 422);
                     var plan = new DirectionPreparedPlan(ids.NewUuid(), BranchScope.LorettaId, actor, at, normalized);
+                    var schedulingPolicy = await OperationalSchedulingPolicyService.CurrentAsync(db, ct);
+                    plan.CaptureSchedulingPolicy(schedulingPolicy.Id);
+                    if (string.IsNullOrWhiteSpace(normalized.CapacityFingerprint)) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
                     CapacityLedger? preparedLedger = null;
                     CapacityChange[] changes = [];
                     if (!string.IsNullOrWhiteSpace(normalized.CapacityFingerprint) || normalized.CapacityAdjustments is { Count: > 0 })
                     {
                         var state = await PlanningCapacity.ReadAsync(db, normalized, at, ct);
-                        if (state.Preview.Fingerprint != normalized.CapacityFingerprint) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
+                        await PlanningCapacity.DailyLoadAsync(db, normalized, state.Preview, state.Ledger, ct);
+                        if (state.Preview.AgendaFingerprint != normalized.CapacityFingerprint) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
                         changes = PlanningCapacity.Changes(normalized, state.Preview, state.Ledger);
                         var ledger = state.Ledger;
                         preparedLedger = new(ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today)
                             { Temporal = ledger.Temporal, PlannedChanges = changes };
                     }
                     var assignments = await OperationalPlanGenerator.GenerateAsync(db, plan, normalized.TaskCodes, at, ct, preparedLedger: preparedLedger);
+                    var savingDay = WeekContract.LocalToday(clock.UtcNow);
+                    if (assignments.Any(a => a.SchedulingPolicyId != null && a.ScheduleMode != "PROGRESO" && a.StartsAt < clock.UtcNow &&
+                        !(normalized.IsWeeklyOperationsPlan && WeekContract.LocalToday(a.StartsAt) == savingDay))) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
                     // Capacity adjustment rows reference this plan during the per-segment flush below.
                     db.DirectionPreparedPlans.Add(plan);
                     // Only stage settings after successful generation: rejected plans must not change shared capacity.
@@ -149,7 +159,7 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                     }
                     plan.MarkAssigned();
                     db.OperationalAssignments.AddRange(assignments);
-                    var tasks = normalized.TaskCodes.Select((code, index) => new DirectionPreparedPlanItem(plan.Id, code, options[code].Name, index)).ToArray();
+                    var tasks = activeCodes.Select((code, index) => new DirectionPreparedPlanItem(plan.Id, code, options[code].Name, index)).ToArray();
                     db.DirectionPreparedPlanItems.AddRange(tasks);
                     saved = new("CREATED", plan.Details(tasks.Select(t => new DirectionPlanTask(t.TaskCode, t.Name)).ToArray()) with {
                         Assignments = assignments.Select(a => a.Details()).ToArray()

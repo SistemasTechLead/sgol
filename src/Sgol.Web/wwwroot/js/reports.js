@@ -91,8 +91,8 @@
         customize(); form.requestSubmit();
     }));
     $("#report-search")?.addEventListener("input", event => {
-        const search = event.target.value.toLocaleLowerCase("es-MX"); let shown = 0;
-        document.querySelectorAll(".report-table tbody tr").forEach(row => { row.hidden = !row.textContent.toLocaleLowerCase("es-MX").includes(search); if (!row.hidden) shown++; });
+        const search = window.SgolSearch.normalize(event.target.value); let shown = 0;
+        document.querySelectorAll(".report-table tbody tr").forEach(row => { row.hidden = !window.SgolSearch.normalize(row.textContent).includes(search); if (!row.hidden) shown++; });
         $("#report-search-count").textContent = `${shown} asignaciones visibles en el detalle. Los indicadores corresponden al reporte generado.`;
     });
     apply(initial); templateActions();

@@ -13,7 +13,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 public sealed record ProcessRunView(OperationalSequenceRun Run, OperationalSequenceStage[] Stages,
     OperationalSequenceAttempt[] Attempts, OperationalSequenceDocument[] Documents, OperationalSequenceEvent[] Events,OperationalSequenceStep[] Rules);
 
-public sealed class OperationalProcessService(SgolDbContext db, IDirectionPreparedPlanService direction, IClock clock,
+public sealed partial class OperationalProcessService(SgolDbContext db, IDirectionPreparedPlanService direction, IClock clock,
     IFileTechnicalValidator validator, IFileMalwareScanner scanner)
 {
     public async Task<Guid> StartAsync(Guid actor, Guid processId, Guid key, DateTimeOffset starts,
@@ -30,13 +30,19 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
         var version = await db.Set<OperationalSequenceVersion>().AsNoTracking().SingleAsync(v => v.SequenceId==processId && v.Id == (capturedVersionId ?? root.PublishedVersionId) && v.PublishedAt != null, token);
         var steps = await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s => s.VersionId == version.Id).OrderBy(s => s.Position).ToArrayAsync(token);
         if (steps.Length == 0 || steps.Any(s => s.TaskSnapshot == null || !people.ContainsKey(s.Position))) throw Error("PROCESS_RULES_INVALID");
+        if (version.AgendaVersion != null && preparedPlanId == null) throw Error("PROCESS_PREPARE_REQUIRED");
         var tasks = steps.Select(s => JsonSerializer.Deserialize<OperationalTask>(s.TaskSnapshot!)!).ToArray();
         if (await db.OperationalTasks.AnyAsync(t => tasks.Select(x => x.Id).Contains(t.Id) && (t.ProcessId != processId || !t.Active || t.Deleted), token)) throw Error("PROCESS_MEMBERSHIP_INVALID");
         var latest = starts.AddHours(steps.Sum(s => s.DeadlineHours));
         var plan = preparedPlanId is { } planId ? await db.DirectionPreparedPlans.SingleAsync(p=>p.Id==planId && p.BranchId==BranchScope.LorettaId,token) :
             DirectionPreparedPlan.ForOccasion(Guid.CreateVersion7(), BranchScope.LorettaId, actor, clock.UtcNow, version.Name,WeekContract.LocalToday(starts),WeekContract.LocalToday(latest));
+        if (preparedPlanId == null && version.AgendaVersion != null) plan.CaptureSchedulingPolicy((await OperationalSchedulingPolicyService.CurrentAsync(db, token)).Id);
+        var schedulingPolicy = plan.SchedulingPolicyId is {} pid ? await db.Set<OperationalSchedulingPolicy>().AsNoTracking().SingleAsync(p => p.Id == pid, token) : null;
+        var capturedAgenda = preparedPlanId is {} preparedId ? await db.Set<PreparedProcessStart>().AsNoTracking().Where(p => p.PlanId == preparedId && p.StartKey == startKey).Select(p => p.AgendaJson).SingleOrDefaultAsync(token) : null;
+        var preparedAssignments = capturedAgenda == null ? null : JsonSerializer.Deserialize<OperationalAssignment[]>(capturedAgenda);
         if(preparedPlanId==null) db.Add(plan);
         var run = new OperationalSequenceRun { Id = Guid.CreateVersion7(), VersionId = version.Id, PlanId = plan.Id,
+            UsesTaskEvidence = tasks.Any(t => t.Requirement != "DOCUMENTO"),
             Name = version.Name, StartKey = startKey, PlannedStartsAt = starts, CreatedAt = clock.UtcNow, CreatedBy = actor }; db.Add(run);
         var ledger = await OperationalCapacityService.LedgerAsync(db, clock.UtcNow, token);
         var planned = starts;
@@ -45,7 +51,7 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
         {
             var task = tasks[i]; var rule=steps[i]; task.Validate();
             var stage = new OperationalSequenceStage { Id=Guid.CreateVersion7(), RunId=run.Id, VersionId=version.Id, Position=rule.Position,
-                TaskId=task.Id, TaskRevision=task.Revision, TaskCode=task.TaskCode, Name=task.Name, Description=task.Description, Role=task.AssignedRole, Requirement=task.Requirement,
+                TaskId=task.Id, TaskRevision=task.Revision, DefinitionSnapshotJson=AssignmentDefinition.Capture(task), TaskCode=task.TaskCode, Name=task.Name, Description=task.Description, Role=task.AssignedRole, Requirement=task.Requirement, ChecklistJson = task.ChecklistJson,
                 SpecializationId=task.SpecializationId, LoadMinutes=task.LoadMinutes, MinimumPhotos=task.MinimumPhotos, MaximumPhotos=task.MaximumPhotos,
                 MaximumPhotoBytes=task.MaximumPhotoBytes, PlannedStartsAt=planned, PlannedDueAt=planned.AddHours(rule.DeadlineHours),
                 MinimumStartsAt=rule.MinimumStartOffsetHours is { } offset ? starts.AddHours(offset) : i==0 ? starts : null,
@@ -54,8 +60,19 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
             if(worker==null && (preparedPlanId==null || !ledger.Temporal.Enabled)) throw Error("OCCASION_RECIPIENT_INVALID");
             stage.ReservedPersonId=person; stage.ReservedPersonName=worker?.Name ?? await db.People.Where(p=>p.Id==person).Select(p=>p.DisplayName).SingleAsync(token);
             if (stage.SpecializationId is { } specialty) stage.SpecializationName=await db.Set<Sgol.Web.Infrastructure.Persistence.Organization.Specialization>().Where(s=>s.Id==specialty).Select(s=>s.Name).SingleAsync(token);
+            if (schedulingPolicy != null) {
+                var captured = preparedAssignments?.Single(a => a.TaskId == task.Id);
+                var anchoredMinimum = rule.MinimumStartOffsetHours is {} hours ? starts.AddHours(hours) : starts;
+                var nominal = captured?.NominalStartsAt ?? (task.OperationalCriticality == "CRITICA" ? anchoredMinimum : new[] { planned, anchoredMinimum }.Max());
+                if (task.OperationalCriticality == "CRITICA" && planned > nominal) throw Error("SCHEDULING_CRITICAL_OVERLAP");
+                stage.SchedulingPolicyId = schedulingPolicy.Id; stage.ClosureMarginPercent = schedulingPolicy.MarginPercent; stage.OperationalCriticality = task.OperationalCriticality; stage.NominalStartsAt = nominal;
+                var projected = Reservation(stage, plan.Id); OperationalAgenda.Capture(projected, schedulingPolicy, task.OperationalCriticality, nominal);
+                if (captured != null) { projected.StartsAt = captured.StartsAt; projected.DueAt = captured.DueAt; }
+                else OperationalAgenda.Apply(projected, OperationalAgenda.Find(ledger, person, projected, clock.UtcNow));
+                stage.PlannedStartsAt = projected.StartsAt; stage.PlannedDueAt = projected.DueAt; stage.FixedDueAt = null;
+            }
             var reservation=Reservation(stage,plan.Id);
-            if((preparedPlanId==null || !ledger.Temporal.Enabled) && !ledger.CanAssign(person,reservation)) throw Error("PLAN_NO_AVAILABLE_WORKER");
+            if((schedulingPolicy != null || preparedPlanId==null || !ledger.Temporal.Enabled) && !ledger.CanAssign(person,reservation)) throw Error("PLAN_NO_AVAILABLE_WORKER");
             ledger = new(ledger.Workers,ledger.Tasks.Append(reservation).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal = ledger.Temporal };
             var attempt = NewAttempt(stage,run,1,null,clock.UtcNow);
             db.Add(stage); db.Add(attempt); if(preparedPlanId==null) db.Add(new DirectionPreparedPlanItem(plan.Id,task.TaskCode,task.Name,i));
@@ -98,14 +115,25 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
     }
 
     public async Task DecideAsync(Guid actor,Guid runId,Guid attemptId,long revision,Guid key,string decision,string conclusion,
-        string? differences,IFormFile? file,bool declared,CancellationToken token)
+        string? differences,IFormFile? file,bool declared,CancellationToken token,
+        Guid? captureSessionId = null, IReadOnlyList<Guid>? photographIds = null, IReadOnlyList<IFormFile>? screenshots = null, string? checklistAnswer = null)
     {
         if(key==Guid.Empty || !declared || string.IsNullOrWhiteSpace(conclusion) || conclusion.Trim().Length>4000 || differences?.Length>4000 ||
             decision is not ("ENTREGA" or "APROBACION" or "DEVOLUCION" or "SIN_DIFERENCIAS" or "ACEPTADA_CON_DIFERENCIAS")) throw Error("PROCESS_DECISION_INVALID");
         // Reuse the existing technical validation and malware adapter before acquiring the lock.
-        var prepared=file==null ? null : await new OperationalTaskService(db,direction,clock,validator,scanner).ProcessPdfAsync(file,token);
-        var requestHash=Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { actor,attemptId,decision,
-            conclusion=conclusion.Trim(),differences=differences?.Trim(),declared,FileHash=prepared==null ? null : Convert.ToHexStringLower(SHA256.HashData(prepared.Content)) })));
+        var usesTaskEvidence = await db.Set<OperationalSequenceRun>().Where(r => r.Id == runId).Select(r => r.UsesTaskEvidence).SingleAsync(token);
+        if (!usesTaskEvidence && (captureSessionId != null || photographIds?.Count > 0 || screenshots?.Count > 0)) throw Error("TASK_FILE_INVALID");
+        var taskService = new OperationalTaskService(db,direction,clock,validator,scanner);
+        var prepared=usesTaskEvidence || file==null ? null : await taskService.ProcessPdfAsync(file,token);
+        async Task<string> FileHash(IFormFile incoming) { await using var stream = incoming.OpenReadStream(); return Convert.ToHexStringLower(await SHA256.HashDataAsync(stream,token)); }
+        var evidenceHash = usesTaskEvidence ? JsonSerializer.Serialize(new {
+            File = file == null ? null : await FileHash(file), captureSessionId, photographIds, checklistAnswer,
+            Screenshots = screenshots == null ? null : await Task.WhenAll(screenshots.Select(FileHash)) }) : null;
+        var requestBytes = usesTaskEvidence ? JsonSerializer.SerializeToUtf8Bytes(new { actor,attemptId,decision,
+            conclusion=conclusion.Trim(),differences=differences?.Trim(),declared,evidenceHash }) :
+            JsonSerializer.SerializeToUtf8Bytes(new { actor,attemptId,decision,
+            conclusion=conclusion.Trim(),differences=differences?.Trim(),declared,FileHash=prepared==null ? null : Convert.ToHexStringLower(SHA256.HashData(prepared.Content)) });
+        var requestHash=Convert.ToHexStringLower(SHA256.HashData(requestBytes));
         await using var tx=await db.Database.BeginTransactionAsync(token); await OperationalTaskService.LockAsync(db,token);
         var person=await Person(actor,token); await RequireAccess(actor,runId,token);
         var run=await db.Set<OperationalSequenceRun>().SingleAsync(r=>r.Id==runId,token);
@@ -138,6 +166,12 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
             {
                 var old=await db.Set<OperationalSequenceAttempt>().SingleAsync(a=>a.Id==downstream.CurrentAttemptId,token);
                 old.Status="SUSTITUIDO"; old.Revision++; old.FinishedAt ??=clock.UtcNow;
+                if (run.UsesTaskEvidence && old.AssignmentId is { } previousId && previousId != assignment.Id)
+                {
+                    var previous = await db.OperationalAssignments.SingleAsync(a => a.Id == previousId, token);
+                    previous.ReviewStatus = "NO_SATISFECHA"; previous.ReviewDecision = "NO_SATISFECHA";
+                    previous.ReviewedBy = actor; previous.ReviewedAt = clock.UtcNow; previous.ReviewComment = conclusion.Trim(); previous.Revision++;
+                }
                 downstream.Status="EN_ESPERA"; downstream.EnabledAt=null; downstream.EffectiveDueAt=null; downstream.EligibleAt=null; downstream.DependencySatisfiedAt=null; downstream.DependencyEventId=null; downstream.Revision++;
                 var next=NewAttempt(downstream,run,(await db.Set<OperationalSequenceAttempt>().Where(a=>a.StageId==downstream.Id).MaxAsync(a=>a.Number,token))+1,inputDocument,clock.UtcNow);
                 next.UnresolvedDifferences=attempt.UnresolvedDifferences;
@@ -154,6 +188,9 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
             if(final && decision is not ("SIN_DIFERENCIAS" or "ACEPTADA_CON_DIFERENCIAS") || !final && decision is "SIN_DIFERENCIAS" or "ACEPTADA_CON_DIFERENCIAS" ||
                 decision=="ACEPTADA_CON_DIFERENCIAS" && string.IsNullOrWhiteSpace(differences) || decision=="SIN_DIFERENCIAS" && !string.IsNullOrWhiteSpace(differences)) throw Error("PROCESS_DECISION_INVALID");
             Guid? document=inputDocument;
+            if (run.UsesTaskEvidence)
+                await taskService.CompleteProcessEvidenceAsync(actor, assignment.Id, conclusion, file, token, conclusion,
+                    captureSessionId, photographIds, screenshots, checklistAnswer);
             if(prepared!=null)
             {
                 db.Add(new OperationalAttachment { AssignmentId=assignment.Id,FileName=prepared.FileName,ContentType="application/pdf",Content=prepared.Content,CreatedAt=clock.UtcNow });
@@ -161,10 +198,18 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
                     Number=(await db.Set<OperationalSequenceDocument>().Where(d=>d.RunId==runId).MaxAsync(d=>(int?)d.Number,token)??0)+1,
                     PreviousDocumentId=inputDocument,CreatedAt=clock.UtcNow,CreatedBy=actor,Sha256=Convert.ToHexStringLower(SHA256.HashData(prepared.Content)) }; db.Add(doc); document=doc.Id;
             }
-            if(stage.Requirement=="DOCUMENTO" && document==null || rule.Action is "ENTREGAR" or "SELLAR" && prepared==null) throw Error("TASK_FILE_REQUIRED");
-            if(document==null) throw Error("PROCESS_DECISION_INVALID");
+            if(!run.UsesTaskEvidence && (stage.Requirement=="DOCUMENTO" && document==null || rule.Action is "ENTREGAR" or "SELLAR" && prepared==null)) throw Error("TASK_FILE_REQUIRED");
+            if(!run.UsesTaskEvidence && document==null) throw Error("PROCESS_DECISION_INVALID");
             attempt.OutputDocumentId=document; attempt.Status=decision=="ENTREGA" ? "ENTREGADO" : "APROBADO"; attempt.Comment=conclusion.Trim(); attempt.UnresolvedDifferences=differences?.Trim(); attempt.FinishedAt=clock.UtcNow; attempt.Revision++;
             assignment.CompletedAt=clock.UtcNow; assignment.CompletedBy=actor; assignment.CompletionKind="ENTREGA"; assignment.Conclusion=conclusion.Trim(); assignment.ReviewStatus=final ? "CONCLUIDA" : "PENDIENTE_REVISION"; assignment.Revision++;
+            if (run.UsesTaskEvidence && stage.Position > 1)
+            {
+                var previousStage = await db.Set<OperationalSequenceStage>().SingleAsync(s => s.RunId == runId && s.Position == stage.Position - 1, token);
+                var previousAttempt = await db.Set<OperationalSequenceAttempt>().SingleAsync(a => a.Id == previousStage.CurrentAttemptId, token);
+                var previousAssignment = await db.OperationalAssignments.SingleAsync(a => a.Id == previousAttempt.AssignmentId, token);
+                previousAssignment.ReviewStatus = "CONCLUIDA"; previousAssignment.ReviewDecision = "CONCLUIDA";
+                previousAssignment.ReviewedAt = clock.UtcNow; previousAssignment.ReviewedBy = actor; previousAssignment.ReviewComment = conclusion.Trim(); previousAssignment.Revision++;
+            }
             // Accept the exact input submission in the same transaction as the reviewer's output.
             if(inputDocument!=null)
             {
@@ -234,7 +279,7 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
             var previous=attempts.Single(a=>a.Id==stage.CurrentAttemptId);
             var projected=Reservation(stage,run.PlanId); projected.PersonId=target.Id; projected.PersonName=target.Name; projected.AssignedRole=target.Role;
             var active=stage.Status=="DISPONIBLE";
-            if(active) { projected.StartsAt=clock.UtcNow; projected.DueAt=stage.EffectiveDueAt!.Value; if(projected.DueAt<=clock.UtcNow) throw Error("PROCESS_CONFLICT",409); }
+            if(active) { projected.StartsAt=stage.SchedulingPolicyId == null ? clock.UtcNow : stage.EnabledAt ?? stage.PlannedStartsAt; projected.DueAt=stage.EffectiveDueAt!.Value; if(projected.DueAt<=clock.UtcNow) throw Error("PROCESS_CONFLICT",409); }
             if(!ledger.CanAssign(target.Id,projected,active?clock.UtcNow:null)) throw Error("PLAN_NO_AVAILABLE_WORKER");
             ledger=new(ledger.Workers,ledger.Tasks.Append(projected).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal = ledger.Temporal, Override=capacity };
             previous.Status="SUSTITUIDO"; previous.Comment=reason; previous.FinishedAt=clock.UtcNow; previous.Revision++;
@@ -272,6 +317,7 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
         var currentAttempt=await db.Set<OperationalSequenceAttempt>().SingleAsync(a=>a.Id==stage.CurrentAttemptId,token);
         var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,token);
         ledger=new(ledger.Workers,ledger.Tasks.Where(a=>a.Id!=stage.Id).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal = ledger.Temporal };
+        if (stage.SchedulingPolicyId != null) { await EnableScheduledStage(run, stage, currentAttempt, ledger, token); return; }
         var ready=OperationalSequenceRules.Enable(stage.DependencySatisfiedAt,stage.MinimumStartsAt,rule.DeadlineKind,rule.DeadlineHours,stage.FixedDueAt,true,clock.UtcNow,
             stage.Status=="PENDIENTE_ASIGNACION" ? clock.UtcNow : currentAttempt.CreatedAt);
         if(ready.Status=="DISPONIBLE")
@@ -309,8 +355,11 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
     public async Task<bool> CanReadDocumentAsync(Guid actor,Guid assignmentId,CancellationToken token)
     {
         var doc=await db.Set<OperationalSequenceDocument>().AsNoTracking().SingleOrDefaultAsync(d=>d.AssignmentId==assignmentId,token);
-        if(doc==null) return false;
-        try { await RequireAccess(actor,doc.RunId,token); return true; } catch(DirectionPlanException e) when(e.Status==403) { return false; }
+        var runId = doc?.RunId ?? await db.Set<OperationalSequenceAttempt>().AsNoTracking()
+            .Where(a => a.AssignmentId == assignmentId && db.Set<OperationalSequenceRun>().Any(r => r.Id == a.RunId && r.UsesTaskEvidence))
+            .Select(a => (Guid?)a.RunId).SingleOrDefaultAsync(token);
+        if(runId==null) return false;
+        try { await RequireAccess(actor,runId.Value,token); return true; } catch(DirectionPlanException e) when(e.Status==403) { return false; }
     }
     public async Task RequireAccess(Guid actor,Guid run,CancellationToken token)
     {
@@ -326,10 +375,10 @@ public sealed class OperationalProcessService(SgolDbContext db, IDirectionPrepar
         var person=await db.AppUsers.Where(u=>u.Id==actor && u.Status==AccountStatus.Active).Select(u=>(Guid?)u.PersonId).SingleOrDefaultAsync(token);
         if(person==null || !workers.Any(w=>w.Id==person)) throw Error("ACCESO_DENEGADO",403); return person.Value;
     }
-    internal static OperationalAssignment Reservation(OperationalSequenceStage s,Guid plan) => new() { Id=s.Id,PlanId=plan,TaskId=s.TaskId,TaskRevision=s.TaskRevision,TaskCode=s.TaskCode,Name=s.Name,Description=s.Description,
-        Requirement=s.Requirement,AssignedRole=s.Role,LoadMinutes=s.LoadMinutes,MinimumPhotos=s.MinimumPhotos,MaximumPhotos=s.MaximumPhotos,MaximumPhotoBytes=s.MaximumPhotoBytes,
+    internal static OperationalAssignment Reservation(OperationalSequenceStage s,Guid plan) => new() { Id=s.Id,PlanId=plan,TaskId=s.TaskId,TaskRevision=s.TaskRevision,DefinitionSnapshotJson=s.DefinitionSnapshotJson,TaskCode=s.TaskCode,Name=s.Name,Description=s.Description,
+        Requirement=s.Requirement, ChecklistJson = s.ChecklistJson,AssignedRole=s.Role,LoadMinutes=s.LoadMinutes,MinimumPhotos=s.MinimumPhotos,MaximumPhotos=s.MaximumPhotos,MaximumPhotoBytes=s.MaximumPhotoBytes,
         SpecializationId=s.SpecializationId,SpecializationName=s.SpecializationName,PersonId=s.ReservedPersonId??Guid.Empty,PersonName=s.ReservedPersonName??"",
-        StartsAt=s.PlannedStartsAt,DueAt=s.PlannedDueAt,PeriodType="OCASIONAL" };
+        StartsAt=s.PlannedStartsAt,DueAt=s.PlannedDueAt,PeriodType="OCASIONAL", SchedulingPolicyId=s.SchedulingPolicyId, ClosureMarginPercent=s.ClosureMarginPercent, OperationalCriticality=s.OperationalCriticality, NominalStartsAt=s.NominalStartsAt };
     private static OperationalSequenceAttempt NewAttempt(OperationalSequenceStage stage,OperationalSequenceRun run,int number,Guid? document,DateTimeOffset at) =>
         new() { Id=Guid.CreateVersion7(),RunId=run.Id,StageId=stage.Id,PlanId=run.PlanId,Number=number,Round=run.Round,InputDocumentId=document,CreatedAt=at };
     private static OperationalSequenceEvent Event(OperationalSequenceRun run,OperationalSequenceStage stage,OperationalSequenceAttempt attempt,string kind,string key,Guid? actor,DateTimeOffset at,Guid? doc,string? comment) =>

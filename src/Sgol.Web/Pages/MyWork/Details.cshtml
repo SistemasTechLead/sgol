@@ -3,6 +3,7 @@
 @using Sgol.Web.Presentation.MyWork
 @{ ViewData["Title"] = "Detalle de tarea"; }
 <header class="encabezado-pagina"><h1 class="encabezado-pagina__titulo">Detalle de tarea</h1></header>
+<partial name="_SectionNavigation" model='@(Model.BackHref.StartsWith("/validaciones", StringComparison.Ordinal) ? "supervision" : "my-work")' />
 <p><a class="boton boton--secundario" href="@Model.BackHref">@(Model.BackHref.StartsWith("/validaciones", StringComparison.Ordinal) ? "Volver a Validación y supervisión" : "Volver a Mi trabajo")</a></p>
 @if (Model.Error is not null)
 {

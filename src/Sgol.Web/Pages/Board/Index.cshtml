@@ -1,7 +1,9 @@
 @page "/tablero"
 @model Sgol.Web.Pages.Board.IndexModel
 @{
-    Layout = "_BoardLayout";
+    var isScreen = Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User);
+    Layout = isScreen ? "_BoardLayout" : "_Layout";
+    ViewData["BoardShell"] = !isScreen;
     ViewData["Title"] = "Tablero";
 }
 <div id="live-board" aria-busy="false">

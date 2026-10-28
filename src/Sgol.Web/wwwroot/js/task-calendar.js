@@ -25,6 +25,12 @@
     const repeats = document.getElementById('Input_Repetitions');
     const sunday = document.querySelector('[data-sunday-time]');
     const sundayDay = document.querySelector('input[name="InputDays"][value="0"]');
+    function updateWeeklyOperations() {
+        const checkbox = document.querySelector('[data-task-weekly-operations]');
+        if (!checkbox) return;
+        checkbox.disabled = period.value !== 'SEMANAL';
+        if (checkbox.disabled) checkbox.checked = false;
+    }
     function updateSunday() {
         const includesSunday = period.value === 'SEMANAL' && (
             mode.value === 'DIAS_FIJOS' && sundayDay.checked ||
@@ -33,6 +39,7 @@
         sunday.querySelector('input').disabled = !includesSunday;
     }
     function update() {
+        updateWeeklyOperations();
         const occasional = period.value === 'OCASIONAL';
         const monthFields = document.querySelector('[data-month-days]');
         const monthInput = monthFields.querySelector('input');
@@ -59,6 +66,7 @@
             if (active) document.getElementById('Input_DifferentPeople').checked = false;
         } else if (mode.value === 'DIAS_FIJOS') repeats.value = Math.max(1, document.querySelectorAll('input[name="InputDays"]:checked').length);
         if (mode.value !== 'DISTRIBUIDA') document.getElementById('Input_PeriodType').value = 'SEMANAL';
+        updateWeeklyOperations();
         updateSunday();
     }
     document.getElementById('Input_Active').addEventListener('change', update);

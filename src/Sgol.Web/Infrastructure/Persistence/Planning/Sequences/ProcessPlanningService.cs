@@ -22,11 +22,15 @@ public sealed class ProcessPlanInput
 }
 public sealed record ProcessPlanStage(int Position,string Name,string Role,Guid PersonId,string PersonName,int Minutes,int DeadlineHours);
 public sealed record ProcessPlanPreview(Guid VersionId,int Version,string ProcessName,DateTimeOffset[] Starts,
-    ProcessPlanStage[] Stages,string Fingerprint);
+    ProcessPlanStage[] Stages,string Fingerprint)
+{
+    public Guid? SchedulingPolicyId { get; init; }
+    public Dictionary<string, OperationalAssignment[]> Agenda { get; init; } = [];
+}
 public sealed record ProcessPlanConfiguration(Guid StartId,string Name,int Version,ProcessPlanStage[] Stages);
 public sealed record ProcessPlanView(DirectionPreparedPlan Plan,PreparedProcessStart[] Starts,OperationalSequenceRun[] Runs,ProcessPlanConfiguration[] Configurations);
 
-public sealed class ProcessPlanningService(SgolDbContext db,IDirectionPreparedPlanService direction,IClock clock,
+public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPreparedPlanService direction,IClock clock,
     IFileTechnicalValidator validator,IFileMalwareScanner scanner)
 {
     public async Task<ProcessPlanPreview> PreviewAsync(Guid actor,ProcessPlanInput input,CancellationToken token)
@@ -49,7 +53,14 @@ public sealed class ProcessPlanningService(SgolDbContext db,IDirectionPreparedPl
         if(await db.OperationalTasks.AnyAsync(t=>tasks.Select(x=>x.Id).Contains(t.Id) && (t.ProcessId!=root.Id || !t.Active || t.Deleted),token)) throw Error("PROCESS_MEMBERSHIP_INVALID");
         var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,token);
         var snapshot=ledger;
-        var workers=steps.Select(s=>ledger.Workers.SingleOrDefault(w=>w.Id==input.People[s.Position] && w.EligibleFor(tasks[s.Position-1].AssignedRole, tasks[s.Position-1].SpecializationId))
+        var policy = version.AgendaVersion != null ? await OperationalSchedulingPolicyService.CurrentAsync(db, token) : null;
+        // Empty Guid is the explicit per-stage "Aleatorio" choice. Resolve before hashing;
+        // preparation receives actual people and never reruns the draw.
+        var people = input.People.Values.Contains(Guid.Empty)
+            ? ResolvePeople(input, version.Id, steps, tasks, starts, ledger, policy, clock.UtcNow, token)
+            : input.People;
+        var agenda = new Dictionary<string, OperationalAssignment[]>();
+        var workers=steps.Select(s=>ledger.Workers.SingleOrDefault(w=>w.Id==people[s.Position] && w.EligibleFor(tasks[s.Position-1].AssignedRole, tasks[s.Position-1].SpecializationId))
             ?? throw Error("OCCASION_RECIPIENT_INVALID")).ToArray();
         var rows=steps.Select((s,i)=>new ProcessPlanStage(s.Position,tasks[i].Name,tasks[i].AssignedRole,workers[i].Id,workers[i].Name,tasks[i].LoadMinutes,s.DeadlineHours)).ToArray();
         foreach(var startsAt in starts)
@@ -57,17 +68,21 @@ public sealed class ProcessPlanningService(SgolDbContext db,IDirectionPreparedPl
             var startKey=input.Mode=="CALENDARIO" ? $"C:{root.Id:N}:{WeekContract.LocalToday(startsAt):yyyyMMdd}" : $"P:{input.Key:N}:{root.Id:N}";
             if(await db.Set<PreparedProcessStart>().AnyAsync(p=>p.StartKey==startKey && p.PlanId!=input.Key,token) ||
                 await db.Set<OperationalSequenceRun>().AnyAsync(r=>r.StartKey==startKey,token)) throw Error("PLAN_OCCURRENCES_RESERVED");
-            foreach(var reservation in Reservations(input.Key,version.Id,startsAt,input.People,steps))
+            var reservations = Reservations(input.Key,version.Id,startsAt,people,steps,policy,ledger,clock.UtcNow).ToArray();
+            agenda[startsAt.ToString("O")] = reservations;
+            foreach(var reservation in reservations)
             {
+                reservation.PersonName = snapshot.Workers.Single(w => w.Id == reservation.PersonId).Name;
                 if(!ledger.CanAssign(reservation.PersonId,reservation)) throw Error("PLAN_NO_AVAILABLE_WORKER");
                 ledger=new(ledger.Workers,ledger.Tasks.Append(reservation).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal = ledger.Temporal };
             }
         }
-        var hash=Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { input.Key,Name=input.Name.Trim(),input.ProcessId,input.Mode,input.From,input.Through,
-            People=input.People.OrderBy(p=>p.Key),root.Revision,version,steps,starts,snapshot.Workers,snapshot.Tasks,snapshot.Capacities,snapshot.Temporal,
+        var hash=Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { policy, Agenda = agenda, input.Key,Name=input.Name.Trim(),input.ProcessId,input.Mode,input.From,input.Through,
+            People=people.OrderBy(p=>p.Key),root.Revision,version,steps,starts,snapshot.Workers,snapshot.Tasks,snapshot.Capacities,snapshot.Temporal,
             Unavailable=snapshot.Unavailable.OrderBy(a=>a.Item1).ThenBy(a=>a.Item2).Select(a=>new { a.Item1,a.Item2 }),
             Legacy=snapshot.Legacy.OrderBy(a=>a.Key) })));
-        return new(version.Id,version.Number,version.Name,starts,rows,hash);
+        input.People = new(people);
+        return new(version.Id,version.Number,version.Name,starts,rows,hash) { SchedulingPolicyId = policy?.Id, Agenda = agenda };
     }
 
     public async Task<Guid> PrepareAsync(Guid actor,ProcessPlanInput input,CancellationToken token)
@@ -83,8 +98,10 @@ public sealed class ProcessPlanningService(SgolDbContext db,IDirectionPreparedPl
         }
         var preview=await PreviewAsync(actor,input,token);
         if(input.Fingerprint!=preview.Fingerprint) throw Error("PLAN_CAPACITY_STALE",409);
-        var end=WeekContract.LocalToday(preview.Starts.Last().AddHours(preview.Stages.Sum(s=>s.DeadlineHours)));
-        var plan=DirectionPreparedPlan.ForProcess(input.Key,BranchScope.LorettaId,actor,clock.UtcNow,input.Name.Trim(),input.From,end>input.Through?end:input.Through); db.Add(plan);
+        var end=preview.SchedulingPolicyId == null ? WeekContract.LocalToday(preview.Starts.Last().AddHours(preview.Stages.Sum(s=>s.DeadlineHours))) : WeekContract.LocalToday(preview.Agenda.Values.SelectMany(a => a).Max(a => a.DueAt));
+        var plan=DirectionPreparedPlan.ForProcess(input.Key,BranchScope.LorettaId,actor,clock.UtcNow,input.Name.Trim(),input.From,end>input.Through?end:input.Through);
+        if (preview.SchedulingPolicyId is {} policyId) plan.CaptureSchedulingPolicy(policyId);
+        db.Add(plan);
         var steps=await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>s.VersionId==preview.VersionId).OrderBy(s=>s.Position).ToArrayAsync(token);
         foreach(var step in steps)
         {
@@ -92,7 +109,7 @@ public sealed class ProcessPlanningService(SgolDbContext db,IDirectionPreparedPl
             db.Add(new DirectionPreparedPlanItem(plan.Id,task.TaskCode,task.Name,step.Position-1));
         }
         foreach(var start in preview.Starts) db.Add(new PreparedProcessStart { Id=Guid.CreateVersion7(),PlanId=plan.Id,ProcessId=input.ProcessId,VersionId=preview.VersionId,StartsAt=start,
-            StartKey=input.Mode=="CALENDARIO" ? $"C:{input.ProcessId:N}:{WeekContract.LocalToday(start):yyyyMMdd}" : $"P:{input.Key:N}:{input.ProcessId:N}",Participants=JsonSerializer.Serialize(input.People) });
+            StartKey=input.Mode=="CALENDARIO" ? $"C:{input.ProcessId:N}:{WeekContract.LocalToday(start):yyyyMMdd}" : $"P:{input.Key:N}:{input.ProcessId:N}",Participants=JsonSerializer.Serialize(input.People), AgendaJson = preview.SchedulingPolicyId == null ? null : JsonSerializer.Serialize(preview.Agenda[start.ToString("O")]) });
         Audit(actor,plan.Id,"PROCESS_PLAN_PREPARED",new { preview.Fingerprint,preview.VersionId,input.Mode,input.From,input.Through });
         await db.SaveChangesAsync(token); await tx.CommitAsync(token); return plan.Id;
     }
@@ -135,17 +152,28 @@ public sealed class ProcessPlanningService(SgolDbContext db,IDirectionPreparedPl
         return new(plan,starts,await db.Set<OperationalSequenceRun>().AsNoTracking().Where(r=>r.PlanId==planId).ToArrayAsync(token),configurations);
     }
 
-    internal static IEnumerable<OperationalAssignment> Reservations(Guid id,Guid version,DateTimeOffset starts,IReadOnlyDictionary<int,Guid> people,OperationalSequenceStep[] steps)
+    internal static IEnumerable<OperationalAssignment> Reservations(Guid id,Guid version,DateTimeOffset starts,IReadOnlyDictionary<int,Guid> people,OperationalSequenceStep[] steps, OperationalSchedulingPolicy? policy = null, CapacityLedger? ledger = null, DateTimeOffset? notBefore = null)
     {
         var planned=starts;
         foreach(var step in steps)
         {
             var task=JsonSerializer.Deserialize<OperationalTask>(step.TaskSnapshot!)!;
             var digest=SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{id:N}:{starts:O}:{step.Position}"));
-            yield return new OperationalAssignment { Id=new Guid(digest.AsSpan(0,16)),TaskId=task.Id,TaskCode=task.TaskCode,TaskRevision=task.Revision,
-                Name=task.Name,Description=task.Description,AssignedRole=task.AssignedRole,PersonId=people[step.Position],LoadMinutes=task.LoadMinutes,Requirement=task.Requirement,
+            var reservation = new OperationalAssignment { Id=new Guid(digest.AsSpan(0,16)),TaskId=task.Id,TaskCode=task.TaskCode,TaskRevision=task.Revision,
+                Name=task.Name,Description=task.Description,AssignedRole=task.AssignedRole,PersonId=people[step.Position],LoadMinutes=task.LoadMinutes,Requirement=task.Requirement, ChecklistJson = task.ChecklistJson,
                 StartsAt=planned,DueAt=planned.AddHours(step.DeadlineHours),SpecializationId=task.SpecializationId,PeriodType="OCASIONAL" };
-            planned=planned.AddHours(step.DeadlineHours);
+            if (policy != null) {
+                var fixedMinimum = step.MinimumStartOffsetHours is {} offset ? starts.AddHours(offset) : starts;
+                var nominal = task.OperationalCriticality == "CRITICA" ? fixedMinimum : new[] { planned, fixedMinimum }.Max();
+                OperationalAgenda.Capture(reservation, policy, task.OperationalCriticality, nominal);
+                if (task.OperationalCriticality == "CRITICA" && planned > nominal) throw Error("SCHEDULING_CRITICAL_OVERLAP");
+                if (ledger != null) {
+                    OperationalAgenda.Apply(reservation, OperationalAgenda.Find(ledger, reservation.PersonId, reservation, notBefore ?? starts));
+                    ledger = new(ledger.Workers, ledger.Tasks.Append(reservation).ToArray(), ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) { Temporal = ledger.Temporal };
+                }
+            }
+            yield return reservation;
+            planned=reservation.DueAt;
         }
     }
     internal static async Task<OperationalAssignment[]> PreparedReservationsAsync(SgolDbContext db,CancellationToken token)
@@ -153,7 +181,7 @@ public sealed class ProcessPlanningService(SgolDbContext db,IDirectionPreparedPl
         var starts=await db.Set<PreparedProcessStart>().AsNoTracking().Where(s=>s.Status=="PREPARADO").OrderBy(s=>s.Id).ToArrayAsync(token);
         var ids=starts.Select(s=>s.VersionId).ToArray();
         var steps=await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>ids.Contains(s.VersionId)).OrderBy(s=>s.Position).ToArrayAsync(token);
-        return starts.SelectMany(s=>Reservations(s.Id,s.VersionId,s.StartsAt,JsonSerializer.Deserialize<Dictionary<int,Guid>>(s.Participants)!,steps.Where(p=>p.VersionId==s.VersionId).ToArray())
+        return starts.SelectMany(s=>s.AgendaJson != null ? JsonSerializer.Deserialize<OperationalAssignment[]>(s.AgendaJson)! : Reservations(s.Id,s.VersionId,s.StartsAt,JsonSerializer.Deserialize<Dictionary<int,Guid>>(s.Participants)!,steps.Where(p=>p.VersionId==s.VersionId).ToArray())
             .Select(r=> { r.PlanId=s.PlanId; return r; })).ToArray();
     }
     private void Audit(Guid actor,Guid plan,string action,object data)=>db.AuditEvents.Add(new AuditEvent { Id=Guid.CreateVersion7(),OccurredAt=clock.UtcNow,ActorUserId=actor,ActorType="USER",

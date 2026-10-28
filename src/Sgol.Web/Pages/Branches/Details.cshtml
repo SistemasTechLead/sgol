@@ -6,9 +6,12 @@
 
 <header class="encabezado-pagina">
     <p class="encabezado-pagina__contexto">Organización</p>
-    <h1 class="encabezado-pagina__titulo">Sucursal Loretta</h1>
-    <p class="encabezado-pagina__descripcion">Alcance operativo único del MVP de SGOL.</p>
+    <div class="encabezado-pagina__contenido">
+        <h1 class="encabezado-pagina__titulo">Sucursal Loretta</h1>
+        <p class="encabezado-pagina__descripcion">Alcance operativo único del MVP de SGOL.</p>
+    </div>
 </header>
+<partial name="_SectionNavigation" model='@("people")' />
 
 <div class="panel-seccion">
 @if (Model.Error is not null)

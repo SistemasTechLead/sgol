@@ -24,9 +24,13 @@ using Sgol.Web.Infrastructure.Persistence.Organization;
 using Sgol.Web.Infrastructure.Persistence.Identity;
 using Microsoft.AspNetCore.Identity;
 
+if (args.Contains("--carryover-rules")) { CarryoverChecks.Rules(); return; }
+if (args.Contains("--postponement-rules")) { PostponementChecks.Rules(); return; }
+if (args.Contains("--scheduling-rules-only")) { OperationalSchedulingChecks.Rules(); return; }
 if (args.Contains("--balance-rules-only")) { DailyBalanceChecks.Run(); return; }
 if (args.Contains("--schedule-rules-only")) { PersonalScheduleChecks.Run(); return; }
 if (args.Contains("--capacity-rules-only")) { CapacityRuleChecks.Run(); return; }
+if (args.Contains("--weekly-flag-rules-only")) { WeeklyOperationsFlagChecks.Run(); return; }
 TaskDescriptionChecks.Run();
 if (args.Contains("--description-rules-only")) return;
 SequenceRuleChecks.Run();
@@ -38,13 +42,37 @@ if (settings.Host != "localhost" || settings.Database is null || !settings.Datab
 var options = new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connection).Options;
 await using var db = new SgolDbContext(options);
 var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Contains("--process-schema-only") ? await SequenceSchemaChecks.Snapshot(db) : null;
+var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--postponement-current")) { await PostponementChecks.Run(db); return; }
+if (args.Contains("--postponement-inbox-current")) { await PostponementChecks.InboxCurrent(db); return; }
+if (args.Contains("--postponement-ui")) { await PostponementChecks.Ui(db); return; }
+if (args.Contains("--carryover-lifecycle")) {
+    if (carryoverBeforeMigration != System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync())) throw new Exception("Carryover migration changed historical assignments");
+    await CarryoverChecks.Run(db); return;
+}
+if (args.Contains("--carryover-ui-seed")) { await CarryoverChecks.SeedUi(db); return; }
+if (args.Contains("--reassignment-lifecycle")) { await ReassignmentLifecycleChecks.Run(db); return; }
+if (args.Contains("--transfer-lifecycle")) { await TransferChecks.Run(db); return; }
+if (args.Contains("--transfer-current-assignments")) { await CurrentAssignmentTransferChecks.Run(db); return; }
+if (args.Contains("--weekly-repair-lifecycle")) { await WeeklyRepairLifecycleChecks.Run(db); return; }
+if (args.Contains("--weekly-reflow")) { await WeeklyReflowChecks.Run(db); return; }
+if (args.Contains("--scheduling-benchmark")) { await OperationalSchedulingChecks.Benchmark(db); return; }
+if (args.Contains("--scheduling-integration-only")) { OperationalSchedulingChecks.Rules(); await OperationalSchedulingChecks.Integration(db); return; }
 if (args.Contains("--monthly-import-only")) { await MonthlyImportChecks.RunAsync(db); return; }
+if (args.Contains("--monthly-distributed-current")) { await DistributedMonthlyChecks.RunAsync(db); return; }
+if (args.Contains("--opening-daily-current")) { await DailyOpeningChecks.RunAsync(db); return; }
+if (args.Contains("--full-weekly-current")) { await FullWeeklyPlanChecks.RunAsync(db); return; }
+if (args.Contains("--weekly-plan-http")) { await WeeklyPlanHttpChecks.RunAsync(db); return; }
 if(args.Contains("--balance-snapshot-only")) { await DailyBalanceChecks.SnapshotAsync(db); return; }
 if(args.Contains("--process-migrate-only")) { Console.WriteLine("Dedicated database migrated; no fixtures or catalogue changes added."); return; }
+if(args.Contains("--process-editor-only")) { await ProcessEditorChecks.RunAsync(db); return; }
+if(args.Contains("--process-editor-current")) { await ProcessEditorChecks.CurrentAsync(db); return; }
 if (args.Contains("--process-cross-role-only")) { await ProcessRuntimeChecks.RunAsync(db, preparePlan:true, reassignment:true, crossRole:true); return; }
 if (args.Contains("--process-runtime-only") || args.Contains("--process-demo-seed") || args.Contains("--process-plan-only") || args.Contains("--process-reassign-only") || args.Contains("--process-deletion-only")) { await ProcessRuntimeChecks.RunAsync(db,args.Contains("--process-demo-seed"),args.Contains("--process-plan-only") || args.Contains("--process-deletion-only"),args.Contains("--process-reassign-only"),args.Contains("--process-deletion-only")); return; }
 if (args.Contains("--process-schema-only")) { await ProcessCatalogChecks.SchemaAsync(db, sequenceBeforeUpgrade!); return; }
+if (args.Contains("--process-plan-auto-only")) { await ProcessPlanAutoChecks.RunAsync(db); return; }
+if (args.Contains("--process-add-defaults-only")) { await ProcessAddDefaultsChecks.RunAsync(db); return; }
 if (args.Contains("--process-catalog-only")) { await ProcessCatalogChecks.RunAsync(db); return; }
 if (args.Contains("--sequence-schema-only"))
 {
@@ -71,6 +99,34 @@ var director = AddPerson("DIR", CanonicalRole.Direction);
 var a = AddPerson("A", CanonicalRole.SalesFloor);
 var b = AddPerson("B", CanonicalRole.SalesFloor);
 await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+if (args.Contains("--assignment-retirement-only")) { await AssignmentRetirementChecks.RunAsync(db,tasks,direction,clock,director.User,a.User,a.Person,b.Person); return; }
+if (args.Contains("--assignment-refresh-global-only")) { await GlobalAssignmentRefreshChecks.RunAsync(db,tasks,direction,clock,director.User,a.Person); return; }
+if (args.Contains("--assignment-refresh-only")) { await AssignmentRefreshChecks.RunAsync(db, tasks, direction, clock, director.User, a.User, a.Person, b.Person); return; }
+if (args.Contains("--early-delivery-only")) {
+    await EarlyDeliveryChecks.RunAsync(db, tasks, supervision, director.User, a.User, a.Person, b.User, clock.UtcNow);
+    return;
+}
+if (args.Contains("--batch-review-only")) {
+    var reviewer = AddPerson("BATCH-SC", CanonicalRole.Subcoordination);
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    var day = WeekContract.LocalToday(clock.UtcNow);
+    var container = DirectionPreparedPlan.ForOccasion(Guid.CreateVersion7(), BranchScope.LorettaId, director.User,
+        clock.UtcNow, "Validación masiva", day, day);
+    db.DirectionPreparedPlans.Add(container);
+    var definition = await db.OperationalTasks.FirstAsync();
+    var template = new OperationalAssignment { Id = Guid.CreateVersion7(), PlanId = container.Id, TaskId = definition.Id,
+        TaskCode = definition.TaskCode, Name = "Entrega de prueba", AssignedRole = CanonicalRole.SalesFloor,
+        PersonId = a.Person, PersonName = "A", Requirement = "NINGUNO", LoadMinutes = 10,
+        StartsAt = clock.UtcNow.AddHours(-1), DueAt = clock.UtcNow.AddHours(1), CompletedAt = clock.UtcNow };
+    var forbidden = new OperationalAssignment { Id = Guid.CreateVersion7(), PlanId = container.Id, TaskId = definition.Id,
+        TaskCode = definition.TaskCode, Name = "Entrega de Dirección", AssignedRole = CanonicalRole.Direction,
+        PersonId = director.Person, PersonName = "DIR", Requirement = "NINGUNO", LoadMinutes = 10,
+        StartsAt = template.StartsAt, DueAt = template.DueAt, CompletedAt = clock.UtcNow };
+    db.OperationalAssignments.AddRange(template, forbidden);
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    await BatchReviewChecks.RunAsync(db, supervision, reviewer.User, template, forbidden);
+    return;
+}
 if (args.Contains("--distribution-only")) { await DistributionChecks.RunAsync(db, director.User, a.Person, b.Person); return; }
 if (args.Contains("--schedule-integration-only")) { await ScheduleIntegrationChecks.RunAsync(db, tasks, direction, supervision, director.User, clock, a.Person, b.Person); return; }
 if (args.Contains("--rotation-only")) { await RotationChecks.RunAsync(db, tasks, direction, supervision, director.User, clock, a.Person, b.Person); return; }
@@ -172,7 +228,7 @@ await tasks.CompleteAsync(a.User, first[0].Id, "Piso limpio", null, default, "  
 Check((await tasks.MineAsync(a.User, default)).Single(x => x.Id == first[0].Id).Conclusion is null, "Blank optional conclusion is stored as null");
 await tasks.CompleteAsync(a.User, first[0].Id, "Piso limpio", null, default);
 Check((await tasks.MineAsync(a.User, default)).Single(x => x.Id == first[0].Id).CompletedAt is not null, "Completion is enforced, persisted and idempotent");
-await Rejected(() => tasks.CompleteAsync(b.User, first[1].Id, "Listo", null, default), "TASK_NOT_STARTED");
+await Rejected(() => tasks.CompleteAsync(b.User, first[1].Id, "", null, default), "TASK_COMMENT_REQUIRED");
 var third = await direction.CreateAsync(director.User, Guid.CreateVersion7(), Guid.CreateVersion7(), await AnotherSweepPlan());
 Check(third.Plan.Assignments![0].PersonId == a.Person && third.Plan.Assignments[0].PreviousLoadMinutes == 20, "Completed tasks release load");
 var start = new DateOnly(2026, 10, 5);
@@ -411,7 +467,8 @@ await tasks.CompleteAsync(retryPerson.User, retry.Id, "Entregado", null, default
 var retryView = (await supervision.ListAsync(sub.User, default)).Single(t => t.Assignment.Id == retry.Id).Assignment;
 await supervision.ReviewAsync(sub.User, retry.Id, retryView.Revision, "MISMA_PERSONA", "Repetir limpieza", default); db.ChangeTracker.Clear();
 var replacement = await db.OperationalAssignments.AsNoTracking().SingleAsync(t => t.ReassignedFromId == retry.Id);
-Check(retryView.Description == retry.Description && replacement.Description == retry.Description, "Supervision and replacement preserve task description");
+var retryDefinition = await db.OperationalTasks.AsNoTracking().SingleAsync(t => t.Id == retry.TaskId);
+Check(retryView.Description == retry.Description && replacement.Description == retryDefinition.Description && replacement.Requirement == retryDefinition.Requirement, "Supervision preserves original description; correction uses current catalogue evidence and instructions");
 Check(replacement.PersonId == retryPerson.Person && replacement.CompletedAt == null && replacement.FileContent == null && replacement.StartsAt == clock.UtcNow, "Reassignment creates fresh work for same worker");
 Check((await db.OperationalAssignments.AsNoTracking().SingleAsync(t => t.Id == retry.Id)).Comment == "Entregado", "Reassignment preserves original evidence");
 var otherPerson = AddPerson("RETRY2", CanonicalRole.SalesFloor); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
@@ -509,7 +566,8 @@ var overdueBoard = await liveBoard.ReadAsync(a.User, waterPlan.Plan.PlanId);
 Check(overdueBoard.Plans.All(p => p.Id != waterPlan.Plan.PlanId) && overdueBoard.Tasks.All(t => waters.All(w => w.Id != t.Id)),
     "Old overdue deadlines do not bring an expired plan back into today's board");
 clock.UtcNow = new(2026, 10, 26, 14, 59, 59, TimeSpan.Zero);
-await Rejected(() => tasks.CompleteAsync(mondayUser, monday.Id, null, null, default, "Done"), "TASK_NOT_STARTED");
+await tasks.CompleteAsync(mondayUser, monday.Id, null, null, default, "Done"); db.ChangeTracker.Clear();
+Check((await tasks.MineAsync(mondayUser, default)).Single(t => t.Id == monday.Id).CompletedAt == clock.UtcNow, "Pre-activation delivery records the actual timestamp");
 clock.UtcNow = monday.StartsAt;
 await tasks.CompleteAsync(mondayUser, monday.Id, null, null, default, "Done"); db.ChangeTracker.Clear();
 var deliveredBoard = await liveBoard.ReadAsync(a.User, waterPlan.Plan.PlanId);
@@ -519,8 +577,9 @@ deliveredBoard = await liveBoard.ReadAsync(a.User, waterPlan.Plan.PlanId);
 Check(deliveredBoard.Percent == 100 && deliveredBoard.Tasks.Single().Id == monday.Id && deliveredBoard.Tasks.Single().Color(clock.UtcNow) == "delivered",
     "On its deadline day the board keeps early delivery and counts pending-review delivery");
 clock.UtcNow = monday.StartsAt;
-await Rejected(() => tasks.CompleteAsync(thursdayUser, thursday.Id, null, null, default, "Done"), "TASK_NOT_STARTED");
 await Rejected(() => supervision.ReviewAsync(director.User, thursday.Id, thursday.Revision, "CONCLUIDA", null, default), "TASK_NOT_STARTED");
+await tasks.CompleteAsync(thursdayUser, thursday.Id, null, null, default, "Done"); db.ChangeTracker.Clear();
+Check((await tasks.MineAsync(thursdayUser, default)).Single(t => t.Id == thursday.Id).StartsAt == thursday.StartsAt, "Anticipated delivery preserves the scheduled start");
 await direction.CreateAsync(director.User, Guid.CreateVersion7(), Guid.CreateVersion7(), new("Overlapping monthly calendar", "Tienda", "MENSUAL", 2026, 10, [fixedTask.TaskCode]));
 Check(await db.OperationalAssignments.CountAsync(t => t.TaskId == fixedTask.Id && t.StartsAt == thursday.StartsAt) == 1, "Overlapping weekly monthly plans never duplicate a repetition");
 await Rejected(() => tasks.SaveAsync(director.User, new OperationalTask { Name = "Bad fixed", ScheduleMode = "DIAS_FIJOS", WeekDays = 0, Revision = 0 }, default), "TASK_PARAMETERS_INVALID");
@@ -886,3 +945,6 @@ sealed class CheckSession(Guid user, Guid person, string role = CanonicalRole.Di
     public Task<SessionSnapshot?> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult<SessionSnapshot?>(new(user, person, "check", "Cuenta de prueba", "LOR-001", role,
         [WeekAuthorization.View, "PER-PERSONA-ADMIN", "PER-BANDEJA-PROPIA", "PER-SUPERVISION-VER"], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(1), DateTimeOffset.UtcNow.AddHours(2)));
 }
+
+
+

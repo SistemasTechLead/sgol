@@ -87,6 +87,14 @@ public sealed record TemporalWindow(DateOnly Day, DateTimeOffset Entry, DateTime
 public sealed class TemporalEligibilityContext
 {
     public static string Message(string code) => code switch {
+        "SCHEDULING_INFEASIBLE" => "Las restricciones de esta agenda son incompatibles. Revisa el diagnóstico por tarea, turno y duración.",
+        "SCHEDULING_SEARCH_INCONCLUSIVE" => "Se alcanzó el límite de búsqueda sin completar la agenda. No se ha demostrado inviabilidad; no se publicó trabajo parcial.",
+        "SCHEDULING_CIRCUIT_ORDER" => "El precorte debe terminar antes de conciliación, y conciliación antes de alarma.",
+        "PLAN_CAPACITY_EXCEEDED" => "La carga pendiente supera la capacidad disponible; reacomodar horas no crea más capacidad.",
+        "SCHEDULING_CRITICAL_OVERLAP" => "Dos tareas críticas se superponen; conserva sus horas y revisa los responsables.",
+        "SCHEDULING_CRITICAL_ANCHOR_PASSED" => "La hora fija de esta tarea crítica ya pasó; no se puede activar retroactivamente.",
+        "SCHEDULING_LEGACY_RESERVATION" => "Hay compromisos anteriores sin bloques de ejecución verificables. Revisa otro responsable o día permitido sin modificar esos compromisos.",
+        "SCHEDULING_NO_CONTIGUOUS_SLOT" => "No se encontró un hueco continuo hasta el cierre calculado dentro del turno y del mismo día.",
         "SCHEDULE_EMPLOYMENT_END" => "El empleo o el rol termina antes del tiempo necesario para realizar la tarea.",
         "SCHEDULE_ACCOUNT_INACTIVE" => "La cuenta, el empleo o el rol ya no está activo para recibir trabajo.",
         "SCHEDULE_ROLE_CONFLICT" => "La persona de cobertura no tiene el rol requerido por esta tarea.",
@@ -102,7 +110,12 @@ public sealed class TemporalEligibilityContext
         _ => "La persona no está disponible a la hora de activación de la tarea."
     };
     public Guid? ClosingTaskId { get; init; }
-    public int EligibilityPolicyVersion => 2;
+    public int EligibilityPolicyVersion => 4;
+    public Guid[] BaseSchedulePolicyIds { get; init; } = [];
+    public bool BaseSchedulesForCapacity { get; init; }
+    public bool UsesBaseSchedule(OperationalAssignment task) => task.SchedulingPolicyId is {} id && BaseSchedulePolicyIds.Contains(id);
+    // Closing honors its explicitly selected coverage even under the base-schedule agenda.
+    public bool UsesCoverageSchedule(OperationalAssignment task) => task.TaskId == ClosingTaskId || !UsesBaseSchedule(task);
     public bool Enabled { get; init; }
     public long StateRevision { get; init; }
     public PersonalScheduleVersion[] Schedules { get; init; } = [];
@@ -119,39 +132,56 @@ public sealed class TemporalEligibilityContext
     }
     public static DateTimeOffset At(DateOnly day, int minutes) => OperationalSchedule.Instant(day).AddMinutes(minutes);
     public ClosingRotationVersion? Rotation(DateOnly day) => Rotations.Where(r => r.From <= day).OrderByDescending(r => r.Revision).FirstOrDefault();
+    // A context is a captured request snapshot. Private caches never enter fingerprints.
+    private readonly Dictionary<(Guid Person, DateOnly Day, bool Coverage), (PersonalScheduleVersion? Schedule, PersonalScheduleException? Exception, WorkInterval[]? Intervals)> dayCache = [];
+    private readonly Dictionary<Guid, PersonalScheduleVersion?> scheduleCache = [];
+    private readonly Dictionary<PersonalScheduleVersion, Dictionary<int, WorkInterval[]>> weekCache = [];
+    private readonly Dictionary<DateOnly, Guid?> closingCache = [];
     public (PersonalScheduleVersion? Schedule, PersonalScheduleException? Exception, WorkInterval[]? Intervals) Day(Guid person, DateOnly day, bool applyCoverage = true)
     {
-        // The latest saved weekly schedule is a global parameter for every plan date.
-        // From/Through remain historical metadata; captured plan contexts keep their own revisions.
-        var schedule = Schedules.Where(s => !s.Superseded && s.PersonId == person).OrderByDescending(s => s.Revision).FirstOrDefault();
-        var exception = Exceptions.Where(e => e.PersonId == person && e.Day == day).OrderByDescending(e => e.Revision).FirstOrDefault();
-        var intervals = exception != null ? JsonSerializer.Deserialize<WorkInterval[]>(exception.IntervalsJson) : schedule?.Days().GetValueOrDefault((int)day.DayOfWeek);
-        // Coverage extends a working interval only; an explicit rest day remains rest.
-        if (applyCoverage && ClosingPerson(day) == person && intervals is { Length: > 0 })
-        {
-            intervals = intervals.ToArray(); var last = intervals.MaxBy(i => i.Exit)!;
-            intervals[Array.IndexOf(intervals, last)] = last with { Exit = Math.Max(last.Exit, Math.Min(1260, last.Exit + 60)) };
+        var key = (person, day, applyCoverage);
+        if (dayCache.TryGetValue(key, out var cached)) return cached;
+        if (applyCoverage) {
+            var original = Day(person, day, false);
+            var intervals = original.Intervals;
+            if (ClosingPerson(day) == person && intervals is { Length: > 0 }) {
+                intervals = intervals.ToArray(); var last = intervals.MaxBy(i => i.Exit)!;
+                intervals[Array.IndexOf(intervals, last)] = last with { Exit = Math.Max(last.Exit, Math.Min(1260, last.Exit + 60)) };
+            }
+            var effective = (original.Schedule, original.Exception, intervals); dayCache[key] = effective; return effective;
         }
-        return (schedule, exception, intervals);
+        // Latest weekly version is global to every plan date, as in the existing policy.
+        if (!scheduleCache.TryGetValue(person, out var schedule)) {
+            schedule = Schedules.Where(s => !s.Superseded && s.PersonId == person).OrderByDescending(s => s.Revision).FirstOrDefault(); scheduleCache[person] = schedule;
+        }
+        var exception = Exceptions.Where(e => e.PersonId == person && e.Day == day).OrderByDescending(e => e.Revision).FirstOrDefault();
+        WorkInterval[]? spans;
+        if (exception != null) spans = JsonSerializer.Deserialize<WorkInterval[]>(exception.IntervalsJson);
+        else if (schedule == null) spans = null;
+        else {
+            if (!weekCache.TryGetValue(schedule, out var week)) { week = schedule.Days(); weekCache[schedule] = week; }
+            spans = week.GetValueOrDefault((int)day.DayOfWeek);
+        }
+        var result = (schedule, exception, spans); dayCache[key] = result; return result;
     }
     public TemporalDecision Evaluate(Guid person, OperationalAssignment task, HashSet<(Guid, DateOnly)> unavailable, DateTimeOffset? reception = null)
     {
         if (!Enabled) return new(true, "SCHEDULE_POLICY_INACTIVE");
         var day = WeekContract.LocalToday(task.StartsAt);
         var received = reception > task.StartsAt ? reception.Value : task.StartsAt;
-        var due = task.TaskId == ClosingTaskId ? At(day, day.DayOfWeek == DayOfWeek.Sunday ? 900 : 1260) : task.DueAt;
+        var due = task.TaskId == ClosingTaskId && task.SchedulingPolicyId == null ? At(day, day.DayOfWeek == DayOfWeek.Sunday ? 900 : 1260) : task.DueAt;
         if (received >= due) return new(false, "SCHEDULE_DEADLINE_PASSED");
         var coverage = Coverages.Where(c => c.Day == day).OrderByDescending(c => c.Revision).FirstOrDefault();
         if (task.TaskId == ClosingTaskId && person != ClosingPerson(day)) return new(false, "CLOSING_COVERAGE_REQUIRED", CoverageId: coverage?.Id);
         // A deadline is a completion margin, never permission to wait for a later shift.
-        var effective = Day(person, day);
+        var effective = Day(person, day, UsesCoverageSchedule(task));
         if (unavailable.Contains((person, day))) return new(false, "SCHEDULE_ABSENT");
         if (effective.Intervals == null) return new(false, "SCHEDULE_MISSING");
         if (!effective.Intervals.Any(i => At(day, i.Entry) <= task.StartsAt && task.StartsAt < At(day, i.Exit)))
             return new(false, "SCHEDULE_NOT_PRESENT_AT_ACTIVATION", effective.Schedule?.Id, effective.Exception?.Id);
         var receptionDay = WeekContract.LocalToday(received);
         if (unavailable.Contains((person, receptionDay))) return new(false, "SCHEDULE_ABSENT");
-        var receptionSchedule = Day(person, receptionDay);
+        var receptionSchedule = Day(person, receptionDay, UsesCoverageSchedule(task));
         foreach (var interval in receptionSchedule.Intervals ?? [])
         {
             var entry = At(receptionDay, interval.Entry); var exit = At(receptionDay, interval.Exit);
@@ -165,17 +195,21 @@ public sealed class TemporalEligibilityContext
     }
     public Guid? ClosingPerson(DateOnly day)
     {
+        if (closingCache.TryGetValue(day, out var cached)) return cached;
         var selected = Coverages.Where(c => c.Day == day).OrderByDescending(c => c.Revision).FirstOrDefault();
-        if (selected != null) return selected.PersonId;
+        if (selected != null) { closingCache[day] = selected.PersonId; return selected.PersonId; }
         var boundary = day.DayOfWeek == DayOfWeek.Sunday ? 840 : 1200;
         var excluded = Rotation(day)?.ExcludedPersonId;
-        return Schedules.Select(s => s.PersonId).Distinct().Where(p => p != excluded &&
+        var result = Schedules.Select(s => s.PersonId).Distinct().Where(p => p != excluded &&
             (Day(p, day, false).Intervals ?? []).Any(i => i.Entry < boundary && i.Exit >= boundary))
             .OrderBy(p => p).Select(p => (Guid?)p).FirstOrDefault();
+        closingCache[day] = result; return result;
     }
     public static async Task<TemporalEligibilityContext> LoadAsync(SgolDbContext db, DateTimeOffset now, CancellationToken ct) => new()
     {
         Now = now,
+        BaseSchedulePolicyIds = await db.Set<OperationalSchedulingPolicy>().Where(p => p.AgendaVersion >= 2).OrderBy(p => p.Revision).Select(p => p.Id).ToArrayAsync(ct),
+        BaseSchedulesForCapacity = await db.Set<OperationalSchedulingSettings>().Join(db.Set<OperationalSchedulingPolicy>(), s => s.CurrentPolicyId, p => p.Id, (s,p) => p.AgendaVersion >= 2).SingleOrDefaultAsync(ct),
         ClosingTaskId = await db.Set<TemporalAssignmentState>().Where(s=>s.Id==1).Select(s=>s.ClosingTaskId).SingleOrDefaultAsync(ct),
         Enabled = await db.Set<TemporalAssignmentState>().AnyAsync(s => s.Id == 1 && s.Enabled, ct),
         StateRevision = await db.Set<TemporalAssignmentState>().Where(s => s.Id == 1).Select(s => (long?)s.Revision).SingleOrDefaultAsync(ct) ?? 0,

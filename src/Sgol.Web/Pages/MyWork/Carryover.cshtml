@@ -1,0 +1,81 @@
+@page "/mi-trabajo/arrastre"
+@model Sgol.Web.Pages.MyWork.CarryoverModel
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@using Sgol.Web.Infrastructure.Persistence.Reporting
+@{ ViewData["Title"] = "Petición de arrastre"; }
+<header class="encabezado-pagina"><div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Petición de arrastre</h1><p class="encabezado-pagina__descripcion">Selecciona tareas vencidas para solicitar su posposición. El supervisor inmediato debe autorizar el cambio.</p></div><partial name="_SectionNavigation" model='@("my-work")' /></header>
+<link rel="stylesheet" href="~/css/carryover.css" asp-append-version="true" />
+@if(Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+@if(Model.Success != null) { <p class="alerta alerta--exito" role="status">@Model.Success</p> }
+<form method="post" id="postponement-form" data-postponement class="panel-seccion">
+    <h2>Tareas vencidas</h2>
+    <p>La propuesta buscará espacios desde mañana hasta el mismo día de la próxima semana. Los días sin plan semanal usarán como estimación la carga del día equivalente anterior.</p>
+    @if(Model.Overdue.Length == 0) { <p>No tienes tareas vencidas pendientes.</p> }
+    else {
+        <label class="carryover-select-all"><input type="checkbox" data-select-all /> Seleccionar todas las disponibles</label>
+        <div class="tabla-contenedor"><table class="tabla"><thead><tr><th>Seleccionar</th><th>Tarea</th><th>Vencimiento</th><th>Carga</th><th>Estado</th></tr></thead><tbody>
+        @foreach(var task in Model.Overdue) { var a = task.Assignment;
+            <tr data-overdue-row class="@(Model.Selected.Contains(a.Id) ? "carryover-selected" : "")">
+                <td><input type="checkbox" name="Selected" value="@a.Id" checked="@Model.Selected.Contains(a.Id)" disabled="@(task.Blocked != null)" aria-label="Seleccionar @a.TaskCode @a.Name" /></td>
+                <td><strong>@a.TaskCode</strong> · @a.Name<br /><span>@OperationalAgenda.Label(a.OperationalCriticality)</span></td>
+                <td>@ReportCatalog.Time(a.DueAt)</td><td>@a.RemainingMinutes min</td><td>@(task.Blocked ?? "Disponible para solicitar")</td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+    <div class="carryover-form">
+        <label asp-for="PostponeCause">Causa oficial</label><select asp-for="PostponeCause">@foreach(var cause in CarryoverCauses.All) { <option value="@cause.Key">@cause.Value</option> }</select>
+        <label asp-for="PostponeExplanation">Motivo de la posposición</label><textarea asp-for="PostponeExplanation" maxlength="4000" required></textarea>
+        <input asp-for="PostponeIntent" type="hidden" />
+    </div>
+    @if(Model.Postponement is {} proposal) {
+        <section id="postponement-preview" data-postponement-preview>
+            <h3>Propuesta del @proposal.From.ToString("dd/MM/yyyy") al @proposal.Through.ToString("dd/MM/yyyy")</h3>
+            @if(proposal.BeforeDate is {} before) { <p>Asignar antes del @before.ToString("dddd dd/MM/yyyy"): ese día queda excluido.</p> }
+            @foreach(var conflict in proposal.Conflicts) { <p class="alerta alerta--peligro" role="alert">@conflict</p> }
+            <partial name="~/Pages/Shared/_CarryoverItems.cshtml" model="proposal.Items" />
+            <div class="tabla-contenedor"><table class="tabla"><caption>Cargas usadas en la propuesta · minutos</caption><thead><tr><th>Día</th><th>Programada</th><th>Estimada adicional</th><th>Pospuestas</th><th>Capacidad</th><th>Referencia histórica</th></tr></thead><tbody>
+            @foreach(var day in proposal.Days) { <tr><td>@day.Day.ToString("ddd dd/MM")</td><td>@day.Actual.ToString("0.#")</td><td>@day.Forecast.ToString("0.#")</td><td>@day.Added.ToString("0.#")</td><td>@day.Capacity.ToString("0.#")</td><td>@(!day.ReferenceKnown ? "Sin referencia: día excluido" : day.Reference?.ToString("dd/MM/yyyy") ?? "Plan existente")</td></tr> }
+            </tbody></table></div>
+            <p>La carga histórica es una estimación. El nuevo plan deberá respetar las tareas pospuestas. Una carga u horario que cambie antes de autorizar requiere una propuesta nueva.</p>
+        </section>
+    }
+    <aside class="carryover-floating" aria-label="Petición de tareas seleccionadas">
+        <span data-selected-count aria-live="polite">@Model.Selected.Length tareas seleccionadas</span>
+        <label class="carryover-before"><span>Asignar antes del</span><select asp-for="BeforeWeekday" aria-describedby="carryover-before-help">
+            <option value="">Sin límite adicional</option><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option><option value="0">Domingo</option>
+        </select><small id="carryover-before-help">El día elegido queda excluido.</small></label>
+        <button asp-page-handler="PreviewPostponement" class="boton boton--secundario">Preparar petición</button>
+        @if(Model.Postponement is { Conflicts.Length: 0 }) {
+            <input asp-for="PostponeFingerprint" type="hidden" />
+            <button asp-page-handler="SubmitPostponement" data-postponement-submit class="boton boton--primario">Enviar petición al supervisor</button>
+        }
+        <small data-selection-changed hidden>La selección o el motivo cambió. Prepara otra vez la petición.</small>
+    </aside>
+</form>
+<details class="panel-seccion carryover-incident" open="@(Model.Preview != null)"><summary class="boton boton--secundario carryover-incident-toggle">Solicitar tiempo por un incidente de hoy</summary>
+<p>Esta opción conserva el arrastre por minutos: amplía los cierres afectados dentro de la jornada, previa autorización.</p>
+<form method="post" class="carryover-form">
+    <label for="carry-cause">Causa oficial</label><select asp-for="Cause" id="carry-cause">@foreach(var cause in CarryoverCauses.All) { <option value="@cause.Key">@cause.Value</option> }</select>
+    <label asp-for="Minutes">Duración en minutos</label><input asp-for="Minutes" type="number" min="1" required />
+    <label asp-for="End">Término del incidente · hora de Ciudad de México</label><input asp-for="End" type="datetime-local" asp-format="{0:yyyy-MM-ddTHH:mm}" required />
+    <label asp-for="Explanation">Explicación / referencia de autorización comercial</label><textarea asp-for="Explanation" maxlength="4000"></textarea>
+    <input asp-for="Intent" type="hidden" />
+    <button asp-page-handler="Preview" class="boton boton--secundario">Obtener vista previa</button>
+    @if(Model.Preview is {} preview) {
+        <p>Incidente: @ReportCatalog.Time(preview.End.AddMinutes(-preview.Minutes)) – @ReportCatalog.Time(preview.End).</p>
+        @foreach(var conflict in preview.Conflicts) { <p class="alerta alerta--peligro" role="alert">@conflict</p> }
+        <partial name="~/Pages/Shared/_CarryoverItems.cshtml" model="preview.Items" />
+        @if(preview.Conflicts.Length == 0) {
+            <p>Enviar no cambia cierres ni estados. Las tareas pueden seguir vencidas incluso con el plazo propuesto.</p>
+            <input asp-for="Fingerprint" type="hidden" /><button asp-page-handler="Submit" class="boton boton--primario">Aceptar y enviar</button>
+        }
+    }
+</form>
+</details>
+<section class="panel-seccion"><h2>Mis peticiones</h2>
+@if(Model.History.Length == 0) { <p>No has enviado peticiones de arrastre.</p> }
+@foreach(var request in Model.History) { <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" /> }
+</section>
+@section Scripts { <script src="~/js/carryover.js" asp-append-version="true" defer></script> }
+

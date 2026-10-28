@@ -1,0 +1,5 @@
+@model Sgol.Web.Infrastructure.Persistence.Planning.CarryoverItem[]
+@using Sgol.Web.Infrastructure.Persistence.Reporting
+<div class="tabla-contenedor"><table class="tabla"><thead><tr><th>Tarea</th><th>Cierre actual al enviar</th><th>Horario propuesto</th><th>Carga / origen</th><th>Advertencias y cálculo</th></tr></thead><tbody>
+@foreach(var item in Model) { <tr><td>@item.Task</td><td>@ReportCatalog.Time(item.Due)</td><td>@if(item.ProposedStart != null) { <span>@ReportCatalog.Time(item.ProposedStart) – </span> }@ReportCatalog.Time(item.Proposed)</td><td>@(item.ProposedStart != null ? item.WorkMinutes : item.Minutes) min · @(item.ProposedStart != null ? "Posposición" : item.Direct ? "Directo" : "Propagado")</td><td>@item.Warning @item.LoadSummary</td></tr> }
+</tbody></table></div>

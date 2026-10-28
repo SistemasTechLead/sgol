@@ -1,0 +1,18 @@
+[data-postponement] { padding-bottom: 1rem; }
+.carryover-select-all { display: flex; gap: .65rem; align-items: center; margin-block: 1rem; }
+[data-overdue-row] { cursor: pointer; }
+[data-overdue-row]:has(input:disabled) { cursor: default; }
+.carryover-selected > td { background: var(--color-info-fondo); box-shadow: inset 0 2px var(--color-acento), inset 0 -2px var(--color-acento); }
+.carryover-floating { position: sticky; bottom: 1rem; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding: 1rem; margin-top: 1.25rem; border: 1px solid var(--color-borde, #b9c8c1); border-radius: .8rem; background: var(--color-superficie, #fff); box-shadow: 0 5px 22px #0002; }
+.carryover-floating small { flex-basis: 100%; }
+.carryover-before { display: grid; gap: .25rem; min-width: 10rem; max-width: 100%; font-size: .875rem; }
+.carryover-before select { min-height: var(--alto-control-minimo); border: 1px solid var(--color-borde); border-radius: .4rem; background: var(--color-superficie); color: var(--color-texto); padding: .35rem .65rem; }
+.carryover-before small { color: var(--color-texto-secundario); }
+.carryover-incident > .carryover-incident-toggle { gap: .75rem; max-width: 100%; padding: .65rem 1rem; border: 1px solid var(--color-borde); border-radius: .6rem; background: var(--color-superficie-elevada); cursor: pointer; list-style: none; white-space: normal; text-align: start; }
+.carryover-incident-toggle::-webkit-details-marker { display: none; }
+.carryover-incident-toggle::after { content: ""; flex: 0 0 .45rem; width: .45rem; height: .45rem; margin-inline-start: .25rem; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+.carryover-incident[open] > .carryover-incident-toggle::after { transform: rotate(225deg); }
+.carryover-incident-toggle:hover { border-color: var(--color-texto-secundario); }
+.carryover-incident-toggle:focus-visible { outline: 2px solid var(--color-acento); outline-offset: 3px; }
+[data-postponement] input[type=checkbox] { width: 1.2rem; height: 1.2rem; accent-color: var(--color-primario, #27624c); }
+@media(max-width: 600px) { .carryover-floating { bottom: .4rem; padding: .75rem; } .carryover-floating .boton { flex: 1 1 100%; } }

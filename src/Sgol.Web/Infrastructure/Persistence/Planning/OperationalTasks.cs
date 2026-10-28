@@ -12,6 +12,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed class OperationalTask
 {
+    public string? OperationalCriticality { get; set; }
     public Guid ProcessId { get; set; } = OperationalSequence.GeneralId;
     public Guid Id { get; set; }
     public string TaskCode { get; set; } = "";
@@ -20,6 +21,7 @@ public sealed class OperationalTask
     public int MinimumPhotos { get; set; } = 1;
     public int MaximumPhotos { get; set; } = 20;
     public long MaximumPhotoBytes { get; set; } = 31457280;
+    public string ChecklistJson { get; set; } = "[]";
     public string Requirement { get; set; } = "NINGUNO";
     public string AssignedRole { get; set; } = CanonicalRole.SalesFloor;
     public string PeriodType { get; set; } = "SEMANAL";
@@ -51,10 +53,12 @@ public sealed class OperationalTask
 
     public void Validate()
     {
+        if (OperationalCriticality != null && !OperationalAgenda.IsDefined(OperationalCriticality)) throw new DirectionPlanException("SCHEDULING_CRITICALITY_REQUIRED", 422);
         if (StartMinute is < 0 or > 59 || SundayStartMinute is < 0 or > 1439)
             throw new DirectionPlanException("TASK_PARAMETERS_INVALID", 422);
-        if (IsWeeklyOperationsTask && (ProcessId != OperationalSequence.GeneralId || PeriodType == "OCASIONAL"))
+        if (IsWeeklyOperationsTask && (ProcessId != OperationalSequence.GeneralId || PeriodType != "SEMANAL"))
             throw new DirectionPlanException("WEEKLY_OPERATIONS_TASK_INVALID", 422);
+        ChecklistJson = OperationalChecklist.Normalize(ChecklistJson, Requirement == "CHECKLIST");
         Name = Name.Trim();
         Description = string.IsNullOrWhiteSpace(Description) ? null : Description.Trim();
         if (Description?.Length > 4000 || Description?.Any(c => char.IsControl(c) && c is not ('\r' or '\n' or '\t')) == true)
@@ -89,6 +93,10 @@ public sealed class OperationalTask
 
 public sealed class OperationalAssignment
 {
+    public string? OperationalCriticality { get; set; }
+    public Guid? SchedulingPolicyId { get; set; }
+    public int? ClosureMarginPercent { get; set; }
+    public DateTimeOffset? NominalStartsAt { get; set; }
     public string? TemporalPolicyJson { get; set; }
     public string? TemporalDecisionJson { get; set; }
     public Guid? OccasionId { get; set; }
@@ -98,6 +106,8 @@ public sealed class OperationalAssignment
     public Guid PlanId { get; set; }
     public Guid TaskId { get; set; }
     public long? TaskRevision { get; set; }
+    public string? DefinitionSnapshotJson { get; set; }
+    public DateTimeOffset? RetiredAt { get; set; }
     public OperationalAttachment? Attachment { get; set; }
     public string TaskCode { get; set; } = "";
     public string Name { get; set; } = "";
@@ -105,6 +115,7 @@ public sealed class OperationalAssignment
     public int MinimumPhotos { get; set; } = 1;
     public int MaximumPhotos { get; set; } = 20;
     public long MaximumPhotoBytes { get; set; } = 31457280;
+    public string ChecklistJson { get; set; } = "[]";
     public string Requirement { get; set; } = "";
     public string? AssignedRole { get; set; }
     public int LoadMinutes { get; set; }
@@ -117,6 +128,7 @@ public sealed class OperationalAssignment
     public DateTimeOffset? CompletedAt { get; set; }
     public Guid? CompletedBy { get; set; }
     public string? CompletionKind { get; set; }
+    public string ChecklistDraftJson { get; set; } = "null";
     public string? Comment { get; set; }
     // Transient download/view metadata; evidence is stored in child tables.
     [NotMapped] public string? FileName { get; set; }
@@ -138,19 +150,24 @@ public sealed class OperationalAssignment
     public bool DifferentPeople { get; set; }
     public int GoalUnits { get; set; }
     public int ProgressUnits { get; set; }
+    public int? TransferRemainingMinutes { get; set; }
+    public int TransferProgressUnits { get; set; }
     public string ProgressUnit { get; set; } = "unidades";
-    public int RemainingMinutes => CompletedAt != null ? 0 : GoalUnits > 0
-        ? (int)Math.Ceiling(LoadMinutes * (1m - (decimal)ProgressUnits / GoalUnits)) : LoadMinutes;
+    public int RemainingMinutes => CompletedAt != null || RetiredAt != null ? 0 : TransferRemainingMinutes is { } remaining
+        ? GoalUnits > TransferProgressUnits ? (int)Math.Ceiling(remaining * Math.Max(0m, (decimal)(GoalUnits - ProgressUnits) / (GoalUnits - TransferProgressUnits))) : remaining
+        : GoalUnits > 0
+        ? (int)Math.Ceiling(LoadMinutes * Math.Max(0m, 1m - (decimal)ProgressUnits / GoalUnits)) : LoadMinutes;
     public OperationalAssignmentDetails Details() => new(Id, TaskCode, Name, Requirement, LoadMinutes,
         PersonId, PersonName, StartsAt, DueAt, CompletedAt, PreviousLoadMinutes, Comment, FileName, AssignedRole,
         Conclusion, ReviewStatus, ReviewComment ?? ReassignmentComment, ScheduleMode: ScheduleMode, GoalUnits: GoalUnits,
-        ProgressUnits: ProgressUnits, ProgressUnit: ProgressUnit, Revision: Revision, SpecializationId: SpecializationId, SpecializationName: SpecializationName, MinimumPhotos: MinimumPhotos, MaximumPhotos: MaximumPhotos, MaximumPhotoBytes: MaximumPhotoBytes, OccasionId: OccasionId, Description: Description, TemporalPolicyJson: TemporalPolicyJson, TemporalDecisionJson: TemporalDecisionJson);
+        ProgressUnits: ProgressUnits, ProgressUnit: ProgressUnit, Revision: Revision, SpecializationId: SpecializationId, SpecializationName: SpecializationName, MinimumPhotos: MinimumPhotos, MaximumPhotos: MaximumPhotos, MaximumPhotoBytes: MaximumPhotoBytes, OccasionId: OccasionId, Description: Description, TemporalPolicyJson: TemporalPolicyJson, TemporalDecisionJson: TemporalDecisionJson, OperationalCriticality: OperationalCriticality, NominalStartsAt: NominalStartsAt, SchedulingPolicyId: SchedulingPolicyId,
+        TransferRemainingMinutes: TransferRemainingMinutes, TransferProgressUnits: TransferProgressUnits, ChecklistJson: ChecklistJson, ChecklistDraftJson: ChecklistDraftJson);
 }
 
 public static class OperationalSchedule
 {
     public static readonly string[] Periods = ["SEMANAL", "MENSUAL", "TRIMESTRAL", "ANUAL", "OCASIONAL"];
-    public static readonly string[] Requirements = ["FOTOGRAFIA", "CAPTURA_PANTALLA", "COMENTARIO", "DOCUMENTO", "EXCEL", "NINGUNO"];
+    public static readonly string[] Requirements = ["FOTOGRAFIA", "CAPTURA_PANTALLA", "COMENTARIO", "DOCUMENTO", "EXCEL", "CHECKLIST", "NINGUNO"];
     public static readonly string[] Roles = [CanonicalRole.Direction, CanonicalRole.Administration, CanonicalRole.Subcoordination, CanonicalRole.SalesFloor];
     public static readonly TimeZoneInfo Zone = TimeZoneInfo.FindSystemTimeZoneById("America/Mexico_City");
     public static DateTimeOffset Instant(DateOnly day) => new(TimeZoneInfo.ConvertTimeToUtc(day.ToDateTime(TimeOnly.MinValue), Zone), TimeSpan.Zero);
@@ -230,15 +247,17 @@ internal sealed class OperationalTaskConfiguration : IEntityTypeConfiguration<Op
     public void Configure(EntityTypeBuilder<OperationalTask> b)
     {
         b.ToTable("operational_task", t => {
+            t.HasCheckConstraint("CK_task_criticality", "\"OperationalCriticality\" IS NULL OR \"OperationalCriticality\" IN ('CRITICA','IMPORTANTE','FLEXIBLE')");
             t.HasCheckConstraint("CK_operational_task_month_days", "\"PreferredMonthDays\" = '' OR (\"PeriodType\" = 'MENSUAL' AND \"ScheduleMode\" = 'DISTRIBUIDA' AND \"PreferredMonthDays\" ~ '^([1-9]|[12][0-9]|3[01])(,([1-9]|[12][0-9]|3[01]))*$' AND \"Repetitions\" = cardinality(string_to_array(\"PreferredMonthDays\", ',')) AND cardinality(string_to_array(\"PreferredMonthDays\", ',')) <= 31)");
             t.HasCheckConstraint("CK_operational_task_time", "\"StartMinute\" BETWEEN 0 AND 59 AND (\"SundayStartMinute\" IS NULL OR \"SundayStartMinute\" BETWEEN 0 AND 1439)");
             t.HasCheckConstraint("CK_operational_task_schedule", "\"ScheduleMode\" IN ('DISTRIBUIDA','DIAS_FIJOS','PROGRESO') AND \"WeekDays\" BETWEEN 0 AND 127 AND \"StartHour\" BETWEEN 0 AND 23 AND (\"GoalUnits\" IS NULL OR \"GoalUnits\" BETWEEN 1 AND 1000000) AND length(\"ProgressUnit\") <= 60 AND ((NOT \"Active\" AND \"ScheduleMode\" = 'PROGRESO') OR (\"GoalUnits\" IS NOT NULL AND length(\"ProgressUnit\") >= 1)) AND (\"ScheduleMode\" <> 'DIAS_FIJOS' OR (\"PeriodType\" = 'SEMANAL' AND \"WeekDays\" > 0)) AND (\"ScheduleMode\" <> 'PROGRESO' OR (\"PeriodType\" = 'SEMANAL' AND (NOT \"Active\" OR NOT \"DifferentPeople\"))) AND (\"PeriodType\" <> 'OCASIONAL' OR (\"ScheduleMode\" = 'DISTRIBUIDA' AND \"WeekDays\" = 0 AND \"StartHour\" = 0 AND \"Repetitions\" = 1 AND NOT \"DifferentPeople\"))");
             t.HasCheckConstraint("CK_operational_task_parameters", "\"Repetitions\" BETWEEN 1 AND 100 AND \"DeadlineHours\" BETWEEN 1 AND 8760 AND \"LoadMinutes\" BETWEEN 1 AND 4800");
             t.HasCheckConstraint("CK_operational_task_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
             t.HasCheckConstraint("CK_operational_task_period", "\"PeriodType\" IN ('SEMANAL','MENSUAL','TRIMESTRAL','ANUAL','OCASIONAL')");
-            t.HasCheckConstraint("CK_operational_task_requirement", "\"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','NINGUNO')");
+            t.HasCheckConstraint("CK_operational_task_requirement", "\"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO')");
             t.HasCheckConstraint("CK_operational_task_role", "\"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS')");
         });
+        b.Property(t => t.OperationalCriticality).HasMaxLength(12);
         b.HasKey(t => t.Id); b.HasAlternateKey(t => t.TaskCode);
         b.Property(t => t.ProcessId).HasDefaultValue(OperationalSequence.GeneralId);
         b.HasOne<OperationalSequence>().WithMany().HasForeignKey(t => t.ProcessId).OnDelete(DeleteBehavior.Restrict);
@@ -269,11 +288,18 @@ internal sealed class OperationalAssignmentConfiguration : IEntityTypeConfigurat
     public void Configure(EntityTypeBuilder<OperationalAssignment> b)
     {
         b.ToTable("operational_assignment", t => {
+            t.HasCheckConstraint("CK_assignment_transfer_load", "\"TransferProgressUnits\" BETWEEN 0 AND \"ProgressUnits\" AND (\"TransferRemainingMinutes\" IS NULL OR \"TransferRemainingMinutes\" BETWEEN 1 AND 4800)");
+            t.HasCheckConstraint("CK_assignment_scheduling", "(\"SchedulingPolicyId\" IS NULL AND \"ClosureMarginPercent\" IS NULL AND \"NominalStartsAt\" IS NULL) OR (\"SchedulingPolicyId\" IS NOT NULL AND \"ClosureMarginPercent\" IS NOT NULL AND \"ClosureMarginPercent\" BETWEEN 0 AND 500 AND \"NominalStartsAt\" IS NOT NULL AND (\"StartsAt\" >= \"NominalStartsAt\" OR \"OperationalCriticality\" = 'FLEXIBLE') AND \"OperationalCriticality\" IS NOT NULL AND \"OperationalCriticality\" IN ('CRITICA','IMPORTANTE','FLEXIBLE'))");
             t.HasCheckConstraint("CK_operational_assignment_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
             t.HasCheckConstraint("CK_operational_assignment_range", "\"DueAt\" > \"StartsAt\"");
-            t.HasCheckConstraint("CK_operational_assignment_progress", "\"GoalUnits\" BETWEEN 0 AND 1000000 AND \"ProgressUnits\" BETWEEN 0 AND \"GoalUnits\" AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND (\"TaskRevision\" IS NULL OR \"TaskRevision\" > 0)");
-            t.HasCheckConstraint("CK_operational_assignment_schedule", "\"ScheduleMode\" IN ('DISTRIBUIDA','DIAS_FIJOS','PROGRESO') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','NINGUNO') AND (\"AssignedRole\" IS NULL OR \"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS'))");
+            t.HasCheckConstraint("CK_operational_assignment_progress", "\"GoalUnits\" BETWEEN 0 AND 1000000 AND \"ProgressUnits\" BETWEEN 0 AND 1000000 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND (\"TaskRevision\" IS NULL OR \"TaskRevision\" > 0)");
+            t.HasCheckConstraint("CK_operational_assignment_schedule", "\"ScheduleMode\" IN ('DISTRIBUIDA','DIAS_FIJOS','PROGRESO') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND (\"AssignedRole\" IS NULL OR \"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS'))");
         }); b.HasKey(t => t.Id);
+        b.Property(t => t.OperationalCriticality).HasMaxLength(12);
+        b.HasQueryFilter(t => t.RetiredAt == null);
+        b.Property(t => t.DefinitionSnapshotJson).HasColumnType("jsonb");
+        b.HasOne<OperationalSchedulingPolicy>().WithMany().HasForeignKey(t => t.SchedulingPolicyId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(t => new { t.PersonId, t.StartsAt, t.DueAt });
         // Author FKs on split fragments are created explicitly by the lifecycle migration.
         b.HasIndex(t => t.ReviewedBy);
         b.HasIndex(t => t.CompletedBy);
@@ -316,7 +342,7 @@ internal sealed class OperationalAssignmentConfiguration : IEntityTypeConfigurat
         b.Property(t => t.MaximumPhotoBytes).HasDefaultValue(31457280L);
         b.Property(t => t.Revision).IsConcurrencyToken();
         b.Property(t => t.ScheduleKey).HasMaxLength(100);
-        b.HasIndex(t => t.ScheduleKey).IsUnique();
+        b.HasIndex(t => t.ScheduleKey).IsUnique().HasFilter("\"RetiredAt\" IS NULL");
         b.Property(t => t.ScheduleMode).HasMaxLength(20).HasDefaultValue("DISTRIBUIDA");
         b.Property(t => t.ProgressUnit).HasMaxLength(60).HasDefaultValue("unidades");
         b.Ignore(t => t.RemainingMinutes);

@@ -1,3 +1,4 @@
+using Sgol.Web.Presentation.Search;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Sgol.Identity.Contracts;
@@ -8,7 +9,7 @@ using Sgol.Web.Infrastructure.Persistence.Organization;
 
 namespace Sgol.Web.Pages.Tasks;
 
-public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskService tasks, SpecializationService specializations, OperationalProcessCatalogService processes) : PageModel
+public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskService tasks, SpecializationService specializations, OperationalProcessCatalogService processes, OperationalSchedulingPolicyService scheduling, AssignmentRefreshService refresh) : PageModel
 {
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public Guid? ProcessFilter { get; set; }
@@ -16,17 +17,22 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
     public OperationalSequence[] Processes { get; private set; } = [];
     public string ProcessName(Guid id) => Processes.SingleOrDefault(p => p.Id == id)?.Name ?? "Proceso no disponible";
     public string CancelUrl => ReturnProcess is { } id ? $"/tareas/procesos?id={id}" : "/tareas";
-    [BindProperty] public OperationalTask Input { get; set; } = new() { Revision = 0 };
+    [BindProperty] public OperationalTask Input { get; set; } = new() { Revision = 0, OperationalCriticality = "FLEXIBLE" };
     [BindProperty] public int[] InputDays { get; set; } = [];
     [BindProperty] public bool RequiresSpecialization { get; set; }
     public List<Specialization> Specializations { get; private set; } = [];
     public IReadOnlyList<OperationalTask> Items { get; private set; } = [];
+    [BindProperty(SupportsGet = true)] public bool AdjustClosure { get; set; }
+    [BindProperty] public int ClosureMarginPercent { get; set; } = 50;
+    [BindProperty] public long PolicyRevision { get; set; }
+    public OperationalSchedulingPolicy? SchedulingPolicy { get; private set; }
+    public Dictionary<Guid, int> RefreshCounts { get; private set; } = [];
     public bool Editing { get; private set; }
     public bool CanManage { get; private set; }
     public string? Error { get; private set; }
     public static string Label(string code) => code switch {
         "SEMANAL" => "Semanal", "MENSUAL" => "Mensual", "TRIMESTRAL" => "Trimestral", "ANUAL" => "Anual", "OCASIONAL" => "Ocasional",
-        "CAPTURA_PANTALLA" => "Captura de pantalla",
+        "CHECKLIST" => "Checklist", "CAPTURA_PANTALLA" => "Captura de pantalla",
         "FOTOGRAFIA" => "Fotografía", "COMENTARIO" => "Comentario", "DOCUMENTO" => "Documento PDF", "EXCEL" => "Documento Excel (.xlsx)", _ => "Ninguno"
     };
     public static string RoleLabel(string? code) => code is null ? "—" : SessionPresentation.RoleName(code) ?? "—";
@@ -44,13 +50,22 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
         Specializations = await specializations.OptionsAsync(actor.Value, token);
         Processes = await processes.ListAsync(actor.Value, token);
         try {
+            SchedulingPolicy = await scheduling.ReadAsync(actor.Value, token);
+            ClosureMarginPercent = SchedulingPolicy.MarginPercent; PolicyRevision = SchedulingPolicy.Revision;
             var all = await tasks.ListAsync(actor.Value, token);
+            if (CanManage) RefreshCounts = await refresh.CountsAsync(actor.Value, token);
             if (edit is not null) { Input = all.SingleOrDefault(t => t.Id == edit) ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404); Editing = true; }
             if (create) { Editing = true; Input.ProcessId = ReturnProcess ?? OperationalSequence.GeneralId; }
             RequiresSpecialization = Input.SpecializationId != null;
             InputDays = Enumerable.Range(0, 7).Where(d => (Input.WeekDays & (1 << d)) != 0).ToArray();
             Items = Filter(all); return Page();
         } catch (DirectionPlanException e) { return StatusCode(e.Status); }
+    }
+    public async Task<IActionResult> OnPostClosureAsync(CancellationToken token)
+    {
+        var actor = await ActorAsync(token); if (actor is null) return StatusCode(403);
+        try { await scheduling.ChangeAsync(actor.Value, ClosureMarginPercent, PolicyRevision, token); return RedirectToPage(); }
+        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); AdjustClosure = true; RefreshCounts = await refresh.CountsAsync(actor.Value, token); Items = Filter(await tasks.ListAsync(actor.Value, token)); Processes = await processes.ListAsync(actor.Value, token); Specializations = await specializations.OptionsAsync(actor.Value, token); SchedulingPolicy = await scheduling.ReadAsync(actor.Value, token); return Page(); }
     }
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken token)
     {
@@ -72,7 +87,7 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
             if (ReturnProcess != null && ReturnProcess != Input.ProcessId) throw new DirectionPlanException("PROCESS_MEMBERSHIP_INVALID", 422);
             await tasks.SaveAsync(actor.Value, Input, token);
             return ReturnProcess is { } id ? RedirectToPage("Processes", new { id }) : RedirectToPage();
-        } catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); Editing = true; Items = Filter(await tasks.ListAsync(actor.Value, token)); return Page(); }
+        } catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); Editing = true; RefreshCounts = await refresh.CountsAsync(actor.Value, token); Items = Filter(await tasks.ListAsync(actor.Value, token)); return Page(); }
     }
     public async Task<IActionResult> OnPostChangeAsync(Guid id, long revision, bool delete, CancellationToken token)
     {
@@ -80,15 +95,24 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
         Specializations = await specializations.OptionsAsync(actor.Value, token);
         Processes = await processes.ListAsync(actor.Value, token);
         try { await tasks.ChangeAsync(actor.Value, id, revision, delete, token); return RedirectToPage(); }
-        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); Items = Filter(await tasks.ListAsync(actor.Value, token)); return Page(); }
+        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); RefreshCounts = await refresh.CountsAsync(actor.Value, token); Items = Filter(await tasks.ListAsync(actor.Value, token)); return Page(); }
     }
     private IReadOnlyList<OperationalTask> Filter(List<OperationalTask> all) => all.Where(t =>
         (ProcessFilter == null || t.ProcessId == ProcessFilter) && (string.IsNullOrWhiteSpace(Search) ||
-        t.Name.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase) || t.TaskCode.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase))).ToArray();
+        SearchText.Contains(t.Name, Search.Trim()) || SearchText.Contains(t.TaskCode, Search.Trim()))).ToArray();
     public static string Message(string code) => code switch {
+        "TASK_CHECKLIST_INVALID" => "Agrega al menos un punto. Cada texto admite hasta 1,000 caracteres; revisa los puntos del checklist.",
+        "TASK_CHECKLIST_PENDING" => "Marca todos los puntos del checklist antes de enviar o aprobar la tarea.",
+        "TASK_CHECKLIST_CHANGED" => "La lista cambió. Recarga la tarea y revisa los puntos antes de continuar.",
+        "PROCESS_PROGRESS_SCHEDULING_UNSUPPORTED" => "Las metas por progreso conservan cierre semanal y no se programan como etapas de ejecución continua. Mantén esa meta fuera del proceso.",
+        "PROCESS_PREPARE_REQUIRED" => "Prepara y revisa la agenda de este proceso en Planificación antes de activarlo.",
+        "PROCESS_CRITICAL_ANCHOR_REQUIRED" => "Una etapa crítica posterior necesita una hora mínima explícita respecto al inicio del proceso.",
+        "SCHEDULING_MARGIN_INVALID" => "Indica un porcentaje entero entre 0 y 500.",
+        "SCHEDULING_POLICY_STALE" => "El porcentaje cambió. Recarga y revisa la versión vigente antes de guardar.",
+        "SCHEDULING_CRITICALITY_REQUIRED" => "Selecciona Crítica, Importante o Flexible para las tareas del plan nuevo.",
         "TASK_MONTH_DAYS_INVALID" => "Indica días del mes entre 1 y 31 separados por comas, solo para tareas mensuales distribuidas.",
         "TASK_DESCRIPTION_INVALID" => "La descripción admite hasta 4,000 caracteres, con saltos de línea.",
-        "WEEKLY_OPERATIONS_TASK_INVALID" => "El plan de operaciones semanal solo admite tareas periódicas del proceso General.",
+        "WEEKLY_OPERATIONS_TASK_INVALID" => "El plan de operaciones semanal solo admite tareas de periodicidad semanal del proceso General.",
         "PROCESS_USE_ACTION" => "Esta asignación pertenece a un proceso. Abre el proceso para entregar, revisar o devolver su intento vigente.",
         "PROCESS_DECISION_INVALID" => "Revisa la declaración, conclusión, decisión y diferencias pendientes de la etapa vigente.",
         "PROCESS_PLAN_PEOPLE_REQUIRED" => "Selecciona un responsable elegible para cada etapa y un periodo desde hoy.",
@@ -102,6 +126,7 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
         "PROCESS_RULES_INVALID" => "Revisa orden, entrada, acción, plazos, devoluciones y hora del calendario. Las posiciones deben ser consecutivas y las tareas únicas.",
         "PROCESS_MEMBERSHIP_INVALID" => "Cada tarea debe pertenecer al proceso, estar activa y aparecer una vez en la versión publicada.",
         "PROCESS_DOCUMENT_FLOW_REQUIRED" => "El motor documental de esta primera integración requiere tareas con evidencia PDF. Los demás requisitos conservan su recorrido en General.",
+        "PROCESS_SEAL_REQUIRES_DOCUMENT_FLOW" => "Registrar documento sellado requiere un proceso de documentos PDF. En un proceso con evidencias distintas, usa Entregar, Revisar o Aceptar resultado.",
         "PROCESS_DOCUMENT_BOUNDARIES_REQUIRED" => "El flujo documental requiere al menos una entrega inicial y una aceptación final. Configura Entregar en la primera etapa y Aceptar resultado en la última.",
         "PROCESS_DRAFT_REQUIRED" => "Guarda un borrador antes de publicar o abandonar.",
         "PROCESS_USE_EDITOR" => "Cambia la pertenencia desde el editor del proceso para revisar sus efectos.",

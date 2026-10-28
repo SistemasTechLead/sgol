@@ -1,0 +1,32 @@
+@model BoardProgressViewModel
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@{
+    var pace = Model.Pace;
+    var expectedPercent = pace.ExpectedPercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var gradient = $"board-progress-gradient-{Model.Key}";
+}
+<section class="board-progress board-progress--@pace.Color" aria-label="Progreso: @Model.Label" data-progress-key="@Model.Key" data-progress-period="@Model.StartsOn.ToString("yyyy-MM-dd")" data-progress-percent="@Model.Percent" data-progress-total="@pace.Total" data-progress-delivered="@Model.Delivered" data-pace-schedule="@Model.Schedule" data-pace-green="@LiveBoardPace.GreenThreshold" data-pace-yellow="@LiveBoardPace.YellowThreshold" data-pace-expected="@pace.Expected" data-pace-delivered="@pace.Delivered">
+    <div class="board-progress__labels">
+        <div class="board-progress__summary"><strong title="@Model.Label: @Model.Delivered de @pace.Total entregadas">
+            <span class="board-progress__period">
+                @if (Model.PersonId is Guid personId) {
+                    <span class="board-avatar"><partial name="_PersonAvatar" model="@(new PersonAvatarViewModel(personId, Model.Label))" /></span>
+                }
+                <span class="board-progress__name">@Model.Label</span>
+            </span>
+            @if (Model.PersonId is not null) { <span class="board-progress__count">@Model.Delivered<small>/@pace.Total</small></span> }
+            else { <span>@Model.Delivered <small>de @pace.Total entregadas</small></span> }
+        </strong><small class="board-progress__pace" data-pace-detail aria-live="polite">@pace.Delivered/@pace.Expected para esta hora</small></div>
+        <div class="board-progress__status"><strong>@Model.Percent<span>%</span></strong></div>
+    </div>
+    <progress class="solo-lectores" value="@Model.Delivered" max="@Math.Max(1, pace.Total)" aria-label="@Model.Label: @Model.Delivered de @pace.Total tareas entregadas, @Model.Percent por ciento; @pace.Delivered de @pace.Expected para esta hora"></progress>
+    <div class="board-progress__track" aria-hidden="true" data-pace-reference title="@Model.Label: referencia de @pace.Expected de @pace.Total tareas para esta hora">
+        <div class="board-progress__channel">
+            <svg width="100%" height="100%" focusable="false">
+                <defs><linearGradient id="@gradient"><stop class="board-progress__start" /><stop class="board-progress__end" offset="1" /></linearGradient></defs>
+                <rect class="board-progress__fill" width="@(Model.Percent)%" height="100%" rx="3.5" fill="url(#@gradient)" data-board-progress-fill />
+            </svg>
+        </div>
+        <svg class="board-progress__marker" width="100%" height="15" focusable="false"><line x1="@(expectedPercent)%" x2="@(expectedPercent)%" y1="0" y2="15" data-pace-marker /></svg>
+    </div>
+</section>

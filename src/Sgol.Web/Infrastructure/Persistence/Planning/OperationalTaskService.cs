@@ -39,6 +39,14 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
             db.OperationalTasks.Add(task);
         }
         else if (task.Revision != input.Revision) throw new DirectionPlanException("TASK_CONFLICT", 409);
+        // Capture a known old calendar before its first catalogue edit.
+        if (task.Revision == input.Revision)
+        {
+            var existing = await db.OperationalAssignments.Where(a => a.TaskId == task.Id && a.DefinitionSnapshotJson == null && a.CompletedAt == null).ToArrayAsync(token);
+            foreach (var assignment in existing)
+                if (assignment.TaskRevision == task.Revision)
+                    assignment.DefinitionSnapshotJson = AssignmentDefinition.Capture(AssignmentDefinition.Baseline(assignment, task));
+        }
         task.ProcessId = input.ProcessId;
         if (task.ProcessId != OperationalSequence.GeneralId)
         {
@@ -46,11 +54,12 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
             process.Revision++;
         }
         task.Name = input.Name; task.Requirement = input.Requirement; task.PeriodType = input.PeriodType;
-        task.Description = input.Description;
+        task.Description = input.Description; task.ChecklistJson = input.ChecklistJson;
+        task.OperationalCriticality = input.OperationalCriticality;
         task.AssignedRole = input.AssignedRole;
         task.IsWeeklyOperationsTask = input.IsWeeklyOperationsTask;
         task.SpecializationId = input.SpecializationId;
-        task.Repetitions = input.Repetitions; task.DeadlineHours = input.DeadlineHours;
+        task.Repetitions = input.Repetitions; // DeadlineHours is retained only for historical contracts; browser input no longer changes it.
         task.LoadMinutes = input.LoadMinutes; task.Active = input.Active; task.Revision++;
         task.StartMinute = input.StartMinute; task.SundayStartMinute = input.SundayStartMinute;
         task.ScheduleMode = input.ScheduleMode; task.WeekDays = input.WeekDays; task.StartHour = input.StartHour;
@@ -58,7 +67,7 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         task.MinimumPhotos = input.MinimumPhotos; task.MaximumPhotos = input.MaximumPhotos;
         task.MaximumPhotoBytes = input.MaximumPhotoBytes;
         task.DifferentPeople = input.DifferentPeople; task.GoalUnits = input.GoalUnits; task.ProgressUnit = input.ProgressUnit;
-        Audit(actor, "OPERATIONAL_TASK_SAVED", task.Id, new { task.Id, task.ProcessId, task.Name, task.Description, task.Requirement, task.AssignedRole, task.SpecializationId, task.PeriodType, task.Repetitions, task.DeadlineHours, task.LoadMinutes, task.Active, task.IsWeeklyOperationsTask, task.ScheduleMode, task.WeekDays, task.PreferredMonthDays, task.StartHour, task.StartMinute, task.SundayStartMinute, task.Revision, task.DifferentPeople, task.GoalUnits, task.ProgressUnit });
+        Audit(actor, "OPERATIONAL_TASK_SAVED", task.Id, new { task.OperationalCriticality, task.Id, task.ProcessId, task.Name, task.Description, task.Requirement, task.ChecklistJson, task.AssignedRole, task.SpecializationId, task.PeriodType, task.Repetitions, task.DeadlineHours, task.LoadMinutes, task.Active, task.IsWeeklyOperationsTask, task.ScheduleMode, task.WeekDays, task.PreferredMonthDays, task.StartHour, task.StartMinute, task.SundayStartMinute, task.Revision, task.DifferentPeople, task.GoalUnits, task.ProgressUnit });
         await db.SaveChangesAsync(token); await tx.CommitAsync(token);
     }
 
@@ -113,19 +122,28 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
                 x.Assignment.Conclusion, x.Assignment.ReviewStatus, x.Assignment.ReviewComment ?? x.Assignment.ReassignmentComment,
                 x.Plan.Id, x.Plan.Name, x.Plan.PeriodType, x.Plan.StartsOn, x.Plan.EndsOn,
                 x.Assignment.ScheduleMode, x.Assignment.GoalUnits, x.Assignment.ProgressUnits, x.Assignment.ProgressUnit, x.Assignment.Revision,
-                x.Assignment.SpecializationId, x.Assignment.SpecializationName, x.Assignment.MinimumPhotos, x.Assignment.MaximumPhotos, x.Assignment.MaximumPhotoBytes, x.Assignment.OccasionId, x.Assignment.Description, x.Assignment.TemporalPolicyJson, x.Assignment.TemporalDecisionJson)).ToArrayAsync(token);
+                x.Assignment.SpecializationId, x.Assignment.SpecializationName, x.Assignment.MinimumPhotos, x.Assignment.MaximumPhotos, x.Assignment.MaximumPhotoBytes, x.Assignment.OccasionId, x.Assignment.Description, x.Assignment.TemporalPolicyJson, x.Assignment.TemporalDecisionJson, x.Assignment.OperationalCriticality, x.Assignment.NominalStartsAt, x.Assignment.SchedulingPolicyId,
+                x.Assignment.TransferRemainingMinutes, x.Assignment.TransferProgressUnits, x.Assignment.ChecklistJson, x.Assignment.ChecklistDraftJson)).ToArrayAsync(token);
     }
 
-    public async Task CompleteAsync(Guid actor, Guid id, string? comment, IFormFile? file, CancellationToken token, string? conclusion = null,
-        Guid? captureSessionId = null, IReadOnlyList<Guid>? photographIds = null, IReadOnlyList<IFormFile>? screenshots = null)
+    public Task CompleteAsync(Guid actor, Guid id, string? comment, IFormFile? file, CancellationToken token, string? conclusion = null,
+        Guid? captureSessionId = null, IReadOnlyList<Guid>? photographIds = null, IReadOnlyList<IFormFile>? screenshots = null, string? checklistAnswer = null)
+        => CompleteCoreAsync(actor, id, comment, file, token, conclusion, captureSessionId, photographIds, screenshots, false, checklistAnswer);
+
+    // Called only after the process has locked and authorized its active attempt.
+    internal Task CompleteProcessEvidenceAsync(Guid actor, Guid id, string? comment, IFormFile? file, CancellationToken token,
+        string conclusion, Guid? captureSessionId, IReadOnlyList<Guid>? photographIds, IReadOnlyList<IFormFile>? screenshots, string? checklistAnswer = null)
+        => CompleteCoreAsync(actor, id, comment, file, token, conclusion, captureSessionId, photographIds, screenshots, true, checklistAnswer);
+
+    private async Task CompleteCoreAsync(Guid actor, Guid id, string? comment, IFormFile? file, CancellationToken token, string? conclusion,
+        Guid? captureSessionId, IReadOnlyList<Guid>? photographIds, IReadOnlyList<IFormFile>? screenshots, bool processEvidence, string? checklistAnswer)
     {
-        await RequireIndependentActionAsync(id, token);
+        if (!processEvidence) await RequireIndependentActionAsync(id, token);
         var person = await PersonAsync(actor, token);
         var assignment = await db.OperationalAssignments.AsNoTracking().Where(a => a.Id == id && a.PersonId == person)
-            .Select(a => new { a.Requirement, a.StartsAt, a.CompletedAt, a.MinimumPhotos, a.MaximumPhotos, a.MaximumPhotoBytes }).SingleOrDefaultAsync(token)
+            .Select(a => new { a.Revision, a.Requirement, a.StartsAt, a.CompletedAt, a.MinimumPhotos, a.MaximumPhotos, a.MaximumPhotoBytes }).SingleOrDefaultAsync(token)
             ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
         if (assignment.CompletedAt is not null) return;
-        if (assignment.StartsAt > clock.UtcNow) throw new DirectionPlanException("TASK_NOT_STARTED", 422);
         conclusion = conclusion?.Trim();
         if (conclusion?.Length > 4000)
             throw new DirectionPlanException("TASK_CONCLUSION_TOO_LONG", 422);
@@ -134,6 +152,8 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         if (comment?.Length > 4000 || assignment.Requirement == "COMENTARIO" && string.IsNullOrWhiteSpace(comment))
             throw new DirectionPlanException("TASK_COMMENT_REQUIRED", 422);
         byte[]? bytes = null; string? media = null; string? name = null;
+        if (processEvidence && file != null && assignment.Requirement is "NINGUNO" or "COMENTARIO")
+            throw new DirectionPlanException("TASK_FILE_INVALID", 422);
         var verifiedScreenshots = new List<(byte[] Bytes, string Media, string Name)>();
         if (assignment.Requirement != "CAPTURA_PANTALLA" && screenshots?.Count > 0)
             throw new DirectionPlanException("TASK_FILE_INVALID", 422);
@@ -183,14 +203,13 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
             using var buffer = new MemoryStream(); await valid.Content.CopyToAsync(buffer, token);
             bytes = buffer.ToArray(); media = valid.MediaType.ToMediaType(); name = Path.GetFileName(file.FileName);
         }
-        await using var tx = await db.Database.BeginTransactionAsync(token);
+        await using var tx = db.Database.CurrentTransaction == null ? await db.Database.BeginTransactionAsync(token) : null;
         await LockAsync(db, token); person = await PersonAsync(actor, token);
         var current = await db.OperationalAssignments.SingleOrDefaultAsync(a => a.Id == id && a.PersonId == person, token)
             ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
-        await RequireIndependentActionAsync(id, token);
+        if (!processEvidence) await RequireIndependentActionAsync(id, token);
         if (current.CompletedAt is null)
         {
-            if (current.StartsAt > clock.UtcNow) throw new DirectionPlanException("TASK_NOT_STARTED", 422);
             if (current.GoalUnits > 0 && current.ProgressUnits < current.GoalUnits) throw new DirectionPlanException("TASK_GOAL_PENDING", 422);
             if (current.Requirement == "FOTOGRAFIA")
             {
@@ -218,10 +237,11 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
                 db.OperationalAttachments.Add(new() { AssignmentId = current.Id, FileName = name!,
                     ContentType = media!, Content = bytes, CreatedAt = clock.UtcNow });
             current.Conclusion = conclusion; current.ReviewStatus = "PENDIENTE_REVISION"; current.Revision++;
-            Audit(actor, "OPERATIONAL_TASK_COMPLETED", id, new { current.PlanId, current.CompletedAt, current.Requirement });
+            Audit(actor, "OPERATIONAL_TASK_COMPLETED", id, new { current.PlanId, current.CompletedAt, current.Requirement,
+                current.ChecklistJson, current.ChecklistDraftJson, current.StartsAt, current.DueAt, EarlyDelivery = current.CompletedAt < current.StartsAt });
             await db.SaveChangesAsync(token);
         }
-        await tx.CommitAsync(token);
+        if (tx != null) await tx.CommitAsync(token);
     }
 
     public async Task ProgressAsync(Guid actor, Guid id, long revision, int units, string? note, CancellationToken token)
@@ -234,7 +254,6 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         var task = await db.OperationalAssignments.SingleOrDefaultAsync(a => a.Id == id && a.PersonId == person, token)
             ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
         await RequireIndependentActionAsync(id, token);
-        if (task.StartsAt > clock.UtcNow) throw new DirectionPlanException("TASK_NOT_STARTED", 422);
         if (task.Revision != revision || task.CompletedAt != null) throw new DirectionPlanException("TASK_CONFLICT", 409);
         if (task.GoalUnits == 0 || units > task.GoalUnits - task.ProgressUnits) throw new DirectionPlanException("TASK_PROGRESS_INVALID", 422);
         task.ProgressUnits += units; task.Revision++;

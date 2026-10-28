@@ -1,0 +1,8 @@
+{
+  "name": "sgol-avatar-assets",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.mjs" },
+  "dependencies": { "boring-avatars": "2.0.4", "preact": "10.29.3" },
+  "devDependencies": { "esbuild": "0.25.12" }
+}

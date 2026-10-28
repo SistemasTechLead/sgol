@@ -1,0 +1,80 @@
+const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
+const assert = (condition, message) => { if (!condition) throw new Error(message); console.log('PASS ' + message); };
+(async () => {
+ const browser = await chromium.launch({headless:true});
+ const page = await browser.newPage({viewport:{width:1366,height:900}});
+ const source = fs.readFileSync('src/Sgol.Web/Pages/Tasks/Processes.cshtml','utf8');
+ // Use the actual editor markup, replacing only Razor bindings with isolated examples.
+ const rows = Array.from({length:8}, (_,i) => ({TaskId:`task-${i+1}`,Position:i+1,Action:'ENTREGAR',ReleaseCondition:i?'ENTREGA':'INICIO',MinimumStartOffsetHours:null,ReturnToPosition:i===5?2:null,Instructions:`Instrucciones de tarea ${i+1}`}));
+ const saved = {Name:'Reporte de incidencias',Description:'Proceso de prueba',StartKind:'OCASIONAL',FirstMonth:2,WindowFromDay:20,WindowThroughDay:25,PreferredWeekDay:1,StartHour:null,Steps:rows};
+ const escape = s => String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
+ let stage = source.slice(source.indexOf('<article class="process-stage"'),source.indexOf('</article>')+10);
+ const stages = rows.map((row,i)=>stage.replaceAll('@(task?.Name ?? "Tarea no disponible")',`Preparar reporte de incidencias ${i+1}`).replaceAll('@(task?.Name)',`tarea ${i+1}`).replaceAll('@task?.TaskCode',`TAR-00${i+1}`).replaceAll('@step.Position',String(i+1)).replaceAll('@IndexModel.RoleLabel(task?.AssignedRole)','Administración').replaceAll('@task?.LoadMinutes','15').replaceAll('@(task==null ? "" : IndexModel.Label(task.Requirement))','Fotografía').replaceAll('[@i]',`[${i}]`).replace(/asp-for="Input.Steps\[i\].(\w+)"/g,(_,key)=>`name="Input.Steps[${i}].${key}" id="Input_Steps_${i}__${key}" ${['Action','ReleaseCondition','Instructions'].includes(key)?'':`value="${escape(row[key]??'')}"`}`).replace(/(<textarea[^>]*Instructions[^>]*>).*?(<\/textarea>)/g,`$1${row.Instructions}$2`).replace(/<option value="([^"]+)">/g,(m,v)=>m.replace('>',(v===row.Action || v===row.ReleaseCondition?' selected':'')+'>'))).join('');
+ let toolbar = source.slice(source.indexOf('<div class="process-toolbar"'),source.indexOf('<form id="process-editor"'));
+ toolbar=toolbar.replace(/@if\(editor.Draft != null\) \{ ([\s\S]*?) \}/, '$1').replace(/@if\(editor.Process.PublishedVersionId != null\) \{ [\s\S]*? \}/,'').replace(/<input[^>]+>/g,'').replace(/@\(editor.Draft != null[\s\S]*?<\/p>/,'Publicar usa el borrador guardado. Activar permite nuevos inicios.</p>');
+ const markup = `<div style="container-type:inline-size;container-name:sgol-viewport"><section class="process-page"><h1>Procesos de trabajo</h1><h2>${saved.Name}</h2>${toolbar}<form id="process-editor" class="process-editor" data-process-rules data-process-has-draft="true" data-process-saved="${escape(JSON.stringify(saved))}"><details class="panel-seccion process-settings"><summary>Proceso e inicio <span data-process-settings-summary></span></summary><div class="process-settings-body"><label>Nombre<input class="campo__control" name="Input.Name" value="${saved.Name}" required></label><textarea name="Input.Description">${saved.Description}</textarea><select name="Input.StartKind" data-process-start-kind><option value="OCASIONAL">Ocasión del proceso</option><option value="SEMESTRAL">Calendario semestral</option></select><div data-process-calendar><input name="Input.FirstMonth" value="2"><input name="Input.WindowFromDay" value="20"><input name="Input.WindowThroughDay" value="25"><input name="Input.PreferredWeekDay" value="1"><input name="Input.StartHour"></div></div></details><section class="panel-seccion"><div class="process-section-heading"><h3>Orden de las tareas</h3></div><div class="process-flow" data-process-stages>${stages}<div class="process-add-slot" data-process-add-slot><span class="process-add-symbol">＋</span><button type="button" class="boton boton--secundario" data-process-add-open>Añadir tarea</button><small>Siguiente paso del proceso</small></div></div><p data-process-order-status role="status"></p></section></form><dialog class="process-task-picker" data-process-add-dialog><h3>Añadir tarea</h3><button data-process-add-close>Cerrar</button><form data-test-add><button>Añadir etapa</button></form></dialog></section></div>`;
+ await page.setContent(markup);
+ const cssDir='src/Sgol.Web/wwwroot/css';
+ for (const name of ['tokens.css','base.css','components.css','processes.css']) if(fs.existsSync(path.join(cssDir,name))) await page.addStyleTag({path:path.join(cssDir,name)});
+ await page.addStyleTag({content:'body{margin:24px;font-family:Arial;background:#f7f5f2;color:#302c29} :root{--color-borde:#ddd;--color-acento:#a34235;--color-superficie-elevada:#fff;--color-superficie:#fff;--color-texto-primario:#302c29;--color-texto-secundario:#665f59;--espacio-24:24px;--espacio-16:16px}'});
+ await page.addScriptTag({path:'src/Sgol.Web/wwwroot/js/process-rules.js'});
+ const save=page.locator('[data-process-save]'), publish=page.locator('[data-process-publish] button');
+ assert(await save.isDisabled() && await publish.isEnabled(),'Saved baseline disables Save and allows Publish');
+ await page.locator('[data-process-save-hint]').focus();
+ assert(await page.getByRole('tooltip').isVisible() && await page.getByRole('tooltip').textContent()==='No hay cambios nuevos','Disabled Save exposes tooltip to keyboard');
+ await page.locator('.process-settings summary').click();
+ await page.locator('[name="Input.Name"]').fill('Nombre modificado');
+ assert(await save.isEnabled() && await publish.isDisabled(),'Editing enables Save and blocks publishing stale draft');
+ await page.locator('[name="Input.Name"]').fill(saved.Name);
+ assert(await save.isDisabled(),'Reverting all edits disables Save again');
+ await page.locator('.process-settings summary').click();
+ const read=()=>page.locator('[data-process-stage]').evaluateAll(rows=>rows.map(r=>r.querySelector('[name$=".TaskId"]').value));
+ await page.locator('[data-process-stage]').nth(5).locator('[data-process-up]').click();
+ assert((await read())[4]==='task-6' && await save.isEnabled(),'Move button updates task order and dirty state');
+ await page.locator('[data-process-stage]').nth(4).locator('[data-process-down]').click();
+ assert(await save.isDisabled(),'Reversing reorder returns to saved state');
+ // Real mouse drag from handle to the first half of the destination card.
+ const handle=page.locator('[data-process-stage]').nth(5).locator('[data-process-drag]');
+ const target=page.locator('[data-process-stage]').nth(2);
+ await page.setViewportSize({width:1366,height:1800});
+ const targetBounds=await target.boundingBox(); await handle.dragTo(target,{targetPosition:{x:targetBounds.width*.2,y:20}});
+ assert((await read())[2]==='task-6','Native mouse drag moves task 6 to position 3');
+ assert(await page.locator('[data-process-stage]').nth(2).locator('[name$=".ReturnToPosition"]').inputValue()==='2','Dragged task retains return target identity');
+ await page.locator('[data-process-stage]').nth(1).locator('[data-process-down]').click();
+ const invalid=page.locator('[data-process-stage]').nth(1).locator('[name$=".ReturnToPosition"]');
+ assert(!await invalid.evaluate(e=>e.checkValidity()) && await invalid.isVisible(),'Invalid return opens advanced fields and blocks saving');
+ await invalid.fill('1');
+ assert(await invalid.evaluate(e=>e.checkValidity()),'Corrected return becomes valid');
+ await page.locator('[data-process-stage-dialog][open] [data-process-edit-close]').click();
+ await page.locator('[data-process-add-open]').click();
+ assert(await page.locator('[data-process-add-dialog]').isVisible(),'Task selector opens without discarding edits');
+ let confirmations=0; page.on('dialog',async dialog=>{confirmations++;await dialog.dismiss()});
+ await page.locator('[data-test-add] button').click();
+ assert(confirmations===1 && await save.isEnabled(),'Cancelling add protects unsaved changes');
+ await page.locator('[data-process-add-close]').click();
+ // Reset fixture to capture the compact default composition.
+
+ await page.setContent(markup); for(const name of ['tokens.css','components.css','mobile.css','processes.css']) await page.addStyleTag({path:path.join(cssDir,name)});
+ await page.addStyleTag({content:'body{margin:24px;font-family:Arial;background:#f7f5f2} :root{--color-borde:#ddd;--color-acento:#a34235;--color-superficie-elevada:#fff;--color-superficie:#fff;--color-texto-primario:#302c29;--color-texto-secundario:#665f59;--espacio-24:24px;--espacio-16:16px}'});
+ await page.addScriptTag({path:'src/Sgol.Web/wwwroot/js/process-rules.js'});
+ fs.mkdirSync('artifacts/process-editor-ui',{recursive:true});
+ await page.setViewportSize({width:1366,height:900});
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const geometry = await page.locator('[data-process-stages]').evaluate(flow=>Array.from(flow.children).map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height}}));
+ assert(geometry.every(r=>Math.abs(r.w-r.h)<2),'Every task and Add slot is square and equally sized');
+ assert(geometry.slice(1).every((r,i)=>r.y>geometry[i].y||r.x>geometry[i].x),'Flow reads left to right then top to bottom');
+ assert(await page.locator('[data-process-stages] > :last-child').getAttribute('data-process-add-slot')!==null,'Add slot stays at the end');
+ assert(await page.locator('.process-flow-row-end [data-process-flow-arrow]').count()>0,'Wrapped rows show a continuation arrow');
+ await page.evaluate(()=>window.scrollTo(0,0)); await page.screenshot({path:'artifacts/process-editor-ui/desktop.png',fullPage:true});
+ for(const width of [390,320]) {
+  await page.setViewportSize({width,height:844});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`No horizontal overflow at ${width}px`);
+  await page.locator('[data-process-stage]').first().locator('[data-process-edit]').click();
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Task editor fits at ${width}px`);
+  await page.locator('[data-process-stage]').first().locator('[data-process-edit-close]').click();
+  await page.evaluate(()=>window.scrollTo(0,0)); await page.screenshot({path:`artifacts/process-editor-ui/mobile-${width}.png`,fullPage:true});
+ }
+ await browser.close();
+})().catch(error=>{console.error(error);process.exit(1)});

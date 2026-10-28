@@ -27,7 +27,8 @@ public sealed class UserProfileInput
     public Guid[] SpecializationIds { get; set; } = [];
 }
 public sealed record UserProfile(Guid Id, string DisplayName, string UserName, string RoleCode,
-    string Status, bool MustChangePassword, long Revision, bool IsOnTrial = false, Guid[]? SpecializationIds = null);
+    string Status, bool MustChangePassword, long Revision, bool IsOnTrial = false, Guid[]? SpecializationIds = null,
+    Guid PersonId = default);
 public sealed record UserProfileResult(Guid Id, string? TemporaryPassword, bool Replayed = false)
 {
     public override string ToString() => $"UserProfileResult {{ Id = {Id}, TemporaryPassword = [REDACTED] }}";
@@ -64,7 +65,7 @@ public sealed class UserProfileService(SgolDbContext db, AuditTransaction audit,
             db.RoleAssignmentVersions.Where(r => r.UserId == u.Id && r.BranchId == BranchScope.LorettaId &&
                 r.ValidTo == null && r.Status == RoleAssignmentStatus.Active).Select(r => r.RoleCode).FirstOrDefault() ?? "",
             u.Status, u.MustChangePassword, u.AuthenticationRowVersion, p.IsOnTrial,
-            db.Set<PersonSpecialization>().Where(s => s.PersonId == p.Id).OrderBy(s => s.SpecializationId).Select(s => s.SpecializationId).ToArray());
+            db.Set<PersonSpecialization>().Where(s => s.PersonId == p.Id).OrderBy(s => s.SpecializationId).Select(s => s.SpecializationId).ToArray(), p.Id);
     public async Task<IReadOnlyList<UserProfile>> ListAsync(Guid actor, CancellationToken ct)
     {
         await AuthorizeAsync(actor, ct);

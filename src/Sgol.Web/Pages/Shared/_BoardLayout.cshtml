@@ -8,9 +8,12 @@
     <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/live-board.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/mobile.css" asp-append-version="true" />
 </head>
 <body class="board-page" data-screen="@(Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User) ? "true" : "false")">
     <main>@RenderBody()</main>
+    <script src="~/js/person-avatars.js" asp-append-version="true" defer></script>
+    <script src="~/js/mobile.js" asp-append-version="true" defer></script>
     @if (Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User)) {
         <script src="~/js/screen-session.js" asp-append-version="true" data-expires="@User.FindFirst(Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.Expires)?.Value" defer></script>
     }

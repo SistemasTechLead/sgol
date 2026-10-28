@@ -4,9 +4,9 @@
 <section aria-labelledby="specializations-title">
     <header class="encabezado-pagina encabezado-pagina--catalogo">
         <div class="encabezado-pagina__contenido"><h1 id="specializations-title" class="encabezado-pagina__titulo">Especializaciones</h1><p class="encabezado-pagina__descripcion">Subroles del equipo. Asigna varias o ninguna desde el perfil de cada persona.</p></div>
+        <partial name="_SectionNavigation" model='@("people")' />
         <div class="encabezado-pagina__acciones">
             <a class="boton boton--primario" href="?create=true">Crear especialización</a>
-            <a class="boton boton--secundario" href="/personas-y-accesos">Volver a Personas y accesos</a>
         </div>
     </header>
     @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }

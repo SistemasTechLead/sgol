@@ -2,21 +2,33 @@
 @model Sgol.Web.Pages.Occasional.IndexModel
 @using Sgol.Web.Pages.Tasks
 @{ ViewData["Title"] = "Asignar tarea"; }
-<section class="panel-seccion tasks-editor" aria-labelledby="occasional-title">
-    <header class="panel-seccion__cabecera"><h1 id="occasional-title">Asignar tarea</h1></header>
-    <p>Elige una tarea ocasional existente o crea una nueva. Cada asignación se realiza una sola vez y conserva su evidencia.</p>
+<section aria-labelledby="occasional-title">
+    <header class="encabezado-pagina encabezado-pagina--catalogo">
+        <div class="encabezado-pagina__contenido">
+            <h1 id="occasional-title" class="encabezado-pagina__titulo">Asignar tarea</h1>
+            <p class="encabezado-pagina__descripcion">Elige una tarea ocasional existente o crea una nueva. Cada asignación se realiza una sola vez y conserva su evidencia.</p>
+        </div>
+        <partial name="_SectionNavigation" model='@("tasks")' />
+    </header>
     @if (TempData["OccasionalAssigned"] is string message) { <p class="alerta alerta--exito" role="status">@message</p> }
     @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
     <form method="get" class="tasks-search occasional-search"><label class="campo"><span class="campo__etiqueta">Buscar tarea ocasional</span><input class="campo__control" asp-for="Search" type="search" /></label><button class="boton boton--secundario" type="submit">Buscar</button></form>
-    <h2>Tareas ocasionales disponibles</h2>
-    @if (Model.Items.Count == 0) { <p>No hay tareas ocasionales disponibles con esta búsqueda.</p> }
-    <ul>
+    <section class="panel-seccion" aria-labelledby="occasional-list-title">
+    <header class="panel-seccion__cabecera"><h2 id="occasional-list-title">Tareas ocasionales disponibles</h2></header>
+    @if (Model.Items.Count == 0) { <p class="estado-vacio">No hay tareas ocasionales disponibles con esta búsqueda.</p> }
+    else {
+    <div class="tabla-contenedor"><table class="tabla">
+        <thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Requisito</th><th scope="col">Carga por persona</th><th scope="col">Acciones</th></tr></thead>
+        <tbody>
         @foreach (var task in Model.Items) {
-            <li><strong>@task.Name</strong> · @IndexModel.Label(task.Requirement) · @task.LoadMinutes min
-                <a class="boton boton--primario" href="/asignar-tarea/asignar?taskId=@task.Id">Asignar</a></li>
+            <tr class="tabla__fila"><td><strong>@task.Name</strong></td><td>@IndexModel.Label(task.Requirement)</td><td>@task.LoadMinutes min</td>
+                <td><a class="boton boton--primario" href="/asignar-tarea/asignar?taskId=@task.Id" aria-label="Asignar: @task.Name">Asignar</a></td></tr>
         }
-    </ul>
-    <details class="occasional-create" open="@(Model.Error != null)"><summary class="boton boton--primario">Crear nueva tarea ocasional</summary>
+        </tbody>
+    </table></div>
+    }
+    </section>
+    <details class="panel-seccion occasional-create" open="@(Model.Error != null)"><summary class="boton boton--primario">Crear nueva tarea ocasional</summary>
         <p>Se guardará en el catálogo para reutilizarla. Después elegirás destinatarios, instrucciones y fechas. Para tareas con especialización, utiliza una definición existente configurada por Dirección.</p>
         <form method="post" asp-page-handler="Create" data-occasional-create>
             <div class="planificacion__formulario">
@@ -26,7 +38,7 @@
                     @foreach (var requirement in new[] { "NINGUNO", "COMENTARIO", "FOTOGRAFIA", "DOCUMENTO", "EXCEL", "CAPTURA_PANTALLA" }) { <option value="@requirement">@IndexModel.Label(requirement)</option> }
                 </select></label>
                 <label class="campo"><span class="campo__etiqueta">Carga por persona (minutos)</span><input class="campo__control" asp-for="Input.LoadMinutes" type="number" min="1" max="4800" required /></label>
-                <label class="campo"><span class="campo__etiqueta">Plazo sugerido (horas)</span><input class="campo__control" asp-for="Input.DeadlineHours" type="number" min="1" max="8760" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Criticidad operativa</span><select class="campo__control" asp-for="Input.OperationalCriticality"><option value="CRITICA">Crítica</option><option value="IMPORTANTE">Importante</option><option value="FLEXIBLE">Flexible</option></select></label><p>El cierre se calcula según carga y margen global al asignar.</p>
                 <label class="campo" data-occasional-photos hidden="@(Model.Input.Requirement is not ("FOTOGRAFIA" or "CAPTURA_PANTALLA"))"><span class="campo__etiqueta">Imágenes mínimas</span><input class="campo__control" asp-for="Input.MinimumPhotos" type="number" min="1" max="20" required disabled="@(Model.Input.Requirement is not ("FOTOGRAFIA" or "CAPTURA_PANTALLA"))" /></label>
                 <label class="campo" data-occasional-photos hidden="@(Model.Input.Requirement is not ("FOTOGRAFIA" or "CAPTURA_PANTALLA"))"><span class="campo__etiqueta">Imágenes máximas</span><input class="campo__control" asp-for="Input.MaximumPhotos" type="number" min="1" max="20" required disabled="@(Model.Input.Requirement is not ("FOTOGRAFIA" or "CAPTURA_PANTALLA"))" /></label>
             </div>

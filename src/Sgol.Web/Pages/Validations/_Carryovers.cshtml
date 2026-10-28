@@ -1,0 +1,25 @@
+@model Sgol.Web.Pages.Validations.IndexModel
+<section class="panel-seccion" id="carryovers" aria-labelledby="carryovers-title"><h2 id="carryovers-title">Peticiones de arrastre <span class="badge badge--neutro">@Model.PendingAuthorizedCarryoverCount</span></h2>
+@if(Model.PendingAuthorizedCarryoverCount == 0) { <p>No hay peticiones de arrastre pendientes.</p> }
+@foreach(var request in Model.Carryovers.Where(r => r.State == "PENDIENTE")) {
+    <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" />
+    <details><summary>Situación actual y efecto al aprobar</summary>
+        @foreach(var item in request.Items()) {
+            @if(Model.CarryoverCurrent.TryGetValue(item.AssignmentId, out var current)) {
+                <p>@current.PersonName · @item.Task · Cierre vigente @Sgol.Web.Infrastructure.Persistence.Reporting.ReportCatalog.Time(current.DueAt).
+                @(current.CompletedAt != null ? request.Kind == "POSPONER" ? "Ya entregada: conservará sus fechas y decisión; no se pospondrá." : "Ya entregada: conservará sus fechas y decisión de calidad; solo se reconocerá el arrastre." : "Pendiente: se aplicará el horario propuesto si permanece elegible.")
+                @if(current.DueAt != item.Due || current.StartsAt != item.Start || current.PersonId != item.PersonId || current.ReviewStatus == "REASIGNADA") { <strong>Conflicto: cambió la asignación. Rechaza y solicita corregir la petición.</strong> }
+                </p>
+            }
+        }
+    </details>
+    <form method="post" action="@Model.CarryoverDecisionHref" asp-antiforgery="true" class="carryover-form">
+        <input name="requestId" value="@request.Id" type="hidden" /><input name="requestRevision" value="@request.Revision" type="hidden" />
+        <label for="comment-@request.Id">Comentario de decisión para la solicitud @request.Id</label><textarea id="comment-@request.Id" name="decisionComment" required maxlength="4000"></textarea>
+        <p>@(request.Kind == "POSPONER" ? "Aprobar reserva los horarios propuestos para las pendientes. Si cambió la carga, el horario o alguna fecha propuesta ya pasó, se bloqueará la aprobación. Las entregadas conservarán sus fechas y decisión." : "Aprobar aplica todo el alcance. Las entregas y decisiones de calidad conservan sus fechas y estado. La excepción fuera de turno solo ajusta el vencimiento.")</p>
+        <button name="approve" value="true" class="boton boton--primario">Aprobar arrastre</button><button name="approve" value="false" class="boton boton--secundario">Rechazar</button>
+    </form>
+}
+<details><summary>Historial de aprobadas y rechazadas</summary>@foreach(var request in Model.Carryovers.Where(r => r.State != "PENDIENTE")) { <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" /> }</details>
+</section>
+

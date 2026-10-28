@@ -4,21 +4,22 @@
     var title = ViewData["Title"] as string ?? "SGOL";
     var navigationItems = RoleScreenAccess.Items;
     var systemError = ViewData["SystemError"] is true;
+    var boardShell = ViewData["BoardShell"] is true;
     var errorSession = ViewData["SystemErrorSession"] as Sgol.Identity.Contracts.SessionSnapshot;
     var shell = systemError ? errorSession is not null : Context.Request.Path.StartsWithSegments("/tareas") || Context.Request.Path.StartsWithSegments("/mi-trabajo") ||
         Context.Request.Path.StartsWithSegments("/validaciones") ||
+        Context.Request.Path.StartsWithSegments("/supervision") ||
         Context.Request.Path.StartsWithSegments("/asignar-tarea") ||
         Context.Request.Path.StartsWithSegments("/personas-y-accesos") ||
         Context.Request.Path.StartsWithSegments("/configuracion") ||
         Context.Request.Path.StartsWithSegments("/planificacion") ||
-        Context.Request.Path.StartsWithSegments("/reportes");
+        Context.Request.Path.StartsWithSegments("/reportes") || boardShell;
     var session = systemError ? errorSession : shell ? await SessionState.GetAsync(Context.RequestAborted) : null;
     var roleName = session is null ? null : SessionPresentation.RoleName(session.RoleCode);
     if (roleName is null) session = null;
     var visibleItems = RoleAwareNavigation.VisibleTo(session, navigationItems)
-        .OrderBy(item => item.Href == "/configuracion" ? 1 : 0).ToList();
+        .OrderBy(item => item.Href switch { "/tablero" => 1, "/configuracion" => 2, _ => 0 }).ToList();
     var hasNavigation = visibleItems.Count > 0;
-    var initials = session is null ? "" : string.Concat(session.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[..1])).ToUpperInvariant();
     var accessPage = ViewData["SkipSession"] is true;
 }
 <!DOCTYPE html>
@@ -31,16 +32,25 @@
     <link rel="stylesheet" href="~/css/tokens.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/components.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/camera-capture.css" asp-append-version="true" />
+    @if (boardShell)
+    {
+        <link rel="stylesheet" href="~/css/live-board.css" asp-append-version="true" />
+    }
+    <link rel="stylesheet" href="~/css/mobile.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/navigation.css" asp-append-version="true" />
+    @if (Context.Request.Path.StartsWithSegments("/validaciones")) {
+        <link rel="stylesheet" href="~/css/validation-cards.css" asp-append-version="true" />
+    }
 </head>
-<body class="@(systemError ? "pagina-error-sistema" : accessPage ? "pagina-acceso" : null)">
+<body class="@(systemError ? "pagina-error-sistema" : accessPage ? "pagina-acceso" : boardShell ? "board-shell" : null)">
     <a class="salto-contenido" href="#contenido-principal">Saltar al contenido principal</a>
     <div class="aplicacion @(!shell ? "aplicacion--acceso" : !hasNavigation ? "aplicacion--sin-navegacion" : null)">
         <header class="encabezado-aplicacion">
-            <span class="encabezado-aplicacion__marca">@title</span>
+            <span class="encabezado-aplicacion__marca">SGOL</span>
             @if (session is not null)
             {
                 <details class="menu-sesion" data-session-menu>
-                    <summary class="avatar-sesion" aria-label="Opciones de la cuenta de @session.DisplayName">@initials</summary>
+                    <summary class="avatar-sesion" aria-label="Opciones de la cuenta de @session.DisplayName">@if (systemError) { @(new PersonAvatarViewModel(session.PersonId, session.DisplayName, session.UserName).Initial) } else { <partial name="_PersonAvatar" model="@(new PersonAvatarViewModel(session.PersonId, session.DisplayName, session.UserName))" /> }</summary>
                     <div class="menu-sesion__desplegable">
                         <form method="post" action="/mi-trabajo" asp-antiforgery="false" class="encabezado-aplicacion__logout" data-logout-form>
                             <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
@@ -61,8 +71,9 @@
         </header>
         @if (hasNavigation)
         {
-        <aside class="barra-lateral">
-            <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /><p>SGOL · Gestión operativa</p></div>
+        <aside class="barra-lateral" id="barra-lateral">
+            <div class="barra-lateral__ajuste" role="separator" tabindex="0" aria-label="Ancho de la barra lateral" aria-orientation="vertical" aria-controls="barra-lateral" aria-valuemin="72" aria-valuemax="224" aria-valuenow="224" title="Arrastra para ajustar. Usa las flechas para cambiar el ancho; Inicio para contraer y Fin para ampliar." data-sidebar-resize></div>
+            <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /></div>
             <nav class="navegacion-lateral navegacion-lateral--escritorio" aria-label="Navegación principal">
                 <ul class="navegacion-lateral__lista">
                     @foreach (var item in visibleItems)
@@ -70,8 +81,9 @@
                         <li>
                             <a class="navegacion-lateral__item"
                                href="@item.Href"
-                               aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)">
-                                <partial name="_Icon" model='@(item.Label switch { "Mi trabajo" => "briefcase", "Tablero" => "calendar", "Supervisión" => "eye", "Configuración" => "settings", "Planificación" => "calendar", "Reportes" => "report", "Personas y accesos" => "users", _ => "list" })' />@item.Label
+                               title="@item.Label" aria-label="@item.Label"
+                               aria-current="@((Context.Request.Path.StartsWithSegments(item.Href) || item.Href == "/validaciones" && Context.Request.Path.StartsWithSegments("/supervision")) ? "page" : null)">
+                                <partial name="_Icon" model='@(item.Label switch { "Mi trabajo" => "briefcase", "Tablero" => "calendar", "Supervisión" => "eye", "Configuración" => "settings", "Planificación" => "checklist", "Reportes" => "report", "Personas y accesos" => "users", _ => "list" })' /><span class="navegacion-lateral__texto">@item.Label</span>
                             </a>
                         </li>
                     }
@@ -79,14 +91,14 @@
             </nav>
             <div class="sucursal-contexto"><span>Sucursal</span><strong>Loretta · @session!.BranchCode</strong><small>Hora operativa de Ciudad de México</small></div>
                 <dialog id="navegacion-movil" class="navegacion-movil" aria-label="Navegación principal">
-                    <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /><p>SGOL · Gestión operativa</p></div>
+                    <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /></div>
                     <form method="dialog"><button class="boton boton--secundario" type="submit" data-initial-focus><partial name="_Icon" model='@("close")' />Cerrar navegación</button></form>
                     <nav aria-label="Navegación principal móvil">
                         <ul class="navegacion-lateral__lista">
                             @foreach (var item in visibleItems)
                             {
                                 <li><a class="navegacion-lateral__item" href="@item.Href"
-                                       aria-current="@(Context.Request.Path.StartsWithSegments(item.Href) ? "page" : null)"><partial name="_Icon" model='@(item.Label switch { "Mi trabajo" => "briefcase", "Tablero" => "calendar", "Supervisión" => "eye", "Configuración" => "settings", "Planificación" => "calendar", "Reportes" => "report", "Personas y accesos" => "users", _ => "list" })' />@item.Label</a></li>
+                                       aria-current="@((Context.Request.Path.StartsWithSegments(item.Href) || item.Href == "/validaciones" && Context.Request.Path.StartsWithSegments("/supervision")) ? "page" : null)"><partial name="_Icon" model='@(item.Label switch { "Mi trabajo" => "briefcase", "Tablero" => "calendar", "Supervisión" => "eye", "Configuración" => "settings", "Planificación" => "checklist", "Reportes" => "report", "Personas y accesos" => "users", _ => "list" })' />@item.Label</a></li>
                             }
                         </ul>
                     </nav>
@@ -98,7 +110,11 @@
         </main>
     </div>
     <script src="~/js/components.js" asp-append-version="true"></script>
+    <script src="~/js/sidebar.js" asp-append-version="true"></script>
+    <script src="~/js/person-avatars.js" asp-append-version="true" defer></script>
+    <script src="~/js/search-text.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+    <script src="~/js/mobile.js" asp-append-version="true" defer></script>
 </body>
 </html>
 

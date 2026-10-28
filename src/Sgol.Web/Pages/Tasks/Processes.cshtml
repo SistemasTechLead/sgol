@@ -10,12 +10,12 @@
             <h1 id="process-title" class="encabezado-pagina__titulo">Procesos de trabajo</h1>
             <p class="encabezado-pagina__descripcion">Organiza las tareas por etapas y consulta las reglas de inicio y los plazos de cada proceso.</p>
         </div>
+        <partial name="_SectionNavigation" model='@("tasks")' />
         <div class="encabezado-pagina__acciones">
             @if(Model.CanManage && !Model.Creating && Model.Editor == null)
             {
                 <a class="boton boton--primario" href="/tareas/procesos?create=true">Crear proceso</a>
             }
-            <a class="boton boton--secundario" href="/tareas">Volver a Tareas</a>
         </div>
     </header>
     @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
@@ -32,7 +32,7 @@
     }
     else if (Model.Editor is { } editor)
     {
-        <h2>@editor.Process.Name</h2><p>@editor.Process.Description</p>
+        <h2>@editor.Process.Name</h2>
         @if (editor.Process.IsGeneral)
         {
             <p>General conserva los calendarios independientes. Sus tareas no tienen dependencias entre ellas.</p><a class="boton boton--secundario" href="/tareas?ProcessFilter=@editor.Process.Id">Ver tareas de General</a>
@@ -40,46 +40,67 @@
         else
         {
             <p>@(editor.Draft != null ? $"Borrador {editor.Draft.Number}" : "Versión publicada") · @(editor.Process.Enabled ? "Activa para nuevos inicios" : "Sin nuevos inicios")</p>
-            <p>Guardar borrador, publicar y activar son acciones distintas. Cada ejecución conserva su versión y sus documentos.</p>
+
             @if (Model.CanManage)
             {
-                <form method="post" asp-page-handler="Save" class="process-editor" data-process-rules>
+                <div class="process-toolbar" aria-label="Acciones del proceso">
+                    <div><strong data-process-save-status role="status">Borrador guardado</strong><small>1. Guardar → 2. Publicar → 3. Activar</small></div>
+                    <div class="process-actions">
+                        <span class="process-save-hint" tabindex="0" data-process-save-hint title="No hay cambios nuevos" aria-label="Guardar borrador: No hay cambios nuevos"><button class="boton boton--secundario" type="submit" form="process-editor" data-process-save disabled>Guardar borrador</button><span role="tooltip" data-process-save-tooltip>No hay cambios nuevos</span></span>
+                        @if(editor.Draft != null) { <form method="post" asp-page-handler="Publish" data-process-publish><input type="hidden" name="Input.Id" value="@editor.Process.Id" /><input type="hidden" name="Input.Revision" value="@editor.Process.Revision" /><button class="boton boton--primario" type="submit">Publicar borrador</button></form> }
+                        @if(editor.Process.PublishedVersionId != null) { <form method="post" asp-page-handler="Enable"><input type="hidden" name="Input.Id" value="@editor.Process.Id" /><input type="hidden" name="Input.Revision" value="@editor.Process.Revision" /><input type="hidden" name="enabled" value="@(!editor.Process.Enabled ? "true" : "false")" /><button class="boton @(editor.Draft == null && !editor.Process.Enabled ? "boton--primario" : "boton--secundario")" type="submit">@(editor.Process.Enabled ? "Desactivar nuevos inicios" : "Activar versión publicada")</button></form> }
+                        <a class="boton boton--secundario" href="/tareas">Cerrar editor</a>
+                    </div>
+                    <p data-process-next>@(editor.Draft != null ? "Publicar usa el borrador guardado y deja los nuevos inicios desactivados hasta volver a activar." : editor.Process.Enabled ? "La versión publicada está activa para nuevos inicios. Editar crea un nuevo borrador al guardar." : "Activa la versión publicada para permitir nuevos inicios.")</p>
+                </div>
+                <form id="process-editor" method="post" asp-page-handler="Save" class="process-editor" data-process-rules data-process-saved="@Model.SavedInputJson" data-process-errors="@(Model.Error != null ? "true" : "false")" data-process-has-draft="@(editor.Draft != null ? "true" : "false")">
                     <input type="hidden" asp-for="Input.Id" /><input type="hidden" asp-for="Input.Revision" />
-                    <section class="panel-seccion"><h3>Proceso e inicio</h3>
+                    <details class="panel-seccion process-settings"><summary><strong>Proceso e inicio</strong><span data-process-settings-summary>@Model.Input.Name · @(Model.Input.StartKind == "SEMESTRAL" ? "Calendario semestral" : "Ocasión del proceso")</span><span>Editar configuración</span></summary><div class="process-settings-body">
                         <label class="campo"><span class="campo__etiqueta">Nombre</span><input class="campo__control" asp-for="Input.Name" maxlength="120" required /></label>
                         <label class="campo"><span class="campo__etiqueta">Descripción</span><textarea class="campo__control" asp-for="Input.Description" maxlength="4000"></textarea></label>
-                        <label class="campo"><span class="campo__etiqueta">Inicio</span><select class="campo__control" asp-for="Input.StartKind"><option value="OCASIONAL">Ocasión del proceso</option><option value="SEMESTRAL">Calendario semestral</option></select></label>
-                        <label class="campo"><span class="campo__etiqueta">Primer mes (el segundo será seis meses después)</span><input class="campo__control" asp-for="Input.FirstMonth" type="number" min="1" max="6" /></label>
-                        <label class="campo"><span class="campo__etiqueta">Ventana · desde el día</span><input class="campo__control" asp-for="Input.WindowFromDay" type="number" min="1" max="28" /></label>
-                        <label class="campo"><span class="campo__etiqueta">Hasta el día inclusive</span><input class="campo__control" asp-for="Input.WindowThroughDay" type="number" min="1" max="28" /></label>
-                        <label class="campo"><span class="campo__etiqueta">Día preferido</span><select class="campo__control" asp-for="Input.PreferredWeekDay">@for (var d=0; d<7; d++) { <option value="@d">@(new[] { "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" }[d])</option> }</select></label>
+                        <label class="campo"><span class="campo__etiqueta">Inicio</span><select class="campo__control" asp-for="Input.StartKind" data-process-start-kind aria-controls="process-calendar"><option value="OCASIONAL">Ocasión del proceso</option><option value="SEMESTRAL">Calendario semestral</option></select></label>
+                        <div id="process-calendar" data-process-calendar hidden="@(Model.Input.StartKind != "SEMESTRAL")">
+                        <label class="campo"><span class="campo__etiqueta">Primer mes (el segundo será seis meses después)</span><input class="campo__control" asp-for="Input.FirstMonth" disabled="@(Model.Input.StartKind != "SEMESTRAL")" type="number" min="1" max="6" /></label>
+                        <label class="campo"><span class="campo__etiqueta">Ventana · desde el día</span><input class="campo__control" asp-for="Input.WindowFromDay" disabled="@(Model.Input.StartKind != "SEMESTRAL")" type="number" min="1" max="28" /></label>
+                        <label class="campo"><span class="campo__etiqueta">Hasta el día inclusive</span><input class="campo__control" asp-for="Input.WindowThroughDay" disabled="@(Model.Input.StartKind != "SEMESTRAL")" type="number" min="1" max="28" /></label>
+                        <label class="campo"><span class="campo__etiqueta">Día preferido</span><select class="campo__control" asp-for="Input.PreferredWeekDay" disabled="@(Model.Input.StartKind != "SEMESTRAL")">@for (var d=0; d<7; d++) { <option value="@d">@(new[] { "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" }[d])</option> }</select></label>
                         <p>Si no existe ese día en la ventana, se usa el primer día.</p>
-                        <label class="campo"><span class="campo__etiqueta">Hora local · Ciudad de México (0–23)</span><input class="campo__control" asp-for="Input.StartHour" type="number" min="0" max="23" /><small>Vacío significa pendiente; publicar un calendario requiere una hora explícita.</small></label>
-                    </section>
-                    <section class="panel-seccion"><h3>Etapas y condiciones</h3>
+                        <label class="campo"><span class="campo__etiqueta">Hora local · Ciudad de México (0–23)</span><input class="campo__control" asp-for="Input.StartHour" disabled="@(Model.Input.StartKind != "SEMESTRAL")" type="number" min="0" max="23" /><small>Vacío significa pendiente; publicar un calendario requiere una hora explícita.</small></label>
+                        </div>
+                    </div></details>
+                    <section class="panel-seccion"><div class="process-section-heading"><div><h3>Orden de las tareas</h3><p>@Model.Input.Steps.Count tareas · @editor.Tasks.Sum(t=>t.LoadMinutes) minutos de carga estimada. Abre una tarjeta para editarla.</p></div></div>
+                        <p>Sigue las posiciones de izquierda a derecha y continúa en la fila de abajo. Arrastra las tarjetas desde el asa o usa Anterior y Siguiente.</p>
+                        <div class="process-flow" data-process-stages aria-label="Flujo de tareas en orden">
                         @for (var i=0; i<Model.Input.Steps.Count; i++)
                         {
                             var step = Model.Input.Steps[i]; var task=editor.Tasks.SingleOrDefault(t=>t.Id==step.TaskId);
-                            <fieldset class="process-stage"><legend>@(task?.Name ?? "Tarea no disponible")</legend>
+                            <article class="process-stage" data-process-stage>
+                                <div class="process-stage-heading"><button type="button" class="boton boton--secundario process-drag-handle" draggable="true" data-process-drag aria-label="Arrastrar @(task?.Name)">⠿</button><div class="process-stage-title"><strong>@(task?.Name ?? "Tarea no disponible")</strong><small>@task?.TaskCode · <span data-process-stage-summary></span></small></div><div class="process-stage-tools"><button type="button" class="boton boton--secundario" data-process-up>Anterior</button><button type="button" class="boton boton--secundario" data-process-down>Siguiente</button></div><span class="process-position" data-process-position>Etapa @step.Position</span></div>
+                                <button type="button" class="boton boton--secundario process-edit-button" data-process-edit aria-label="Editar detalles de @(task?.Name)">Editar detalles</button>
+                                <dialog class="process-stage-dialog" data-process-stage-dialog aria-label="Editar @(task?.Name)"><div class="process-section-heading"><h3>@(task?.Name ?? "Tarea no disponible")</h3><button type="button" class="boton boton--secundario" data-process-edit-close>Listo</button></div>
                                 <p>@task?.TaskCode · @IndexModel.RoleLabel(task?.AssignedRole) · @task?.LoadMinutes min de carga · @(task==null ? "" : IndexModel.Label(task.Requirement))</p>
                                 <input type="hidden" asp-for="Input.Steps[i].TaskId" />
                                 <div class="planificacion__formulario">
                                     <label class="campo"><span class="campo__etiqueta">Posición</span><input class="campo__control" asp-for="Input.Steps[i].Position" type="number" min="1" max="32" required /></label>
                                     <label class="campo"><span class="campo__etiqueta">Acción</span><select class="campo__control" asp-for="Input.Steps[i].Action"><option value="ENTREGAR">Entregar</option><option value="REVISAR">Revisar</option><option value="SELLAR">Registrar documento sellado</option><option value="AUTORIZAR">Aceptar resultado</option></select></label>
                                     <label class="campo"><span class="campo__etiqueta">Condición de entrada</span><select class="campo__control" asp-for="Input.Steps[i].ReleaseCondition"><option value="INICIO">Inicio del proceso (primera etapa)</option><option value="ENTREGA">Entrega del responsable anterior</option><option value="APROBACION">Aprobación expresa anterior</option></select></label>
-                                    <label class="campo"><span class="campo__etiqueta">Tipo de plazo</span><select class="campo__control" asp-for="Input.Steps[i].DeadlineKind"><option value="RELATIVO">Desde habilitación efectiva</option><option value="FIJO">Límite desde inicio previsto del proceso</option></select></label>
-                                    <label class="campo"><span class="campo__etiqueta">Plazo (horas transcurridas)</span><input class="campo__control" asp-for="Input.Steps[i].DeadlineHours" type="number" min="1" max="8760" required /></label>
-                                    <label class="campo"><span class="campo__etiqueta">Inicio mínimo (horas desde inicio del proceso, opcional)</span><input class="campo__control" asp-for="Input.Steps[i].MinimumStartOffsetHours" type="number" min="0" max="8760" /></label>
+                                    <input type="hidden" name="Input.Steps[@i].DeadlineKind" value="RELATIVO" /><p>Las nuevas versiones calculan el cierre por carga y margen global.</p>
+                                    <input type="hidden" name="Input.Steps[@i].DeadlineHours" value="1" />
+                                    <details class="process-advanced"><summary>Opciones avanzadas: inicio mínimo y devolución</summary><div class="planificacion__formulario"><label class="campo"><span class="campo__etiqueta">Inicio mínimo (horas desde inicio del proceso, opcional)</span><input class="campo__control" asp-for="Input.Steps[i].MinimumStartOffsetHours" type="number" min="0" max="8760" /></label>
                                     <label class="campo"><span class="campo__etiqueta">Devolver a posición (opcional)</span><input class="campo__control" asp-for="Input.Steps[i].ReturnToPosition" type="number" min="1" max="31" /></label>
-                                    <label class="campo"><span class="campo__etiqueta">Instrucciones</span><textarea class="campo__control" asp-for="Input.Steps[i].Instructions" maxlength="4000"></textarea></label>
+                                    </div></details><label class="campo"><span class="campo__etiqueta">Instrucciones</span><textarea class="campo__control" asp-for="Input.Steps[i].Instructions" maxlength="4000"></textarea></label>
                                 </div>
-                            </fieldset>
+                                <p class="process-stage-error" data-process-stage-error role="status"></p></dialog>
+                                <span class="process-flow-arrow" aria-hidden="true" data-process-flow-arrow>→</span>
+                            </article>
                         }
-                        <p>Para ordenar, cambia las posiciones y revisa las devoluciones. Usa posiciones consecutivas y tareas únicas.</p>
-                        <button class="boton boton--primario" type="submit">Guardar borrador</button>
+                            <div class="process-add-slot" data-process-add-slot><span aria-hidden="true" class="process-add-symbol">＋</span><button type="button" class="boton boton--secundario" data-process-add-open>Añadir tarea</button><small>Siguiente paso del proceso</small></div>
+                        </div>
+                        <p role="status" data-process-order-status></p>
+
                     </section>
                 </form>
-                <section class="panel-seccion"><h3>Añadir tareas</h3>
+                <dialog class="process-task-picker" data-process-add-dialog aria-labelledby="process-add-title"><div class="process-section-heading"><h3 id="process-add-title">Añadir tarea al proceso</h3><button type="button" class="boton boton--secundario" data-process-add-close>Cerrar</button></div>
                     <a class="boton boton--secundario" href="/tareas?create=true&amp;ReturnProcess=@editor.Process.Id">Crear tarea dentro del proceso</a>
                     <form method="get" class="tasks-search" data-process-search><input type="hidden" name="id" value="@editor.Process.Id" /><label class="campo"><span class="campo__etiqueta">Buscar por nombre o código</span><input class="campo__control" name="Search" type="search" value="@Model.Search" /></label><button class="boton boton--secundario" type="submit">Buscar</button></form>
                     <p>Añadir desde General suspende la generación independiente futura. Las asignaciones anteriores conservan su historia. Guarda tus cambios antes de buscar o añadir.</p>
@@ -90,16 +111,13 @@
                         </form>
                     }
                     @if (Model.Candidates.Length>30) { <p>Se muestran 30 resultados. Afina la búsqueda para encontrar otra tarea.</p> }
+                </dialog>
+                @if(editor.Draft != null)
+                {
+                <section class="panel-seccion"><h3>Administrar borrador</h3>
+                    <details><summary>Abandonar cambios del borrador</summary><p>Se devuelven a General solo las tareas sin compromiso en la versión vigente. No se eliminan tareas, ejecuciones ni documentos.</p><form method="post" asp-page-handler="Abandon"><input type="hidden" name="Input.Id" value="@editor.Process.Id" /><input type="hidden" name="Input.Revision" value="@editor.Process.Revision" /><label><input type="checkbox" name="confirmed" value="true" required /> Confirmo devolver a General las tareas no publicadas</label><button class="boton boton--secundario" type="submit">Abandonar cambios</button></form></details>
                 </section>
-                <section class="panel-seccion"><h3>Revisar y publicar</h3>
-                    <p>@editor.Tasks.Length tareas · @editor.Tasks.Sum(t=>t.LoadMinutes) minutos de carga estimada. Se validan pertenencia, actividad, orden, entrada, plazos y devoluciones.</p>
-                    <div class="process-actions">
-                        @if(editor.Draft != null) { <form method="post" asp-page-handler="Publish"><input type="hidden" name="Input.Id" value="@editor.Process.Id" /><input type="hidden" name="Input.Revision" value="@editor.Process.Revision" /><button class="boton boton--primario" type="submit">Publicar borrador guardado</button></form> }
-                        @if(editor.Process.PublishedVersionId != null) { <form method="post" asp-page-handler="Enable"><input type="hidden" name="Input.Id" value="@editor.Process.Id" /><input type="hidden" name="Input.Revision" value="@editor.Process.Revision" /><input type="hidden" name="enabled" value="@(!editor.Process.Enabled ? "true" : "false")" /><button class="boton boton--secundario" type="submit">@(editor.Process.Enabled ? "Desactivar nuevos inicios" : "Activar versión publicada")</button></form> }
-                        <a class="boton boton--secundario" href="/tareas">Cerrar editor y conservar borrador</a>
-                    </div>
-                    @if(editor.Draft != null) { <details><summary>Abandonar cambios del borrador</summary><p>Se devuelven a General solo las tareas sin compromiso en la versión vigente. No se eliminan tareas, ejecuciones ni documentos.</p><form method="post" asp-page-handler="Abandon"><input type="hidden" name="Input.Id" value="@editor.Process.Id" /><input type="hidden" name="Input.Revision" value="@editor.Process.Revision" /><label><input type="checkbox" name="confirmed" value="true" required /> Confirmo devolver a General las tareas no publicadas</label><button class="boton boton--secundario" type="submit">Abandonar cambios</button></form></details> }
-                </section>
+                }
                 @if(editor.Process.Enabled && editor.Process.PublishedVersionId!=null)
                 {
                     <section class="panel-seccion"><h3>Planificar este proceso</h3><p>Selecciona responsables, revisa fechas y capacidad, guarda el plan preparado y actívalo cuando deba comenzar.</p><a class="boton boton--primario" href="/planificacion/procesos?processId=@editor.Process.Id">Crear plan de proceso</a></section>
@@ -107,7 +125,7 @@
             }
             else
             {
-                <ol>@foreach(var step in editor.Steps) { <li>@(editor.Tasks.SingleOrDefault(t=>t.Id==step.TaskId)?.Name ?? "Tarea de versión histórica") · @step.DeadlineHours h · @step.Instructions</li> }</ol>
+                <ol>@foreach(var step in editor.Steps) { <li>@(editor.Tasks.SingleOrDefault(t=>t.Id==step.TaskId)?.Name ?? "Tarea de versión histórica") · @(editor.Configuration?.AgendaVersion == null ? $"{step.DeadlineHours} h" : "Cierre por carga y margen capturado") · @step.Instructions</li> }</ol>
             }
         }
     }
@@ -117,5 +135,6 @@
     }
 </section>
 @section Scripts {
+    <script src="~/js/process-rules.js" asp-append-version="true"></script>
     <script src="~/js/process-search.js" asp-append-version="true"></script>
 }

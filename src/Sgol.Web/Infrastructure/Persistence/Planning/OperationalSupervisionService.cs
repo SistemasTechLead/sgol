@@ -17,7 +17,7 @@ public sealed class SupervisedTask
     public required string Period { get; init; }
 }
 
-public sealed class OperationalSupervisionService(SgolDbContext db, IClock clock, IDirectionPreparedPlanService direction)
+public sealed partial class OperationalSupervisionService(SgolDbContext db, IClock clock, IDirectionPreparedPlanService direction)
 {
     public static string[] RolesFor(string role) => role switch
     {
@@ -54,9 +54,10 @@ public sealed class OperationalSupervisionService(SgolDbContext db, IClock clock
             // Project metadata explicitly to avoid loading private attachment bytes in the dashboard.
             select new SupervisedTask { Assignment = new OperationalAssignment {
                 Id = a.Id, PlanId = a.PlanId, OccasionId = a.OccasionId, TaskId = a.TaskId, TaskCode = a.TaskCode, Name = a.Name, Description = a.Description,
-                Requirement = a.Requirement, AssignedRole = a.AssignedRole ?? t.AssignedRole,
+                Requirement = a.Requirement, ChecklistJson = a.ChecklistJson, ChecklistDraftJson = a.ChecklistDraftJson, AssignedRole = a.AssignedRole ?? t.AssignedRole,
                 SpecializationId = a.SpecializationId, SpecializationName = a.SpecializationName,
                 LoadMinutes = a.LoadMinutes, PersonId = a.PersonId, PersonName = a.PersonName,
+                TransferRemainingMinutes = a.TransferRemainingMinutes, TransferProgressUnits = a.TransferProgressUnits,
                 StartsAt = a.StartsAt, DueAt = a.DueAt, CompletedAt = a.CompletedAt,
                 GoalUnits = a.GoalUnits, ProgressUnits = a.ProgressUnits, ProgressUnit = a.ProgressUnit, ScheduleMode = a.ScheduleMode, DifferentPeople = a.DifferentPeople,
                 Comment = a.Comment, Conclusion = a.Conclusion, FileName = (a.Attachment != null ? a.Attachment.FileName : db.OperationalPhotographs.Where(f => f.AssignmentId == a.Id && f.AttachedAt != null).OrderBy(f => f.Position).Select(f => f.FileName).FirstOrDefault()),
@@ -96,19 +97,29 @@ public sealed class OperationalSupervisionService(SgolDbContext db, IClock clock
         await tx.CommitAsync(token);
     }
 
-    public async Task ReviewAsync(Guid actor, Guid id, long revision, string decision, string? comment, CancellationToken token)
+    public async Task<Guid?> ReviewAsync(Guid actor, Guid id, long revision, string decision, string? comment, CancellationToken token)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(token);
+        await OperationalTaskService.LockAsync(db, token);
+        var result = await ReviewCoreAsync(actor, id, revision, decision, comment, token);
+        await tx.CommitAsync(token);
+        return result;
+    }
+
+    private async Task<Guid?> ReviewCoreAsync(Guid actor, Guid id, long revision, string decision, string? comment, CancellationToken token)
     {
         if (decision is not ("CONCLUIDA" or "MISMA_PERSONA" or "ROL" or "NO_SATISFECHA")) throw Error("REVIEW_INVALID", 422);
         comment = comment?.Trim();
         if (comment?.Length > 4000 || decision != "CONCLUIDA" && string.IsNullOrWhiteSpace(comment))
             throw Error("REVIEW_COMMENT_REQUIRED", 422);
-        await using var tx = await db.Database.BeginTransactionAsync(token);
-        await OperationalTaskService.LockAsync(db, token);
         await AuthorizeAssignmentAsync(actor, id, token);
         await OperationalTaskService.RequireIndependentActionAsync(db, id, token);
         var task = await db.OperationalAssignments.SingleAsync(a => a.Id == id, token);
-        if (task.StartsAt > clock.UtcNow) throw Error("TASK_NOT_STARTED", 422);
+        if (task.StartsAt > clock.UtcNow && task.CompletedAt is null) throw Error("TASK_NOT_STARTED", 422);
         if (decision == "CONCLUIDA" && task.GoalUnits > task.ProgressUnits) throw Error("TASK_GOAL_PENDING", 422);
+        if (decision == "CONCLUIDA" && task.Requirement == "CHECKLIST" &&
+            (task.CompletedAt == null || !OperationalChecklist.Complete(task.ChecklistJson, task.ChecklistDraftJson)))
+            throw Error("TASK_CHECKLIST_PENDING", 422);
         if (decision == "CONCLUIDA" && task.Requirement == "FOTOGRAFIA")
         {
             var count = await db.OperationalPhotographs.CountAsync(p => p.AssignmentId == task.Id && p.AttachedAt != null, token);
@@ -128,6 +139,7 @@ public sealed class OperationalSupervisionService(SgolDbContext db, IClock clock
             throw Error("TASK_CONFLICT", 409);
         var actorRole = await AuthorizeAsync(actor, token);
         var role = task.AssignedRole ?? await db.OperationalTasks.Where(t => t.Id == task.TaskId).Select(t => t.AssignedRole).SingleAsync(token);
+        Guid? correctionId = null;
         if (decision is "MISMA_PERSONA" or "ROL")
         {
             var now = clock.UtcNow;
@@ -135,27 +147,61 @@ public sealed class OperationalSupervisionService(SgolDbContext db, IClock clock
             var ledger = new CapacityLedger(loaded.Workers, loaded.Tasks.Where(t => t.Id != id).ToArray(), loaded.Capacities, loaded.Unavailable, loaded.Legacy, loaded.Today) { Temporal = loaded.Temporal };
             var replacement = new OperationalAssignment {
                 Id = Guid.CreateVersion7(), PlanId = task.PlanId, OccasionId = task.OccasionId, TaskId = task.TaskId, TaskRevision = task.TaskRevision, TaskCode = task.TaskCode,
-                Name = task.Name, Description = task.Description, Requirement = task.Requirement, AssignedRole = role, LoadMinutes = task.LoadMinutes,
+                Name = task.Name, Description = task.Description, Requirement = task.Requirement, ChecklistJson = task.ChecklistJson, AssignedRole = role, LoadMinutes = task.LoadMinutes,
                 MinimumPhotos = task.MinimumPhotos, MaximumPhotos = task.MaximumPhotos, MaximumPhotoBytes = task.MaximumPhotoBytes,
                 SpecializationId = task.SpecializationId, SpecializationName = task.SpecializationName,
                 PeriodType = task.PeriodType, Repetitions = task.Repetitions,
-                StartsAt = now, DueAt = now.Add(task.DueAt - task.StartsAt), ReassignedFromId = task.Id,
+                SchedulingPolicyId = task.SchedulingPolicyId, ClosureMarginPercent = task.ClosureMarginPercent, OperationalCriticality = task.OperationalCriticality, NominalStartsAt = task.NominalStartsAt,
+                StartsAt = task.SchedulingPolicyId == null ? now : task.StartsAt, DueAt = task.SchedulingPolicyId == null ? now.Add(task.DueAt - task.StartsAt) : task.DueAt, ReassignedFromId = task.Id,
                 ScheduleMode = task.ScheduleMode, DifferentPeople = task.DifferentPeople, GoalUnits = task.GoalUnits, ProgressUnit = task.ProgressUnit,
                 PreferredMonthDays = task.PreferredMonthDays, ReassignmentComment = comment };
-            var day = WeekContract.LocalToday(task.StartsAt);
+            // A correction is new work. Never try to receive it inside the expired
+            // execution window of the delivery being reviewed.
+            var definition = await db.OperationalTasks.AsNoTracking().SingleAsync(t => t.Id == task.TaskId, token);
+            replacement.Requirement = definition.Requirement; replacement.ChecklistJson = definition.ChecklistJson;
+            replacement.Description = definition.Description;
+            replacement.MinimumPhotos = definition.MinimumPhotos;
+            replacement.MaximumPhotos = definition.MaximumPhotos;
+            replacement.MaximumPhotoBytes = definition.MaximumPhotoBytes;
+            replacement.TaskRevision = definition.Revision;
+            replacement.DefinitionSnapshotJson = AssignmentDefinition.Capture(AssignmentDefinition.Baseline(replacement, definition));
+            var nominal = now;
+            replacement.StartsAt = nominal;
+            replacement.DueAt = nominal.Add(task.DueAt - task.StartsAt);
+            if (replacement.SchedulingPolicyId != null) replacement.NominalStartsAt = nominal;
+            else
+            {
+                // Only the new correction adopts the current margin; the delivery
+                // keeps its historical policy and deadline.
+                var policy = await OperationalSchedulingPolicyService.CurrentAsync(db, token);
+                OperationalAgenda.Capture(replacement, policy, definition.OperationalCriticality, nominal);
+            }
+            var day = WeekContract.LocalToday(nominal);
             var weekStart = day.AddDays(-(((int)day.DayOfWeek + 6) % 7)); var weekEnd = weekStart.AddDays(6);
             var peers = await db.OperationalAssignments.AsNoTracking().Where(a => a.TaskId == task.TaskId && a.Id != id && a.ReviewStatus != "REASIGNADA")
                 .Select(a => new { a.PersonId, a.StartsAt, a.OccasionId }).ToArrayAsync(token);
-            var worker = ledger.Workers.Where(w => RolesFor(actorRole).Contains(w.Role) && w.EligibleFor(role, task.SpecializationId) && (decision == "ROL" || w.Id == task.PersonId) && ledger.CanAssign(w.Id, replacement, now))
+            var eligible = ledger.Workers.Where(w => RolesFor(actorRole).Contains(w.Role) && w.EligibleFor(role, task.SpecializationId) && (decision == "ROL" || w.Id == task.PersonId))
                 .Where(w => task.OccasionId == null || !peers.Any(a => a.PersonId == w.Id && a.OccasionId == task.OccasionId))
-                .OrderBy(w => !task.DifferentPeople ? 0 : peers.Count(a => a.PersonId == w.Id && WeekContract.LocalToday(a.StartsAt) >= weekStart && WeekContract.LocalToday(a.StartsAt) <= weekEnd))
-                .ThenBy(w => replacement.SpecializationId == null ? ledger.Occupancy(w.Id, ledger.Today, ledger.Today.AddDays(6)) : ledger.SpecializedPeriodLoad(w.Id, replacement))
-                .ThenBy(w => ledger.Tasks.Where(t => t.PersonId == w.Id).Sum(t => (long)t.RemainingMinutes))
-                .ThenBy(w => w.Code, StringComparer.Ordinal).ThenBy(w => w.Id).FirstOrDefault()
-                ?? throw Error("PLAN_NO_AVAILABLE_WORKER", 422);
+                .ToArray();
+            if (eligible.Length == 0) throw Error("REASSIGNMENT_NO_ELIGIBLE_RECIPIENT", 422);
+            var options = eligible.Select(w => (Worker: w, Placement: CorrectionPlacement(ledger, w.Id, replacement, nominal, now))).ToArray();
+            var selected = options.Where(o => o.Placement.Eligible)
+                .OrderBy(o => !task.DifferentPeople ? 0 : peers.Count(a => a.PersonId == o.Worker.Id && WeekContract.LocalToday(a.StartsAt) >= weekStart && WeekContract.LocalToday(a.StartsAt) <= weekEnd))
+                .ThenBy(o => replacement.SpecializationId == null ? ledger.Occupancy(o.Worker.Id, ledger.Today, ledger.Today.AddDays(6)) : ledger.SpecializedPeriodLoad(o.Worker.Id, replacement))
+                .ThenBy(o => ledger.Tasks.Where(t => t.PersonId == o.Worker.Id).Sum(t => (long)t.RemainingMinutes))
+                .ThenBy(o => o.Worker.Code, StringComparer.Ordinal).ThenBy(o => o.Worker.Id).FirstOrDefault();
+            if (selected.Worker == null)
+                throw Error(options.Select(o => o.Placement.Reason).Distinct().Count() == 1 ? options[0].Placement.Reason : "REASSIGNMENT_NO_VALID_SLOT", 422);
+            var worker = selected.Worker;
+            OperationalAgenda.Apply(replacement, selected.Placement);
             replacement.PersonId = worker.Id; replacement.PersonName = worker.Name; replacement.AssignedRole = worker.Role;
             replacement.PreviousLoadMinutes = ledger.Tasks.Where(t => t.PersonId == worker.Id).Sum(t => (long)t.RemainingMinutes) + ledger.Legacy.GetValueOrDefault(worker.Id);
             ledger.CaptureTime(replacement, now); db.OperationalAssignments.Add(replacement);
+            Audit(actor, replacement.Id, "OPERATIONAL_CORRECTION_ASSIGNED", new { PreviousAssignmentId = task.Id, decision, replacement.PersonId,
+                replacement.Requirement, replacement.TaskRevision, replacement.StartsAt, replacement.DueAt, replacement.Revision,
+                SchedulingMode = "CORRECTION_OVERLAP_ALLOWED", replacement.LoadMinutes, replacement.ClosureMarginPercent,
+                DeadlineCapped = replacement.DueAt < now.AddMinutes(OperationalAgenda.Duration(replacement.LoadMinutes, replacement.ClosureMarginPercent!.Value)) });
+            correctionId = replacement.Id;
         }
         task.ReviewStatus = decision is "MISMA_PERSONA" or "ROL" ? "REASIGNADA" : decision;
         if (task.CompletedAt is null)
@@ -165,7 +211,8 @@ public sealed class OperationalSupervisionService(SgolDbContext db, IClock clock
         task.ReviewDecision = decision;
         task.ReviewedAt = clock.UtcNow; task.ReviewedBy = actor; task.ReviewComment = comment; task.Revision++;
         Audit(actor, id, "OPERATIONAL_TASK_REVIEWED", new { task.PlanId, decision, comment, task.Revision });
-        await db.SaveChangesAsync(token); await tx.CommitAsync(token);
+        await db.SaveChangesAsync(token);
+        return correctionId;
     }
 
     public async Task AddTasksAsync(Guid actor, Guid planId, string[] codes, CancellationToken token)

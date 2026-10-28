@@ -1,0 +1,77 @@
+@page "/supervision/carga"
+@model Sgol.Web.Pages.Validations.WorkloadModel
+@using Sgol.Web.Presentation.MyWork
+@using Sgol.Web.Presentation.Navigation
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@{ ViewData["Title"] = "Carga y reasignación"; }
+<link rel="stylesheet" href="~/css/supervision-workload.css" asp-append-version="true" />
+<header class="encabezado-pagina"><div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Carga y reasignación</h1><p>Transfiere una tarea pendiente a otro colaborador, conservando lo realizado.</p></div></header>
+<partial name="_SectionNavigation" model='@("supervision")' />
+@if (Model.Success != null) { <p class="alerta alerta--exito" role="status">@Model.Success</p> }
+@if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+<section class="panel-seccion">
+    <form method="get" class="planificacion__formulario">
+        <label class="campo"><span class="campo__etiqueta">Fecha</span><input class="campo__control" type="date" asp-for="Day" required /></label>
+        <label class="campo"><span class="campo__etiqueta">Consultar</span><select class="campo__control" asp-for="Range"><option value="day">Día</option><option value="week">Semana de la fecha seleccionada</option></select></label>
+        <button class="boton boton--primario" type="submit">Consultar carga</button>
+    </form>
+    <p>La carga muestra minutos pendientes frente a capacidad. Incluye trabajo atrasado pendiente en la consulta actual. Las reservas de procesos también cuentan, aunque todavía no puedan transferirse.</p>
+    @if (Model.Workload.People.Length == 0) { <p>No hay colaboradores activos dentro de tu alcance.</p> }
+    @foreach (var person in Model.Workload.People) {
+        var items = Model.Workload.Tasks.Where(t => t.Assignment.PersonId == person.PersonId).ToArray();
+        var percent = person.Available > 0 ? (int)Math.Min(999, Math.Ceiling(100m * person.Load / person.Available)) : person.Load > 0 ? 100 : 0;
+        <details class="capacity-person workload-person" open="@(Model.Selected?.Assignment.PersonId == person.PersonId)">
+            <summary><span><strong>@person.Name</strong> · @SessionPresentation.RoleName(person.Role)</span><span>@person.Load min / @person.Available.ToString("0.#") min de capacidad · @percent%</span></summary>
+            <progress value="@Math.Min(100, percent)" max="100" aria-label="Ocupación de @person.Name"></progress>
+            @if (person.Load > person.Available) { <p class="alerta alerta--advertencia">La carga supera la capacidad disponible.</p> }
+            @if (items.Length == 0) { <p>No hay tareas pendientes transferibles en este periodo.</p> }
+            else { <div class="tabla-contenedor"><table class="tabla"><thead><tr><th>Tarea</th><th>Estado / avance</th><th>Vencimiento</th><th>Carga pendiente</th><th>Acción</th></tr></thead><tbody>
+                @foreach (var item in items) { var a = item.Assignment;
+                    <tr><td>@a.Name<br /><small>@a.TaskCode · @item.PlanName</small></td><td>@Model.Status(a)@if (a.GoalUnits > 0) { <br /><small>@a.ProgressUnits / @a.GoalUnits @a.ProgressUnit</small> }</td><td>@MyWorkPresentation.Time(a.DueAt)</td><td>@a.RemainingMinutes min</td><td><a class="boton boton--secundario" href="@Model.Href(a.Id)">Reasignar<span class="solo-lectores"> @a.Name</span></a></td></tr>
+                }
+            </tbody></table></div> }
+        </details>
+    }
+</section>
+@if (Model.Selected is {} selected) {
+    var a = selected.Assignment;
+    <section class="panel-seccion" id="transfer" aria-labelledby="transfer-title">
+        <h2 id="transfer-title">Reasignar: @a.Name</h2>
+        <p>@a.PersonName · @Model.Status(a) · Vencimiento actual: @MyWorkPresentation.Time(a.DueAt)</p>
+        @if (a.GoalUnits > 0) { <p>Avance de la tarea: @a.ProgressUnits / @a.GoalUnits @a.ProgressUnit. Se conserva al transferirla.</p> }
+        @if (Model.Contributions.Count > 0) { <h3>Avance por colaborador</h3><ul>@foreach (var c in Model.Contributions) { <li>@c.PersonName: @c.Units @a.ProgressUnit</li> }</ul> }
+        <p><a class="boton boton--secundario" href="/validaciones?task=@a.Id">Ver evidencia y detalle</a></p>
+        @if (!OperationalSupervisionService.Transferable(a)) { <p>Esta tarea ya fue entregada o cerrada y no puede transferirse.</p> }
+        else if (Model.Recipients.Length == 0) { <p>No hay otro colaborador activo y autorizado con el rol o especialidad requeridos.</p> }
+        else {
+            <form method="post" asp-page-handler="Preview" class="planificacion__formulario workload-transfer-form">
+                <input type="hidden" asp-for="Day" /><input type="hidden" asp-for="Range" />
+                <input type="hidden" asp-for="Change.AssignmentId" /><input type="hidden" asp-for="Change.Revision" />
+                <label class="campo"><span class="campo__etiqueta">Nuevo responsable</span><select class="campo__control" asp-for="Change.RecipientId" required><option value="">Selecciona un colaborador</option>@foreach (var w in Model.Recipients) { <option value="@w.Id">@w.Name · @SessionPresentation.RoleName(w.Role)</option> }</select></label>
+                <label class="campo"><span class="campo__etiqueta">Minutos pendientes estimados por el supervisor</span><input class="campo__control" type="number" asp-for="Change.RemainingMinutes" min="1" max="4800" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Nuevo vencimiento (hora de Ciudad de México)</span><input class="campo__control" type="datetime-local" asp-for="Change.DueLocal" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Motivo obligatorio</span><textarea class="campo__control" asp-for="Change.Reason" maxlength="1000" required></textarea></label>
+                <p>Se recibe inmediatamente, estando en turno. El vencimiento puede ser posterior y debe caer dentro de un horario base o excepción del destinatario. Los descansos y las salidas se respetan; la sobrecarga y los empalmes requieren tu confirmación.</p>
+                <button class="boton boton--primario" type="submit">Ver impacto de la reasignación</button>
+            </form>
+        }
+        @if (Model.Preview is {} p) {
+            <section class="alerta alerta--info workload-preview" aria-labelledby="preview-title"><h3 id="preview-title">Confirmar transferencia</h3>
+                <p>@p.TaskName: @p.FromName → @p.ToName. Recibe @p.Request.RemainingMinutes minutos pendientes y vence @MyWorkPresentation.Time(p.Request.DueAt).</p>
+                <p>Carga de hoy del destinatario: @p.LoadBefore → @p.LoadAfter min / @p.Available.ToString("0.#") min de capacidad.</p>
+                @if (p.LoadAfter > p.Available) { <p><strong>Se autorizará una sobrecarga de @((p.LoadAfter - p.Available).ToString("0.#")) minutos.</strong></p> }
+                @if (p.Overlaps.Length > 0) { <p><strong>Comparte plazo con otras tareas:</strong> @string.Join(", ", p.Overlaps). Estas tareas conservan su horario.</p> }
+                @if (p.Request.RemainingMinutes > p.ShiftMinutesBeforeDue) { <p><strong>Los minutos pendientes superan los @p.ShiftMinutesBeforeDue.ToString("0.#") minutos de horario laboral hasta el vencimiento.</strong></p> }
+                <p>Se conservan avances y evidencia con sus autores. Solo cambia la responsabilidad pendiente de esta tarea; en procesos, las demás etapas y dependencias se conservan.</p>
+                <p>Motivo: @p.Request.Reason</p>
+                <form method="post" asp-page-handler="Apply">
+                    <input type="hidden" asp-for="Day" /><input type="hidden" asp-for="Range" /><input type="hidden" asp-for="Fingerprint" />
+                    <input type="hidden" asp-for="Change.AssignmentId" /><input type="hidden" asp-for="Change.Revision" /><input type="hidden" asp-for="Change.RecipientId" /><input type="hidden" asp-for="Change.RemainingMinutes" /><input type="hidden" asp-for="Change.DueLocal" /><input type="hidden" asp-for="Change.Reason" />
+                    <button class="boton boton--primario" type="submit">Confirmar reasignación inmediata</button>
+                    <a class="boton boton--secundario" href="@Model.Href(a.Id)">Cancelar</a>
+                </form>
+            </section>
+        }
+        @if (Model.History.Count > 0) { <details><summary>Historial de la tarea</summary><ol>@foreach (var e in Model.History) { <li>@(e.At is {} at ? MyWorkPresentation.Time(at) : "Sin fecha") · @e.ActorName · @e.Comment</li> }</ol></details> }
+    </section>
+}

@@ -93,4 +93,14 @@ foreach(var (range,from,to) in new (string,DateOnly,DateOnly)[]{
     ("quarter",new(2026,10,1),new(2026,12,31)),("semester",new(2026,7,1),new(2026,12,31)),
     ("year",new(2026,1,1),new(2026,12,31))})
     Check(ReportAnalysis.Range(new(){Range=range},today)==(from,to),"Calendar range: "+range);
+
+var carryoverTiming = new CarryoverTiming(now.AddDays(-2), now.AddHours(1), 2, false, "a,b");
+var recognized = delivered with { Carryover = carryoverTiming };
+Check(recognized.Carryover.Label(recognized.Due, recognized.Delivered).Contains("Entrega tardía con arrastre autorizado"), "Carryover punctuality is separate from review status");
+Check(ReportAnalysis.Filter(new[] {recognized},new(){Carryover="covered"},now).Length==1,"Recognized late delivery covered by deadline");
+Check(ReportAnalysis.Filter(new[] {recognized},new(){Carryover="pending"},now).Length==0,"Pending filter excludes approved history");
+Check(ReportCatalog.Cell(recognized,"carryoverRefs")=="a,b", "Exports and templates expose carryover references");
+Check(carryoverTiming.Label(now.AddHours(2), now.AddHours(1)) == "A tiempo", "Delivery before effective deadline stays on time");
+Check(carryoverTiming.Label(now.AddDays(-2),now.AddHours(2)).Contains("fuera del plazo reconocido"),"Approval does not cover unlimited delay");
+await ReportBindingChecks.RunAsync(Check);
 Console.WriteLine($"{checks} report checks passed.");

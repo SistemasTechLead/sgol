@@ -10,9 +10,11 @@
     <dialog class="supervision-dialog my-work-dialog" data-assigned-task-detail="@task.Id" aria-labelledby="assigned-task-title">
         <header class="supervision-dialog__header"><h2 id="assigned-task-title">@task.Name</h2><button class="boton boton--secundario" type="button" data-dialog-close aria-label="Cerrar"><partial name="_Icon" model='@("close")' /></button></header>
         <p>@task.PersonName · @task.PlanName</p>
+        @if (task.TransferRemainingMinutes is {} pending) { <p class="alerta alerta--info">Recibiste esta tarea con @task.TransferProgressUnits @task.ProgressUnit ya registradas. Estimación del supervisor al transferirla: @pending minutos pendientes.</p> }
         @if (!string.IsNullOrWhiteSpace(task.Description)) { <section aria-label="Descripción de la tarea"><h3>Descripción</h3><p class="supervision-text">@task.Description</p></section> }
         <partial name="_OccasionMaterial" model="@((task.Id, Model.OperationalOccasion))" />
         @if (Model.OperationalError is not null) { <p class="alerta alerta--peligro" role="alert">@Model.OperationalError</p> }
+        <partial name="~/Pages/Shared/_CarryoverTiming.cshtml" model="@((task.Id, task.DueAt, task.CompletedAt))" />
         <dl class="supervision-facts"><dt>Inicio</dt><dd>@MyWorkPresentation.Time(task.StartsAt)</dd><dt>Vencimiento</dt><dd>@MyWorkPresentation.Time(task.DueAt)</dd><dt>Requisito de conclusión</dt><dd>@Sgol.Web.Pages.Tasks.IndexModel.Label(task.Requirement)</dd><dt>Carga</dt><dd>@task.LoadMinutes min</dd></dl>
         @if (task.GoalUnits > 0) {
             <h3>Progreso semanal</h3><p>@task.ProgressUnits / @task.GoalUnits @task.ProgressUnit</p>
@@ -20,7 +22,7 @@
             @if (!submitted && task.ProgressUnits < task.GoalUnits) {
                 <form method="post" asp-page-handler="OperationalProgress" asp-antiforgery="false">
                     <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="id" value="@task.Id" /><input type="hidden" name="revision" value="@task.Revision" />
-                    <fieldset disabled="@scheduled"><legend>Registrar avance</legend>
+                    <fieldset><legend>Registrar avance</legend>
                         <label class="campo"><span class="campo__etiqueta">@task.ProgressUnit realizadas en este avance</span><input class="campo__control" type="number" name="units" min="1" max="@(task.GoalUnits - task.ProgressUnits)" required /></label>
                         <label class="campo"><span class="campo__etiqueta">Qué realizaste</span><textarea class="campo__control" name="note" maxlength="1000" required></textarea></label>
                         <button class="boton boton--secundario" type="submit">Guardar avance</button>
@@ -30,10 +32,11 @@
             @if (Model.OperationalHistory.Count > 0) { <details><summary>Historial de avances</summary><ul>@foreach (var entry in Model.OperationalHistory) { <li>@MyWorkPresentation.Time(entry.OccurredAt): +@entry.Units @task.ProgressUnit · @entry.Note</li> }</ul></details> }
         }
             @if (Model.OperationalLifecycle.Count > 0) {
+                @if (Model.OperationalContributions.Count > 0) { <p>Avance por colaborador: @string.Join(" · ", Model.OperationalContributions.Select(c => $"{c.PersonName}: {c.Units} {task.ProgressUnit}"))</p> }
                 <details><summary>Historial de entrega y revisión</summary><ol>
                 @foreach (var entry in Model.OperationalLifecycle) {
                     <li>
-                        <strong>@(entry.Kind switch { "ENTREGA" => "Entrega enviada", "SUPERVISION" => "Cierre por supervisión", "REVISION" => "Decisión de supervisión", "REASIGNACION" => "Reasignación recibida", _ => "Finalización histórica" })</strong>
+                        <strong>@(entry.Kind switch { "TRANSFERENCIA" => "Transferencia de responsabilidad", "ENTREGA" => "Entrega enviada", "SUPERVISION" => "Cierre por supervisión", "REVISION" => "Decisión de supervisión", "REASIGNACION" => "Reasignación recibida", "REDISTRIBUCION" => "Redistribución confirmada por supervisión", _ => "Finalización histórica" })</strong>
                         · @(entry.At is { } at ? MyWorkPresentation.Time(at) : "Fecha no registrada")
                         @if (entry.ActorName is not null) { <span> · @entry.ActorName</span> }
                         @if (entry.Decision is not null) { <span> · @(entry.Decision switch { "CONCLUIDA" => "Aprobada", "NO_SATISFECHA" => "No satisfecha", "MISMA_PERSONA" => "Reasignada a la misma persona", "ROL" => "Reasignada por rol", _ => "Decisión histórica" })</span> }
@@ -45,6 +48,7 @@
             }
         @if (submitted) {
             <h3>Evidencia enviada</h3>
+            @if (task.CompletedAt < task.StartsAt) { <p class="alerta alerta--info">Entrega anticipada: enviaste esta tarea antes de su inicio programado.</p> }
             @if (task.Comment is not null) { <p class="supervision-text">@task.Comment</p> }
             @if (Model.OperationalPhotographs.Count > 0) {
                 <partial name="_OperationalPhotoGallery" model="@((task.Id, Model.OperationalPhotographs))" />
@@ -66,11 +70,11 @@
             <partial name="_ProcessActionForm" model="processForm" />
         } else {
             <h3>Adjuntar evidencia</h3>
-            @if (scheduled) { <p class="alerta alerta--info">Podrás enviar la evidencia cuando inicie la tarea: @MyWorkPresentation.Time(task.StartsAt).</p> }
+            @if (scheduled) { <p class="alerta alerta--info">Puedes entregar esta tarea antes de su inicio programado. Se conservarán sus fechas y Supervisión revisará tu evidencia.</p> }
             <form method="post" asp-page-handler="CompleteOperational" asp-antiforgery="false" enctype="multipart/form-data" data-assigned-task-submit>
                 <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="id" value="@task.Id" />
                 @if (task.GoalUnits > task.ProgressUnits) { <p>Completa la meta para enviar la evidencia final a revisión.</p> }
-                <fieldset class="my-work-evidence-fields" disabled="@(scheduled || task.GoalUnits > task.ProgressUnits)">
+                <fieldset class="my-work-evidence-fields" disabled="@(task.GoalUnits > task.ProgressUnits)">
                     <legend class="solo-lectores">Evidencia y conclusión de la tarea</legend>
                     @if (task.Requirement == "COMENTARIO") { <label class="campo"><span class="campo__etiqueta">Comentario de evidencia</span><textarea class="campo__control" name="comment" maxlength="4000" required>@Model.OperationalAttemptedComment</textarea></label> }
                     @if (task.Requirement == "FOTOGRAFIA") {
@@ -103,3 +107,4 @@
         }
     </dialog>
 }
+

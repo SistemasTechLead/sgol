@@ -5,7 +5,7 @@ using Sgol.Planning.Contracts;
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed record OccasionalTaskForm(string Name, string Requirement, int LoadMinutes, int DeadlineHours,
-    int MinimumPhotos = 1, int MaximumPhotos = 20, string? Description = null);
+    int MinimumPhotos = 1, int MaximumPhotos = 20, string? Description = null, string OperationalCriticality = "FLEXIBLE", string ChecklistJson = "[]");
 
 public sealed partial class OperationalTaskService
 {
@@ -29,16 +29,16 @@ public sealed partial class OperationalTaskService
     {
         await AuthorizeOccasionalAsync(actor, token);
         var task = new OperationalTask { Id = Guid.CreateVersion7(), TaskCode = "T-" + Guid.NewGuid().ToString("N")[..12],
-            Name = input.Name ?? "", Description = input.Description, Requirement = input.Requirement, PeriodType = "OCASIONAL",
-            LoadMinutes = input.LoadMinutes, DeadlineHours = input.DeadlineHours,
+            Name = input.Name ?? "", Description = input.Description, Requirement = input.Requirement, ChecklistJson = input.ChecklistJson, PeriodType = "OCASIONAL",
+            LoadMinutes = input.LoadMinutes, OperationalCriticality = input.OperationalCriticality, DeadlineHours = 24,
             MinimumPhotos = input.MinimumPhotos, MaximumPhotos = input.MaximumPhotos };
         task.Validate();
         await using var tx = await db.Database.BeginTransactionAsync(token);
         await LockAsync(db, token);
         await AuthorizeOccasionalAsync(actor, token);
         db.OperationalTasks.Add(task);
-        Audit(actor, "OPERATIONAL_TASK_SAVED", task.Id, new { task.Id, task.Name, task.Description, task.Requirement, task.PeriodType,
-            task.ProcessId, task.AssignedRole, task.LoadMinutes, task.DeadlineHours, task.MinimumPhotos, task.MaximumPhotos });
+        Audit(actor, "OPERATIONAL_TASK_SAVED", task.Id, new { task.Id, task.Name, task.Description, task.Requirement, task.ChecklistJson, task.PeriodType,
+            task.OperationalCriticality, task.ProcessId, task.AssignedRole, task.LoadMinutes, task.DeadlineHours, task.MinimumPhotos, task.MaximumPhotos });
         await db.SaveChangesAsync(token);
         await tx.CommitAsync(token);
         return task.Id;

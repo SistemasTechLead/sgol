@@ -2,6 +2,14 @@
     'use strict';
     const storageKey = 'sgol.appearance.theme';
     const root = document.documentElement;
+    // Restore navigation width before the first paint and across page navigation.
+    try {
+        const width = Number(localStorage.getItem('sgol.appearance.sidebarWidth'));
+        if (Number.isFinite(width) && width >= 72 && width <= 224) {
+            root.style.setProperty('--ancho-navegacion', `${width}px`);
+            root.dataset.sidebarCompact = String(width < 180);
+        }
+    } catch { /* Storage is optional. */ }
     const layoutKey = 'sgol.appearance.layout';
     const normalizeLayout = value => ['desktop', 'mobile'].includes(value) ? value : 'auto';
     const readLayout = () => {

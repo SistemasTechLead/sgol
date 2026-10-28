@@ -3,15 +3,18 @@
 @{ ViewData["Title"] = "Mi trabajo"; }
 <section aria-labelledby="mi-trabajo-titulo">
     <header class="encabezado-pagina my-work-heading">
-        <h1 id="mi-trabajo-titulo" class="encabezado-pagina__titulo">Mi trabajo</h1>
-        <a class="boton boton--secundario" href="/mi-trabajo/procesos">Mis procesos</a>
+        <div class="encabezado-pagina__contenido">
+            <h1 id="mi-trabajo-titulo" class="encabezado-pagina__titulo">Mi trabajo</h1>
+            <p class="encabezado-pagina__descripcion">Consulta tus tareas asignadas y entrega la evidencia de tu trabajo.</p>
+        </div>
+        <partial name="_SectionNavigation" model='@("my-work")' />
         @if (Model.ErrorTitle is null)
         {
             <span class="my-work-mobile-only my-work-heading__subtitle">Tus tareas asignadas</span>
             <details class="my-work-mobile-only my-work-help">
                 <summary aria-label="Información sobre tus tareas y sus colores" title="Información sobre tus tareas"><span aria-hidden="true">i</span></summary>
                 <div class="my-work-help__content">
-                    <p>Tus tareas del día aparecen primero. Abre cada tarea para preparar tu entrega o consultar su evidencia.</p>
+                    <p>Las tareas aparecen por color: rojas, verdes, amarillas, grises y azules. Abre cada tarea para preparar tu entrega o consultar su evidencia.</p>
                     <partial name="_TaskColorLegend" />
                 </div>
             </details>
@@ -32,3 +35,4 @@
     <script src="~/js/occasion-material.js" asp-append-version="true"></script><script src="~/js/assigned-tasks.js" asp-append-version="true"></script>
     <script src="~/js/my-work-timing.js" asp-append-version="true"></script>
 }
+
