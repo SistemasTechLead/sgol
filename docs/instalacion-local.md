@@ -1,5 +1,15 @@
 # SGOL en esta computadora
 
+## Estado del entorno
+
+Según la aclaración del usuario del 28/10/2026, este entorno se utiliza para
+desarrollo y pruebas de operación con datos simulados que se introducen diariamente.
+No es producción real. El acceso local y LAN puede compartir esos mismos datos.
+Las regresiones automatizadas se ejecutan preferentemente en bases aisladas para
+no interferir con los casos de simulación en curso. Los datos simulados se eliminarán
+en una tarea específica al preparar producción; no deben borrarse al iniciar o probar
+la aplicación. Consulta el [protocolo de implementación](desarrollo/PROTOCOLO_IMPLEMENTACION.md).
+
 Para compartirlo con compañeros de la red del trabajo, consulta la
 [guía de acceso en red](acceso-red.md).
 

@@ -60,6 +60,14 @@ Consulta las instrucciones de preparación y ejecución:
 - [Compartir en la red local](docs/acceso-red.md)
 - [Esquema y migraciones](docs/normalizacion-bd.md)
 
+## Desarrollo y pruebas
+
+Las instrucciones permanentes para trabajar con agentes están en [AGENTS.md](AGENTS.md).
+El [protocolo de implementación](docs/desarrollo/PROTOCOLO_IMPLEMENTACION.md)
+define investigación de impacto, validación funcional y visual, y uso de entornos.
+El entorno actual contiene datos simulados para desarrollo y pruebas diarias de
+operación; la limpieza para producción es una tarea futura, no un reinicio automático.
+
 ## Actualizar GitHub
 
 Desde PowerShell, en esta carpeta, después de implementar y verificar los cambios:
