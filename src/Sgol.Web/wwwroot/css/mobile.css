@@ -12,7 +12,7 @@
     .aplicacion, .contenido-principal, .barra-lateral, .panel-seccion,
     .planificacion, .people-page, .process-editor, .report-result { min-width: 0; }
     .contenido-principal { padding: 12px; overflow-wrap: anywhere; }
-    .encabezado-aplicacion { padding: 8px 12px; min-height: 60px; gap: 8px; }
+    .encabezado-aplicacion { padding: 8px 12px; min-height: 60px; gap: 8px; grid-template-columns: auto max-content auto minmax(0, 1fr); }
     .encabezado-aplicacion__marca { font-size: 28px; }
     .encabezado-aplicacion__identidad { min-width: 0; }
     .encabezado-aplicacion__sesion { overflow-wrap: anywhere; }

@@ -1,6 +1,7 @@
 @model Sgol.Web.Pages.Validations.IndexModel
 <section class="panel-seccion" id="carryovers" aria-labelledby="carryovers-title"><h2 id="carryovers-title">Peticiones de arrastre <span class="badge badge--neutro">@Model.PendingAuthorizedCarryoverCount</span></h2>
 @if(Model.PendingAuthorizedCarryoverCount == 0) { <p>No hay peticiones de arrastre pendientes.</p> }
+@if (Model.CarryoverPage is {} pagination) { <partial name="_ListPage" model="pagination" /> }
 @foreach(var request in Model.Carryovers.Where(r => r.State == "PENDIENTE")) {
     <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" />
     <details><summary>Situación actual y efecto al aprobar</summary>
@@ -20,6 +21,6 @@
         <button name="approve" value="true" class="boton boton--primario">Aprobar arrastre</button><button name="approve" value="false" class="boton boton--secundario">Rechazar</button>
     </form>
 }
-<details><summary>Historial de aprobadas y rechazadas</summary>@foreach(var request in Model.Carryovers.Where(r => r.State != "PENDIENTE")) { <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" /> }</details>
+<details open="@(Model.Request.Query.ContainsKey("CarryoverHistoryPage"))"><summary>Historial de aprobadas y rechazadas</summary>@if (Model.CarryoverHistoryPage is {} historyPage) { <partial name="_ListPage" model="historyPage" /> }@foreach(var request in Model.Carryovers.Where(r => r.State != "PENDIENTE")) { <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" /> }</details>
 </section>
 

@@ -46,8 +46,11 @@ public sealed partial class OperationalTaskService
     public async Task<OperationalPhotographDetails> UploadPhotographAsync(Guid actor, Guid id, Guid sessionId,
         Guid photographId, IFormFile file, CancellationToken token)
     {
+        using var admission = await Sgol.Web.Infrastructure.Http.PerformanceWork.Photographs.EnterAsync(token);
+        using var uploadTiming = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("photo.total");
         if (photographId == Guid.Empty || file.Length is < 1 or > EvidenceFileLimits.MaximumBytes || file.ContentType != "image/jpeg")
             throw new DirectionPlanException("TASK_FILE_INVALID", 422);
+        using (Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("photo.preflight"))
         await using (var tx = await db.Database.BeginTransactionAsync(token))
         {
             await LockAsync(db, token);
@@ -76,20 +79,27 @@ public sealed partial class OperationalTaskService
         byte[] normalized; string receivedHash; long receivedBytes;
         await using (var incoming = file.OpenReadStream())
         {
+            var validationStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             var validation = await validator.ValidateAsync(incoming, "image/jpeg", "capture.jpg", token);
+            Sgol.Web.Infrastructure.Http.PerformanceWork.Duration.Record(System.Diagnostics.Stopwatch.GetElapsedTime(validationStarted).TotalMilliseconds,
+                new KeyValuePair<string, object?>("stage", "photo.validation"));
             if (!validation.IsValid || validation.File is null) throw new DirectionPlanException("TASK_FILE_INVALID", 422);
             await using var valid = validation.File;
-            if (valid.MediaType != EvidenceMediaType.Jpeg || (await scanner.ScanAsync(valid.Content, valid.SizeBytes, token)).Result != EvidenceScanResult.Limpio)
-                throw new DirectionPlanException("TASK_FILE_SCAN_FAILED", 422);
+            if (valid.MediaType != EvidenceMediaType.Jpeg) throw new DirectionPlanException("TASK_FILE_INVALID", 422);
+            using (Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("photo.scan.original"))
+                if ((await scanner.ScanAsync(valid.Content, valid.SizeBytes, token)).Result != EvidenceScanResult.Limpio)
+                    throw new DirectionPlanException("TASK_FILE_SCAN_FAILED", 422);
             receivedHash = valid.Sha256; receivedBytes = valid.SizeBytes;
-            try { normalized = await PhotographNormalizer.NormalizeAsync(valid.Content, token); }
+            try { using var normalizeTiming = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("photo.normalize"); normalized = await PhotographNormalizer.NormalizeAsync(valid.Content, token); }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception) { throw new DirectionPlanException("TASK_FILE_INVALID", 422); }
         }
         await using var normalizedStream = new MemoryStream(normalized, false);
-        if ((await scanner.ScanAsync(normalizedStream, normalized.Length, token)).Result != EvidenceScanResult.Limpio)
-            throw new DirectionPlanException("TASK_FILE_SCAN_FAILED", 422);
+        using (Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("photo.scan.normalized"))
+            if ((await scanner.ScanAsync(normalizedStream, normalized.Length, token)).Result != EvidenceScanResult.Limpio)
+                throw new DirectionPlanException("TASK_FILE_SCAN_FAILED", 422);
 
+        using var persistTiming = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("photo.persist");
         await using var finalTx = await db.Database.BeginTransactionAsync(token);
         await LockAsync(db, token);
         var current = await CaptureAssignmentAsync(actor, id, token);

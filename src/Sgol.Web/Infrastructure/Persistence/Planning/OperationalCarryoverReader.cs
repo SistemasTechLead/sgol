@@ -16,41 +16,79 @@ public sealed record CarryoverTiming(DateTimeOffset? ReferenceDue, DateTimeOffse
 // Scoped cache: one metadata query for all cards, never evidence bytes or recalculation of deadlines.
 public sealed class OperationalCarryoverReader(SgolDbContext db)
 {
-    private Task<OperationalCarryoverRequest[]>? requests;
+    private Task<Dictionary<Guid, CarryoverTiming>>? timings;
     private Task<Dictionary<Guid, HashSet<Guid>>>? restorations;
-    private Task<Dictionary<Guid, DateTimeOffset[]>>? refreshes;
-    private async Task<Dictionary<Guid, DateTimeOffset[]>> Refreshes()
+    private Guid[]? scope;
+    public Task PrepareAsync(IEnumerable<Guid> ids, CancellationToken token)
     {
-        var events = await db.AuditEvents.AsNoTracking().Where(e => e.Action == "OPERATIONAL_ASSIGNMENT_REFRESHED" && e.BeforeData != null).OrderBy(e => e.OccurredAt)
-            .Select(e => new { e.ResourceId, e.BeforeData, e.AfterData }).ToArrayAsync();
-        return events.Where(e => e.BeforeData!.RootElement.GetProperty("DueAt").GetDateTimeOffset() != e.AfterData!.RootElement.GetProperty("Assignment").GetProperty("DueAt").GetDateTimeOffset())
-            .GroupBy(e => e.ResourceId!.Value).ToDictionary(g => g.Key, g => g.Select(e => e.BeforeData!.RootElement.GetProperty("DueAt").GetDateTimeOffset()).ToArray());
+        scope = ids.Distinct().ToArray();
+        restorations = null;
+        timings = BuildAsync(token);
+        return timings;
     }
-    private async Task<Dictionary<Guid, HashSet<Guid>>> Restorations()
+    private async Task<Dictionary<Guid, HashSet<Guid>>> Restorations(CancellationToken token)
     {
-        var events = await db.AuditEvents.AsNoTracking().Where(e => e.BranchId == Sgol.Organization.Contracts.BranchScope.LorettaId && e.Action == OperationalCarryoverService.RestorationAction)
-            .Select(e => new { e.ResourceId, e.AfterData }).ToArrayAsync();
+        var query = db.AuditEvents.AsNoTracking().Where(e => e.BranchId == Sgol.Organization.Contracts.BranchScope.LorettaId && e.Action == OperationalCarryoverService.RestorationAction);
+        if (scope != null) query = query.Where(e => e.ResourceId != null && scope.Contains(e.ResourceId.Value));
+        var events = await query.Select(e => new { e.ResourceId, e.AfterData }).ToArrayAsync(token);
         return events.GroupBy(e => e.ResourceId!.Value).ToDictionary(g => g.Key, g => g.Select(e => e.AfterData!.RootElement.GetProperty("RequestId").GetGuid()).ToHashSet());
     }
-    public async Task<bool> IsRestoredAsync(Guid request, Guid assignment)
+    public async Task<bool> IsRestoredAsync(Guid request, Guid assignment, CancellationToken token = default)
     {
-        restorations ??= Restorations();
+        restorations ??= Restorations(token);
         return (await restorations).TryGetValue(assignment, out var ids) && ids.Contains(request);
     }
-    public async Task<CarryoverTiming> ForAsync(Guid id)
+    private async Task<Dictionary<Guid, CarryoverTiming>> BuildAsync(CancellationToken token)
     {
-        requests ??= db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.BranchId == Sgol.Organization.Contracts.BranchScope.LorettaId && r.State != "RECHAZADA").OrderBy(r => r.SubmittedAt).ToArrayAsync();
-        var matching = (await requests).Where(r => r.Items().Any(i => i.AssignmentId == id)).ToArray();
-        restorations ??= Restorations();
-        var reversed = (await restorations).GetValueOrDefault(id) ?? [];
-        var approved = matching.Where(r => r.State == "APROBADA" && !reversed.Contains(r.Id) && !r.Results().Any(x => x.AssignmentId == id && x.Kind == "ENTREGADA_SIN_CAMBIOS")).ToArray();
-        var results = approved.SelectMany(r => r.Results()).Where(r => r.AssignmentId == id).ToArray();
-        refreshes ??= Refreshes();
-        var updated = (await refreshes).GetValueOrDefault(id) ?? [];
-        var carryoverReference = approved.FirstOrDefault()?.Items().Single(i => i.AssignmentId == id).Due;
-        var reference = updated.Length > 0 ? new[] { (DateTimeOffset?)updated[0], carryoverReference }.Where(d => d != null).Min() : carryoverReference;
-        return new(reference,
-            results.Length > 0 ? results.Max(r => r.RecognizedDue) : null, approved.Length, matching.Any(r => r.State == "PENDIENTE"), string.Join(", ", approved.Select(r => r.Id)), updated.Length);
+        using var measurement = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("carryover.index");
+        if (scope is { Length: 0 }) return [];
+        var queryRequests = scope == null ? db.Set<OperationalCarryoverRequest>().AsNoTracking() : db.Set<OperationalCarryoverRequest>().FromSqlInterpolated($"""
+            SELECT * FROM operational_carryover_request r
+            WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(r."SnapshotJson") i WHERE (i->>'AssignmentId')::uuid = ANY({scope}))
+            """).AsNoTracking();
+        var requests = await queryRequests
+            .Where(r => r.BranchId == Sgol.Organization.Contracts.BranchScope.LorettaId && r.State != "RECHAZADA")
+            .OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).ToArrayAsync(token);
+        restorations ??= Restorations(token);
+        var reversed = await restorations;
+        var query = db.AuditEvents.AsNoTracking().Where(e => e.BranchId == Sgol.Organization.Contracts.BranchScope.LorettaId && e.Action == "OPERATIONAL_ASSIGNMENT_REFRESHED" && e.BeforeData != null);
+        if (scope != null) query = query.Where(e => e.ResourceId != null && scope.Contains(e.ResourceId.Value));
+        var events = await query.OrderBy(e => e.OccurredAt).ThenBy(e => e.Id).Select(e => new { e.ResourceId, e.BeforeData, e.AfterData }).ToArrayAsync(token);
+        var refreshes = events.Where(e => e.BeforeData!.RootElement.GetProperty("DueAt").GetDateTimeOffset() != e.AfterData!.RootElement.GetProperty("Assignment").GetProperty("DueAt").GetDateTimeOffset())
+            .GroupBy(e => e.ResourceId!.Value).ToDictionary(g => g.Key, g => g.Select(e => e.BeforeData!.RootElement.GetProperty("DueAt").GetDateTimeOffset()).ToArray());
+        var requested = scope?.ToHashSet();
+        var entries = new Dictionary<Guid, List<(OperationalCarryoverRequest Request, CarryoverItem Item, CarryoverResult[] Results)>>();
+        foreach (var request in requests)
+        {
+            token.ThrowIfCancellationRequested();
+            var results = request.Results().GroupBy(r => r.AssignmentId).ToDictionary(g => g.Key, g => g.ToArray());
+            foreach (var item in request.Items())
+            {
+                if (requested != null && !requested.Contains(item.AssignmentId)) continue;
+                if (!entries.TryGetValue(item.AssignmentId, out var list)) entries[item.AssignmentId] = list = [];
+                list.Add((request, item, results.GetValueOrDefault(item.AssignmentId) ?? []));
+            }
+        }
+        var output = new Dictionary<Guid, CarryoverTiming>();
+        foreach (var id in entries.Keys.Concat(refreshes.Keys).Distinct())
+        {
+            token.ThrowIfCancellationRequested();
+            var matching = entries.GetValueOrDefault(id) ?? [];
+            var approved = matching.Where(x => x.Request.State == "APROBADA" && !(reversed.GetValueOrDefault(id)?.Contains(x.Request.Id) ?? false) && !x.Results.Any(r => r.Kind == "ENTREGADA_SIN_CAMBIOS")).ToArray();
+            var results = approved.SelectMany(x => x.Results).ToArray();
+            var updated = refreshes.GetValueOrDefault(id) ?? [];
+            DateTimeOffset? reference = approved.Length > 0 ? approved[0].Item.Due : null;
+            if (updated.Length > 0 && (reference == null || updated[0] < reference)) reference = updated[0];
+            output[id] = new(reference, results.Length > 0 ? results.Max(r => r.RecognizedDue) : null,
+                approved.Length, matching.Any(x => x.Request.State == "PENDIENTE"), string.Join(", ", approved.Select(x => x.Request.Id)), updated.Length);
+        }
+        return output;
+    }
+    public async Task<CarryoverTiming> ForAsync(Guid id, CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested();
+        if (scope != null && !scope.Contains(id)) { scope = scope.Append(id).ToArray(); restorations = null; timings = null; }
+        timings ??= BuildAsync(token);
+        return (await timings).GetValueOrDefault(id) ?? new(null, null, 0, false, "");
     }
 }
-

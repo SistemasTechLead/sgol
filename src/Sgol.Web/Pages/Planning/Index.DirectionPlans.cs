@@ -214,7 +214,13 @@ public sealed partial class IndexModel
             HttpContext.RequestServices.GetRequiredService<ILogger<IndexModel>>()
                 .LogWarning("Plan preparation rejected: {Code}", e.Code);
             SetDirectionError(new ApiResponse<object>(e.Status, null, null, "", null, null, null, false, e.Code, null));
-            if (e.Code == "SCHEDULING_SEARCH_INCONCLUSIVE") DirectionSearchMultiplier = Math.Min(4, DirectionSearchMultiplier * 2);
+            if (e.Code == "SCHEDULING_SEARCH_INCONCLUSIVE")
+            {
+                DirectionError = new($"No se completó la agenda de {DirectionName}", OperationalAgendaSearch.Diagnostic(e), null);
+                if (e.Data["Reason"] as string is not ("OCCURRENCE_SEARCH_SIZE_LIMIT" or "COMPONENT_SIZE_LIMIT"))
+                    DirectionSearchMultiplier = Math.Min(4, DirectionSearchMultiplier * 2);
+                HttpContext.RequestServices.GetRequiredService<ILogger<IndexModel>>().LogWarning("Search stopped: {Reason}; occurrences={Occurrences}; budget={Budget}", e.Data["Reason"], e.Data["Occurrences"], e.Data["Budget"]);
+            }
             DirectionAssignmentConflict = e.Data[nameof(PlanningAssignmentConflict)] as PlanningAssignmentConflict;
             if (e.Data["Tasks"] is string missing) DirectionError = new("Falta clasificar la criticidad: " + missing, "", null);
         }

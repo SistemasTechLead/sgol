@@ -22,6 +22,7 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
     [BindProperty] public int[] InputDays { get; set; } = [];
     [BindProperty] public bool RequiresSpecialization { get; set; }
     public List<Specialization> Specializations { get; private set; } = [];
+    public ListPage? Pagination { get; private set; }
     public IReadOnlyList<OperationalTask> Items { get; private set; } = [];
     [BindProperty(SupportsGet = true)] public bool AdjustClosure { get; set; }
     [BindProperty] public int ClosureMarginPercent { get; set; } = 50;
@@ -53,20 +54,20 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
         try {
             SchedulingPolicy = await scheduling.ReadAsync(actor.Value, token);
             ClosureMarginPercent = SchedulingPolicy.MarginPercent; PolicyRevision = SchedulingPolicy.Revision;
-            var all = await tasks.ListAsync(actor.Value, token);
+            await LoadPageAsync(actor.Value, token);
             if (CanManage) RefreshCounts = await refresh.CountsAsync(actor.Value, token);
-            if (edit is not null) { Input = all.SingleOrDefault(t => t.Id == edit) ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404); Editing = true; }
+            if (edit is not null) { Input = await tasks.FindAsync(actor.Value, edit.Value, token); Editing = true; }
             if (create) { Editing = true; Input.ProcessId = ReturnProcess ?? OperationalSequence.GeneralId; }
             RequiresSpecialization = Input.SpecializationId != null;
             InputDays = Enumerable.Range(0, 7).Where(d => (Input.WeekDays & (1 << d)) != 0).ToArray();
-            Items = Filter(all); return Page();
+            return Page();
         } catch (DirectionPlanException e) { return StatusCode(e.Status); }
     }
     public async Task<IActionResult> OnPostClosureAsync(CancellationToken token)
     {
         var actor = await ActorAsync(token); if (actor is null) return StatusCode(403);
         try { await scheduling.ChangeAsync(actor.Value, ClosureMarginPercent, PolicyRevision, token); return RedirectToPage(); }
-        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); AdjustClosure = true; RefreshCounts = await refresh.CountsAsync(actor.Value, token); Items = Filter(await tasks.ListAsync(actor.Value, token)); Processes = await processes.ListAsync(actor.Value, token); Specializations = await specializations.OptionsAsync(actor.Value, token); SchedulingPolicy = await scheduling.ReadAsync(actor.Value, token); return Page(); }
+        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); AdjustClosure = true; RefreshCounts = await refresh.CountsAsync(actor.Value, token); await LoadPageAsync(actor.Value, token); Processes = await processes.ListAsync(actor.Value, token); Specializations = await specializations.OptionsAsync(actor.Value, token); SchedulingPolicy = await scheduling.ReadAsync(actor.Value, token); return Page(); }
     }
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken token)
     {
@@ -88,7 +89,7 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
             if (ReturnProcess != null && ReturnProcess != Input.ProcessId) throw new DirectionPlanException("PROCESS_MEMBERSHIP_INVALID", 422);
             await tasks.SaveAsync(actor.Value, Input, token);
             return ReturnProcess is { } id ? RedirectToPage("Processes", new { id }) : RedirectToPage();
-        } catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); Editing = true; RefreshCounts = await refresh.CountsAsync(actor.Value, token); Items = Filter(await tasks.ListAsync(actor.Value, token)); return Page(); }
+        } catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); Editing = true; RefreshCounts = await refresh.CountsAsync(actor.Value, token); await LoadPageAsync(actor.Value, token); return Page(); }
     }
     public async Task<IActionResult> OnPostChangeAsync(Guid id, long revision, bool delete, CancellationToken token)
     {
@@ -96,12 +97,17 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
         Specializations = await specializations.OptionsAsync(actor.Value, token);
         Processes = await processes.ListAsync(actor.Value, token);
         try { await tasks.ChangeAsync(actor.Value, id, revision, delete, token); return RedirectToPage(); }
-        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); RefreshCounts = await refresh.CountsAsync(actor.Value, token); Items = Filter(await tasks.ListAsync(actor.Value, token)); return Page(); }
+        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = Message(e.Code); RefreshCounts = await refresh.CountsAsync(actor.Value, token); await LoadPageAsync(actor.Value, token); return Page(); }
     }
-    private IReadOnlyList<OperationalTask> Filter(List<OperationalTask> all) => all.Where(t =>
-        (ProcessFilter == null || t.ProcessId == ProcessFilter) && (string.IsNullOrWhiteSpace(Search) ||
-        SearchText.Contains(t.Name, Search.Trim()) || SearchText.Contains(t.TaskCode, Search.Trim()))).ToArray();
+    private async Task LoadPageAsync(Guid actor, CancellationToken token)
+    {
+        var page = await tasks.PageAsync(actor, Search, ProcessFilter, ListPage.Read(Request, "PageNumber"), token);
+        Items = page.Items;
+        Pagination = new("PageNumber", page.Page, page.Total, 50, Request);
+    }
     public static string Message(string code) => code switch {
+        "TASK_EXCEL_DUPLICATE_SHEETS" => "El libro Excel contiene hojas o referencias repetidas. Vuelve a exportarlo con hojas únicas y reintenta; no se guardó evidencia.",
+        "OPERATION_BUSY" => "Otra operación mantiene ocupada la agenda. No se guardó este envío; espera unos segundos y vuelve a intentarlo.",
         "TASK_CHECKLIST_INVALID" => "Agrega al menos un punto. Cada texto admite hasta 1,000 caracteres; revisa los puntos del checklist.",
         "TASK_CHECKLIST_PENDING" => "Marca todos los puntos del checklist antes de enviar o aprobar la tarea.",
         "TASK_CHECKLIST_CHANGED" => "La lista cambió. Recarga la tarea y revisa los puntos antes de continuar.",

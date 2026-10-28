@@ -10,7 +10,7 @@ $env:ASPNETCORE_ENVIRONMENT = 'Development'
 $env:ReverseProxy__KnownProxy = $null
 $env:LocalShared__SecurityHeaders = $null
 $env:LocalShared__EvidenceOrigin = $null
-$env:ConnectionStrings__Sgol = "Host=localhost;Port=5440;Database=sgol_local;Username=sgol_local;Password=$($sgolConfig.DatabasePassword)"
+$env:ConnectionStrings__Sgol = "Host=127.0.0.1;Port=5440;Database=sgol_local;Username=sgol_local;Password=$($sgolConfig.DatabasePassword)"
 $env:ASPNETCORE_URLS = 'https://localhost:7240'
 $env:SgolApi__TrustedOrigin = 'https://localhost:7240'
 $env:Evidence__Storage__Endpoint = 'http://localhost:8333'
@@ -21,7 +21,7 @@ $env:Evidence__Storage__AccessKey = 'sgol-local'
 $env:Evidence__Storage__SecretKey = $sgolConfig.StoragePassword
 $env:Evidence__Storage__AllowedUploadOrigins__0 = 'https://localhost:7240'
 $env:Evidence__Storage__AllowInsecureTransport = 'true'
-$env:Evidence__Scanner__Host = 'localhost'
+$env:Evidence__Scanner__Host = '127.0.0.1'
 $env:Evidence__Scanner__Port = '3310'
 $env:SGOL_BOOTSTRAP_INITIAL_PASSWORD = $sgolConfig.InitialPassword
 $env:DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER = '1'

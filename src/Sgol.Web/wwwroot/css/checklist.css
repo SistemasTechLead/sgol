@@ -3,7 +3,7 @@
 .checklist-editor legend,.checklist-evidence legend{font-weight:600}
 .checklist-editor [data-checklist-rows]{max-height:24rem;overflow-y:auto;padding:.25rem}
 .checklist-row{display:flex;align-items:flex-start;gap:.4rem;margin:.5rem 0;flex-wrap:wrap}
-.checklist-row textarea{flex:1 1 16rem;min-width:0;resize:vertical}
+.checklist-row textarea{flex:1 1 10rem;min-width:0;resize:vertical}
 .checklist-row--empty{opacity:.75;background:var(--color-superficie-secundaria,rgba(128,128,128,.12));padding:.5rem;border:1px dashed var(--color-borde,#888);border-radius:.5rem}
 .checklist-row-actions{display:flex;gap:.25rem;flex-wrap:wrap}
 .checklist-row-actions button{padding:.4rem .55rem}
@@ -11,3 +11,14 @@
 .checklist-point{display:flex;align-items:flex-start;gap:.65rem;padding:.5rem;overflow-wrap:anywhere;white-space:pre-wrap}
 .checklist-point input{margin-top:.25rem;flex-shrink:0;width:1.15rem;height:1.15rem}
 .checklist-point:has(input:checked){background:rgba(80,160,100,.1);border-radius:.4rem}
+.checklist-section+.checklist-section{margin-top:1.25rem}
+.checklist-row--item{margin-left:1.5rem;position:relative;padding-left:1.75rem}
+.checklist-row--item>.checklist-circle{position:absolute;left:.25rem;top:.65rem}
+.checklist-row--item.checklist-row--empty{padding-left:1.75rem}
+.checklist-row--title textarea{font-weight:600}
+.checklist-title{font-size:1rem;font-weight:600;margin:1rem .5rem 0;overflow-wrap:anywhere;white-space:pre-wrap}
+.checklist-point input{appearance:none;border:1px solid currentColor;border-radius:50%;background:transparent;display:grid;place-content:center;cursor:pointer}
+.checklist-point input:checked::before{content:"";width:.65rem;height:.65rem;border-radius:50%;background:currentColor}
+.checklist-point input:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.checklist-point input:disabled{cursor:default}
+.checklist-circle{width:1.15rem;height:1.15rem;border:1px solid currentColor;border-radius:50%;flex-shrink:0;margin-top:.25rem}

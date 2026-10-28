@@ -57,7 +57,7 @@
     </form>
 </section>
 @if (Model.Error == null) {
-    <section class="report-result" aria-labelledby="report-title" id="report-result" data-report="@Model.ExportJson">
+    <section class="report-result" aria-labelledby="report-title" id="report-result">
         <header class="report-result-heading"><div><span class="report-eyebrow">LORETTA · GESTIÓN OPERATIVA</span><h2 id="report-title">@Model.Definition.Name</h2><p>@Model.Definition.Description</p></div><div class="report-period"><strong>@Model.From.ToString("dd/MM/yyyy") — @Model.Through.ToString("dd/MM/yyyy")</strong><span>Corte: @ReportCatalog.Time(Model.Cutoff) · Ciudad de México</span><span>@Model.Scope</span></div></header>
         <p class="report-filter-summary">@Model.FilterSummary()</p>
         <div class="report-metrics">@foreach (var metric in Model.Metrics) { <button type="button" class="report-metric report-tone--@metric.Tone" data-report-status="@metric.Status" disabled="@(metric.Status == null)"><span>@metric.Label</span><strong>@metric.Value</strong><small>@metric.Hint</small></button> }</div>
@@ -72,7 +72,10 @@
                 }</div>@if (chart.Points.Any(p => p.Segments != null)) { <p class="report-caption">Barras apiladas: verde, concluidas; rojo, vencidas o no satisfechas; ámbar, por revisar; azul, asignadas o programadas. Cada segmento indica su estado y porcentaje al consultarlo.</p> }@if (chart.Points.Count == 0) { <p>Sin registros para esta gráfica.</p> }@if (chart.Unit == "minutos estimados") { <p class="report-caption">Azul: carga restante de las tareas filtradas. Arena: capacidad configurada del periodo. No representa tiempo real trabajado.</p> }</section>
             }</div>
         }
-        <section class="panel-seccion report-detail"><header class="report-detail-heading"><div><h3>Detalle del reporte</h3><p>@Model.Rows.Length asignaciones · Los intentos reasignados se muestran por separado en los indicadores.</p></div><label class="campo"><span class="campo__etiqueta">Buscar en el detalle</span><input type="search" class="campo__control" id="report-search" placeholder="Tarea, responsable, plan…" /></label></header>
+        <section class="panel-seccion report-detail"><header class="report-detail-heading"><div><h3>Detalle del reporte</h3><p>@Model.TotalRows asignaciones · Los intentos reasignados se muestran por separado en los indicadores.</p></div><form method="get">
+                @foreach(var query in Request.Query.Where(q => q.Key is not ("DetailSearch" or "PageNumber" or "handler"))) { <input type="hidden" name="@query.Key" value="@query.Value" /> }
+                <label class="campo"><span class="campo__etiqueta">Buscar en todo el detalle</span><input name="DetailSearch" value="@Model.DetailSearch" type="search" class="campo__control" id="report-search" placeholder="Tarea, responsable, plan…" /></label><button type="submit" class="boton boton--secundario">Buscar</button></form></header>
+            @if (Model.Pagination is {} pagination) { <partial name="_ListPage" model="pagination" /> }
             <div class="report-table-scroll"><table class="report-table"><thead><tr>@foreach (var column in Model.SelectedColumns) { <th scope="col">@ReportCatalog.Columns[column]</th> }</tr></thead><tbody>@foreach (var row in Model.Rows) { <tr>@foreach (var column in Model.SelectedColumns) { <td>@if (column == "status") { <span class="report-status report-tone--@ReportCatalog.Tone(row.Status)">@ReportCatalog.Cell(row, column)</span> } else if (column == "progress" && row.Goal > 0) { <span>@ReportCatalog.Cell(row, column)</span><progress class="report-progress report-tone--success" value="@row.Progress.ToString(CultureInfo.InvariantCulture)" max="100" aria-label="Avance de @row.Task"></progress> } else { @ReportCatalog.Cell(row, column) }</td> }</tr> }</tbody></table></div><p id="report-search-count" class="report-caption" aria-live="polite"></p>
         </section>
         <p class="report-caption">Estado actual al corte de consulta, incluso para periodos anteriores. Entregar una tarea no equivale a aprobarla. Los minutos representan carga estimada.</p>

@@ -42,9 +42,9 @@
         data.append('id', dialog.dataset.assignedTaskDetail);
         Object.entries(values).forEach(([key, value]) => data.append(key, value));
         const response = await fetch(`/mi-trabajo?handler=${handler}`, { method: 'POST', body: data, credentials: 'same-origin', cache: 'no-store', signal });
-        if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('No se confirmó el resultado. Recupera la carga o inicia sesión nuevamente.');
+        if (!/application\/(?:problem\+)?json/i.test(response.headers.get('content-type') || '')) throw new Error('No se confirmó el resultado. Recupera la carga o inicia sesión nuevamente.');
         const result = await response.json();
-        if (!response.ok) { const failure = new Error(result.message || 'No se pudo completar la carga.'); failure.status = response.status; throw failure; }
+        if (!response.ok) { const failure = new Error(result.message || result.title || 'No se pudo completar la carga.'); failure.status = response.status; throw failure; }
         return result;
     }
     if (cameraRoot) {

@@ -28,7 +28,22 @@ internal static class ChecklistChecks
         var draft = JsonSerializer.Serialize(new ChecklistDraft(Guid.NewGuid(), DateTimeOffset.UtcNow, [points[0].Id, points[1].Id]));
         var changed = JsonSerializer.Serialize(new[] {points[0], points[1] with {Text="Modificado"}, new ChecklistPoint(Guid.NewGuid(), "Nuevo")});
         Check(OperationalChecklist.Checked(OperationalChecklist.Reconcile(json, changed, draft)).SequenceEqual([points[0].Id]), "definition edits keep only unchanged marks");
-        foreach (var bad in new[] { "[]", "[null]", "{}", JsonSerializer.Serialize(new[] {points[0],points[0]}), JsonSerializer.Serialize(new[] {points[0] with {Text=" "}}) }) {
+        var title = new ChecklistPoint(Guid.NewGuid(), "Caja y operación", true);
+        var sectioned = OperationalChecklist.Normalize(JsonSerializer.Serialize(new[] {title, points[0], points[1]}), true);
+        Check(OperationalChecklist.ValidateAnswer(sectioned, Answer(sectioned, points[0].Id, points[1].Id), true).Length == 2,
+            "titles are persisted but excluded from completion requirements");
+        Check(OperationalChecklist.Complete(sectioned, draft), "only checkboxes count toward completion");
+        var renamed = JsonSerializer.Serialize(new[] {title with {Text="Otro apartado"}, points[0], points[1]});
+        Check(OperationalChecklist.Checked(OperationalChecklist.Reconcile(sectioned, renamed, draft)).Length == 2,
+            "renaming a title preserves checkbox marks");
+        var converted = JsonSerializer.Serialize(new[] {points[0] with {IsTitle=true}, points[1]});
+        Check(OperationalChecklist.Checked(OperationalChecklist.Reconcile(json, converted, draft)).SequenceEqual([points[1].Id]),
+            "converting a checkbox to a title removes its mark");
+        Check(OperationalChecklist.Normalize(JsonSerializer.Serialize(new[] {points[0]}),true) == JsonSerializer.Serialize(new[] {points[0]}),
+            "untitled definitions retain their original format");
+        try { OperationalChecklist.ValidateAnswer(sectioned,Answer(sectioned,title.Id,points[0].Id,points[1].Id),true); throw new Exception("Accepted checked title"); }
+        catch (DirectionPlanException e) when(e.Code=="TASK_CHECKLIST_INVALID") { Check(true,"title IDs cannot be checked"); }
+        foreach (var bad in new[] { "[]", "[null]", "{}", JsonSerializer.Serialize(new[] {title}), JsonSerializer.Serialize(new[] {points[0],points[0]}), JsonSerializer.Serialize(new[] {points[0] with {Text=" "}}) }) {
             try { OperationalChecklist.Normalize(bad,true); throw new Exception("Accepted invalid checklist"); }
             catch (DirectionPlanException e) when(e.Code == "TASK_CHECKLIST_INVALID") { Console.WriteLine("PASS checklist: invalid definition rejected"); }
         }

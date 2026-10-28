@@ -21,7 +21,7 @@
         <thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Requisito</th><th scope="col">Carga por persona</th><th scope="col">Acciones</th></tr></thead>
         <tbody>
         @foreach (var task in Model.Items) {
-            <tr class="tabla__fila"><td><strong>@task.Name</strong></td><td>@IndexModel.Label(task.Requirement)@if(task.Requirement == "CHECKLIST") { <details><summary>Ver puntos</summary><ol>@foreach(var point in Sgol.Web.Infrastructure.Persistence.Planning.OperationalChecklist.Points(task.ChecklistJson)) { <li>@point.Text</li> }</ol></details> }</td><td>@task.LoadMinutes min</td>
+            <tr class="tabla__fila"><td><strong>@task.Name</strong></td><td>@IndexModel.Label(task.Requirement)@if(task.Requirement == "CHECKLIST") { <details><summary>Ver puntos</summary><partial name="_ChecklistDefinition" model="@task.ChecklistJson" /></details> }</td><td>@task.LoadMinutes min</td>
                 <td><a class="boton boton--primario" href="/asignar-tarea/asignar?taskId=@task.Id" aria-label="Asignar: @task.Name">Asignar</a></td></tr>
         }
         </tbody>

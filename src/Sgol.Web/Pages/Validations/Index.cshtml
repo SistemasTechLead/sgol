@@ -20,10 +20,11 @@
 @if (Model.PendingAuthorizedCarryoverCount > 0) { <partial name="_Carryovers" model="Model" /> }
 @foreach (var group in Model.Sections) {
     <section class="panel-seccion supervision-section" id="@group.Key" aria-labelledby="title-@group.Key">
-        <header class="panel-seccion__cabecera"><h2 id="title-@group.Key">@group.Title <span class="badge badge--neutro">@group.All.Count</span></h2></header>
+        <header class="panel-seccion__cabecera"><h2 id="title-@group.Key">@group.Title <span class="badge badge--neutro">@group.Total</span></h2></header>
         <partial name="_Filters" model="@(new Sgol.Web.Pages.Validations.SupervisionFilterModel(Model, group))" />
-        <p class="supervision-count">@group.Items.Count de @group.All.Count tareas</p>
-        @if (group.Items.Count == 0) { <p class="estado-vacio">@(group.All.Count == 0 ? "No hay tareas en este apartado." : "No hay tareas que coincidan con estos filtros.")</p> }
+        @if (group.Pagination is {} pagination) { <partial name="_ListPage" model="pagination" /> }
+        <p class="supervision-count">@group.Items.Count de @group.Total tareas</p>
+        @if (group.Items.Count == 0) { <p class="estado-vacio">@(group.Total == 0 ? "No hay tareas en este apartado." : "No hay tareas que coincidan con estos filtros.")</p> }
         else {
             <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th scope="col">Tarea / plan</th><th scope="col">Responsable</th><th scope="col">Inicio / vencimiento</th><th scope="col">Requisito</th><th scope="col">Carga</th><th scope="col">Estado</th><th class="supervision-action-cell" scope="col">Revisión</th></tr></thead><tbody>
             @foreach (var item in group.Items) {

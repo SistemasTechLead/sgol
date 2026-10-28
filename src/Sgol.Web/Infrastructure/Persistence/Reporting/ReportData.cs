@@ -95,7 +95,7 @@ public static class ReportCatalog
     public static string Time(DateTimeOffset? at) => at is { } value ? TimeZoneInfo.ConvertTime(value, OperationalSchedule.Zone).ToString("dd/MM/yyyy HH:mm") : "Sin registro";
     public static string Cell(ReportRow row, string column) => column switch {
         "checklist" => row.Requirement != "CHECKLIST" ? "—" : (row.Delivered == null ? "Borrador: " : "") + string.Join("\n", OperationalChecklist.Points(row.ChecklistJson)
-            .Select(p => $"{(OperationalChecklist.Checked(row.ChecklistDraftJson).Contains(p.Id) ? "☑" : "☐")} {p.Text}")),
+            .Select(p => p.IsTitle ? p.Text : $"{(OperationalChecklist.Checked(row.ChecklistDraftJson).Contains(p.Id) ? "☑" : "☐")} {p.Text}")),
         "carryover" => row.Carryover.Label(row.Due, row.Delivered), "referenceDue" => Time(row.Carryover.ReferenceDue), "recognizedDue" => Time(row.Carryover.RecognizedDue), "carryoverRefs" => row.Carryover.References,
         "task" => row.Task, "person" => row.Person, "plan" => row.Plan, "status" => Statuses[row.Status],
         "start" => Time(row.Start), "due" => Time(row.Due), "delivered" => Time(row.Delivered), "reviewed" => Time(row.Reviewed),

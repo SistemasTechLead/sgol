@@ -90,18 +90,15 @@
         }
         customize(); form.requestSubmit();
     }));
-    $("#report-search")?.addEventListener("input", event => {
-        const search = window.SgolSearch.normalize(event.target.value); let shown = 0;
-        document.querySelectorAll(".report-table tbody tr").forEach(row => { row.hidden = !window.SgolSearch.normalize(row.textContent).includes(search); if (!row.hidden) shown++; });
-        $("#report-search-count").textContent = `${shown} asignaciones visibles en el detalle. Los indicadores corresponden al reporte generado.`;
-    });
     apply(initial); templateActions();
 
-    const snapshot = $("#report-result") ? JSON.parse($("#report-result").dataset.report) : null;
+    let snapshot = null;
+    let exportController = null;
     const pdfDialog = $("#report-pdf-dialog");
     let pdf = null, url = null, mode = null;
-    $("[data-report-export]").addEventListener("click", () => { if (snapshot) pdfDialog.showModal(); });
+    $("[data-report-export]").addEventListener("click", () => { if ($("#report-result")) pdfDialog.showModal(); });
     function discard() {
+        exportController?.abort(); exportController = null;
         pdf = null; mode = null; $("#report-download").disabled = true;
         $("#report-pdf-preview").hidden = true; $("#report-pdf-preview").removeAttribute("src");
         if (url) { URL.revokeObjectURL(url); url = null; }
@@ -113,6 +110,13 @@
         $("#report-pdf-status").textContent = "Preparando el documento…";
         try {
             const requestedMode = $("#report-pdf-mode").value;
+            exportController = new AbortController();
+            if (!snapshot) {
+                const address = new URL(location.href); address.searchParams.set("handler", "Export");
+                const response = await fetch(address, {cache:"no-store", signal:exportController.signal});
+                if (!response.ok || response.redirected || !response.headers.get("content-type")?.includes("application/json")) throw new Error("Export unavailable");
+                snapshot = await response.json();
+            }
             const result = await window.SgolReportPdf.create(snapshot, requestedMode);
             if (!pdfDialog.open || requestedMode !== $("#report-pdf-mode").value) return;
             pdf = result; mode = requestedMode; url = URL.createObjectURL(pdf.output("blob"));

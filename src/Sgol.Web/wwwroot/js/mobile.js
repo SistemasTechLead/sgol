@@ -26,7 +26,7 @@
             element.classList.toggle('mobile-fold-open', open);
             button.setAttribute('aria-expanded', String(open));
         };
-        update(hasError(element) || states.get(key) === true);
+        update(hasError(element) || element.contains(document.activeElement) || states.get(key) === true);
         button.addEventListener('click', () => {
             const open = !element.classList.contains('mobile-fold-open');
             states.set(key, open); update(open);
@@ -49,7 +49,7 @@
             elements.forEach(e => e.classList.toggle('mobile-fold-open', open));
             button.setAttribute('aria-expanded', String(open));
         };
-        update(elements.some(hasError) || states.get(key) === true);
+        update(elements.some(hasError) || elements.some(e => e.contains(document.activeElement)) || states.get(key) === true);
         button.addEventListener('click', () => { const open = button.getAttribute('aria-expanded') !== 'true'; states.set(key, open); update(open); });
         (anchor || elements[0]).before(button);
         return button;
@@ -59,7 +59,9 @@
         document.querySelectorAll('.supervision-filters').forEach((form, index) => {
             const section = form.closest('section');
             const active = [...form.querySelectorAll('input:not([type="hidden"]), select')].filter(c => c.value !== '').length;
-            fold(form, active ? `Filtros · ${active} activos` : 'Filtros', `supervision-${section?.id || index}`, section?.querySelector('header'));
+            const header = section?.querySelector(':scope > header');
+            const host = header && getComputedStyle(header).display !== 'none' ? header : null;
+            fold(form, active ? `Filtros · ${active} activos` : 'Filtros', `supervision-${section?.id || index}`, host);
         });
         const controls = document.querySelector('.report-controls');
         const reportForm = document.querySelector('#report-filters');
@@ -207,14 +209,16 @@
     // copy of its forms) and restore its exact desktop position on width change.
     let initialized = false, capacity = null, capacityHome = null, reportSave = null, reportSaveHome = null;
     const arrange = () => {
+        const mobile = isMobile();
         if (reportSave) {
-            if (isMobile()) document.querySelector('.report-controls')?.append(reportSave);
-            else reportSaveHome.after(reportSave);
+            const controls = document.querySelector('.report-controls');
+            if (mobile && controls && (reportSave.parentElement !== controls || controls.lastElementChild !== reportSave)) controls.append(reportSave);
+            else if (!mobile && reportSave.previousSibling !== reportSaveHome) reportSaveHome.after(reportSave);
         }
         if (!capacity) return;
         const sections = [...document.querySelectorAll('section.supervision-section')];
-        if (isMobile() && !capacity.open && sections.length) sections.at(-1).after(capacity);
-        else if (!isMobile()) capacityHome.after(capacity);
+        if (mobile && !capacity.open && sections.length && capacity.previousElementSibling !== sections.at(-1)) sections.at(-1).after(capacity);
+        else if (!mobile && capacity.previousSibling !== capacityHome) capacityHome.after(capacity);
     };
 
     // A closed <details> remains submitted normally. Invalid controls must be
@@ -270,5 +274,12 @@
         }
         arrange();
     };
-    synchronizeView(); new ResizeObserver(synchronizeView).observe(root);
+    // Resize notifications must not move observed content in the same delivery cycle.
+    // Coalesce changes and only relocate nodes when their destination actually changes.
+    let viewFrame = 0;
+    const scheduleView = () => {
+        if (viewFrame) return;
+        viewFrame = requestAnimationFrame(() => { viewFrame = 0; synchronizeView(); });
+    };
+    synchronizeView(); new ResizeObserver(scheduleView).observe(root);
 })();

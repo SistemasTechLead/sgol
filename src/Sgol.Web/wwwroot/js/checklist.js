@@ -3,50 +3,92 @@
     document.querySelectorAll('[data-checklist-editor]').forEach(root => {
         const form = root.closest('form'), requirement = form.querySelector('[name="Input.Requirement"]');
         const hidden = root.querySelector('[data-checklist-definition]'), rows = root.querySelector('[data-checklist-rows]');
-        let points;
-        try { points = JSON.parse(hidden.value || '[]'); } catch { points = []; }
-        const sync = () => { hidden.value = JSON.stringify(points.filter(p => p.Text.trim())); };
-        const render = () => {
-            rows.replaceChildren();
-            const addRow = (point, index, empty) => {
-                const row = document.createElement('div'); row.className = 'checklist-row' + (empty ? ' checklist-row--empty' : '');
-                const input = document.createElement('textarea'); input.className = 'campo__control'; input.rows = 2; input.maxLength = 1000;
-                input.value = point.Text; input.setAttribute('aria-label', empty ? 'Agregar otro punto' : `Punto ${index + 1}`);
-                input.placeholder = empty ? 'Agregar otro punto…' : 'Describe la comprobación';
-                input.addEventListener('input', () => {
-                    point.Text = input.value;
-                    if (empty && input.value.trim()) {
-                        empty = false; points.push(point); row.classList.remove('checklist-row--empty');
-                        input.setAttribute('aria-label', `Punto ${points.length}`); addActions(row, index); addRow({Id: crypto.randomUUID(), Text: ''}, points.length, true);
-                        rows.querySelectorAll('[data-checklist-down]').forEach((b,i)=>b.disabled=i>=points.length-1);
-                    }
-                    sync();
-                });
-                row.append(input); if (!empty) addActions(row, index); rows.append(row);
-            };
-            const addActions = (row, index) => {
-                const actions = document.createElement('div'); actions.className = 'checklist-row-actions';
-                [['↑','Subir punto',-1],['↓','Bajar punto',1],['Eliminar','Eliminar punto',0]].forEach(([label,title,offset]) => {
-                    const button = document.createElement('button'); button.type = 'button'; button.className = 'boton boton--secundario'; button.textContent = label;
-                    button.setAttribute('aria-label', `${title} ${index + 1}`);
-                    if(offset===1) button.dataset.checklistDown='';
-                    button.disabled = offset !== 0 && (index + offset < 0 || index + offset >= points.length);
-                    button.addEventListener('click', () => {
-                        if (!offset) points.splice(index, 1);
-                        else [points[index],points[index+offset]] = [points[index+offset],points[index]];
-                        sync(); render(); rows.querySelectorAll('textarea')[Math.min(index,points.length)]?.focus();
-                    }); actions.append(button);
-                }); row.append(actions);
-            };
-            points.forEach((p,i) => addRow(p,i,false)); addRow({Id:crypto.randomUUID(),Text:''},points.length,true);
+        const point = (isTitle = false) => ({Id: crypto.randomUUID(), Text: '', ...(isTitle ? {IsTitle:true} : {})});
+        let groups;
+        const partition = points => {
+            const result = []; let group = {title:point(true), items:[]};
+            points.forEach(p => {
+                if (p.IsTitle) {
+                    if (group.title.Text || group.items.length) { result.push(group); group={title:p,items:[]}; }
+                    else group.title=p;
+                } else group.items.push(p);
+            });
+            result.push(group); return result;
         };
-        const visibility = () => { root.hidden = requirement.value !== 'CHECKLIST'; };
-        requirement.addEventListener('change', visibility); visibility(); render();
-        form.addEventListener('submit', e => {
+        try { groups=partition(JSON.parse(hidden.value || '[]')); } catch { groups=partition([]); }
+        const flat = () => groups.flatMap(g => [g.title,...g.items]).filter(p => p.Text.trim());
+        const sync = () => { hidden.value=JSON.stringify(flat()); };
+        const updateActions = () => {
+            const list=flat(), positions=new Map(list.map((p,i)=>[p.Id,i]));
+            rows.querySelectorAll('[data-checklist-move]').forEach(button => {
+                const index=positions.get(button.dataset.pointId), offset=Number(button.dataset.checklistMove);
+                button.disabled=index===undefined || index+offset<0 || index+offset>=list.length;
+            });
+        };
+        const render = () => {
+            groups=groups.filter(g=>g.title.Text.trim() || g.items.some(p=>p.Text.trim()));
+            if (!groups.length) groups=partition([]);
+            rows.replaceChildren();
+            const addRow = (container, p, group, groupIndex, placeholder = false) => {
+                const row=document.createElement('div');
+                row.className='checklist-row '+(p.IsTitle ? 'checklist-row--title' : 'checklist-row--item');
+                row.classList.toggle('checklist-row--empty',!p.Text.trim());
+                if (!p.IsTitle) {
+                    const circle=document.createElement('span'); circle.className='checklist-circle'; circle.setAttribute('aria-hidden','true'); row.append(circle);
+                }
+                const input=document.createElement('textarea'); input.className='campo__control'; input.rows=1; input.maxLength=1000; input.value=p.Text;
+                input.setAttribute('aria-label',p.IsTitle ? `Título del apartado ${groupIndex+1} (opcional)` : placeholder ? `Agregar casilla al apartado ${groupIndex+1}` : `Casilla ${group.items.indexOf(p)+1} del apartado ${groupIndex+1}`);
+                input.placeholder=p.IsTitle ? 'Agrega un Titulo' : 'Agrega una Casilla';
+                row.append(input); container.append(row);
+                const addActions = () => {
+                    const actions=document.createElement('div'); actions.className='checklist-row-actions';
+                    const name=p.IsTitle ? `título del apartado ${groupIndex+1}` : `casilla ${group.items.indexOf(p)+1} del apartado ${groupIndex+1}`;
+                    [['↑','Subir',-1],['↓','Bajar',1],['Eliminar','Eliminar',0]].forEach(([label,verb,offset])=>{
+                        const button=document.createElement('button'); button.type='button'; button.className='boton boton--secundario'; button.textContent=label;
+                        button.setAttribute('aria-label',`${verb} ${name}`);
+                        if (offset) { button.dataset.checklistMove=offset; button.dataset.pointId=p.Id; }
+                        button.addEventListener('click',()=>{
+                            if (!offset) {
+                                if (p.IsTitle) p.Text=''; else group.items.splice(group.items.indexOf(p),1);
+                            } else {
+                                const list=flat(), index=list.indexOf(p);
+                                if (index<0 || !list[index+offset]) return;
+                                [list[index],list[index+offset]]=[list[index+offset],list[index]]; groups=partition(list);
+                            }
+                            sync(); render(); rows.querySelector('textarea')?.focus();
+                        }); actions.append(button);
+                    }); row.append(actions);
+                };
+                if (p.Text.trim()) addActions();
+                input.addEventListener('input',()=>{
+                    p.Text=input.value; rows.querySelectorAll('textarea').forEach(field=>field.setCustomValidity(''));
+                    row.classList.toggle('checklist-row--empty',!p.Text.trim());
+                    if (p.Text.trim() && placeholder) {
+                        placeholder=false; group.items.push(p);
+                        input.setAttribute('aria-label',`Casilla ${group.items.length} del apartado ${groupIndex+1}`);
+                        addActions(); addRow(container,point(),group,groupIndex,true); ensureNext();
+                    } else if (p.Text.trim() && !row.querySelector('.checklist-row-actions')) addActions();
+                    sync(); updateActions();
+                });
+            };
+            const addGroup = (group,index) => {
+                const container=document.createElement('div'); container.className='checklist-section'; container.dataset.checklistSection=''; rows.append(container);
+                addRow(container,group.title,group,index);
+                group.items.forEach(p=>addRow(container,p,group,index));
+                addRow(container,point(),group,index,true);
+            };
+            const ensureNext = () => {
+                if (groups.at(-1).items.length) { const next={title:point(true),items:[]}; groups.push(next); addGroup(next,groups.length-1); }
+            };
+            groups.forEach(addGroup); ensureNext(); updateActions();
+        };
+        const visibility=()=>{root.hidden=requirement.value!=='CHECKLIST'; rows.querySelectorAll('textarea').forEach(field=>field.setCustomValidity(''));};
+        requirement.addEventListener('change',visibility); visibility(); render();
+        form.addEventListener('submit',e=>{
             sync();
-            if (requirement.value === 'CHECKLIST' && !points.some(p => p.Text.trim())) {
-                e.preventDefault(); const input=rows.querySelector('textarea'); input.setCustomValidity('Agrega al menos un punto.'); input.reportValidity();
-                input.addEventListener('input',()=>input.setCustomValidity(''),{once:true});
+            if (requirement.value==='CHECKLIST' && !flat().some(p=>!p.IsTitle)) {
+                e.preventDefault(); const input=rows.querySelector('.checklist-row--item textarea');
+                input.setCustomValidity('Agrega al menos una casilla; los títulos son opcionales.'); input.reportValidity();
             }
         });
     });

@@ -1,7 +1,7 @@
 @model string
 <fieldset class="checklist-editor" data-checklist-editor hidden>
     <legend>Puntos del checklist</legend>
-    <p class="campo__ayuda">Escribe cada comprobación. La fila sombreada permite agregar el siguiente punto. Puedes cambiar su orden o eliminarlo.</p>
+    <p class="campo__ayuda">Escribe un título si lo necesitas y las comprobaciones en las casillas con sangría. Los campos sombreados permiten continuar el apartado o empezar otro. Puedes guardar sin títulos.</p>
     <input type="hidden" name="Input.ChecklistJson" value="@Model" data-checklist-definition />
     <div data-checklist-rows></div>
     <noscript>Activa JavaScript para editar los puntos del checklist.</noscript>

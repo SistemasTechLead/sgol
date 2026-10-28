@@ -24,6 +24,14 @@ using Sgol.Web.Infrastructure.Persistence.Organization;
 using Sgol.Web.Infrastructure.Persistence.Identity;
 using Microsoft.AspNetCore.Identity;
 
+if (args.Contains("--performance-cancel-transport")) { await PerformanceIntegrityChecks.CancellationTransportAsync(); return; }
+if (args.Contains("--performance-isolated")) { await PerformanceLoadChecks.RunAsync(); return; }
+if (args.Contains("--performance-planning")) { await PerformancePlanningChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-planning")); return; }
+if (args.Contains("--performance-preview")) { await PerformanceLoadChecks.RunAsync(previewOnly: true); return; }
+if (args.Contains("--performance-jpeg")) { await PerformanceJpegChecks.RunAsync(); return; }
+if (args.Contains("--performance-regressions")) { await PerformanceRegressionChecks.RunAsync(); return; }
+if (args.Contains("--performance-media")) { await PerformanceMediaChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-media")); return; }
+if (args.Contains("--performance-scanner")) { await PerformanceScannerChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-scanner")); await PerformanceScannerChecks.RunHostComparisonAsync(PerformanceLoadChecks.ArtifactDirectory("performance-scanner")); return; }
 if (args.Contains("--checklist-rules")) { ChecklistChecks.Rules(); return; }
 if (args.Contains("--carryover-rules")) { CarryoverChecks.Rules(); return; }
 if (args.Contains("--postponement-rules")) { PostponementChecks.Rules(); return; }
@@ -45,6 +53,8 @@ await using var db = new SgolDbContext(options);
 var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Contains("--process-schema-only") ? await SequenceSchemaChecks.Snapshot(db) : null;
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--performance-browser-workload")) { await PerformanceIntegrityChecks.SeedBrowserWorkloadAsync(db); return; }
+if (args.Contains("--performance-integrity")) { await PerformanceIntegrityChecks.RunAsync(db); return; }
 if (args.Contains("--expired-refresh-current-preview")) { await ExpiredAssignmentRefreshChecks.PreviewCurrentAsync(db); return; }
 if (args.Contains("--postponement-current")) { await PostponementChecks.Run(db); return; }
 if (args.Contains("--postponement-inbox-current")) { await PostponementChecks.InboxCurrent(db); return; }
@@ -69,6 +79,7 @@ if (args.Contains("--weekly-plan-http")) { await WeeklyPlanHttpChecks.RunAsync(d
 if(args.Contains("--balance-snapshot-only")) { await DailyBalanceChecks.SnapshotAsync(db); return; }
 if(args.Contains("--process-migrate-only")) { Console.WriteLine("Dedicated database migrated; no fixtures or catalogue changes added."); return; }
 if(args.Contains("--process-editor-only")) { await ProcessEditorChecks.RunAsync(db); return; }
+if(args.Contains("--checklist-http-only")) { await ProcessEditorChecks.RunAsync(db, checklistOnly:true); return; }
 if(args.Contains("--process-editor-current")) { await ProcessEditorChecks.CurrentAsync(db); return; }
 if (args.Contains("--process-cross-role-only")) { await ProcessRuntimeChecks.RunAsync(db, preparePlan:true, reassignment:true, crossRole:true); return; }
 if (args.Contains("--process-runtime-only") || args.Contains("--process-demo-seed") || args.Contains("--process-plan-only") || args.Contains("--process-reassign-only") || args.Contains("--process-deletion-only")) { await ProcessRuntimeChecks.RunAsync(db,args.Contains("--process-demo-seed"),args.Contains("--process-plan-only") || args.Contains("--process-deletion-only"),args.Contains("--process-reassign-only"),args.Contains("--process-deletion-only")); return; }

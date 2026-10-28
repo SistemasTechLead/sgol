@@ -8,8 +8,9 @@
 <section class="panel-seccion validation-panel" aria-labelledby="validation-title">
     <header class="panel-seccion__cabecera"><div><h2 id="validation-title">Validación</h2><p class="texto-secundario">Revisa las entregas y guarda tus decisiones en conjunto.</p></div></header>
     <partial name="_Filters" model="@(new SupervisionFilterModel(Model, group))" />
-    <div class="validation-section-title"><h3>@group.Title</h3><span class="badge badge--neutro">@group.Items.Count de @group.All.Count tareas</span></div>
+    <div class="validation-section-title"><h3>@group.Title</h3><span class="badge badge--neutro">@group.Items.Count de @group.Total tareas</span></div>
     @if (group.Items.Count == 0) { <p class="estado-vacio">No hay tareas que coincidan con este apartado y sus filtros.</p> }
+    @if (group.Pagination is {} pagination) { <partial name="_ListPage" model="pagination" /> }
     <form method="post" asp-page-handler="BatchReview" asp-all-route-data="Model.ValidationRoutes" data-validation-batch>
         <input type="hidden" name="Validation" value="true" /><input type="hidden" name="Section" value="@group.Key" />
         <div class="validation-grid">

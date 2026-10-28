@@ -62,6 +62,7 @@ app.Use(async (context, next) =>
 });
 app.UseStaticFiles();
 app.UseRateLimiter();
+app.UseMiddleware<PerformanceAdmissionMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<ScreenAccessMiddleware>();
 app.UseMiddleware<AntiforgeryValidationMiddleware>();

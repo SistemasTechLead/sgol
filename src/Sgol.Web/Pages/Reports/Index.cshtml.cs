@@ -38,6 +38,16 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
     public ReportDefinition Definition => ReportCatalog.Definitions.FirstOrDefault(d => d.Id == F.Kind) ?? ReportCatalog.Definitions[0];
     public string FilterJson => JsonSerializer.Serialize(F, JsonOptions);
     public string ExportJson { get; private set; } = "{}";
+    public int TotalRows { get; private set; }
+    public Sgol.Web.Presentation.Navigation.ListPage? Pagination { get; private set; }
+    [BindProperty(SupportsGet = true)] public string? DetailSearch { get; set; }
+    private bool exporting;
+    public async Task<IActionResult> OnGetExportAsync(CancellationToken token)
+    {
+        exporting = true;
+        var result = await OnGetAsync(token);
+        return result is PageResult && Error == null ? Content(ExportJson, "application/json") : result;
+    }
 
     private void NoStore()
     {
@@ -80,14 +90,27 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
             "delivered" => scoped.Where(x => x.A.CompletedAt >= start && x.A.CompletedAt < end),
             "reviewed" => scoped.Where(x => x.A.ReviewedAt >= start && x.A.ReviewedAt < end),
             _ => scoped.Where(x => x.A.StartsAt >= start && x.A.StartsAt < end) };
+        if (F.Person.Length > 0) scoped = scoped.Where(x => x.A.PersonId.ToString() == F.Person);
+        if (F.Role.Length > 0) scoped = scoped.Where(x => x.Role == F.Role);
+        if (F.Plan.Length > 0) scoped = scoped.Where(x => x.A.PlanId.ToString() == F.Plan);
+        if (F.Area.Length > 0) scoped = scoped.Where(x => x.P.Area == F.Area);
+        if (F.Task.Length > 0) scoped = scoped.Where(x => x.A.TaskCode == F.Task);
+        if (F.Specialization.Length > 0) scoped = scoped.Where(x => (x.A.SpecializationName ?? "") == F.Specialization);
+        if (F.Requirement.Length > 0) scoped = scoped.Where(x => x.A.Requirement == F.Requirement);
+        if (F.Schedule.Length > 0) scoped = scoped.Where(x => x.A.ScheduleMode == F.Schedule);
+        if (F.Frequency.Length > 0) scoped = scoped.Where(x => x.A.PeriodType == F.Frequency);
+        if (F.Repetitions != null) scoped = scoped.Where(x => x.A.Repetitions == F.Repetitions);
+        if (F.Minutes != null) scoped = scoped.Where(x => x.A.LoadMinutes == F.Minutes);
+        if (F.Hours != null) scoped = scoped.Where(x => (decimal)(x.A.DueAt - x.A.StartsAt).TotalHours == F.Hours);
         // Scalar projection intentionally excludes private evidence bytes.
+        var includeChecklist = exporting || SelectedColumns.Contains("checklist");
         var raw = await scoped.Select(x => new ReportRow(x.A.Id, x.A.PersonId, x.A.PlanId, x.A.Name, x.A.TaskCode,
             x.A.PersonName, x.Role, x.P.Name, x.P.Area, x.A.ReviewStatus ?? "", x.A.Requirement, x.A.ScheduleMode,
             x.A.PeriodType, x.A.Repetitions, 0, x.A.LoadMinutes, 0, x.A.StartsAt, x.A.DueAt,
             x.A.CompletedAt, x.A.ReviewedAt, x.A.GoalUnits, x.A.ProgressUnits, x.A.ProgressUnit,
             x.A.SpecializationName ?? "", x.A.ReviewComment ?? "", x.A.ReassignedFromId) {
                 TransferRemainingMinutes = x.A.TransferRemainingMinutes, TransferProgressUnits = x.A.TransferProgressUnits,
-                ChecklistJson = x.A.ChecklistJson, ChecklistDraftJson = x.A.ChecklistDraftJson
+                ChecklistJson = includeChecklist ? x.A.ChecklistJson : "[]", ChecklistDraftJson = includeChecklist ? x.A.ChecklistDraftJson : "null"
             }).ToArrayAsync(token);
         var transferredIds = raw.Where(r => r.TransferRemainingMinutes != null).Select(r => r.Id).ToArray();
         var contributions = await (from e in db.OperationalProgressEntries.AsNoTracking()
@@ -97,7 +120,8 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
             group e by new { e.AssignmentId, p.Id, p.DisplayName } into g
             select new { g.Key.AssignmentId, g.Key.DisplayName, Units = g.Sum(x => x.Units) }).ToArrayAsync(token);
         raw = raw.Select(r => r with { ProgressAuthors = string.Join(" · ", contributions.Where(c => c.AssignmentId == r.Id).OrderBy(c => c.DisplayName).Select(c => $"{c.DisplayName}: {c.Units}")) }).ToArray();
-        for (var i = 0; i < raw.Length; i++) raw[i] = raw[i] with { Carryover = await carryovers.ForAsync(raw[i].Id) };
+        await carryovers.PrepareAsync(raw.Select(r => r.Id), token);
+        for (var i = 0; i < raw.Length; i++) raw[i] = raw[i] with { Carryover = await carryovers.ForAsync(raw[i].Id, token) };
         raw = raw.Select(r => r with {
             Status = r.Status is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA" ? r.Status : r.Delivered != null ? "PENDIENTE_REVISION" : r.Start > Cutoff ? "PROGRAMADA" : r.Due < Cutoff ? "VENCIDA" : "ASIGNADA",
             Hours = (decimal)(r.Due - r.Start).TotalHours,
@@ -125,12 +149,29 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
         if (applied == null || !ReportCatalog.SameConfiguration(F, applied)) AppliedTemplate = "";
         // A hidden field must render the verified value, rather than the original query value.
         ModelState.Remove(nameof(AppliedTemplate));
-        ExportJson = JsonSerializer.Serialize(new { title = Definition.Name, description = Definition.Description,
+        TotalRows = Rows.Length;
+        // Export is an explicit, authorized request. Never embed the full export into initial HTML.
+        if (exporting) ExportJson = JsonSerializer.Serialize(new { title = Definition.Name, description = Definition.Description,
             period = $"{From:dd/MM/yyyy} - {Through:dd/MM/yyyy}", cutoff = ReportCatalog.Time(Cutoff), scope = Scope,
             filters = FilterSummary(), metrics = Metrics, charts = Charts,
             columns = SelectedColumns.Select(c => new { key = c, label = ReportCatalog.Columns[c] }),
             rows = Rows.Select(r => SelectedColumns.Select(c => ReportCatalog.Cell(r, c)).ToArray()),
             note = "Estado actual al corte de consulta. Entrega y aprobación son momentos distintos. La carga es estimada. Los intentos reasignados se separan del total de tareas." }, JsonOptions);
+        if (!exporting)
+        {
+            var detail = string.IsNullOrWhiteSpace(DetailSearch) ? Rows : Rows.Where(r => Sgol.Web.Presentation.Search.SearchText.Contains(string.Join(" ", SelectedColumns.Select(c => ReportCatalog.Cell(r, c))), DetailSearch.Trim())).ToArray();
+            var page = Math.Clamp(Sgol.Web.Presentation.Navigation.ListPage.Read(Request, "PageNumber"), 1, Math.Max(1, (detail.Length + 49) / 50));
+            var ids = detail.Select(r => r.Id).ToArray();
+            var query = db.OperationalAssignments.AsNoTracking().Where(a => ids.Contains(a.Id));
+            // The scalar result already carries the report's exact ordering (including rounded
+            // progress and historical timing). Page that rank in SQL without changing tie semantics.
+            var pageIds = await query.OrderBy(a => Array.IndexOf(ids, a.Id)).ThenBy(a => a.Id)
+                .Skip((page - 1) * 50).Take(50).Select(a => a.Id).ToArrayAsync(token);
+            var indexed = detail.ToDictionary(r => r.Id);
+            Rows = pageIds.Select(id => indexed[id]).ToArray();
+            Pagination = new("PageNumber", page, detail.Length, 50, Request, "report-result");
+        }
+        token.ThrowIfCancellationRequested();
         return Page();
     }
 

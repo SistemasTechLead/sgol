@@ -82,6 +82,7 @@
         }
     }
     function colors() {
+        if (document.hidden) return;
         if (stopped) return;
         const instant = now();
         const stateFilter = root.querySelector('[data-state]')?.dataset.state;
@@ -118,7 +119,7 @@
         notice.hidden = false;
     }
     async function refresh(plan, change = false, task = selectedTask()) {
-        if (refreshing || stopped || !change && performance.now() < retryAfter) return;
+        if (document.hidden || refreshing || stopped || !change && performance.now() < retryAfter) return;
         refreshing = true;
         root.setAttribute('aria-busy', 'true');
         const selector = root.querySelector('#board-plan');
@@ -195,6 +196,7 @@
     window.addEventListener('pagehide', () => events?.close());
     window.addEventListener('pageshow', event => { if (event.persisted) { events = null; connect(); refresh(selected()); } });
     setInterval(() => {
+        if (document.hidden) return;
         colors();
         const content = root.querySelector('[data-day-end]');
         if (content && now() >= Number(content.dataset.dayEnd)) refresh(selected());

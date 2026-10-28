@@ -142,6 +142,11 @@ public sealed class IndexModel(
         }
         if (!response.IsSuccess)
         {
+            if (response.Status is 429 or 503)
+            {
+                Response.StatusCode = response.Status;
+                Response.Headers.RetryAfter = response.Status == 429 ? "900" : "5";
+            }
             SetError(response.ErrorCode);
             Csrf = antiforgery.Issue(HttpContext);
             return Page();
@@ -233,6 +238,7 @@ public sealed class IndexModel(
             "DESAFIO_INVALIDO" => ("El paso de acceso venció", "Vuelve a iniciar sesión para continuar."),
             "ACCOUNT_LOCKED" => ("El acceso está bloqueado temporalmente", "Espera antes de volver a intentarlo."),
             "RATE_LIMITED" => ("Demasiadas solicitudes", "Espera antes de volver a intentarlo."),
+            "OPERATION_BUSY" => ("Acceso ocupado", "Espera unos segundos antes de volver a intentarlo."),
             "CSRF_INVALID" => ("No se pudo verificar la solicitud", "Recarga la página antes de volver a enviarla."),
             "MFA_STATE_INCONSISTENT" => ("Se requiere recuperación administrada", "Solicita a Dirección el restablecimiento de MFA."),
             _ => ("No se pudo continuar", "Vuelve a iniciar sesión para continuar."),

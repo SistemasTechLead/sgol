@@ -46,7 +46,7 @@ public sealed partial class IndexModel
             Response.StatusCode = e.Status;
             FailedReviewId = e.Data["ReviewAssignmentId"] as Guid?;
             await LoadAsync(actor.Value, null, token);
-            var failed = Sections.SelectMany(s => s.All).FirstOrDefault(t => t.Assignment.Id == FailedReviewId);
+            var failed = FailedReviewId is {} failedId ? await supervision.FindAsync(actor.Value, failedId, token) : null;
             Error = "No se guardó ninguna revisión del grupo. " +
                 (failed is null ? "" : failed.Assignment.Name + ": ") + Message(e.Code);
             return Page();

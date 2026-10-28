@@ -63,9 +63,9 @@ Check(blocked.Result == EvidenceScanResult.Infectado, "Infected input cannot byp
 scanner.Result = EvidenceScanResult.ErrorEscaneo;
 Check((await pipeline.InspectStoredAsync(metadata, default, true)).Result == EvidenceScanResult.ErrorEscaneo, "Scanner errors fail closed");
 
-if (args.Contains("--clamav"))
+if (args.Contains("--clamav") || args.Contains("--performance-clamav"))
 {
-    var clam = new ClamAvScanner(Options.Create(new EvidenceScannerOptions { Host = "localhost", Port = 3310 }));
+    var clam = new ClamAvScanner(Options.Create(new EvidenceScannerOptions { Host = args.Contains("--performance-clamav") ? "127.0.0.1" : "localhost", Port = args.Contains("--performance-clamav") ? 3347 : 3310 }));
     await clam.CheckAvailabilityAsync(default);
     await using var clean = new MemoryStream(Jpeg());
     Check((await clam.ScanAsync(clean, clean.Length, default)).Result == EvidenceScanResult.Limpio, "Real ClamAV accepts a clean photograph");

@@ -78,7 +78,7 @@ public sealed partial class FileTechnicalValidator : IFileTechnicalValidator
             temporary.Position = 0;
             var structurallyValid = detected switch
             {
-                EvidenceMediaType.Jpeg => ValidateJpeg(temporary),
+                EvidenceMediaType.Jpeg => ValidateJpeg(temporary, cancellationToken),
                 EvidenceMediaType.Png => ValidatePng(temporary),
                 EvidenceMediaType.Pdf => ValidatePdf(temporary),
                 _ => false
@@ -165,7 +165,7 @@ public sealed partial class FileTechnicalValidator : IFileTechnicalValidator
         return null;
     }
 
-    private static bool ValidateJpeg(Stream stream)
+    private static bool ValidateJpeg(Stream stream, CancellationToken token)
     {
         if (stream.ReadByte() != 0xff || stream.ReadByte() != 0xd8)
         {
@@ -176,6 +176,7 @@ public sealed partial class FileTechnicalValidator : IFileTechnicalValidator
         var hasSos = false;
         while (stream.Position < stream.Length)
         {
+            token.ThrowIfCancellationRequested();
             if (stream.ReadByte() != 0xff)
             {
                 return false;
@@ -231,7 +232,7 @@ public sealed partial class FileTechnicalValidator : IFileTechnicalValidator
             }
 
             hasSos = true;
-            if (!SkipJpegEntropyData(stream))
+            if (!SkipJpegEntropyData(stream, token))
             {
                 return false;
             }
@@ -240,32 +241,35 @@ public sealed partial class FileTechnicalValidator : IFileTechnicalValidator
         return false;
     }
 
-    private static bool SkipJpegEntropyData(Stream stream)
+    private static bool SkipJpegEntropyData(Stream stream, CancellationToken token)
     {
-        while (stream.Position < stream.Length)
+        // Do not query FileStream.Position and ReadByte for every entropy byte. Keep the
+        // original marker/stuffing/restart rules, including markers crossing read boundaries.
+        var buffer = new byte[EvidenceFileLimits.BufferBytes];
+        long? markerPosition = null;
+        int read;
+        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
         {
-            if (stream.ReadByte() != 0xff)
+            token.ThrowIfCancellationRequested();
+            var start = stream.Position - read;
+            for (var i = 0; i < read; i++)
             {
-                continue;
+                var value = buffer[i];
+                if (markerPosition == null)
+                {
+                    if (value == 0xff) markerPosition = start + i;
+                    continue;
+                }
+                if (value == 0xff) continue;
+                if (value == 0x00 || value is >= 0xd0 and <= 0xd7)
+                {
+                    markerPosition = null;
+                    continue;
+                }
+                stream.Position = markerPosition.Value;
+                return true;
             }
-
-            var markerPosition = stream.Position - 1;
-            int next;
-            do
-            {
-                next = stream.ReadByte();
-            }
-            while (next == 0xff);
-
-            if (next == 0x00 || next is >= 0xd0 and <= 0xd7)
-            {
-                continue;
-            }
-
-            stream.Position = markerPosition;
-            return true;
         }
-
         return false;
     }
 

@@ -21,6 +21,8 @@ public sealed partial class IndexModel
             return new JsonResult(new { saved = true });
         } catch (DirectionPlanException e) { return new JsonResult(new { error = Pages.Tasks.IndexModel.Message(e.Code) }) { StatusCode = e.Status }; }
     }
+    public Sgol.Web.Presentation.Navigation.ListPage? WorkPagination { get; private set; }
+    public Sgol.Web.Presentation.Components.TaskProgressViewModel WorkProgress { get; private set; } = new(0,0,"Tu progreso de hoy");
     public IReadOnlyList<OperationalAssignmentDetails> OperationalTasks { get; private set; } = [];
     public IReadOnlyList<OperationalLifecycleEntry> OperationalLifecycle { get; private set; } = [];
     public IReadOnlyList<OperationalTransfer> OperationalTransfers { get; private set; } = [];
@@ -51,20 +53,24 @@ public sealed partial class IndexModel
         "delivered" => "Entregada", "scheduled" => "Por activar", "active" => "Activa",
         "warning" => "Último 30% del tiempo", _ => task.DueAt <= OperationalNow ? "Vencida" : "Último 10% del tiempo"
     };
-    public string OperationalTaskHref(Guid id) => QueryHelpers.AddQueryString("/mi-trabajo", "assignedTask", id.ToString("D")) + "#plan-tasks";
+    public Dictionary<string, string> WorkRoutes => Request.Query.Where(q => q.Key is "WorkPage" or "WorkSearch").ToDictionary(q => q.Key, q => q.Value.ToString());
+    public string OperationalTaskHref(Guid id) => QueryHelpers.AddQueryString(QueryHelpers.AddQueryString("/mi-trabajo", WorkRoutes.ToDictionary(q => q.Key, q => (string?)q.Value)), "assignedTask", id.ToString("D")) + "#plan-tasks";
     public static bool OperationalSubmitted(OperationalAssignmentDetails task) =>
         task.CompletedAt is not null || task.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA";
     private async Task LoadOperationalAsync(Guid actor, CancellationToken token)
     {
         OperationalNow = HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow;
         try {
-            OperationalTasks = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().MineAsync(actor, token);
+            var service = HttpContext.RequestServices.GetRequiredService<OperationalTaskService>();
+            var page = await service.MinePageAsync(actor, Request.Query["WorkSearch"], Sgol.Web.Presentation.Navigation.ListPage.Read(Request, "WorkPage"), OperationalNow, token);
+            OperationalTasks = page.Items; WorkPagination = new("WorkPage", page.Page, page.Total, 50, Request, "plan-tasks");
+            var progress = await service.MineProgressAsync(actor, OperationalDay, token);
+            WorkProgress = new(progress.Concluded, progress.Total, "Tu progreso de hoy");
             OperationalTransfers = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().MyTransfersAsync(actor, token);
             var selected = OperationalAttemptedTaskId?.ToString("D") ?? Request.Query["assignedTask"].ToString();
             if (!string.IsNullOrEmpty(selected)) {
                 if (!Guid.TryParseExact(selected, "D", out var id)) throw new DirectionPlanException("TASK_NOT_FOUND", 404);
-                OperationalSelectedTask = OperationalTasks.SingleOrDefault(task => task.Id == id)
-                    ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
+                OperationalSelectedTask = await service.MineFindAsync(actor, id, token);
                 if (OperationalAttemptedChecklist != null && OperationalSelectedTask.Requirement == "CHECKLIST") {
                     try { var marks = OperationalChecklist.ValidateAnswer(OperationalSelectedTask.ChecklistJson, OperationalAttemptedChecklist, false);
                         OperationalSelectedTask = OperationalSelectedTask with { ChecklistDraftJson = System.Text.Json.JsonSerializer.Serialize(new ChecklistDraft(actor, OperationalNow, marks)) };

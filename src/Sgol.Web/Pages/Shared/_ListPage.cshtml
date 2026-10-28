@@ -1,0 +1,6 @@
+@model Sgol.Web.Presentation.Navigation.ListPage
+<nav class="acciones" aria-label="Páginas de la lista">
+    <span role="status">Página @Model.Number de @Model.Pages · @Model.Total registros</span>
+    @if (Model.Number > 1) { <a class="boton boton--secundario" href="@Model.Href(Model.Number - 1)">Anterior</a> }
+    @if (Model.Number < Model.Pages) { <a class="boton boton--secundario" href="@Model.Href(Model.Number + 1)">Siguiente</a> }
+</nav>

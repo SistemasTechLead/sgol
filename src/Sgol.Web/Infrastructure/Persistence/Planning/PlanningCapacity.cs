@@ -29,6 +29,7 @@ public sealed record PlanningCapacityPreview(DateOnly From, DateOnly Through, st
     public MonthlyPlanPending[] MonthlyPending { get; set; } = [];
     public TemporalPlanRow[] TemporalRows { get; set; } = [];
     public string? AgendaFingerprint { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore] internal OperationalAssignment[] Assignments { get; set; } = [];
     public bool TemporalPolicyEnabled { get; init; }
 }
 
@@ -45,6 +46,7 @@ public static class PlanningCapacity
     public static async Task<PlanDailyLoad[]> DailyLoadAsync(SgolDbContext db, DirectionPlanInput input,
         PlanningCapacityPreview preview, CapacityLedger ledger, CancellationToken token)
     {
+        using var admission = await Sgol.Web.Infrastructure.Http.PerformanceWork.Planning.EnterAsync(token);
         var range = DirectionPlanContract.Calculate(input, input.IsWeeklyOperationsPlan ? ledger.Today : null);
         var adjusted = new CapacityLedger(ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today)
             { Temporal = ledger.Temporal, PlannedChanges = Changes(input, preview, ledger) };
@@ -53,6 +55,7 @@ public static class PlanningCapacity
         var plan = new DirectionPreparedPlan(Guid.NewGuid(), Sgol.Organization.Contracts.BranchScope.LorettaId, Guid.NewGuid(), evaluatedAt.ToUniversalTime(), input);
         plan.CaptureSchedulingPolicy(policy.Id);
         var generated = await OperationalPlanGenerator.GenerateAsync(db, plan, input.TaskCodes, evaluatedAt, token, allowReserved: true, preparedLedger: adjusted);
+        preview.Assignments = generated;
         preview.MonthlyPending = JsonSerializer.Deserialize<MonthlyPlanPending[]>(plan.MonthlyPendingJson)!;
         preview.TemporalRows = generated.Select(a => {
             var day = WeekContract.LocalToday(a.StartsAt);

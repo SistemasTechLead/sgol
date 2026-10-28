@@ -10,7 +10,7 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Validations;
 
-public sealed record SupervisionSection(string Key, string Title, IReadOnlyList<SupervisedTask> All, IReadOnlyList<SupervisedTask> Items);
+public sealed record SupervisionSection(string Key, string Title, IReadOnlyList<SupervisedTask> All, IReadOnlyList<SupervisedTask> Items) { public int Total { get; init; } public ListPage? Pagination { get; init; } }
 public sealed record SupervisionFilterModel(IndexModel Page, SupervisionSection Section);
 
 public sealed partial class IndexModel(IRazorSessionState sessions, OperationalSupervisionService supervision, OperationalCapacityService capacity, OperationalTaskService tasks, IClock clock, OperationalCarryoverService carryovers) : PageModel
@@ -70,60 +70,24 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
         CapacityThrough ??= today.AddDays(6 - (((int)today.DayOfWeek + 6) % 7));
         if (CapacityFrom < today || CapacityThrough < CapacityFrom || CapacityThrough.Value.DayNumber - CapacityFrom.Value.DayNumber > 90)
             throw new DirectionPlanException("CAPACITY_INVALID", 422);
-        Carryovers = await carryovers.InboxAsync(actor, token);
+        await LoadCarryoversAsync(actor, token);
         CapacityRows = await capacity.RowsAsync(actor, CapacityFrom.Value, CapacityThrough.Value, token);
-        var all = await supervision.ListAsync(actor, token);
-        CarryoverCurrent = all.ToDictionary(x => x.Assignment.Id, x => x.Assignment);
-        if (selected is not null) Selected = all.SingleOrDefault(t => t.Assignment.Id == selected)
+        if (selected is not null) Selected = await supervision.FindAsync(actor, selected.Value, token)
             ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
         if (Selected?.Assignment.GoalUnits > 0) ProgressHistory = await tasks.ProgressHistoryAsync(actor, selected!.Value, token);
         if (Selected is not null) Photographs = await tasks.PhotographsAsync(actor, Selected.Assignment.Id, token);
         if (Selected?.Assignment.OccasionId != null) Occasion = await tasks.OccasionAsync(actor, Selected.Assignment.Id, token);
         var sections = new List<SupervisionSection>();
-        var pending = all.Where(t => Pending(t.Assignment) &&
-            (Role != CanonicalRole.Direction || t.Role == CanonicalRole.Subcoordination || t.Assignment.SpecializationId != null))
-            .OrderByDescending(t => t.Assignment.CompletedAt).ToArray();
-        sections.Add(new("pending", "Pendientes de revisión", pending, Filter("pending", pending)));
-        foreach (var role in OperationalSupervisionService.RolesFor(Role)) {
-            var tasks = all.Where(t => t.Role == role).ToArray();
-            sections.Add(new(role, SessionPresentation.RoleName(role)!, tasks, Filter(role, tasks)));
+        foreach (var key in new[] { "pending" }.Concat(OperationalSupervisionService.RolesFor(Role)))
+        {
+            var filter = Request.Query.Where(q => q.Key.StartsWith(key + ".")).ToDictionary(q => q.Key[(key.Length + 1)..], q => q.Value.ToString());
+            var result = await supervision.PageAsync(actor, key, filter, ListPage.Read(Request, key + ".page"), token);
+            sections.Add(new(key, key == "pending" ? "Pendientes de revisión" : SessionPresentation.RoleName(key)!, result.Options, result.Items)
+                { Total = result.Total, Pagination = new(key + ".page", result.Page, result.Filtered, 50, Request, key) });
         }
         Sections = sections;
         if (Validation)
             CardPhotos = await supervision.PhotoIdsAsync(actor, ValidationSection.Items.Select(t => t.Assignment.Id).ToArray(), token);
-    }
-    private IReadOnlyList<SupervisedTask> Filter(string key, IEnumerable<SupervisedTask> tasks)
-    {
-        var today = WeekContract.LocalToday(Now);
-        var range = Value(key, "range");
-        DateOnly? start = range switch {
-            "SEMANAL" => today.AddDays(-(((int)today.DayOfWeek + 6) % 7)), "MENSUAL" => new(today.Year, today.Month, 1),
-            "TRIMESTRAL" => new(today.Year, (today.Month - 1) / 3 * 3 + 1, 1),
-            "SEMESTRAL" => new(today.Year, (today.Month - 1) / 6 * 6 + 1, 1), "ANUAL" => new(today.Year, 1, 1), _ => null
-        };
-        DateOnly? end = start is { } from ? range switch {
-            "SEMANAL" => from.AddDays(6), "MENSUAL" => from.AddMonths(1).AddDays(-1),
-            "TRIMESTRAL" => from.AddMonths(3).AddDays(-1), "SEMESTRAL" => from.AddMonths(6).AddDays(-1),
-            _ => new DateOnly(from.Year, 12, 31)
-        } : null;
-        if (range == "CUSTOM") {
-            start = DateOnly.TryParse(Value(key, "from"), out var f) ? f : null;
-            end = DateOnly.TryParse(Value(key, "to"), out var t) ? t : null;
-        }
-        var search = Value(key, "search").Trim();
-        return tasks.Where(t => {
-            var a = t.Assignment; var day = WeekContract.LocalToday(a.StartsAt);
-            return (start == null || day >= start) && (end == null || day <= end) &&
-                (search.Length == 0 || SearchText.Contains(a.Name, search) || SearchText.Contains(a.TaskCode, search)) &&
-                (Value(key, "period") == "" || t.Period == Value(key, "period")) &&
-                (Value(key, "requirement") == "" || a.Requirement == Value(key, "requirement")) &&
-                (Value(key, "status") == "" || StatusCode(a) == Value(key, "status")) &&
-                (Value(key, "person") == "" || a.PersonId.ToString() == Value(key, "person")) &&
-                (Value(key, "plan") == "" || a.PlanId.ToString() == Value(key, "plan")) &&
-                (!int.TryParse(Value(key, "repetitions"), out var repeats) || a.Repetitions == repeats) &&
-                (!int.TryParse(Value(key, "hours"), out var hours) || (a.DueAt - a.StartsAt).TotalHours == hours) &&
-                (!int.TryParse(Value(key, "minutes"), out var minutes) || a.LoadMinutes == minutes);
-        }).ToArray();
     }
     public async Task<IActionResult> OnPostReviewAsync(Guid id, long revision, string decision, string? comment, CancellationToken token)
     {

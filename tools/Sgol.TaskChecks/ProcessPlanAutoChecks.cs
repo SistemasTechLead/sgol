@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics.Metrics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Sgol.BuildingBlocks.Time;
@@ -93,6 +94,41 @@ public static class ProcessPlanAutoChecks
         db.Add(absence);await db.SaveChangesAsync();db.ChangeTracker.Clear();
         var unavailableCalendar=Input();unavailableCalendar.Mode="CALENDARIO";unavailableCalendar.Through=calendar.Through;
         await Reject(()=>plans.PreviewAsync(actor,unavailableCalendar,default),"PLAN_NO_AVAILABLE_WORKER");
+
+        // Publish a different immutable version after CPU work and before the save lock.
+        var racing=Input();racing.From=day.AddDays(30);racing.Through=racing.From;
+        racing.Fingerprint=(await plans.PreviewAsync(actor,racing,default)).Fingerprint;
+        var changed=false;
+        using(var listener=new MeterListener())
+        {
+            listener.InstrumentPublished=(instrument,l)=> { if(instrument.Meter.Name=="Sgol.Performance" && instrument.Name=="sgol.work.duration")l.EnableMeasurementEvents(instrument); };
+            listener.SetMeasurementEventCallback<double>((instrument,value,tags,state)=> {
+                if(changed)return;
+                foreach(var tag in tags)if(tag.Key=="stage" && tag.Value?.ToString()=="planning.process-preview")
+                {
+                    changed=true;
+                    using var concurrent=new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(db.Database.GetConnectionString()).Options);
+                    var concurrentDirection=new EfDirectionPreparedPlanService(concurrent,new AuditTransaction(concurrent),clock,new Uuid7Generator(clock),new DirectionPlanningCatalogReader(concurrent));
+                    var concurrentCatalog=new OperationalProcessCatalogService(concurrent,concurrentDirection,clock,new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["Processes:OperationsEnabled"]="true" }).Build());
+                    var editor=concurrentCatalog.ReadAsync(actor,id,default).GetAwaiter().GetResult();
+                    var v=editor.Configuration!;
+                    concurrentCatalog.SaveAsync(actor,new() { Id=id,Revision=editor.Process.Revision,Name=v.Name,Description=v.Description,StartKind=v.StartKind,FirstMonth=v.FirstMonth,WindowFromDay=v.WindowFromDay,WindowThroughDay=v.WindowThroughDay,PreferredWeekDay=v.PreferredWeekDay,StartHour=v.StartHour+1,Steps=editor.Steps.ToList() },default).GetAwaiter().GetResult();
+                    concurrent.ChangeTracker.Clear();editor=concurrentCatalog.ReadAsync(actor,id,default).GetAwaiter().GetResult();
+                    concurrentCatalog.PublishAsync(actor,id,editor.Process.Revision,default).GetAwaiter().GetResult();
+                    concurrent.ChangeTracker.Clear();editor=concurrentCatalog.ReadAsync(actor,id,default).GetAwaiter().GetResult();
+                    concurrentCatalog.SetEnabledAsync(actor,id,editor.Process.Revision,true,default).GetAwaiter().GetResult();
+                }
+            });
+            listener.Start();
+            await Reject(()=>plans.PrepareAsync(actor,racing,default),"PLAN_CAPACITY_STALE");
+        }
+        db.ChangeTracker.Clear();
+        Check(changed && !await db.DirectionPreparedPlans.AnyAsync(p=>p.Id==racing.Key) && !await db.Set<PreparedProcessStart>().AnyAsync(p=>p.PlanId==racing.Key),"Concurrent process publication rejects with 409 and no partial plan or starts");
+        racing.Fingerprint=(await plans.PreviewAsync(actor,racing,default)).Fingerprint;
+        var fresh=await plans.PrepareAsync(actor,racing,default);db.ChangeTracker.Clear();
+        var runs=await plans.ActivateAsync(actor,fresh,default);db.ChangeTracker.Clear();
+        Check(runs.Length==1 && (await plans.ActivateAsync(actor,fresh,default)).SequenceEqual(runs),"Fresh process preparation activates atomically and activation replay reuses the same run");
+        await OperationalSchedulingChecks.ProcessOnly(db,actor);
 
     }
     private static void Check(bool ok,string text) { if(!ok)throw new Exception(text);Console.WriteLine("PASS: "+text); }

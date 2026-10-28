@@ -1,0 +1,15 @@
+@model string
+@using Sgol.Web.Infrastructure.Persistence.Planning
+<div class="checklist-points">
+    @foreach (var point in OperationalChecklist.Points(Model))
+    {
+        @if (point.IsTitle)
+        {
+            <h3 class="checklist-title">@point.Text</h3>
+        }
+        else
+        {
+            <div class="checklist-point"><span class="checklist-circle" aria-hidden="true"></span><span>@point.Text</span></div>
+        }
+    }
+</div>

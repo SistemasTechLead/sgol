@@ -52,6 +52,25 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
     public async Task<DirectionPlanSaved> CreateAsync(Guid actor, Guid key, Guid correlation, DirectionPlanInput input, CancellationToken token = default)
     {
         if (actor == Guid.Empty || key == Guid.Empty || correlation == Guid.Empty) throw new DirectionPlanException("DIRECTION_PLAN_REQUEST_INVALID", 400);
+        // Expensive search runs without the global transaction lock. A second input snapshot
+        // under the lock must match before any capacity adjustment or assignment is staged.
+        PlanningCapacityPreview? preparation = null;
+        DirectionPlanException? preparationError = null;
+        var preparedAt = clock.UtcNow;
+        try
+        {
+            await CheckAuthorityAsync(actor, preparedAt, true, token, allowSubcoordination: input.IsWeeklyOperationsPlan);
+            var normalizedInput = DirectionPlanContract.Normalize(input);
+            var replayScope = IdempotencyProtocol.Scope(actor.ToString("D"), Operation, BranchScope.LorettaCode);
+            if (!await db.IdempotencyRecords.AnyAsync(r => r.Scope == replayScope && r.Key == key, token) && !string.IsNullOrWhiteSpace(normalizedInput.CapacityFingerprint))
+            {
+                using var timing = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("planning.prepare");
+                var state = await PlanningCapacity.ReadAsync(db, normalizedInput, preparedAt, token);
+                await PlanningCapacity.DailyLoadAsync(db, normalizedInput, state.Preview, state.Ledger, token);
+                preparation = state.Preview;
+            }
+        }
+        catch (DirectionPlanException e) { preparationError = e; }
         DirectionPlanSaved? saved = null;
         DirectionPlanException? rejection = null;
         try
@@ -119,19 +138,18 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                     var schedulingPolicy = await OperationalSchedulingPolicyService.CurrentAsync(db, ct);
                     plan.CaptureSchedulingPolicy(schedulingPolicy.Id);
                     if (string.IsNullOrWhiteSpace(normalized.CapacityFingerprint)) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
-                    CapacityLedger? preparedLedger = null;
                     CapacityChange[] changes = [];
                     if (!string.IsNullOrWhiteSpace(normalized.CapacityFingerprint) || normalized.CapacityAdjustments is { Count: > 0 })
                     {
-                        var state = await PlanningCapacity.ReadAsync(db, normalized, at, ct);
-                        await PlanningCapacity.DailyLoadAsync(db, normalized, state.Preview, state.Ledger, ct);
-                        if (state.Preview.AgendaFingerprint != normalized.CapacityFingerprint) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
+                        if (preparationError != null) throw preparationError;
+                        var state = await PlanningCapacity.ReadAsync(db, normalized, clock.UtcNow, ct);
+                        if (preparation == null || state.Preview.Fingerprint != preparation.Fingerprint || preparation.AgendaFingerprint != normalized.CapacityFingerprint) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
                         changes = PlanningCapacity.Changes(normalized, state.Preview, state.Ledger);
-                        var ledger = state.Ledger;
-                        preparedLedger = new(ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today)
-                            { Temporal = ledger.Temporal, PlannedChanges = changes };
                     }
-                    var assignments = await OperationalPlanGenerator.GenerateAsync(db, plan, normalized.TaskCodes, at, ct, preparedLedger: preparedLedger);
+                    if (preparation == null) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);
+                    var assignments = preparation.Assignments;
+                    foreach (var assignment in assignments) assignment.PlanId = plan.Id;
+                    plan.CaptureMonthlyPending(preparation.MonthlyPending);
                     var savingDay = WeekContract.LocalToday(clock.UtcNow);
                     if (assignments.Any(a => a.SchedulingPolicyId != null && a.ScheduleMode != "PROGRESO" && a.StartsAt < clock.UtcNow &&
                         !(normalized.IsWeeklyOperationsPlan && WeekContract.LocalToday(a.StartsAt) == savingDay))) throw new DirectionPlanException("PLAN_CAPACITY_STALE", 409);

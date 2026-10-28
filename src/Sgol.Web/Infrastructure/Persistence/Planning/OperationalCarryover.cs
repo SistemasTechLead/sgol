@@ -203,14 +203,7 @@ public sealed partial class OperationalCarryoverService(SgolDbContext db, IClock
         return await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.PersonId == person && r.BranchId == BranchScope.LorettaId).OrderByDescending(r => r.SubmittedAt).ToArrayAsync(ct);
     }
     public async Task<OperationalCarryoverRequest[]> InboxAsync(Guid actor, CancellationToken ct) {
-        var role = await supervision.AuthorizeAsync(actor, ct); var person = await Person(actor, ct);
-        var ids = (await supervision.ListAsync(actor, ct)).Select(a => a.Assignment.Id).ToHashSet();
-        var candidates = (await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.BranchId == BranchScope.LorettaId && r.PersonId != person).OrderBy(r => r.SubmittedAt).ToArrayAsync(ct))
-            .Where(r => r.Items().All(i => ids.Contains(i.AssignmentId))).ToArray();
-        var visible = new List<OperationalCarryoverRequest>();
-        foreach (var r in candidates)
-            if (r.Kind != "POSPONER" || role == CanonicalRole.Direction || (await ImmediateSupervisors(r.PersonId, ct)).Contains(actor)) visible.Add(r);
-        return visible.ToArray();
+        return await (await AuthorizedInboxAsync(actor, ct)).OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).ToArrayAsync(ct);
     }
     public async Task DecideAsync(Guid actor, Guid id, long revision, bool approve, string comment, CancellationToken ct)
     {

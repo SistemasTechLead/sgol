@@ -23,6 +23,8 @@ namespace Sgol.Web.Infrastructure.Persistence;
 
 public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConfiguration? configuration = null) : DbContext(options)
 {
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
+        optionsBuilder.AddInterceptors(OperationalLockTelemetry.Instance);
     public bool LegacyWorkflowEnabled => configuration?.GetValue<bool>("LegacyWorkflow:Enabled") == true;
     public DbSet<OperationalAttachment> OperationalAttachments => Set<OperationalAttachment>();
     public DbSet<StoredPlanCapacityAdjustment> PlanCapacityAdjustments => Set<StoredPlanCapacityAdjustment>();
@@ -122,6 +124,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasDbFunction(typeof(Sgol.Web.Presentation.Search.SearchText).GetMethod(nameof(Sgol.Web.Presentation.Search.SearchText.SqlNormalize))!).HasName("sgol_search");
         modelBuilder.ApplyConfiguration(new OperationalTransferConfiguration());
         modelBuilder.ApplyConfiguration(new OperationalCarryoverConfiguration());
         modelBuilder.ApplyConfiguration(new Identity.ScreenAccountConfiguration());

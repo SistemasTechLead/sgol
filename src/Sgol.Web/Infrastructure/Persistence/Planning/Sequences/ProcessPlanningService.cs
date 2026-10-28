@@ -35,6 +35,12 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
 {
     public async Task<ProcessPlanPreview> PreviewAsync(Guid actor,ProcessPlanInput input,CancellationToken token)
     {
+        using var admission = await Sgol.Web.Infrastructure.Http.PerformanceWork.Planning.EnterAsync(token);
+        using var timing = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("planning.process-preview");
+        return await PreviewCoreAsync(actor, input, token);
+    }
+    private async Task<ProcessPlanPreview> PreviewCoreAsync(Guid actor,ProcessPlanInput input,CancellationToken token,ProcessPlanPreview? proposal = null)
+    {
         await direction.AuthorizeAsync(actor,token);
         if(input.Key==Guid.Empty || string.IsNullOrWhiteSpace(input.Name) || input.Name.Trim().Length>120 || input.Name.Any(char.IsControl) ||
             input.From.Year<1 || input.Through<input.From || input.Through.DayNumber-input.From.DayNumber>366 ||
@@ -42,6 +48,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
         var root=await db.Set<OperationalSequence>().AsNoTracking().SingleOrDefaultAsync(p=>p.Id==input.ProcessId && !p.IsGeneral && p.Enabled,token)
             ?? throw Error("PROCESS_OPERATION_NOT_READY",409);
         var version=await db.Set<OperationalSequenceVersion>().AsNoTracking().SingleAsync(v=>v.Id==root.PublishedVersionId && v.PublishedAt!=null,token);
+        if(proposal != null && proposal.VersionId != version.Id) throw Error("PLAN_CAPACITY_STALE",409);
         if(!version.StartHourConfirmed) throw Error("PROCESS_RULES_INVALID");
         var steps=await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>s.VersionId==version.Id).OrderBy(s=>s.Position).ToArrayAsync(token);
         var tasks=steps.Select(s=>JsonSerializer.Deserialize<OperationalTask>(s.TaskSnapshot!)!).ToArray();
@@ -68,7 +75,8 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
             var startKey=input.Mode=="CALENDARIO" ? $"C:{root.Id:N}:{WeekContract.LocalToday(startsAt):yyyyMMdd}" : $"P:{input.Key:N}:{root.Id:N}";
             if(await db.Set<PreparedProcessStart>().AnyAsync(p=>p.StartKey==startKey && p.PlanId!=input.Key,token) ||
                 await db.Set<OperationalSequenceRun>().AnyAsync(r=>r.StartKey==startKey,token)) throw Error("PLAN_OCCURRENCES_RESERVED");
-            var reservations = Reservations(input.Key,version.Id,startsAt,people,steps,policy,ledger,clock.UtcNow).ToArray();
+            if(proposal != null && !proposal.Agenda.ContainsKey(startsAt.ToString("O"))) throw Error("PLAN_CAPACITY_STALE",409);
+            var reservations = proposal == null ? Reservations(input.Key,version.Id,startsAt,people,steps,policy,ledger,clock.UtcNow).ToArray() : proposal.Agenda[startsAt.ToString("O")];
             agenda[startsAt.ToString("O")] = reservations;
             foreach(var reservation in reservations)
             {
@@ -88,6 +96,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
     public async Task<Guid> PrepareAsync(Guid actor,ProcessPlanInput input,CancellationToken token)
     {
         await direction.AuthorizeAsync(actor,token);
+        var proposal = await db.DirectionPreparedPlans.AsNoTracking().AnyAsync(p => p.Id == input.Key, token) ? null : await PreviewAsync(actor, input, token);
         await using var tx=await db.Database.BeginTransactionAsync(token); await OperationalTaskService.LockAsync(db,token); await direction.AuthorizeAsync(actor,token);
         var previous=await db.DirectionPreparedPlans.SingleOrDefaultAsync(p=>p.Id==input.Key,token);
         if(previous!=null)
@@ -96,7 +105,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
             if(previous.CreatedBy!=actor || audit?.AfterData?.RootElement.GetProperty("Fingerprint").GetString()!=input.Fingerprint) throw Error("PROCESS_CONFLICT",409);
             await tx.CommitAsync(token); return previous.Id;
         }
-        var preview=await PreviewAsync(actor,input,token);
+        var preview=await PreviewCoreAsync(actor,input,token,proposal);
         if(input.Fingerprint!=preview.Fingerprint) throw Error("PLAN_CAPACITY_STALE",409);
         var end=preview.SchedulingPolicyId == null ? WeekContract.LocalToday(preview.Starts.Last().AddHours(preview.Stages.Sum(s=>s.DeadlineHours))) : WeekContract.LocalToday(preview.Agenda.Values.SelectMany(a => a).Max(a => a.DueAt));
         var plan=DirectionPreparedPlan.ForProcess(input.Key,BranchScope.LorettaId,actor,clock.UtcNow,input.Name.Trim(),input.From,end>input.Through?end:input.Through);

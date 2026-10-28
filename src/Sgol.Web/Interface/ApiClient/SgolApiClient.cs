@@ -44,6 +44,9 @@ public sealed class SgolApiClient(HttpClient httpClient, IHttpContextAccessor co
         if (!target.AbsolutePath.StartsWith("/api/v1/", StringComparison.Ordinal) || target.Host != origin.Host ||
             target.Port != origin.Port || target.Scheme != origin.Scheme) throw new ArgumentException("La ruta debe pertenecer a /api/v1 del mismo origen.", nameof(request));
         using var outbound = new HttpRequestMessage(request.Method, target);
+        using var loginOrigin = request.Method == HttpMethod.Post && request.Path == "/api/v1/auth/login"
+            ? new Sgol.Web.Infrastructure.Authentication.InternalLoginOrigin(context) : null;
+        if (loginOrigin is not null) outbound.Headers.Add(Sgol.Web.Infrastructure.Authentication.InternalLoginOrigin.Header, loginOrigin.Token);
         if (request.Body is not null)
         {
             outbound.Content = new ByteArrayContent(body);

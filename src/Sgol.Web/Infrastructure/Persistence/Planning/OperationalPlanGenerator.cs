@@ -9,6 +9,7 @@ internal static class OperationalPlanGenerator
     public static async Task<OperationalAssignment[]> GenerateAsync(SgolDbContext db, DirectionPreparedPlan plan,
         IReadOnlyList<string> codes, DateTimeOffset now, CancellationToken token, bool allowReserved = false, CapacityLedger? preparedLedger = null)
     {
+        using var timing = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("planning.generate");
         var tasks = await db.OperationalTasks.AsNoTracking().Where(t => codes.Contains(t.TaskCode) && t.Active && !t.Deleted).ToArrayAsync(token);
         var known = await db.OperationalTasks.AsNoTracking().CountAsync(t => codes.Contains(t.TaskCode), token);
         if (known != codes.Distinct().Count() || tasks.Any(t => t.PeriodType == "OCASIONAL" || t.ProcessId != OperationalSequence.GeneralId)) throw new DirectionPlanException("DIRECTION_PLAN_TASK_INVALID", 422);
@@ -38,7 +39,8 @@ internal static class OperationalPlanGenerator
         var occurrenceCount = occurrences.Length;
         // Reserve constrained dates first so distributed repetitions see their real base load.
         var ledger = preparedLedger ?? await OperationalCapacityService.LedgerAsync(db, now, token);
-        int CandidateCount(OperationalTask task) => ledger.Workers.Count(w => w.EligibleFor(task.AssignedRole, task.SpecializationId));
+        var eligibleWorkers = tasks.ToDictionary(t => t.Id, t => ledger.Workers.Where(w => w.EligibleFor(t.AssignedRole, t.SpecializationId)).ToArray());
+        int CandidateCount(OperationalTask task) => eligibleWorkers[task.Id].Length;
         occurrences = occurrences.OrderBy(o => policy == null ? 0 : OperationalAgenda.Priority(o.Task.OperationalCriticality))
             .ThenBy(o => policy?.AgendaVersion >= 2 && o.Monthly != null ? 1 : 0)
             .ThenBy(o => Distributed(o.Task) ? 1 : 0).ThenBy(o => policy?.AgendaVersion >= 2 ? CandidateCount(o.Task) : 0).ThenByDescending(o => o.Task.SpecializationId != null)
@@ -82,14 +84,14 @@ internal static class OperationalPlanGenerator
         var reflow = policy?.AgendaVersion >= 2;
         if (reflow)
         {
-            if (occurrences.Length > 1000) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422) { Data = { ["Reason"] = "COMPONENT_SIZE_LIMIT", ["Occurrences"] = occurrences.Length } };
+            if (occurrences.Length > 1000) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422) { Data = { ["Reason"] = "OCCURRENCE_SEARCH_SIZE_LIMIT", ["Occurrences"] = occurrences.Length, ["MaximumSearchOccurrences"] = 1000, ["Tasks"] = tasks.Length } };
             foreach (var occurrence in occurrences.Where(o => o.Task.OperationalCriticality == "CRITICA" && !Distributed(o.Task) && o.Day >= ledger.Today && o.Monthly == null))
             {
                 var task = occurrence.Task;
                 if (reservedKeys.Contains($"{task.Id:N}:{occurrence.Day:yyyyMMdd}:{occurrence.Slot}") || existing.Count(a => a.ScheduleKey == null && a.TaskId == task.Id && WeekContract.LocalToday(a.StartsAt) == occurrence.Day) > occurrence.Slot) continue;
                 var probe = new OperationalAssignment { TaskId = task.Id, TaskCode = task.TaskCode, LoadMinutes = task.LoadMinutes, ScheduleMode = task.ScheduleMode, SpecializationId = task.SpecializationId };
                 OperationalAgenda.Capture(probe, policy!, task.OperationalCriticality, task.StartOn(occurrence.Day));
-                var candidates = ledger.Workers.Where(w => w.EligibleFor(task.AssignedRole, task.SpecializationId)).ToArray();
+                var candidates = eligibleWorkers[task.Id].ToArray();
                 if (candidates.Any(w => OperationalAgenda.Find(ledger, w.Id, probe, notBefore).Eligible && ledger.CanAssign(w.Id, probe))) continue;
                 var rejected = candidates.Select(w => {
                     var placement = OperationalAgenda.Find(ledger, w.Id, probe, notBefore);
@@ -115,7 +117,7 @@ internal static class OperationalPlanGenerator
                     if (Distributed(definition) && (definition.Repetitions != 7 && day.DayOfWeek == DayOfWeek.Sunday || byTaskDay.GetValueOrDefault((definition.Id,day)) >= (definition.Repetitions + (definition.Repetitions == 7 ? 7 : 6) - 1)/(definition.Repetitions == 7 ? 7 : 6))) continue;
                     var probe = new OperationalAssignment { Id=Guid.Empty,TaskId=definition.Id,TaskCode=definition.TaskCode,LoadMinutes=definition.LoadMinutes,ScheduleMode=definition.ScheduleMode,SpecializationId=definition.SpecializationId };
                     OperationalAgenda.Capture(probe,policy!,definition.OperationalCriticality,definition.StartOn(day));
-                    foreach (var candidate in ledger.Workers.Where(w => w.EligibleFor(definition.AssignedRole,definition.SpecializationId)))
+                    foreach (var candidate in eligibleWorkers[definition.Id])
                     {
                         var slot = OperationalAgenda.Find(ledger,candidate.Id,probe,notBefore);
                         if (!slot.Eligible) continue;
@@ -135,7 +137,7 @@ internal static class OperationalPlanGenerator
             if (index % 32 == 0) await Task.Yield();
             token.ThrowIfCancellationRequested();
             if (index == occurrences.Length) return true;
-            if (++explored > searchBudget && reflow) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422) { Data = { ["Explored"] = explored, ["Budget"] = searchBudget, ["Task"] = occurrences[index].Task.TaskCode, ["OccurrenceIndex"] = index } };
+            if (++explored > searchBudget && reflow) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422) { Data = { ["Reason"] = "NODE_BUDGET", ["Explored"] = explored, ["Budget"] = searchBudget, ["Task"] = occurrences[index].Task.TaskCode, ["OccurrenceIndex"] = index } };
             var occurrence = occurrences[index];
             var task = occurrence.Task;
             var monthly = occurrence.Monthly;
@@ -271,7 +273,7 @@ internal static class OperationalPlanGenerator
                         foreach (var placement in OperationalAgenda.Alternatives(originalLedger, candidate.Id, assignment, notBefore))
                         {
                             token.ThrowIfCancellationRequested();
-                            if (++candidatesExamined > candidateBudget) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422) { Data = { ["Candidates"] = candidatesExamined, ["Budget"] = candidateBudget, ["Task"] = task.TaskCode, ["OccurrenceIndex"] = index } };
+                            if (++candidatesExamined > candidateBudget) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422) { Data = { ["Reason"] = "CANDIDATE_BUDGET", ["Candidates"] = candidatesExamined, ["Budget"] = candidateBudget, ["Task"] = task.TaskCode, ["OccurrenceIndex"] = index } };
                             OperationalAgenda.Apply(assignment, placement);
                             if (originalLedger.CanAssign(candidate.Id, assignment, !plan.IsWeeklyOperationsPlan && assignment.StartsAt <= now ? now : null))
                                 expanded.Add((date,candidate,originalLedger.Occupancy(candidate.Id,date,date),0,0,placement));

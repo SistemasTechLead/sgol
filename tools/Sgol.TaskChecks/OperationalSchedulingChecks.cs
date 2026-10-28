@@ -202,6 +202,12 @@ internal static class OperationalSchedulingChecks
         var timing=await capacity.PreviewAsync(actor,new(target,day,day,100,480,"Coverage changed without aggregate overload"),default);Require(timing.Conflicts.Any(c=>c.Task==opening.Name),"Time conflicts are diagnosed even without aggregate overload");Require(timing.Moves.Any(m=>m.TaskId==flexible.Id && m.ToId==target && m.StartsAt==TemporalEligibilityContext.At(day,600)),"A future flexible may stay with its owner in a later valid shift interval");
         Console.WriteLine("PASS absence target reflow: critical 09:00-09:15, existing future flexible 09:15-10:45, both changes confirmed together.");
     }
+    internal static async Task ProcessOnly(SgolDbContext db, Guid actor)
+    {
+        var clock=new SchedulingClock { UtcNow=new(2026,10,28,14,0,0,TimeSpan.Zero) };
+        var direction=new EfDirectionPreparedPlanService(db,new AuditTransaction(db),clock,new Uuid7Generator(clock),new DirectionPlanningCatalogReader(db));
+        await ProcessIntegration(db,direction,new OperationalSchedulingPolicyService(db,direction,clock),clock,actor,Guid.Empty);
+    }
     private static async Task ProcessIntegration(SgolDbContext db, IDirectionPreparedPlanService direction, OperationalSchedulingPolicyService policies, SchedulingClock clock, Guid actor, Guid person)
     {
         var oldNow=clock.UtcNow;
@@ -245,9 +251,14 @@ internal static class OperationalSchedulingChecks
         var inputTasks=Enumerable.Range(0,200).Select(i=>new OperationalTask {Id=Guid.CreateVersion7(),TaskCode="BEN-"+Guid.NewGuid().ToString("N")[..12],Name="Maximum planner fixture "+i,Requirement="NINGUNO",LoadMinutes=1,OperationalCriticality="FLEXIBLE",PeriodType=i<190?"SEMANAL":"MENSUAL",Repetitions=1,StartHour=9}).ToArray();
         db.AddRange(inputTasks);await db.SaveChangesAsync();db.ChangeTracker.Clear();
         var input=new DirectionPlanInput("10k benchmark","Isolated maximum size","ANUAL",2027,null,inputTasks.Select(t=>t.TaskCode).ToArray(),SchedulingNotBefore:clock.UtcNow.AddMinutes(1));
-        var watch=System.Diagnostics.Stopwatch.StartNew();var state=await PlanningCapacity.ReadAsync(db,input,clock.UtcNow,default);await PlanningCapacity.DailyLoadAsync(db,input,state.Preview,state.Ledger,default);watch.Stop();
-        Require(state.Preview.TemporalRows.Length==10000,"Maximum 10000 occurrences generated");
-        Console.WriteLine($"PASS max-size planner: 10000 occurrences, 200 definitions, {watch.Elapsed.TotalSeconds:0.00} seconds. No assignments persisted.");
+        var before = await db.OperationalAssignments.CountAsync();
+        try {
+            var state=await PlanningCapacity.ReadAsync(db,input,clock.UtcNow,default);
+            await PlanningCapacity.DailyLoadAsync(db,input,state.Preview,state.Ledger,default);
+            throw new Exception("Expected real calendar expansion to exceed 10000");
+        } catch (DirectionPlanException e) when (e.Code == "PLAN_TOO_MANY_OCCURRENCES") { }
+        Require(before == await db.OperationalAssignments.CountAsync(), "Occurrence limit leaves no assignments");
+        Console.WriteLine("PASS max-size planner: expanded calendar rejected at 10000; no assignments persisted.");
     }
     private sealed class SchedulingClock : IClock { public DateTimeOffset UtcNow {get;set;}=new(2026,10,21,12,0,0,TimeSpan.Zero); }
 }

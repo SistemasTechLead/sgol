@@ -289,7 +289,7 @@ public static class HostedAuthenticationServiceCollectionExtensions
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.AddPolicy(HostedAuthenticationDefaults.LoginRateLimitPolicy, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
-                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    InternalLoginOrigin.Resolve(context),
                     _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = 10,

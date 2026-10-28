@@ -32,7 +32,9 @@ public sealed class ClamAvScanner(IOptions<EvidenceScannerOptions> options) : IF
             using var client = new TcpClient();
             using var connectTimeout = CreateTimeout(
                 TimeSpan.FromSeconds(configuration.ConnectTimeoutSeconds), scanTimeout.Token);
-            await client.ConnectAsync(configuration.Host, configuration.Port, connectTimeout.Token);
+            using (Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("scanner.connect"))
+                await client.ConnectAsync(configuration.Host, configuration.Port, connectTimeout.Token);
+            using var transferTiming = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("scanner.transfer.scan");
             await using var network = client.GetStream();
             await network.WriteAsync("zINSTREAM\0"u8.ToArray(), scanTimeout.Token);
 

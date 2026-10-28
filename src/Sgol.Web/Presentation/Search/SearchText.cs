@@ -6,6 +6,8 @@ namespace Sgol.Web.Presentation.Search;
 /// <summary>Comparison for user-facing searches; leaves stored and displayed text unchanged.</summary>
 public static class SearchText
 {
+    public static string SqlNormalize(string value) => throw new InvalidOperationException("SQL only");
+
     public static string Normalize(string? value)
     {
         var result = new StringBuilder();

@@ -20,7 +20,7 @@
             <h3>Progreso semanal</h3><p>@task.ProgressUnits / @task.GoalUnits @task.ProgressUnit</p>
             <progress value="@task.ProgressUnits" max="@task.GoalUnits" aria-label="Progreso de la meta"></progress>
             @if (!submitted && task.ProgressUnits < task.GoalUnits) {
-                <form method="post" asp-page-handler="OperationalProgress" asp-antiforgery="false">
+                <form method="post" asp-page-handler="OperationalProgress" asp-all-route-data="Model.WorkRoutes" asp-antiforgery="false">
                     <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="id" value="@task.Id" /><input type="hidden" name="revision" value="@task.Revision" />
                     <fieldset><legend>Registrar avance</legend>
                         <label class="campo"><span class="campo__etiqueta">@task.ProgressUnit realizadas en este avance</span><input class="campo__control" type="number" name="units" min="1" max="@(task.GoalUnits - task.ProgressUnits)" required /></label>
@@ -72,7 +72,7 @@
         } else {
             <h3>Adjuntar evidencia</h3>
             @if (scheduled) { <p class="alerta alerta--info">Puedes entregar esta tarea antes de su inicio programado. Se conservarán sus fechas y Supervisión revisará tu evidencia.</p> }
-            <form method="post" asp-page-handler="CompleteOperational" asp-antiforgery="false" enctype="multipart/form-data" data-assigned-task-submit>
+            <form method="post" asp-page-handler="CompleteOperational" asp-all-route-data="Model.WorkRoutes" asp-antiforgery="false" enctype="multipart/form-data" data-assigned-task-submit>
                 <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="id" value="@task.Id" />
                 @if (task.GoalUnits > task.ProgressUnits) { <p>Completa la meta para enviar la evidencia final a revisión.</p> }
                 <fieldset class="my-work-evidence-fields" disabled="@(task.GoalUnits > task.ProgressUnits)">

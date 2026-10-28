@@ -19,6 +19,26 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         return await db.OperationalTasks.AsNoTracking().Where(t => !t.Deleted).OrderBy(t => t.Name).ToListAsync(token);
     }
 
+    public async Task<(OperationalTask[] Items, int Total, int Page)> PageAsync(Guid actor, string? search, Guid? process, int page, CancellationToken token)
+    {
+        await TaskCatalogAuthorization.RequireReadAsync(db, actor, clock.UtcNow, token);
+        var query = db.OperationalTasks.AsNoTracking().Where(t => !t.Deleted);
+        if (process != null) query = query.Where(t => t.ProcessId == process);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var text = Sgol.Web.Presentation.Search.SearchText.Normalize(search.Trim());
+            query = query.Where(t => Sgol.Web.Presentation.Search.SearchText.SqlNormalize(t.Name).Contains(text) || Sgol.Web.Presentation.Search.SearchText.SqlNormalize(t.TaskCode).Contains(text));
+        }
+        var total = await query.CountAsync(token);
+        page = Math.Clamp(page, 1, Math.Max(1, (total + 49) / 50));
+        return (await query.OrderBy(t => t.Name).ThenBy(t => t.Id).Skip((page - 1) * 50).Take(50).ToArrayAsync(token), total, page);
+    }
+    public async Task<OperationalTask> FindAsync(Guid actor, Guid id, CancellationToken token)
+    {
+        await TaskCatalogAuthorization.RequireReadAsync(db, actor, clock.UtcNow, token);
+        return await db.OperationalTasks.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id && !t.Deleted, token) ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
+    }
+
     public async Task SaveAsync(Guid actor, OperationalTask input, CancellationToken token)
     {
         await direction.AuthorizeAsync(actor, token); input.Validate();
@@ -94,8 +114,22 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
     }
 
     // A branch-wide transactional lock also protects balancing across different Direction accounts.
-    internal static Task LockAsync(SgolDbContext context, CancellationToken token) =>
-        context.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(734651001)", token);
+    internal static async Task LockAsync(SgolDbContext context, CancellationToken token, [System.Runtime.CompilerServices.CallerMemberName] string operation = "operational")
+    {
+        if (context.Database.CurrentTransaction is null) throw new InvalidOperationException("Operational lock requires a transaction.");
+        using var measurement = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("lock.wait");
+        try
+        {
+            // PostgreSQL enforces the wait budget, including contention inside the command.
+            // Blocking in the server avoids polling storms when many independent requests queue.
+            await context.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; SELECT pg_advisory_xact_lock(734651001); SET LOCAL lock_timeout = DEFAULT;", token);
+            OperationalLockTelemetry.Instance.Acquired(Microsoft.EntityFrameworkCore.Storage.DbContextTransactionExtensions.GetDbTransaction(context.Database.CurrentTransaction!), context.Database.CurrentTransaction!.TransactionId, operation);
+        }
+        catch (Npgsql.PostgresException e) when (e.SqlState == Npgsql.PostgresErrorCodes.LockNotAvailable)
+        {
+            throw new DirectionPlanException("OPERATION_BUSY", 503);
+        }
+    }
 
     private async Task<Guid> PersonAsync(Guid actor, CancellationToken token)
     {
@@ -112,18 +146,49 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
     public async Task<IReadOnlyList<OperationalAssignmentDetails>> MineAsync(Guid actor, CancellationToken token)
     {
         var person = await PersonAsync(actor, token);
-        // Do not read attachment bytes when listing tasks.
-        return await db.OperationalAssignments.AsNoTracking().Where(a => a.PersonId == person)
-            .Join(db.DirectionPreparedPlans.AsNoTracking(), a => a.PlanId, p => p.Id, (a, p) => new { Assignment = a, Plan = p })
-            .OrderBy(x => x.Assignment.CompletedAt != null).ThenBy(x => x.Assignment.DueAt).ThenBy(x => x.Assignment.Id)
-            .Select(x => new OperationalAssignmentDetails(
+        return await MineQuery(person).ToArrayAsync(token);
+    }
+
+    private IQueryable<OperationalAssignmentDetails> MineQuery(Guid person, Guid? id = null, string? search = null, int? page = null, DateTimeOffset? now = null)
+    {
+        var assignments = db.OperationalAssignments.AsNoTracking().Where(a => a.PersonId == person);
+        if (id != null) assignments = assignments.Where(a => a.Id == id);
+        var query = assignments.Join(db.DirectionPreparedPlans.AsNoTracking(), a => a.PlanId, p => p.Id, (a, p) => new { Assignment = a, Plan = p });
+        if (!string.IsNullOrWhiteSpace(search)) {
+            var text = Sgol.Web.Presentation.Search.SearchText.Normalize(search.Trim());
+            query = query.Where(x => Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Assignment.Name).Contains(text) || Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Assignment.TaskCode).Contains(text) || Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Plan.Name).Contains(text));
+        }
+        if (now is {} at) query = query.OrderBy(x => x.Assignment.ReviewStatus == "NO_SATISFECHA" ? 0 : x.Assignment.ReviewStatus == "REASIGNADA" ? 3 : x.Assignment.CompletedAt != null ? 4 : x.Assignment.StartsAt > at ? 3 :
+            x.Assignment.DueAt <= at || (x.Assignment.DueAt - at).TotalSeconds <= (x.Assignment.DueAt - x.Assignment.StartsAt).TotalSeconds * .1 ? 0 :
+            (x.Assignment.DueAt - at).TotalSeconds <= (x.Assignment.DueAt - x.Assignment.StartsAt).TotalSeconds * .3 ? 2 : 1).ThenBy(x => x.Assignment.DueAt).ThenBy(x => x.Assignment.Id);
+        else query = query.OrderBy(x => x.Assignment.CompletedAt != null).ThenBy(x => x.Assignment.DueAt).ThenBy(x => x.Assignment.Id);
+        if (page is {} number) query = query.Skip((number - 1) * 50).Take(50);
+        return query
+.Select(x => new OperationalAssignmentDetails(
                 x.Assignment.Id, x.Assignment.TaskCode, x.Assignment.Name, x.Assignment.Requirement, x.Assignment.LoadMinutes, x.Assignment.PersonId, x.Assignment.PersonName,
                 x.Assignment.StartsAt, x.Assignment.DueAt, x.Assignment.CompletedAt, x.Assignment.PreviousLoadMinutes, x.Assignment.Comment, (x.Assignment.Attachment != null ? x.Assignment.Attachment.FileName : db.OperationalPhotographs.Where(f => f.AssignmentId == x.Assignment.Id && f.AttachedAt != null).OrderBy(f => f.Position).Select(f => f.FileName).FirstOrDefault()), x.Assignment.AssignedRole,
                 x.Assignment.Conclusion, x.Assignment.ReviewStatus, x.Assignment.ReviewComment ?? x.Assignment.ReassignmentComment,
                 x.Plan.Id, x.Plan.Name, x.Plan.PeriodType, x.Plan.StartsOn, x.Plan.EndsOn,
                 x.Assignment.ScheduleMode, x.Assignment.GoalUnits, x.Assignment.ProgressUnits, x.Assignment.ProgressUnit, x.Assignment.Revision,
                 x.Assignment.SpecializationId, x.Assignment.SpecializationName, x.Assignment.MinimumPhotos, x.Assignment.MaximumPhotos, x.Assignment.MaximumPhotoBytes, x.Assignment.OccasionId, x.Assignment.Description, x.Assignment.TemporalPolicyJson, x.Assignment.TemporalDecisionJson, x.Assignment.OperationalCriticality, x.Assignment.NominalStartsAt, x.Assignment.SchedulingPolicyId,
-                x.Assignment.TransferRemainingMinutes, x.Assignment.TransferProgressUnits, x.Assignment.ChecklistJson, x.Assignment.ChecklistDraftJson)).ToArrayAsync(token);
+                x.Assignment.TransferRemainingMinutes, x.Assignment.TransferProgressUnits, x.Assignment.ChecklistJson, x.Assignment.ChecklistDraftJson));
+    }
+
+    public async Task<(OperationalAssignmentDetails[] Items, int Total, int Page)> MinePageAsync(Guid actor, string? search, int page, DateTimeOffset now, CancellationToken token)
+    {
+        var person = await PersonAsync(actor, token);
+        var total = await MineQuery(person, search: search).CountAsync(token); page = Math.Clamp(page, 1, Math.Max(1, (total + 49) / 50));
+        return (await MineQuery(person, search: search, page: page, now: now).ToArrayAsync(token), total, page);
+    }
+    public async Task<OperationalAssignmentDetails> MineFindAsync(Guid actor, Guid id, CancellationToken token) =>
+        await MineQuery(await PersonAsync(actor, token), id: id).SingleOrDefaultAsync(token) ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
+    public async Task<(int Total, int Concluded)> MineProgressAsync(Guid actor, DateOnly day, CancellationToken token)
+    {
+        var person = await PersonAsync(actor, token); var start = OperationalSchedule.Instant(day); var end = OperationalSchedule.Instant(day.AddDays(1));
+        var query = db.OperationalAssignments.AsNoTracking().Where(a => a.PersonId == person && a.ReviewStatus != "REASIGNADA" && a.ReviewStatus != "NO_SATISFECHA" &&
+            (a.CompletedAt == null || a.CompletedAt >= start && a.CompletedAt < end) &&
+            (a.StartsAt >= start && a.StartsAt < end || a.DueAt >= start && a.DueAt < end || a.StartsAt < start || a.CompletedAt >= start && a.CompletedAt < end));
+        return (await query.CountAsync(token), await query.CountAsync(a => a.ReviewStatus == "CONCLUIDA", token));
     }
 
     public Task CompleteAsync(Guid actor, Guid id, string? comment, IFormFile? file, CancellationToken token, string? conclusion = null,

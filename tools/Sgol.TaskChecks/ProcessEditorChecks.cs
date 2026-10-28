@@ -38,7 +38,7 @@ public static class ProcessEditorChecks
         Check(System.Text.Json.JsonSerializer.Serialize(requirements)==System.Text.Json.JsonSerializer.Serialize(await db.OperationalTasks.AsNoTracking().Where(t=>t.ProcessId==root.Id).OrderBy(t=>t.Id).Select(t=>new{t.Id,t.Requirement}).ToArrayAsync()),"All original evidence requirements remain identical");
         Check(before==System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a=>a.Id).ToArrayAsync()),"Every original assignment remains identical after saving and publishing the restored copy");
     }
-    public static async Task RunAsync(SgolDbContext db)
+    public static async Task RunAsync(SgolDbContext db, bool checklistOnly = false)
     {
         if (await db.People.AnyAsync()) throw new Exception("Requires an empty dedicated database");
         var actor = Guid.CreateVersion7(); var person = Guid.CreateVersion7(); var now = new Clock().UtcNow;
@@ -83,6 +83,12 @@ public static class ProcessEditorChecks
         await app.StartAsync();
         using var handler = new HttpClientHandler { AllowAutoRedirect=false, CookieContainer=new() };
         using var client = new HttpClient(handler) { BaseAddress=new("https://localhost:7259") };
+        if (checklistOnly)
+        {
+            await IndependentChecklist(db,actor,person,clock,client);
+            await app.StopAsync();
+            return;
+        }
         var page = await client.GetStringAsync("/tareas/procesos?create=true");
         var created = await client.PostAsync("/tareas/procesos?handler=Create", new FormUrlEncodedContent(new Dictionary<string,string> {
             ["__RequestVerificationToken"]=Hidden(page,"__RequestVerificationToken"), ["CreateKey"]=Hidden(page,"CreateKey"), ["Input.Name"]="Auditoría de inventario prueba", ["Input.Description"]="" }));
@@ -125,8 +131,9 @@ public static class ProcessEditorChecks
     }
     private static async Task IndependentChecklist(SgolDbContext db,Guid actor,Guid person,Clock clock,HttpClient client)
     {
+        var title=new ChecklistPoint(Guid.NewGuid(),"Caja y operación",true);
         var points=new[]{new ChecklistPoint(Guid.NewGuid(),"Abrir área"),new ChecklistPoint(Guid.NewGuid(),"Confirmar limpieza")};
-        var json=System.Text.Json.JsonSerializer.Serialize(points);
+        var json=System.Text.Json.JsonSerializer.Serialize(new[]{title,points[0],points[1]});
         var page=await client.GetStringAsync("/tareas?create=true");
         Check(page.Contains("data-checklist-editor") && page.Contains("CHECKLIST"),"Task editor exposes checklist requirement and parameters");
         var response=await client.PostAsync("/tareas?handler=Save",new FormUrlEncodedContent(new Dictionary<string,string> {
@@ -135,6 +142,7 @@ public static class ProcessEditorChecks
             ["Input.ChecklistJson"]=json,["Input.AssignedRole"]=CanonicalRole.Direction,["Input.OperationalCriticality"]="FLEXIBLE",["Input.Active"]="true" }));
         Check(response.StatusCode==HttpStatusCode.Redirect,"Task editor saves checklist through the actual HTTP handler: "+(response.StatusCode==HttpStatusCode.Redirect?"":await response.Content.ReadAsStringAsync()));
         db.ChangeTracker.Clear();var task=await db.OperationalTasks.AsNoTracking().SingleAsync(t=>t.Name=="Checklist HTTP independiente");
+        Check(task.ChecklistJson==json,"Actual task form persists optional titles and checkboxes in order");
         var day=WeekContract.LocalToday(clock.UtcNow);
         var plan=DirectionPreparedPlan.ForOccasion(Guid.CreateVersion7(),Sgol.Organization.Contracts.BranchScope.LorettaId,actor,clock.UtcNow,"Checklist HTTP",day,day);
         var assignment=new OperationalAssignment {Id=Guid.CreateVersion7(),PlanId=plan.Id,TaskId=task.Id,TaskCode=task.TaskCode,Name=task.Name,Requirement="CHECKLIST",
@@ -147,7 +155,7 @@ public static class ProcessEditorChecks
             ["__RequestVerificationToken"]=token,["id"]=assignment.Id.ToString(),["answer"]=answer }));
         Check(response.StatusCode==HttpStatusCode.OK,"Actual draft HTTP handler saves selected marks");
         page=await client.GetStringAsync("/mi-trabajo?assignedTask="+assignment.Id);
-        Check(page.Contains("1 de 2 completados"),"Actual task reload restores saved marks");
+        Check(page.Contains("1 de 2 completados") && page.Contains("<h3 class=\"checklist-title\">Caja y operaci"),"Actual task reload restores marks and displays title outside checkbox count");
         response=await client.PostAsync("/mi-trabajo?handler=CompleteOperational",new FormUrlEncodedContent(new Dictionary<string,string> {
             ["__RequestVerificationToken"]=token,["id"]=assignment.Id.ToString(),["checklistAnswer"]=answer }));
         Check((int)response.StatusCode==422,"Actual delivery handler rejects an incomplete checklist");
@@ -157,6 +165,14 @@ public static class ProcessEditorChecks
         Check(response.StatusCode==HttpStatusCode.Redirect,"Actual delivery HTTP handler accepts all checklist points");
         page=await client.GetStringAsync("/mi-trabajo?assignedTask="+assignment.Id);
         Check(page.Contains("2 de 2 completados") && page.Contains("data-readonly=\"true\""),"Submitted checklist renders as read-only evidence");
+        if (Environment.GetEnvironmentVariable("SGOL_CHECKLIST_BROWSER_CHECK") is { Length: > 0 } script)
+        {
+            var start = new System.Diagnostics.ProcessStartInfo("node") { UseShellExecute=false };
+            start.ArgumentList.Add(script); start.ArgumentList.Add(task.Id.ToString()); start.ArgumentList.Add(assignment.Id.ToString());
+            using var browser = System.Diagnostics.Process.Start(start)!;
+            await browser.WaitForExitAsync();
+            Check(browser.ExitCode==0,"Checklist browser checks pass against the actual isolated Razor application");
+        }
     }
     private static async Task MixedEvidence(SgolDbContext db, Guid actor, Guid person, Guid processId, Clock clock, IConfiguration config, HttpClient client, string csrf)
     {
