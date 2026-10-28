@@ -9,6 +9,7 @@ using Sgol.Web.Infrastructure.Persistence.Organization;
 
 namespace Sgol.Web.Pages.Tasks;
 
+[RequestFormLimits(ValueLengthLimit = 33554432)]
 public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskService tasks, SpecializationService specializations, OperationalProcessCatalogService processes, OperationalSchedulingPolicyService scheduling, AssignmentRefreshService refresh) : PageModel
 {
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }

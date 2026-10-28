@@ -9,6 +9,7 @@ internal static class TaskDescriptionChecks
         foreach (var requirement in OperationalSchedule.Requirements)
         {
             var task = new OperationalTask { Name = "Descripción", PeriodType = period, Requirement = requirement };
+            if (requirement == "CHECKLIST") task.ChecklistJson = System.Text.Json.JsonSerializer.Serialize(new[] { new ChecklistPoint(Guid.NewGuid(), "Comprobar") });
             foreach (var description in new string?[] { null, "", " \r\n ", " Paso 1.\r\nPaso 2.\tDetalle ", new('x', 4000) })
             {
                 task.Description = description;

@@ -258,6 +258,7 @@ internal sealed class OperationalTaskConfiguration : IEntityTypeConfiguration<Op
             t.HasCheckConstraint("CK_operational_task_role", "\"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS')");
         });
         b.Property(t => t.OperationalCriticality).HasMaxLength(12);
+        b.Property(t => t.ChecklistJson).HasDefaultValue("[]");
         b.HasKey(t => t.Id); b.HasAlternateKey(t => t.TaskCode);
         b.Property(t => t.ProcessId).HasDefaultValue(OperationalSequence.GeneralId);
         b.HasOne<OperationalSequence>().WithMany().HasForeignKey(t => t.ProcessId).OnDelete(DeleteBehavior.Restrict);
@@ -297,6 +298,8 @@ internal sealed class OperationalAssignmentConfiguration : IEntityTypeConfigurat
         }); b.HasKey(t => t.Id);
         b.Property(t => t.OperationalCriticality).HasMaxLength(12);
         b.HasQueryFilter(t => t.RetiredAt == null);
+        b.Property(t => t.ChecklistJson).HasDefaultValue("[]");
+        b.Property(t => t.ChecklistDraftJson).HasDefaultValue("null");
         b.Property(t => t.DefinitionSnapshotJson).HasColumnType("jsonb");
         b.HasOne<OperationalSchedulingPolicy>().WithMany().HasForeignKey(t => t.SchedulingPolicyId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(t => new { t.PersonId, t.StartsAt, t.DueAt });

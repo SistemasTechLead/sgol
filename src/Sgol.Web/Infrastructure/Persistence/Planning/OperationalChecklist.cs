@@ -13,6 +13,7 @@ public static class OperationalChecklist
 {
     public static ChecklistPoint[] Points(string? json)
     {
+        if (string.IsNullOrWhiteSpace(json)) return [];
         try { return JsonSerializer.Deserialize<ChecklistPoint[]>(json ?? "[]") ?? []; }
         catch (JsonException) { throw new DirectionPlanException("TASK_CHECKLIST_INVALID", 422); }
     }
@@ -57,6 +58,7 @@ public static class OperationalChecklist
     }
     public static string Reconcile(string oldDefinition, string newDefinition, string draft)
     {
+        if (oldDefinition == newDefinition) return draft;
         var unchanged = Points(oldDefinition).Intersect(Points(newDefinition)).Select(p => p.Id).ToHashSet();
         try {
             var previous = JsonSerializer.Deserialize<ChecklistDraft>(draft);

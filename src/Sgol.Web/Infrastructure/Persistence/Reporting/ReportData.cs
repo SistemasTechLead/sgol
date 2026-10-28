@@ -47,6 +47,8 @@ public sealed record ReportRow(Guid Id, Guid PersonId, Guid PlanId, string Task,
     public int? TransferRemainingMinutes { get; init; }
     public int TransferProgressUnits { get; init; }
     public string ProgressAuthors { get; init; } = "";
+    public string ChecklistJson { get; init; } = "[]";
+    public string ChecklistDraftJson { get; init; } = "null";
     public decimal Progress => Goal > 0 ? Math.Min(100, Math.Round(100m * Units / Goal, 1)) : 0;
     public DateTimeOffset TimelinessDue => Carryover.RefreshCount > 0 ? Carryover.ReferenceDue ?? Due : Due;
     public bool Terminal => Status is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA";
@@ -81,7 +83,7 @@ public static class ReportCatalog
         ["task"] = "Tarea", ["person"] = "Responsable", ["plan"] = "Plan", ["status"] = "Estado",
         ["start"] = "Inicio", ["due"] = "Vencimiento", ["delivered"] = "Entrega", ["reviewed"] = "Revisión",
         ["progress"] = "Avance", ["minutes"] = "Carga estimada", ["requirement"] = "Requisito",
-        ["specialization"] = "Especialización", ["comment"] = "Comentario de revisión" };
+        ["specialization"] = "Especialización", ["comment"] = "Comentario de revisión", ["checklist"] = "Checklist entregado" };
     public static string Status(OperationalAssignment a, DateTimeOffset now) =>
         a.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA" ? a.ReviewStatus :
         a.CompletedAt != null ? "PENDIENTE_REVISION" : a.StartsAt > now ? "PROGRAMADA" : a.DueAt < now ? "VENCIDA" : "ASIGNADA";
@@ -92,6 +94,8 @@ public static class ReportCatalog
     public static DateOnly Day(DateTimeOffset at) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(at, OperationalSchedule.Zone).DateTime);
     public static string Time(DateTimeOffset? at) => at is { } value ? TimeZoneInfo.ConvertTime(value, OperationalSchedule.Zone).ToString("dd/MM/yyyy HH:mm") : "Sin registro";
     public static string Cell(ReportRow row, string column) => column switch {
+        "checklist" => row.Requirement != "CHECKLIST" ? "—" : (row.Delivered == null ? "Borrador: " : "") + string.Join("\n", OperationalChecklist.Points(row.ChecklistJson)
+            .Select(p => $"{(OperationalChecklist.Checked(row.ChecklistDraftJson).Contains(p.Id) ? "☑" : "☐")} {p.Text}")),
         "carryover" => row.Carryover.Label(row.Due, row.Delivered), "referenceDue" => Time(row.Carryover.ReferenceDue), "recognizedDue" => Time(row.Carryover.RecognizedDue), "carryoverRefs" => row.Carryover.References,
         "task" => row.Task, "person" => row.Person, "plan" => row.Plan, "status" => Statuses[row.Status],
         "start" => Time(row.Start), "due" => Time(row.Due), "delivered" => Time(row.Delivered), "reviewed" => Time(row.Reviewed),

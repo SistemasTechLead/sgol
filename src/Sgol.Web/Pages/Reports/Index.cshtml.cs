@@ -86,7 +86,8 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
             x.A.PeriodType, x.A.Repetitions, 0, x.A.LoadMinutes, 0, x.A.StartsAt, x.A.DueAt,
             x.A.CompletedAt, x.A.ReviewedAt, x.A.GoalUnits, x.A.ProgressUnits, x.A.ProgressUnit,
             x.A.SpecializationName ?? "", x.A.ReviewComment ?? "", x.A.ReassignedFromId) {
-                TransferRemainingMinutes = x.A.TransferRemainingMinutes, TransferProgressUnits = x.A.TransferProgressUnits
+                TransferRemainingMinutes = x.A.TransferRemainingMinutes, TransferProgressUnits = x.A.TransferProgressUnits,
+                ChecklistJson = x.A.ChecklistJson, ChecklistDraftJson = x.A.ChecklistDraftJson
             }).ToArrayAsync(token);
         var transferredIds = raw.Where(r => r.TransferRemainingMinutes != null).Select(r => r.Id).ToArray();
         var contributions = await (from e in db.OperationalProgressEntries.AsNoTracking()

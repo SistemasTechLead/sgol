@@ -20,6 +20,7 @@
                 {
                     var deliveredStage = view.Stages.Single(s => s.Id == delivery.StageId);
                     <p><strong>@deliveredStage.Name · Intento @delivery.Number</strong> · @delivery.Status<br />@delivery.Comment</p>
+                    @if (delivery.AssignmentId is { } checklistId && view.ChecklistEvidence.TryGetValue(checklistId, out var checklist)) { <partial name="_ChecklistEvidence" model="@(new Sgol.Web.Presentation.Components.ChecklistEvidenceModel(checklist.Definition, checklist.Draft, checklistId, true))" /> }
                     @if (delivery.AssignmentId is { } evidenceId && deliveredStage.Requirement is "EXCEL" or "DOCUMENTO" or "FOTOGRAFIA" or "CAPTURA_PANTALLA" && view.Events.Any(e => e.AttemptId == delivery.Id && e.Kind is "ENTREGA" or "APROBACION" or "CIERRE"))
                     {
                         <a href="/mi-trabajo?handler=OperationalFile&amp;id=@evidenceId">Consultar evidencia</a>
@@ -38,6 +39,7 @@
             <form method="post" enctype="multipart/form-data" asp-page-handler="@Model.Handler" asp-antiforgery="false" data-assigned-task-submit>
                 <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />@if (Model.AssignmentId is { } assignmentId) { <input type="hidden" name="id" value="@assignmentId" /> }<input type="hidden" name="RunId" value="@view.Run.Id" /><input type="hidden" name="AttemptId" value="@attempt.Id" /><input type="hidden" name="Revision" value="@attempt.Revision" /><input type="hidden" name="Key" value="@(Model.Key ?? Guid.CreateVersion7())" />
                 @if (!view.Run.UsesTaskEvidence) { <label class="campo"><span class="campo__etiqueta">PDF @(rule.Action=="SELLAR" ? "con el sello registrado (requerido)" : rule.Action=="ENTREGAR" ? "de entrega (requerido)" : "corregido, solo si cambió la hoja")</span><input class="campo__control" name="Document" type="file" accept="application/pdf" /></label> }
+                else if (active.Requirement == "CHECKLIST") { <partial name="_ChecklistEvidence" model="@(new Sgol.Web.Presentation.Components.ChecklistEvidenceModel(active.ChecklistJson, Model.ChecklistDraftJson, attempt.AssignmentId!.Value))" /> }
                 else if (active.Requirement is "DOCUMENTO" or "EXCEL")
                 {
                     <label class="campo"><span class="campo__etiqueta">@IndexModel.Label(active.Requirement)</span><input class="campo__control" name="Document" type="file" accept="@(active.Requirement == "EXCEL" ? ".xlsx" : "application/pdf")" /></label>

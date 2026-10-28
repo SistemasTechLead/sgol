@@ -24,6 +24,7 @@ using Sgol.Web.Infrastructure.Persistence.Organization;
 using Sgol.Web.Infrastructure.Persistence.Identity;
 using Microsoft.AspNetCore.Identity;
 
+if (args.Contains("--checklist-rules")) { ChecklistChecks.Rules(); return; }
 if (args.Contains("--carryover-rules")) { CarryoverChecks.Rules(); return; }
 if (args.Contains("--postponement-rules")) { PostponementChecks.Rules(); return; }
 if (args.Contains("--scheduling-rules-only")) { OperationalSchedulingChecks.Rules(); return; }
@@ -99,6 +100,7 @@ var director = AddPerson("DIR", CanonicalRole.Direction);
 var a = AddPerson("A", CanonicalRole.SalesFloor);
 var b = AddPerson("B", CanonicalRole.SalesFloor);
 await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+if (args.Contains("--checklist-only")) { await ChecklistChecks.RunAsync(db,tasks,supervision,direction,clock,director.User,a.User,a.Person,b.User,b.Person); return; }
 if (args.Contains("--assignment-retirement-only")) { await AssignmentRetirementChecks.RunAsync(db,tasks,direction,clock,director.User,a.User,a.Person,b.Person); return; }
 if (args.Contains("--assignment-refresh-global-only")) { await GlobalAssignmentRefreshChecks.RunAsync(db,tasks,direction,clock,director.User,a.Person); return; }
 if (args.Contains("--assignment-refresh-only")) { await AssignmentRefreshChecks.RunAsync(db, tasks, direction, clock, director.User, a.User, a.Person, b.Person); return; }

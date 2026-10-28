@@ -210,6 +210,13 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         if (!processEvidence) await RequireIndependentActionAsync(id, token);
         if (current.CompletedAt is null)
         {
+            if (current.Revision != assignment.Revision) throw new DirectionPlanException("TASK_CONFLICT", 409);
+            if (current.Requirement == "CHECKLIST")
+            {
+                if (file != null) throw new DirectionPlanException("TASK_FILE_INVALID", 422);
+                var selected = OperationalChecklist.ValidateAnswer(current.ChecklistJson, checklistAnswer, true);
+                current.ChecklistDraftJson = JsonSerializer.Serialize(new ChecklistDraft(actor, clock.UtcNow, selected));
+            }
             if (current.GoalUnits > 0 && current.ProgressUnits < current.GoalUnits) throw new DirectionPlanException("TASK_GOAL_PENDING", 422);
             if (current.Requirement == "FOTOGRAFIA")
             {

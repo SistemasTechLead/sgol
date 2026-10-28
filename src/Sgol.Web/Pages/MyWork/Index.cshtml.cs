@@ -9,7 +9,7 @@ namespace Sgol.Web.Pages.MyWork;
 
 [IgnoreAntiforgeryToken] // The shared bridge validates this Razor form and the API validates the same pair again.
 [RequestSizeLimit(33554432)]
-[RequestFormLimits(MultipartBodyLengthLimit = 33554432)]
+[RequestFormLimits(MultipartBodyLengthLimit = 33554432, ValueLengthLimit = 33554432)]
 public sealed partial class IndexModel(
     IRazorSessionState sessionState,
     RazorAntiforgeryBridge antiforgery,

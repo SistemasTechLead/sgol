@@ -48,6 +48,7 @@
             }
         @if (submitted) {
             <h3>Evidencia enviada</h3>
+            @if (task.Requirement == "CHECKLIST") { <partial name="_ChecklistEvidence" model="@(new Sgol.Web.Presentation.Components.ChecklistEvidenceModel(task.ChecklistJson, task.ChecklistDraftJson, task.Id, true))" /> }
             @if (task.CompletedAt < task.StartsAt) { <p class="alerta alerta--info">Entrega anticipada: enviaste esta tarea antes de su inicio programado.</p> }
             @if (task.Comment is not null) { <p class="supervision-text">@task.Comment</p> }
             @if (Model.OperationalPhotographs.Count > 0) {
@@ -56,7 +57,7 @@
                 @if (task.Requirement is "FOTOGRAFIA" or "CAPTURA_PANTALLA") { <img class="my-work-evidence-preview" src="@(fileHref + "&preview=true")" alt="Evidencia de @task.Name" /> }
                 <a class="boton boton--secundario" href="@fileHref" target="_blank" rel="noopener"><partial name="_Icon" model='@("eye")' /><span>Abrir @task.FileName</span></a>
             }
-            @if (task.Comment is null && task.FileName is null) { <p>Esta tarea no requiere un archivo ni un comentario de evidencia.</p> }
+            @if (task.Requirement != "CHECKLIST" && task.Comment is null && task.FileName is null) { <p>Esta tarea no requiere un archivo ni un comentario de evidencia.</p> }
             <h3>Tu conclusión</h3><p class="supervision-text">@(task.Conclusion ?? "No se registró una conclusión.")</p>
             @if (task.CompletedAt is { } completedAt) { <p>@(Model.OperationalLifecycle.Any(e => e.Kind == "SUPERVISION") ? "Cerrada por supervisión:" : Model.OperationalLifecycle.Any(e => e.Kind == "HISTORICO") ? "Finalización histórica:" : "Enviada:") @MyWorkPresentation.Time(completedAt)</p> }
             @if (task.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA") {
@@ -76,6 +77,7 @@
                 @if (task.GoalUnits > task.ProgressUnits) { <p>Completa la meta para enviar la evidencia final a revisión.</p> }
                 <fieldset class="my-work-evidence-fields" disabled="@(task.GoalUnits > task.ProgressUnits)">
                     <legend class="solo-lectores">Evidencia y conclusión de la tarea</legend>
+                    @if (task.Requirement == "CHECKLIST") { <partial name="_ChecklistEvidence" model="@(new Sgol.Web.Presentation.Components.ChecklistEvidenceModel(task.ChecklistJson, task.ChecklistDraftJson, task.Id))" /> }
                     @if (task.Requirement == "COMENTARIO") { <label class="campo"><span class="campo__etiqueta">Comentario de evidencia</span><textarea class="campo__control" name="comment" maxlength="4000" required>@Model.OperationalAttemptedComment</textarea></label> }
                     @if (task.Requirement == "FOTOGRAFIA") {
                         <input type="hidden" name="captureSessionId" /><input type="hidden" name="photographIds" />

@@ -219,7 +219,9 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                 a.LoadMinutes, a.PersonId, a.PersonName, a.StartsAt, a.DueAt, a.CompletedAt, a.PreviousLoadMinutes, a.Comment, (a.Attachment != null ? a.Attachment.FileName : db.OperationalPhotographs.Where(f => f.AssignmentId == a.Id && f.AttachedAt != null).OrderBy(f => f.Position).Select(f => f.FileName).FirstOrDefault()), a.AssignedRole,
                 a.Conclusion, a.ReviewStatus, a.ReviewComment ?? a.ReassignmentComment, null, null, null, null, null,
                 a.ScheduleMode, a.GoalUnits, a.ProgressUnits, a.ProgressUnit, a.Revision, a.SpecializationId, a.SpecializationName,
-                a.MinimumPhotos, a.MaximumPhotos, a.MaximumPhotoBytes, a.OccasionId, a.Description) }).ToArrayAsync(token);
+                a.MinimumPhotos, a.MaximumPhotos, a.MaximumPhotoBytes, a.OccasionId, a.Description,
+                a.TemporalPolicyJson, a.TemporalDecisionJson, a.OperationalCriticality, a.NominalStartsAt, a.SchedulingPolicyId,
+                a.TransferRemainingMinutes, a.TransferProgressUnits, a.ChecklistJson, a.ChecklistDraftJson) }).ToArrayAsync(token);
         return plans.Select(p => p.Details(items.Where(i => i.PlanId == p.Id).Select(i => new DirectionPlanTask(i.TaskCode, i.Name)).ToArray()) with {
             Assignments = assignments.Where(a => a.PlanId == p.Id).Select(a => a.Detail).ToArray()
         }).ToArray();

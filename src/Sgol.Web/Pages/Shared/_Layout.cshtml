@@ -41,6 +41,7 @@
     @if (Context.Request.Path.StartsWithSegments("/validaciones")) {
         <link rel="stylesheet" href="~/css/validation-cards.css" asp-append-version="true" />
     }
+<link rel="stylesheet" href="~/css/checklist.css" asp-append-version="true" />
 </head>
 <body class="@(systemError ? "pagina-error-sistema" : accessPage ? "pagina-acceso" : boardShell ? "board-shell" : null)">
     <a class="salto-contenido" href="#contenido-principal">Saltar al contenido principal</a>
@@ -113,6 +114,7 @@
     <script src="~/js/sidebar.js" asp-append-version="true"></script>
     <script src="~/js/person-avatars.js" asp-append-version="true" defer></script>
     <script src="~/js/search-text.js" asp-append-version="true"></script>
+    <script src="~/js/checklist.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
     <script src="~/js/mobile.js" asp-append-version="true" defer></script>
 </body>

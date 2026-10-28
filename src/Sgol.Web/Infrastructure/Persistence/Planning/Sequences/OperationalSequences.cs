@@ -244,6 +244,7 @@ internal static class OperationalSequenceSchema
         stage.Property(x => x.DefinitionSnapshotJson).HasColumnType("jsonb");
         stage.Property(x => x.TaskCode).HasMaxLength(100); stage.Property(x => x.Name).HasMaxLength(500);
         stage.Property(x => x.Description).HasMaxLength(4000);
+        stage.Property(x => x.ChecklistJson).HasDefaultValue("[]");
         stage.Property(x => x.Role).HasMaxLength(20); stage.Property(x => x.Requirement).HasMaxLength(24);
         stage.Property(x => x.Status).HasMaxLength(32); stage.Property(x => x.BlockReason).HasMaxLength(4000);
         stage.Property(x => x.ReservedPersonName).HasMaxLength(300); stage.Property(x => x.SpecializationName).HasMaxLength(120);

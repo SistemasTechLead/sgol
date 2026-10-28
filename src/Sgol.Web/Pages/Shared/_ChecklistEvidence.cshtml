@@ -1,0 +1,18 @@
+@model Sgol.Web.Presentation.Components.ChecklistEvidenceModel
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@{
+    var points = OperationalChecklist.Points(Model.Definition);
+    var selected = OperationalChecklist.Checked(Model.Draft).ToHashSet();
+}
+<fieldset class="checklist-evidence" data-checklist-evidence data-assignment="@Model.AssignmentId" data-definition="@OperationalChecklist.Fingerprint(Model.Definition)" data-readonly="@Model.ReadOnly.ToString().ToLowerInvariant()">
+    <legend>Checklist</legend>
+    @if (!Model.ReadOnly) { <input type="hidden" name="checklistAnswer" data-checklist-answer /> }
+    <p data-checklist-count role="status">@selected.Count de @points.Length completados</p>
+    <div class="checklist-points">
+    @foreach (var point in points)
+    {
+        <label class="checklist-point"><input type="checkbox" data-check-id="@point.Id" checked="@selected.Contains(point.Id)" disabled="@Model.ReadOnly" /><span>@point.Text</span></label>
+    }
+    </div>
+    @if (!Model.ReadOnly) { <p class="campo__ayuda" data-checklist-save role="status">Las marcas se guardan como borrador. Completa todos los puntos para enviar.</p> }
+</fieldset>

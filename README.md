@@ -19,6 +19,8 @@ pueden identificar pendientes, vencimientos y cargas de trabajo.
   ocasionales mediante asignaciones específicas.
 - **Ejecutar y documentar:** consultar las actividades en **Mi trabajo**, registrar
   avances y entregar fotografías, archivos u otros datos según lo solicitado.
+- **Completar checklists:** configurar listas de comprobación por tarea, guardar
+  marcas como borrador y enviar a revisión cuando todos los puntos estén completos.
 - **Supervisar entregas:** revisar evidencias y dar seguimiento al cumplimiento
   de las actividades.
 - **Consultar la operación:** visualizar el estado del día en **Tablero** y la

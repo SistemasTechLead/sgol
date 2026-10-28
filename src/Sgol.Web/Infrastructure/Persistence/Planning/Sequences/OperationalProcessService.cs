@@ -10,8 +10,12 @@ using Sgol.Web.Infrastructure.Persistence.Auditing;
 
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
+public sealed record ProcessChecklistEvidence(string Definition, string Draft);
 public sealed record ProcessRunView(OperationalSequenceRun Run, OperationalSequenceStage[] Stages,
-    OperationalSequenceAttempt[] Attempts, OperationalSequenceDocument[] Documents, OperationalSequenceEvent[] Events,OperationalSequenceStep[] Rules);
+    OperationalSequenceAttempt[] Attempts, OperationalSequenceDocument[] Documents, OperationalSequenceEvent[] Events,OperationalSequenceStep[] Rules)
+{
+    public Dictionary<Guid, ProcessChecklistEvidence> ChecklistEvidence { get; init; } = [];
+}
 
 public sealed partial class OperationalProcessService(SgolDbContext db, IDirectionPreparedPlanService direction, IClock clock,
     IFileTechnicalValidator validator, IFileMalwareScanner scanner)
@@ -94,7 +98,12 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
             await db.Set<OperationalSequenceAttempt>().AsNoTracking().Where(a=>a.RunId==runId).OrderBy(a=>a.CreatedAt).ThenBy(a=>a.Number).ToArrayAsync(token),
             await db.Set<OperationalSequenceDocument>().AsNoTracking().Where(d=>d.RunId==runId).OrderBy(d=>d.Number).ToArrayAsync(token),
             await db.Set<OperationalSequenceEvent>().AsNoTracking().Where(e=>e.RunId==runId).OrderBy(e=>e.OccurredAt).ToArrayAsync(token),
-            await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>s.VersionId==run.VersionId).OrderBy(s=>s.Position).ToArrayAsync(token));
+            await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>s.VersionId==run.VersionId).OrderBy(s=>s.Position).ToArrayAsync(token)) {
+                ChecklistEvidence = await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking()
+                    .Where(a => a.Requirement == "CHECKLIST" && db.Set<OperationalSequenceAttempt>().Any(t => t.RunId == runId && t.AssignmentId == a.Id))
+                    .Select(a => new { a.Id, a.ChecklistJson, a.ChecklistDraftJson })
+                    .ToDictionaryAsync(a => a.Id, a => new ProcessChecklistEvidence(a.ChecklistJson, a.ChecklistDraftJson), token)
+            };
     }
     public async Task<ProcessRunView?> ReadAssignmentAsync(Guid actor, Guid assignmentId, CancellationToken token)
     {

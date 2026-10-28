@@ -70,6 +70,10 @@ public static class ProcessEditorChecks
         builder.Services.AddScoped<AuditTransaction>(); builder.Services.AddScoped<IDirectionPreparedPlanService, EfDirectionPreparedPlanService>();
         builder.Services.AddScoped<IDirectionPlanningCatalogReader, DirectionPlanningCatalogReader>();
         builder.Services.AddScoped<OperationalTaskService>(); builder.Services.AddScoped<OperationalProcessCatalogService>();
+        builder.Services.AddScoped<OperationalCarryoverReader>();
+        builder.Services.AddScoped<AssignmentRefreshService>();
+        builder.Services.AddScoped<OperationalSchedulingPolicyService>();
+        builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Organization.SpecializationService>();
         builder.Services.AddScoped<ProcessPlanningService>(); builder.Services.AddScoped<OperationalProcessService>();
         builder.Services.AddSingleton<IFileTechnicalValidator, FileTechnicalValidator>(); builder.Services.AddSingleton<IFileMalwareScanner, Scanner>();
         builder.Services.AddSingleton<IRazorSessionState>(new Session(actor, await db.AppUsers.Where(u => u.Id == actor).Select(u => u.PersonId).SingleAsync()));
@@ -86,11 +90,12 @@ public static class ProcessEditorChecks
         var location=created.Headers.Location!.OriginalString;
         var id=Guid.Parse(location.Split("id=")[1]);
         var version=await db.Set<OperationalSequenceVersion>().SingleAsync(v=>v.SequenceId==id);
-        var requirements = new[] { "EXCEL", "COMENTARIO", "FOTOGRAFIA", "CAPTURA_PANTALLA", "DOCUMENTO", "NINGUNO", "NINGUNO" };
+        var requirements = new[] { "EXCEL", "COMENTARIO", "FOTOGRAFIA", "CAPTURA_PANTALLA", "DOCUMENTO", "NINGUNO", "CHECKLIST" };
         db.OperationalCapacities.Add(new() { Id=Guid.CreateVersion7(),PersonId=person,From=new(2026,10,26),Through=new(2026,11,26),DailyMinutes=480,Reason="Isolated process test" });
         db.Add(new PersonalScheduleVersion { Id=Guid.CreateVersion7(),PersonId=person,Revision=1,From=new(2026,10,26),ChangedBy=actor,ChangedAt=now,IntentKey=Guid.CreateVersion7(),RequestHash=new string('0',64),DaysJson=System.Text.Json.JsonSerializer.Serialize(Enumerable.Range(0,7).ToDictionary(d=>d,d=>new[]{new WorkInterval(540,1140)})) });
         for(var i=1;i<=7;i++) {
             var task=new OperationalTask { Id=Guid.CreateVersion7(), TaskCode=$"TAR-{9000+i}", Name=$"Inventory step {i}", ProcessId=id, Requirement=requirements[i-1], AssignedRole=CanonicalRole.Direction,LoadMinutes=1, OperationalCriticality="FLEXIBLE" };
+            if(task.Requirement=="CHECKLIST") task.ChecklistJson=System.Text.Json.JsonSerializer.Serialize(new[]{new ChecklistPoint(Guid.NewGuid(),"Comprobar resultado"),new ChecklistPoint(Guid.NewGuid(),"Confirmar orden")});
             db.Add(task); db.Add(new OperationalSequenceStep { VersionId=version.Id,TaskId=task.Id,Position=i,DeadlineHours=1,ReleaseCondition=i==1?"INICIO":"ENTREGA" });
         }
         await db.SaveChangesAsync();db.ChangeTracker.Clear();
@@ -115,7 +120,43 @@ public static class ProcessEditorChecks
         Check(published.StatusCode==HttpStatusCode.Redirect,"Seven-stage draft with delivery, review and acceptance publishes over HTTP");
         Check(!await db.OperationalAssignments.AnyAsync(),"Draft save and publication create no assignments");
         await MixedEvidence(db, actor, person, id, clock, builder.Configuration, client, Hidden(page,"__RequestVerificationToken"));
+        await IndependentChecklist(db,actor,person,clock,client);
         await app.StopAsync();
+    }
+    private static async Task IndependentChecklist(SgolDbContext db,Guid actor,Guid person,Clock clock,HttpClient client)
+    {
+        var points=new[]{new ChecklistPoint(Guid.NewGuid(),"Abrir área"),new ChecklistPoint(Guid.NewGuid(),"Confirmar limpieza")};
+        var json=System.Text.Json.JsonSerializer.Serialize(points);
+        var page=await client.GetStringAsync("/tareas?create=true");
+        Check(page.Contains("data-checklist-editor") && page.Contains("CHECKLIST"),"Task editor exposes checklist requirement and parameters");
+        var response=await client.PostAsync("/tareas?handler=Save",new FormUrlEncodedContent(new Dictionary<string,string> {
+            ["__RequestVerificationToken"]=Hidden(page,"__RequestVerificationToken"),["Input.Name"]="Checklist HTTP independiente",
+            ["Input.Revision"]="0",["Input.ProcessId"]=OperationalSequence.GeneralId.ToString(),["Input.Requirement"]="CHECKLIST",
+            ["Input.ChecklistJson"]=json,["Input.AssignedRole"]=CanonicalRole.Direction,["Input.OperationalCriticality"]="FLEXIBLE",["Input.Active"]="true" }));
+        Check(response.StatusCode==HttpStatusCode.Redirect,"Task editor saves checklist through the actual HTTP handler: "+(response.StatusCode==HttpStatusCode.Redirect?"":await response.Content.ReadAsStringAsync()));
+        db.ChangeTracker.Clear();var task=await db.OperationalTasks.AsNoTracking().SingleAsync(t=>t.Name=="Checklist HTTP independiente");
+        var day=WeekContract.LocalToday(clock.UtcNow);
+        var plan=DirectionPreparedPlan.ForOccasion(Guid.CreateVersion7(),Sgol.Organization.Contracts.BranchScope.LorettaId,actor,clock.UtcNow,"Checklist HTTP",day,day);
+        var assignment=new OperationalAssignment {Id=Guid.CreateVersion7(),PlanId=plan.Id,TaskId=task.Id,TaskCode=task.TaskCode,Name=task.Name,Requirement="CHECKLIST",
+            ChecklistJson=task.ChecklistJson,PersonId=person,PersonName="Dirección prueba",AssignedRole=CanonicalRole.Direction,LoadMinutes=1,StartsAt=clock.UtcNow.AddMinutes(-1),DueAt=clock.UtcNow.AddHours(1)};
+        db.AddRange(plan,assignment);await db.SaveChangesAsync();db.ChangeTracker.Clear();
+        page=await client.GetStringAsync("/mi-trabajo?assignedTask="+assignment.Id);
+        var token=Hidden(page,"__RequestVerificationToken");
+        var answer=System.Text.Json.JsonSerializer.Serialize(new ChecklistAnswer(OperationalChecklist.Fingerprint(task.ChecklistJson),[points[0].Id]));
+        response=await client.PostAsync("/mi-trabajo?handler=ChecklistDraft",new FormUrlEncodedContent(new Dictionary<string,string> {
+            ["__RequestVerificationToken"]=token,["id"]=assignment.Id.ToString(),["answer"]=answer }));
+        Check(response.StatusCode==HttpStatusCode.OK,"Actual draft HTTP handler saves selected marks");
+        page=await client.GetStringAsync("/mi-trabajo?assignedTask="+assignment.Id);
+        Check(page.Contains("1 de 2 completados"),"Actual task reload restores saved marks");
+        response=await client.PostAsync("/mi-trabajo?handler=CompleteOperational",new FormUrlEncodedContent(new Dictionary<string,string> {
+            ["__RequestVerificationToken"]=token,["id"]=assignment.Id.ToString(),["checklistAnswer"]=answer }));
+        Check((int)response.StatusCode==422,"Actual delivery handler rejects an incomplete checklist");
+        answer=System.Text.Json.JsonSerializer.Serialize(new ChecklistAnswer(OperationalChecklist.Fingerprint(task.ChecklistJson),points.Select(p=>p.Id).ToArray()));
+        response=await client.PostAsync("/mi-trabajo?handler=CompleteOperational",new FormUrlEncodedContent(new Dictionary<string,string> {
+            ["__RequestVerificationToken"]=token,["id"]=assignment.Id.ToString(),["checklistAnswer"]=answer }));
+        Check(response.StatusCode==HttpStatusCode.Redirect,"Actual delivery HTTP handler accepts all checklist points");
+        page=await client.GetStringAsync("/mi-trabajo?assignedTask="+assignment.Id);
+        Check(page.Contains("2 de 2 completados") && page.Contains("data-readonly=\"true\""),"Submitted checklist renders as read-only evidence");
     }
     private static async Task MixedEvidence(SgolDbContext db, Guid actor, Guid person, Guid processId, Clock clock, IConfiguration config, HttpClient client, string csrf)
     {
@@ -169,18 +210,21 @@ public static class ProcessEditorChecks
             var decision=position==7?"SIN_DIFERENCIAS":position==2?"APROBACION":"ENTREGA";
             IFormFile? file=position==1?FormFile(excelBytes,"evidence.xlsx",OperationalExcel.MediaType):position==5?FormFile(pdfBytes,"evidence.pdf","application/pdf"):null;
             Guid? capture=null;Guid[]? photos=null;IFormFile[]? screenshots=position==4?[FormFile(photoBytes,"screen.jpg","image/jpeg")]:null;
-            if(position<=5 && position!=2) {
+            if(position<=5 && position!=2 || position==7) {
                 try { await service.DecideAsync(actor,run,attempt.Id,attempt.Revision,Guid.CreateVersion7(),decision,"Evidence check",null,null,true,default);throw new Exception("Missing evidence accepted"); }
-                catch(DirectionPlanException e) when(e.Code is "TASK_FILE_REQUIRED" or "TASK_CAMERA_REQUIRED" or "TASK_PHOTO_LIMIT") { Console.WriteLine("PASS: Missing evidence rejected for "+stage.Requirement); }
+                catch(DirectionPlanException e) when(e.Code is "TASK_FILE_REQUIRED" or "TASK_CAMERA_REQUIRED" or "TASK_PHOTO_LIMIT" or "TASK_CHECKLIST_CHANGED") { Console.WriteLine("PASS: Missing evidence rejected for "+stage.Requirement); }
                 db.ChangeTracker.Clear();Check((await service.ReadAsync(actor,run,default)).Run.ActivePosition==position,"Rejected evidence does not advance or complete a stage");
             }
             if(position==3) {
                 var session=await tasks.BeginCaptureAsync(actor,assignment,default);capture=session.Id;var photoId=Guid.CreateVersion7();
                 await tasks.UploadPhotographAsync(actor,assignment,session.Id,photoId,FormFile(photoBytes,"camera.jpg","image/jpeg"),default);db.ChangeTracker.Clear();photos=[photoId];
             }
+            var checklistAnswer=stage.Requirement=="CHECKLIST" ? System.Text.Json.JsonSerializer.Serialize(new ChecklistAnswer(OperationalChecklist.Fingerprint(stage.ChecklistJson),OperationalChecklist.Points(stage.ChecklistJson).Select(p=>p.Id).ToArray())) : null;
+            if(checklistAnswer!=null) { var rendered=await client.GetStringAsync("/mi-trabajo?assignedTask="+assignment); Check(rendered.Contains("data-checklist-answer") && rendered.Contains("Comprobar resultado"),"Actual task panel renders checklist points"); }
             var key=Guid.CreateVersion7();
             using var form=new MultipartFormDataContent();
             foreach(var pair in new Dictionary<string,string> { ["__RequestVerificationToken"]=csrf,["id"]=assignment.ToString(),["attemptId"]=attempt.Id.ToString(),["revision"]=attempt.Revision.ToString(),["key"]=key.ToString(),["decision"]=decision,["conclusion"]="Evidence check",["declared"]="true" }) form.Add(new StringContent(pair.Value),pair.Key);
+            if(checklistAnswer!=null) form.Add(new StringContent(checklistAnswer),"checklistAnswer");
             if(capture!=null) form.Add(new StringContent(capture.Value.ToString()),"captureSessionId");
             if(photos!=null) form.Add(new StringContent(System.Text.Json.JsonSerializer.Serialize(photos)),"photographIds");
             async Task AddFile(IFormFile incoming,string name) { using var stream=new MemoryStream();await incoming.CopyToAsync(stream);var content=new ByteArrayContent(stream.ToArray());content.Headers.ContentType=new(incoming.ContentType);form.Add(content,name,incoming.FileName); }
@@ -188,7 +232,7 @@ public static class ProcessEditorChecks
             var response=await client.PostAsync("/mi-trabajo?handler=CompleteProcess",form);
             Check(response.StatusCode==HttpStatusCode.Redirect,$"Actual Mi trabajo HTTP form accepts {stage.Requirement}: "+(response.StatusCode==HttpStatusCode.Redirect?"":await response.Content.ReadAsStringAsync()));
             db.ChangeTracker.Clear();
-            await service.DecideAsync(actor,run,attempt.Id,attempt.Revision,key,decision,"Evidence check",null,file,true,default,capture,photos,screenshots);db.ChangeTracker.Clear();
+            await service.DecideAsync(actor,run,attempt.Id,attempt.Revision,key,decision,"Evidence check",null,file,true,default,capture,photos,screenshots,checklistAnswer);db.ChangeTracker.Clear();
             delivered.Add(assignment);
             Check((await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==assignment)).CompletedAt!=null,$"{stage.Requirement} evidence is persisted and delivery retry is idempotent");
         }

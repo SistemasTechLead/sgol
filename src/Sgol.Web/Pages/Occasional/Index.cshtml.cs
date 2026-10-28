@@ -8,6 +8,7 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Occasional;
 
+[RequestFormLimits(ValueLengthLimit = 33554432)]
 public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskService tasks) : PageModel
 {
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }

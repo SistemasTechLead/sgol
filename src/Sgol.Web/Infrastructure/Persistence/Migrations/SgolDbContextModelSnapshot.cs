@@ -3847,6 +3847,18 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("ChecklistDraftJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("null");
+
+                    b.Property<string>("ChecklistJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
                     b.Property<int?>("ClosureMarginPercent")
                         .HasColumnType("integer");
 
@@ -4078,7 +4090,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_operational_assignment_range", "\"DueAt\" > \"StartsAt\"");
 
-                            t.HasCheckConstraint("CK_operational_assignment_schedule", "\"ScheduleMode\" IN ('DISTRIBUIDA','DIAS_FIJOS','PROGRESO') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','NINGUNO') AND (\"AssignedRole\" IS NULL OR \"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS'))");
+                            t.HasCheckConstraint("CK_operational_assignment_schedule", "\"ScheduleMode\" IN ('DISTRIBUIDA','DIAS_FIJOS','PROGRESO') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND (\"AssignedRole\" IS NULL OR \"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS'))");
                         });
 
                     b.SplitToTable("operational_review", null, t =>
@@ -4938,6 +4950,12 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<string>("ChecklistJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
                     b.Property<int?>("ClosureMarginPercent")
                         .HasColumnType("integer");
 
@@ -5088,7 +5106,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_sequence_stage_dependency", "(\"DependencySatisfiedAt\" IS NULL AND \"DependencyEventId\" IS NULL) OR (\"DependencySatisfiedAt\" IS NOT NULL AND \"DependencyEventId\" IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
+                            t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
 
                             t.HasCheckConstraint("CK_sequence_stage_state", "\"Status\" IN ('EN_ESPERA','PROGRAMADA','DISPONIBLE','PENDIENTE_ASIGNACION','FUERA_DE_PLAZO','CONCLUIDA','CANCELADA') AND (\"Status\" NOT IN ('DISPONIBLE','CONCLUIDA') OR (\"CurrentAttemptId\" IS NOT NULL AND \"EnabledAt\" IS NOT NULL))");
                         });
@@ -5248,6 +5266,12 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("PISO_VENTAS");
 
+                    b.Property<string>("ChecklistJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
                     b.Property<int>("DeadlineHours")
                         .HasColumnType("integer");
 
@@ -5374,7 +5398,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_operational_task_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
 
-                            t.HasCheckConstraint("CK_operational_task_requirement", "\"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','NINGUNO')");
+                            t.HasCheckConstraint("CK_operational_task_requirement", "\"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO')");
 
                             t.HasCheckConstraint("CK_operational_task_role", "\"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS')");
 
@@ -5391,6 +5415,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             Id = new Guid("019d3a10-0005-7000-8000-000000000005"),
                             Active = true,
                             AssignedRole = "PISO_VENTAS",
+                            ChecklistJson = "[]",
                             DeadlineHours = 24,
                             Deleted = false,
                             DifferentPeople = false,
@@ -5419,6 +5444,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             Id = new Guid("019d3a10-0007-7000-8000-000000000007"),
                             Active = true,
                             AssignedRole = "PISO_VENTAS",
+                            ChecklistJson = "[]",
                             DeadlineHours = 24,
                             Deleted = false,
                             DifferentPeople = false,
@@ -5447,6 +5473,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             Id = new Guid("019d3a10-0008-7000-8000-000000000008"),
                             Active = true,
                             AssignedRole = "PISO_VENTAS",
+                            ChecklistJson = "[]",
                             DeadlineHours = 24,
                             Deleted = false,
                             DifferentPeople = false,
@@ -5475,6 +5502,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             Id = new Guid("019d3a10-0011-7000-8000-000000000011"),
                             Active = true,
                             AssignedRole = "PISO_VENTAS",
+                            ChecklistJson = "[]",
                             DeadlineHours = 24,
                             Deleted = false,
                             DifferentPeople = false,
@@ -5503,6 +5531,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             Id = new Guid("019d3a10-0018-7000-8000-000000000018"),
                             Active = true,
                             AssignedRole = "PISO_VENTAS",
+                            ChecklistJson = "[]",
                             DeadlineHours = 24,
                             Deleted = false,
                             DifferentPeople = false,
@@ -5531,6 +5560,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             Id = new Guid("019d3a10-0026-7000-8000-000000000026"),
                             Active = true,
                             AssignedRole = "PISO_VENTAS",
+                            ChecklistJson = "[]",
                             DeadlineHours = 24,
                             Deleted = false,
                             DifferentPeople = false,
@@ -5559,6 +5589,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             Id = new Guid("019d3a10-0092-7000-8000-000000000092"),
                             Active = true,
                             AssignedRole = "PISO_VENTAS",
+                            ChecklistJson = "[]",
                             DeadlineHours = 24,
                             Deleted = false,
                             DifferentPeople = false,
@@ -5587,6 +5618,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                             Id = new Guid("019d3a10-0093-7000-8000-000000000093"),
                             Active = true,
                             AssignedRole = "PISO_VENTAS",
+                            ChecklistJson = "[]",
                             DeadlineHours = 24,
                             Deleted = false,
                             DifferentPeople = false,

@@ -9,6 +9,18 @@ namespace Sgol.Web.Pages.MyWork;
 
 public sealed partial class IndexModel
 {
+    public async Task<IActionResult> OnPostChecklistDraftAsync(Guid id, string answer, CancellationToken token)
+    {
+        NoStore();
+        var session = await sessionState.GetAsync(token);
+        if (session is null) return Unauthorized();
+        try { await HttpContext.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(HttpContext); }
+        catch (AntiforgeryValidationException) { return BadRequest(); }
+        try {
+            await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().SaveChecklistDraftAsync(session.UserId, id, answer, token);
+            return new JsonResult(new { saved = true });
+        } catch (DirectionPlanException e) { return new JsonResult(new { error = Pages.Tasks.IndexModel.Message(e.Code) }) { StatusCode = e.Status }; }
+    }
     public IReadOnlyList<OperationalAssignmentDetails> OperationalTasks { get; private set; } = [];
     public IReadOnlyList<OperationalLifecycleEntry> OperationalLifecycle { get; private set; } = [];
     public IReadOnlyList<OperationalTransfer> OperationalTransfers { get; private set; } = [];
@@ -26,6 +38,7 @@ public sealed partial class IndexModel
     public IReadOnlyList<OperationalPhotographDetails> OperationalPhotographs { get; private set; } = [];
     public Guid? OperationalAttemptedTaskId { get; private set; }
     public string? OperationalAttemptedComment { get; private set; }
+    public string? OperationalAttemptedChecklist { get; private set; }
     public string? OperationalAttemptedConclusion { get; private set; }
     public DateTimeOffset OperationalNow { get; private set; }
     public DateOnly OperationalDay => WeekContract.LocalToday(OperationalNow);
@@ -52,12 +65,17 @@ public sealed partial class IndexModel
                 if (!Guid.TryParseExact(selected, "D", out var id)) throw new DirectionPlanException("TASK_NOT_FOUND", 404);
                 OperationalSelectedTask = OperationalTasks.SingleOrDefault(task => task.Id == id)
                     ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
+                if (OperationalAttemptedChecklist != null && OperationalSelectedTask.Requirement == "CHECKLIST") {
+                    try { var marks = OperationalChecklist.ValidateAnswer(OperationalSelectedTask.ChecklistJson, OperationalAttemptedChecklist, false);
+                        OperationalSelectedTask = OperationalSelectedTask with { ChecklistDraftJson = System.Text.Json.JsonSerializer.Serialize(new ChecklistDraft(actor, OperationalNow, marks)) };
+                    } catch (DirectionPlanException) { }
+                }
                 var process = await HttpContext.RequestServices.GetRequiredService<OperationalProcessService>().ReadAssignmentAsync(actor, id, token);
                 if (process is not null)
                     OperationalProcessForm = new(process, OperationalSelectedTask.PersonId, "CompleteProcess", id,
                         OperationalAttemptedConclusion, OperationalAttemptedTaskId is not null ? Request.Form["Differences"].ToString() : null,
                         OperationalAttemptedTaskId is not null && Guid.TryParse(Request.Form["Key"], out var key) ? key : null,
-                        OperationalAttemptedTaskId is not null && Request.Form["Declared"].Contains("true"));
+                        OperationalAttemptedTaskId is not null && Request.Form["Declared"].Contains("true"), OperationalSelectedTask.ChecklistDraftJson);
                 OperationalHistory = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().ProgressHistoryAsync(actor, id, token);
                 OperationalContributions = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().ContributionsAsync(actor, id, token);
                 OperationalLifecycle = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().LifecycleHistoryAsync(actor, id, token);
@@ -69,7 +87,7 @@ public sealed partial class IndexModel
         catch (DirectionPlanException e) { Response.StatusCode = e.Status; OperationalError = Pages.Tasks.IndexModel.Message(e.Code); }
     }
     public async Task<IActionResult> OnPostCompleteOperationalAsync(Guid id, string? comment, string? conclusion, IFormFile? file,
-        Guid? captureSessionId, string? photographIds, List<IFormFile>? screenshots, CancellationToken token)
+        Guid? captureSessionId, string? photographIds, List<IFormFile>? screenshots, CancellationToken token, string? checklistAnswer)
     {
         NoStore();
         var session = await sessionState.GetAsync(token); if (session is null) return Redirect("/acceso");
@@ -83,18 +101,19 @@ public sealed partial class IndexModel
                 Request.Form.Files.Count(f => f.Name == "file") > 1 || Request.Form.Files.Count > 20 || !ModelState.IsValid)
                 throw new DirectionPlanException("TASK_FILE_INVALID", 422);
             await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().CompleteAsync(session.UserId, id, comment, file, token, conclusion, captureSessionId, photoIds,
-                screenshots?.Count > 0 ? screenshots : null);
+                screenshots?.Count > 0 ? screenshots : null, checklistAnswer);
             TempData["OperationalSuccess"] = "Evidencia enviada a revisión.";
             return Redirect("/mi-trabajo#plan-tasks");
         } catch (DirectionPlanException e) {
             Response.StatusCode = e.Status; OperationalError = Pages.Tasks.IndexModel.Message(e.Code);
+            OperationalAttemptedChecklist = checklistAnswer;
             OperationalAttemptedTaskId = id; OperationalAttemptedComment = comment; OperationalAttemptedConclusion = conclusion;
         }
         return await LoadWorkAsync(session, token, true);
     }
     public async Task<IActionResult> OnPostCompleteProcessAsync(Guid id, Guid attemptId, long revision, Guid key,
         string decision, string conclusion, string? differences, IFormFile? document, bool declared, CancellationToken token,
-        Guid? captureSessionId, string? photographIds, List<IFormFile>? screenshots)
+        Guid? captureSessionId, string? photographIds, List<IFormFile>? screenshots, string? checklistAnswer)
     {
         NoStore();
         var session = await sessionState.GetAsync(token); if (session is null) return Redirect("/acceso");
@@ -112,10 +131,11 @@ public sealed partial class IndexModel
             if (!process.Attempts.Any(a => a.Id == attemptId && a.AssignmentId == id))
                 throw new DirectionPlanException("PROCESS_CONFLICT", 409);
             await service.DecideAsync(session.UserId, process.Run.Id, attemptId, revision, key,
-                decision, conclusion, differences, document, declared, token, captureSessionId, photoIds, screenshots?.Count > 0 ? screenshots : null);
+                decision, conclusion, differences, document, declared, token, captureSessionId, photoIds, screenshots?.Count > 0 ? screenshots : null, checklistAnswer);
             return Redirect(OperationalTaskHref(id));
         } catch (DirectionPlanException e) {
             Response.StatusCode = e.Status; OperationalError = Pages.Tasks.IndexModel.Message(e.Code);
+            OperationalAttemptedChecklist = checklistAnswer;
             OperationalAttemptedTaskId = id; OperationalAttemptedConclusion = conclusion;
         }
         return await LoadWorkAsync(session, token, true);

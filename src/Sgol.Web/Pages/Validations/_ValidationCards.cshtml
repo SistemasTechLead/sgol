@@ -24,6 +24,7 @@
                 <header class="validation-card__header"><h3>@a.Name</h3></header>
                 @if (Model.FailedReviewId == a.Id) { <p class="alerta alerta--peligro" role="alert">Esta tarea impidió guardar el grupo. Revisa el aviso antes de volver a guardar.</p> }
                 <div class="validation-card__evidence">
+                    @if (a.Requirement == "CHECKLIST") { @if (a.CompletedAt == null) { <p>Borrador del checklist · sin entrega todavía.</p> } <partial name="_ChecklistEvidence" model="@(new Sgol.Web.Presentation.Components.ChecklistEvidenceModel(a.ChecklistJson, a.ChecklistDraftJson, a.Id, true))" /> }
                     @if (a.Comment is not null) { <p class="supervision-text">@a.Comment</p> }
                     @if (photos.Length > 0) {
                         <div class="validation-gallery" data-validation-gallery aria-label="Evidencia de @a.Name">
@@ -38,7 +39,7 @@
                     } else if (a.FileName is not null) {
                         @if (a.Requirement is "FOTOGRAFIA" or "CAPTURA_PANTALLA") { <a href="@(file + "&preview=true")" target="_blank" rel="noopener"><img class="validation-image" src="@(file + "&preview=true")" alt="Evidencia: @a.Name" loading="lazy" /></a> }
                         else { <a class="boton boton--secundario" href="@file">@a.FileName</a> }
-                    } else if (a.Comment is null) {
+                    } else if (a.Comment is null && a.Requirement != "CHECKLIST") {
                         <p class="texto-secundario">@(a.Requirement == "NINGUNO" ? a.Conclusion ?? "Sin requisito de evidencia." : "Sin evidencia entregada.")</p>
                     }
                     @if (a.GoalUnits > 0) { <p>@a.ProgressUnits / @a.GoalUnits @a.ProgressUnit</p> }
