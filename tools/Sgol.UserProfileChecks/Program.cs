@@ -236,13 +236,13 @@ flowResult = await authService.LoginAsync(authInput.UserName, "Changed!123456789
 var passwordSession = flowResult.Session!;
 Check(flowResult.NextStep == AuthenticationNextStep.Authenticated && passwordSession.AuthenticationMethod == "pwd", "Username and password grant session without MFA");
 Check(AuthenticationPrincipalFactory.Create(passwordSession).FindFirst(SgolClaimTypes.AuthenticationMethod)?.Value == "pwd", "Password session does not claim MFA authentication");
-Check(await authService.ValidateSessionAsync(passwordSession.UserId, passwordSession.SecurityStamp, passwordSession.MfaAuthenticatedAt, passwordSession.AbsoluteExpiresAt) is not null, "Session validates without an enrolled authenticator");
+Check(await authService.ValidateSessionAsync(passwordSession.UserId, passwordSession.SecurityStamp, passwordSession.MfaAuthenticatedAt, passwordSession.AbsoluteExpiresAt, sessionId: passwordSession.SessionId) is not null, "Session validates without an enrolled authenticator");
 try { await authService.LoginAsync(authInput.UserName, "Wrong!1234567890", Guid.CreateVersion7()); throw new Exception("Wrong password was accepted"); }
 catch (AuthenticationFailedException) { Check(true, "Wrong password is still rejected"); }
 builder.Configuration["Authentication:RequireMfa"] = "true";
 flowResult = await authService.LoginAsync(authInput.UserName, "Changed!1234567890", Guid.CreateVersion7());
 Check(flowResult.NextStep == AuthenticationNextStep.EnrollMfa && flowResult.Session is null, "Re-enabling MFA restores enrollment flow");
-Check(await authService.ValidateSessionAsync(passwordSession.UserId, passwordSession.SecurityStamp, passwordSession.MfaAuthenticatedAt, passwordSession.AbsoluteExpiresAt) is null, "Re-enabling MFA rejects unenrolled sessions");
+Check(await authService.ValidateSessionAsync(passwordSession.UserId, passwordSession.SecurityStamp, passwordSession.MfaAuthenticatedAt, passwordSession.AbsoluteExpiresAt, sessionId: passwordSession.SessionId) is null, "Re-enabling MFA rejects unenrolled sessions");
 builder.Configuration["Authentication:RequireMfa"] = "false";
 await app.StopAsync();
 Console.WriteLine("All user profile checks passed.");

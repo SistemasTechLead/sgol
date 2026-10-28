@@ -19,5 +19,10 @@ if (Test-Path -LiteralPath $runtimePath) {
     Remove-Item -LiteralPath $runtimePath
 }
 Set-Location -LiteralPath $sgolRoot
-docker compose --env-file .local/compose.env -f compose.local.yaml stop
+. "$PSScriptRoot/secret-store.ps1"
+$sgolSecrets = Read-SgolSecrets (Join-Path $sgolRoot '.local')
+# Compose interpolation is required for stop, but no password file is written.
+$env:SGOL_LOCAL_DB_PASSWORD = if ($sgolSecrets.DatabasePassword) { $sgolSecrets.DatabasePassword } else { 'unused-stop' }
+$env:SGOL_LOCAL_S3_PASSWORD = if ($sgolSecrets.StoragePassword) { $sgolSecrets.StoragePassword } else { 'unused-stop' }
+try { docker compose -f compose.local.yaml stop } finally { $env:SGOL_LOCAL_DB_PASSWORD = $null; $env:SGOL_LOCAL_S3_PASSWORD = $null }
 Write-Host 'SGOL detenido. Los datos de prueba se conservan.'

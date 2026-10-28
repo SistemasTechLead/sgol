@@ -17,14 +17,26 @@ services:
       retries: 30
   storage:
     image: chrislusf/seaweedfs:4.45@sha256:fc9f76fa993ad69966ffeb2f65d0318fcae39c6f8e20cf68ef7b3a5cb97769e5
-    command: ["mini", "-dir=/data"]
-    environment:
-      AWS_ACCESS_KEY_ID: sgol-local
-      AWS_SECRET_ACCESS_KEY: ${SGOL_LOCAL_S3_PASSWORD:?Run iniciar-local.ps1 first}
+    command: ["mini", "-dir=/data", "-ip=127.0.0.1", "-ip.bind=127.0.0.1", "-admin.ui=false", "-webdav=false", "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.iam=false", "-s3.config=/run/secrets/storage-identities.json"]
     ports:
-      - "127.0.0.1:8333:8333"
+      - "127.0.0.1:8333:8080"
     volumes:
       - evidence-data:/data
+      - ./.local/storage-identities.secret.json:/run/secrets/storage-identities.json:ro
+  storage-gateway:
+    image: sgol-storage-gateway:security-20261028
+    build:
+      context: .
+      dockerfile: tools/Sgol.SecurityChecks/storage-gateway.Dockerfile
+    user: "101:101"
+    network_mode: "service:storage"
+    depends_on: [storage]
+    volumes:
+      - ./scripts/storage-gateway.conf:/etc/nginx/nginx.conf:ro
+    read_only: true
+    tmpfs: [/var/cache/nginx, /var/run, /tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
   scanner:
     image: clamav/clamav:1.5.4-debian@sha256:be3cb41d9833ce9ffb98f3d3e1483c35c0d87060c2bda3624d75fd28bbf0b3bd
     ports:

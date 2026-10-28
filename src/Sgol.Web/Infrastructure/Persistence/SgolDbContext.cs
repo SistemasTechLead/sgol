@@ -48,6 +48,8 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
 
     public DbSet<RoleAssignmentVersion> RoleAssignmentVersions => Set<RoleAssignmentVersion>();
 
+    public DbSet<PersonalSession> PersonalSessions => Set<PersonalSession>();
+
     public DbSet<AuthenticationChallenge> AuthenticationChallenges => Set<AuthenticationChallenge>();
 
     public DbSet<MfaTotpCredential> MfaTotpCredentials => Set<MfaTotpCredential>();
@@ -169,6 +171,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
         modelBuilder.ApplyConfiguration(new IdentityCredentialConfiguration());
         modelBuilder.ApplyConfiguration(new RoleAssignmentVersionConfiguration());
         modelBuilder.ApplyConfiguration(new AuthenticationChallengeConfiguration());
+        modelBuilder.ApplyConfiguration(new PersonalSessionConfiguration());
         modelBuilder.ApplyConfiguration(new MfaTotpCredentialConfiguration());
         modelBuilder.ApplyConfiguration(new MfaRecoveryCodeConfiguration());
         modelBuilder.ApplyConfiguration(new DirectionBootstrapMarkerConfiguration());

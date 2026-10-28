@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 $sgolRoot = Split-Path -Parent $PSScriptRoot
 $sgolLocal = Join-Path $sgolRoot '.local'
 New-Item -ItemType Directory -Force -Path $sgolLocal | Out-Null
+. "$PSScriptRoot/secret-store.ps1"
+$null = Move-SgolLegacySecrets $sgolLocal
 if (!$Direccion) {
     $candidates = @(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway } |
         ForEach-Object { $_.IPv4Address.IPAddress } | Where-Object { $_ -match '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)' })
@@ -19,16 +21,12 @@ if (![Net.IPAddress]::TryParse($Direccion, [ref]$address) -or
 $configPath = Join-Path $sgolLocal 'red.json'
 $lanConfig = if (Test-Path -LiteralPath $configPath) { Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json } else { $null }
 $certificate = if ($lanConfig) { Get-Item "Cert:\CurrentUser\My\$($lanConfig.Thumbprint)" -ErrorAction SilentlyContinue } else { $null }
-if (!$certificate -or $lanConfig.Address -ne $Direccion -or $certificate.NotAfter -lt (Get-Date).AddDays(7) -or
-    !(Test-Path -LiteralPath (Join-Path $sgolLocal 'red.pfx'))) {
+if (!$certificate -or $lanConfig.Address -ne $Direccion -or $certificate.NotAfter -lt (Get-Date).AddDays(7)) {
     $certificate = New-SelfSignedCertificate -Type SSLServerAuthentication -Subject 'CN=SGOL pruebas en red' `
         -FriendlyName 'SGOL pruebas en red' -CertStoreLocation 'Cert:\CurrentUser\My' `
         -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(1) `
         -TextExtension @("2.5.29.17={text}IPAddress=$Direccion")
-    $password = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
-    Export-PfxCertificate -Cert $certificate -FilePath (Join-Path $sgolLocal 'red.pfx') `
-        -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
-    $lanConfig = [ordered]@{ Address = $Direccion; Thumbprint = $certificate.Thumbprint; CertificatePassword = $password }
+    $lanConfig = [ordered]@{ Address = $Direccion; Thumbprint = $certificate.Thumbprint }
     $lanConfig | ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding utf8
 }
 $publicCertificate = Join-Path $sgolLocal 'SGOL-red.cer'

@@ -363,7 +363,10 @@ internal sealed class EfHostedAuthenticationService(
         challenge.RowVersion++;
         dbContext.AuditEvents.Add(NewAudit(user.Id, correlationId, "AUTH_RECOVERY_CODE_USED", user.Id, null, "SUCCESS"));
         await dbContext.SaveChangesAsync(cancellationToken);
-        var restrictedSession = await BuildSessionAsync(user, now, cancellationToken);
+        // Recovery is incomplete: flow metadata must not create a usable personal session.
+        var restrictedIdentity = await LoadEligibleIdentityAsync(user.Id, cancellationToken)
+            ?? throw new AuthenticationFailedException();
+        var restrictedSession = ToSession(restrictedIdentity, user.SecurityStamp, now, now.Add(ChallengeLifetime));
         await transaction.CommitAsync(cancellationToken);
         dbContext.ChangeTracker.Clear();
         telemetry.RecoveryCodeUsed();
@@ -436,10 +439,11 @@ internal sealed class EfHostedAuthenticationService(
         string securityStamp,
         DateTimeOffset mfaAuthenticatedAt,
         DateTimeOffset absoluteExpiresAt,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? sessionId = null)
     {
         var session = await ValidateSessionAsync(
-            userId, securityStamp, mfaAuthenticatedAt, absoluteExpiresAt, cancellationToken)
+            userId, securityStamp, mfaAuthenticatedAt, absoluteExpiresAt, cancellationToken, sessionId)
             ?? throw new AuthenticationSessionInvalidException();
         return new SessionSnapshot(
             session.UserId,
@@ -461,7 +465,8 @@ internal sealed class EfHostedAuthenticationService(
         string securityStamp,
         DateTimeOffset mfaAuthenticatedAt,
         DateTimeOffset absoluteExpiresAt,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? sessionId = null)
     {
         var now = clock.UtcNow;
         if (userId == Guid.Empty || string.IsNullOrWhiteSpace(securityStamp) ||
@@ -470,6 +475,12 @@ internal sealed class EfHostedAuthenticationService(
             return null;
         }
 
+        var persisted = sessionId is null ? null : await dbContext.PersonalSessions.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == sessionId && x.UserId == userId, cancellationToken);
+        if (persisted is null || persisted.RevokedAt is not null || persisted.ExpiresAt <= now ||
+            persisted.IssuedAt.ToUnixTimeSeconds() != mfaAuthenticatedAt.ToUnixTimeSeconds() ||
+            persisted.ExpiresAt.ToUnixTimeSeconds() != absoluteExpiresAt.ToUnixTimeSeconds() ||
+            RequireMfa && persisted.AuthenticationMethod != "mfa") return null;
         var user = await dbContext.AppUsers.AsNoTracking().SingleOrDefaultAsync(item => item.Id == userId, cancellationToken);
         if (user is null || user.Status != AccountStatus.Active || user.MustChangePassword ||
             RequireMfa && user.MfaEnrolledAt is null || !string.Equals(user.SecurityStamp, securityStamp, StringComparison.Ordinal))
@@ -484,7 +495,8 @@ internal sealed class EfHostedAuthenticationService(
         dbContext.ChangeTracker.Clear();
         return identity is null || RequireMfa && !hasTotp
             ? null
-            : ToSession(identity, user.SecurityStamp, mfaAuthenticatedAt, absoluteExpiresAt);
+            : ToSession(identity, user.SecurityStamp, persisted.IssuedAt, persisted.ExpiresAt) with
+            { SessionId = persisted.Id, AuthenticationMethod = persisted.AuthenticationMethod };
     }
 
     public Task RecordSessionRejectedAsync(
@@ -499,17 +511,26 @@ internal sealed class EfHostedAuthenticationService(
             "DENIED",
             cancellationToken);
 
-    public Task RecordLogoutAsync(
-        Guid? userId,
-        Guid correlationId,
-        CancellationToken cancellationToken = default) =>
-        WriteAuditOnlyAsync(
-            userId,
-            correlationId,
-            "AUTH_LOGOUT",
-            reason: null,
-            outcome: "SUCCESS",
-            cancellationToken);
+    public async Task RecordLogoutAsync(Guid? userId, Guid? sessionId, Guid correlationId,
+        CancellationToken cancellationToken = default)
+    {
+        if (userId is null || sessionId is null) return;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        // Serialize retries on this session; revocation and audit commit together.
+        var session = await dbContext.PersonalSessions.FromSqlInterpolated(
+            $"SELECT * FROM personal_session WHERE id = {sessionId} AND user_id = {userId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+        if (session is null) throw new AuthenticationSessionInvalidException();
+        if (session.RevokedAt is null)
+        {
+            session.RevokedAt = clock.UtcNow;
+            session.RevocationReason = "LOGOUT";
+            dbContext.AuditEvents.Add(NewAudit(userId, correlationId, "AUTH_LOGOUT", session.Id, "CURRENT_SESSION", "SUCCESS"));
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+    }
 
     private async Task<EligibleIdentity?> LoadEligibleIdentityAsync(Guid userId, CancellationToken cancellationToken)
     {
@@ -556,7 +577,12 @@ internal sealed class EfHostedAuthenticationService(
     {
         var identity = await LoadEligibleIdentityAsync(user.Id, cancellationToken)
             ?? throw new AuthenticationFailedException();
-        return ToSession(identity, user.SecurityStamp, mfaAt, mfaAt.Add(HostedAuthenticationDefaults.SessionLifetime));
+        var session = new PersonalSession { Id = Guid.NewGuid(), UserId = user.Id, IssuedAt = mfaAt,
+            ExpiresAt = mfaAt.Add(HostedAuthenticationDefaults.SessionLifetime), AuthenticationMethod = RequireMfa ? "mfa" : "pwd" };
+        dbContext.PersonalSessions.Add(session);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return ToSession(identity, user.SecurityStamp, mfaAt, session.ExpiresAt) with
+        { SessionId = session.Id, AuthenticationMethod = session.AuthenticationMethod };
     }
 
     private static AuthenticatedSession ToSession(

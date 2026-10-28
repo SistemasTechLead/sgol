@@ -48,9 +48,7 @@ public sealed partial class IndexModel(
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            ApiCookieBridge.Clear(HttpContext);
-            sessionState.Invalidate();
-            return Access(AccessNoticeKind.Unconfirmed);
+            return LogoutUnconfirmed();
         }
 
         if (response is null || response.ErrorCode is "CSRF_INVALID" or "CSRF_INVALIDO")
@@ -68,9 +66,15 @@ public sealed partial class IndexModel(
         if (response.Status == StatusCodes.Status401Unauthorized)
             return Access(AccessNoticeKind.Ended);
 
-        ApiCookieBridge.Clear(HttpContext);
-        sessionState.Invalidate();
-        return Access(AccessNoticeKind.Unconfirmed);
+        return LogoutUnconfirmed();
+    }
+
+    private IActionResult LogoutUnconfirmed()
+    {
+        Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        ErrorTitle = "No se pudo confirmar el cierre";
+        ErrorMessage = "No se pudo confirmar la revocación en el servidor. Conservamos la sesión para que puedas volver a pulsar Cerrar sesión.";
+        return Page();
     }
 
     private RedirectResult Access(AccessNoticeKind kind) =>

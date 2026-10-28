@@ -7,5 +7,4 @@ $env:LocalShared__EvidenceOrigin = "https://$($lanConfig.Address):7443"
 $env:Evidence__Storage__Endpoint = $env:LocalShared__EvidenceOrigin
 $env:Evidence__Storage__AllowedUploadOrigins__0 = $env:SgolApi__TrustedOrigin
 $env:Lan__Address = $lanConfig.Address
-$env:Lan__CertificatePath = Join-Path $sgolLocal 'red.pfx'
-$env:Lan__CertificatePassword = $lanConfig.CertificatePassword
+$env:Lan__CertificateThumbprint = $lanConfig.Thumbprint

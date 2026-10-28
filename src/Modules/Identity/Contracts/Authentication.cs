@@ -34,6 +34,7 @@ public sealed record AuthenticatedSession(
     DateTimeOffset AbsoluteExpiresAt,
     IReadOnlyList<string> Permissions)
 {
+    public Guid SessionId { get; init; }
     public string AuthenticationMethod { get; init; } = "mfa";
 };
 
@@ -100,14 +101,16 @@ public interface IHostedAuthenticationService
         string securityStamp,
         DateTimeOffset mfaAuthenticatedAt,
         DateTimeOffset absoluteExpiresAt,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Guid? sessionId = null);
 
     Task<AuthenticatedSession?> ValidateSessionAsync(
         Guid userId,
         string securityStamp,
         DateTimeOffset mfaAuthenticatedAt,
         DateTimeOffset absoluteExpiresAt,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Guid? sessionId = null);
 
     Task RecordSessionRejectedAsync(
         Guid? userId,
@@ -116,6 +119,7 @@ public interface IHostedAuthenticationService
 
     Task RecordLogoutAsync(
         Guid? userId,
+        Guid? sessionId,
         Guid correlationId,
         CancellationToken cancellationToken = default);
 }

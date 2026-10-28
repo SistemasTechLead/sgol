@@ -26,6 +26,7 @@ public static class HostedAuthenticationDefaults
 
 public static class SgolClaimTypes
 {
+    public const string SessionId = "sgol:session_id";
     public const string SecurityStamp = "sgol:security_stamp";
     public const string RoleCode = "sgol:role";
     public const string MfaAuthenticatedAt = "sgol:mfa_at";
@@ -126,7 +127,8 @@ internal sealed class HostedCookieEvents(
             securityStamp,
             mfaAuthenticatedAt,
             absoluteExpiresAt,
-            context.HttpContext.RequestAborted);
+            context.HttpContext.RequestAborted,
+            AuthenticationPrincipalFactory.ReadSessionId(context.Principal));
         if (session is null)
         {
             await RejectAsync(context);
@@ -202,6 +204,7 @@ public static class AuthenticationPrincipalFactory
         {
             new Claim(ClaimTypes.NameIdentifier, session.UserId.ToString("D", CultureInfo.InvariantCulture)),
             new Claim(SgolClaimTypes.SecurityStamp, session.SecurityStamp),
+            new Claim(SgolClaimTypes.SessionId, session.SessionId.ToString("D")),
             new Claim(SgolClaimTypes.RoleCode, session.RoleCode),
             new Claim(SgolClaimTypes.AuthenticationMethod, session.AuthenticationMethod),
             new Claim(SgolClaimTypes.MfaAuthenticatedAt, session.MfaAuthenticatedAt.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
@@ -209,6 +212,9 @@ public static class AuthenticationPrincipalFactory
         };
         return new ClaimsPrincipal(new ClaimsIdentity(claims, HostedAuthenticationDefaults.Scheme));
     }
+
+    public static Guid? ReadSessionId(ClaimsPrincipal? principal) =>
+        Guid.TryParse(principal?.FindFirstValue(SgolClaimTypes.SessionId), out var id) && id != Guid.Empty ? id : null;
 
     public static bool TryReadSessionClaims(
         ClaimsPrincipal? principal,
@@ -222,6 +228,7 @@ public static class AuthenticationPrincipalFactory
         mfaAuthenticatedAt = default;
         absoluteExpiresAt = default;
         return principal?.Identity?.IsAuthenticated == true &&
+            ReadSessionId(principal) is not null &&
             Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out userId) &&
             !string.IsNullOrWhiteSpace(securityStamp) &&
             TryReadUnixTime(principal.FindFirstValue(SgolClaimTypes.MfaAuthenticatedAt), out mfaAuthenticatedAt) &&
@@ -284,12 +291,12 @@ public static class HostedAuthenticationServiceCollectionExtensions
         services.AddRateLimiter(options =>
         {
             options.AddPolicy(ScreenAuthentication.RateLimit, context => RateLimitPartition.GetFixedWindowLimiter(
-                $"{context.Connection.RemoteIpAddress}:{context.Request.Path}", _ => new FixedWindowRateLimiterOptions
+                $"screen:{(uint)(context.Connection.RemoteIpAddress?.GetHashCode() ?? 0) % 256}", _ => new FixedWindowRateLimiterOptions
                 { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.AddPolicy(HostedAuthenticationDefaults.LoginRateLimitPolicy, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
-                    InternalLoginOrigin.Resolve(context),
+                    (StringComparer.Ordinal.GetHashCode(InternalLoginOrigin.Resolve(context)) & 255).ToString(CultureInfo.InvariantCulture),
                     _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = 10,

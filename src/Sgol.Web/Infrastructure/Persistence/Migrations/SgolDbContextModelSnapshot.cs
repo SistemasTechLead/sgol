@@ -3442,6 +3442,51 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Bootstrap.PersonalSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AuthenticationMethod")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("authentication_method");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("revocation_reason");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("personal_session", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_personal_session_lifetime", "expires_at > issued_at AND expires_at <= issued_at + interval '24 hours'");
+                        });
+                });
+
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Bootstrap.RoleAssignmentVersion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6776,6 +6821,15 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Bootstrap.MfaTotpCredential", b =>
+                {
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Bootstrap.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Bootstrap.PersonalSession", b =>
                 {
                     b.HasOne("Sgol.Web.Infrastructure.Persistence.Bootstrap.AppUser", null)
                         .WithMany()

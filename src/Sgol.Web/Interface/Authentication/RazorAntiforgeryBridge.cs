@@ -28,17 +28,7 @@ public sealed class RazorAntiforgeryBridge(IAntiforgery antiforgery, ISgolApiCli
         var form = await context.Request.ReadFormAsync(cancellationToken);
         var tokens = form["__RequestVerificationToken"];
         if (tokens.Count != 1 || string.IsNullOrWhiteSpace(tokens[0])) return null;
-        ApiResponse<T> response;
-        try
-        {
-            response = await apiClient.SendAsync<T>(request with { CsrfToken = tokens[0] }, cancellationToken);
-        }
-        catch (Exception) when (request.Path == "/api/v1/auth/logout")
-        {
-            ApiCookieBridge.Clear(context);
-            sessionState?.Invalidate();
-            throw;
-        }
+        var response = await apiClient.SendAsync<T>(request with { CsrfToken = tokens[0] }, cancellationToken);
         if (response.Status == 401 || response.IsSuccess && request.Path is
             ("/api/v1/auth/login" or "/api/v1/auth/password/change" or "/api/v1/auth/mfa/confirm" or
              "/api/v1/auth/mfa/verify" or "/api/v1/auth/recovery-codes/regenerate" or "/api/v1/auth/logout"))
@@ -46,8 +36,7 @@ public sealed class RazorAntiforgeryBridge(IAntiforgery antiforgery, ISgolApiCli
         if (response.IsSuccess && request.Path.StartsWith("/api/v1/auth/", StringComparison.Ordinal) &&
             request.Path != "/api/v1/auth/mfa/enroll")
             ApiCookieBridge.ClearCsrf(context);
-        if (request.Path == "/api/v1/auth/logout" && !response.IsSuccess &&
-            response.ErrorCode is not ("CSRF_INVALID" or "CSRF_INVALIDO"))
+        if (request.Path == "/api/v1/auth/logout" && response.Status == 401)
         {
             ApiCookieBridge.Clear(context);
             sessionState?.Invalidate();

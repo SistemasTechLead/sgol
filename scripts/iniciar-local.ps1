@@ -4,6 +4,8 @@ $sgolRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $sgolRoot
 $sgolLocal = Join-Path $sgolRoot '.local'
 New-Item -ItemType Directory -Force -Path $sgolLocal | Out-Null
+. "$PSScriptRoot/secret-store.ps1"
+Set-SgolPrivateAcl $sgolLocal
 $existingRuntime = Join-Path $sgolLocal 'processes.json'
 if (Test-Path -LiteralPath $existingRuntime) {
     # Restart applies saved changes and switches between local and LAN settings.
@@ -18,30 +20,51 @@ if (!(Test-Path -LiteralPath "$sgolLocal/config.json")) {
     $config | ConvertTo-Json | Set-Content -LiteralPath "$sgolLocal/config.json" -Encoding utf8
     "URL: https://localhost:7240`nUsuario: direccion.local`nContraseña temporal: $($config.InitialPassword)`nEn el primer acceso cambia la contraseña y configura MFA con tu aplicación de autenticación." | Set-Content -LiteralPath "$sgolLocal/acceso.txt" -Encoding utf8
 }
-. "$PSScriptRoot/local-env.ps1"
+$sgolSecrets = Move-SgolLegacySecrets $sgolLocal
 $baseUrl = 'https://localhost:7240'
-if ($Red) {
-    . "$PSScriptRoot/red-env.ps1"
-    $baseUrl = $env:SgolApi__TrustedOrigin
+$env:SGOL_LOCAL_DB_PASSWORD = $sgolSecrets.DatabasePassword
+if (!$sgolSecrets.StorageRuntimePassword) {
+    $sgolSecrets.StorageRuntimePassword = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+    Write-SgolSecrets $sgolLocal $sgolSecrets
 }
-"SGOL_LOCAL_DB_PASSWORD=$($sgolConfig.DatabasePassword)`nSGOL_LOCAL_S3_PASSWORD=$($sgolConfig.StoragePassword)" | Set-Content -LiteralPath "$sgolLocal/compose.env" -Encoding utf8
+$null = Write-SgolStorageIdentities $sgolLocal $sgolSecrets -MaintenanceName admin-sgol-loc
 docker info --format '{{.ServerVersion}}' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Abre Docker Desktop y vuelve a ejecutar este comando.' }
 if (!$Red) {
     dotnet dev-certs https --trust
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar el certificado HTTPS local.' }
 }
-docker compose --env-file .local/compose.env -f compose.local.yaml up -d
+docker compose -f compose.local.yaml up -d
 if ($LASTEXITCODE -ne 0) { throw 'No se pudieron iniciar las dependencias.' }
 for ($attempt = 0; $attempt -lt 30; $attempt++) {
-    docker compose --env-file .local/compose.env -f compose.local.yaml exec -T postgres pg_isready -U sgol_local -d sgol_local | Out-Null
+    docker compose -f compose.local.yaml exec -T postgres pg_isready -U sgol_local -d sgol_local | Out-Null
     if ($LASTEXITCODE -eq 0) { break }
     Start-Sleep -Seconds 2
 }
 if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL no está disponible.' }
+& "$PSScriptRoot/preparar-seguridad-local.ps1" -ActivateLocal
+. "$PSScriptRoot/local-env.ps1"
+if ($Red) { . "$PSScriptRoot/red-env.ps1"; $baseUrl = $env:SgolApi__TrustedOrigin }
+try {
+    $provisionSecrets = Read-SgolSecrets $sgolLocal -Names @('StoragePassword','InitialPassword')
+    $env:SGOL_STORAGE_ENDPOINT = 'http://127.0.0.1:8333'
+    $env:SGOL_STORAGE_ACCESS_KEY = 'sgol-maintenance'
+    $env:SGOL_STORAGE_SECRET_KEY = $provisionSecrets.StoragePassword
+    $env:SGOL_STORAGE_ORIGIN = $baseUrl
+    dotnet run --project tools/Sgol.StorageSetup -- --activate-local
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudo aprovisionar storage con su cuenta separada.' }
+} finally {
+    $env:SGOL_STORAGE_SECRET_KEY = $null
+    $env:SGOL_STORAGE_ACCESS_KEY = $null
+    $env:SGOL_STORAGE_ENDPOINT = $null
+    $env:SGOL_STORAGE_ORIGIN = $null
+}
+$env:SGOL_BOOTSTRAP_INITIAL_PASSWORD = $provisionSecrets.InitialPassword
 dotnet run --project tools/Sgol.LocalSetup/Sgol.LocalSetup.csproj
 if ($LASTEXITCODE -ne 0) { throw 'Falló la preparación de datos locales; revisa la salida anterior.' }
 $env:SGOL_BOOTSTRAP_INITIAL_PASSWORD = $null
+$env:SGOL_LOCAL_DB_PASSWORD = $null
+$env:SGOL_LOCAL_S3_PASSWORD = $null
 $runtimePath = Join-Path $sgolLocal 'processes.json'
 $runtime = if (Test-Path -LiteralPath $runtimePath) { Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json } else { $null }
 $processes = [ordered]@{}

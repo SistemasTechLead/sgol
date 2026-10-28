@@ -250,7 +250,7 @@ public static class AuthenticationApiEndpoints
                 securityStamp,
                 mfaAuthenticatedAt,
                 absoluteExpiresAt,
-                cancellationToken);
+                cancellationToken, AuthenticationPrincipalFactory.ReadSessionId(context.User));
             var authentication = await context.AuthenticateAsync(HostedAuthenticationDefaults.Scheme);
             if (authentication.Properties?.ExpiresUtc is DateTimeOffset ticketExpiresAt)
             {
@@ -281,7 +281,7 @@ public static class AuthenticationApiEndpoints
             out _)
             ? authenticatedUserId
             : (Guid?)null;
-        await service.RecordLogoutAsync(userId, GetCorrelationId(context), cancellationToken);
+        await service.RecordLogoutAsync(userId, AuthenticationPrincipalFactory.ReadSessionId(context.User), GetCorrelationId(context), cancellationToken);
         await context.SignOutAsync(HostedAuthenticationDefaults.Scheme);
         PreAuthenticationCookieService.Delete(context);
         return Results.NoContent();

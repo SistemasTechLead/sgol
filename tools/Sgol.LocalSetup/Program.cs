@@ -20,14 +20,13 @@ builder.Logging.SetMinimumLevel(LogLevel.Warning);
 var connection = Environment.GetEnvironmentVariable("ConnectionStrings__Sgol")
     ?? throw new InvalidOperationException("Falta la conexión local.");
 var settings = new NpgsqlConnectionStringBuilder(connection);
-if (!builder.Environment.IsDevelopment() || settings.Host != "localhost" || settings.Database != "sgol_local")
+if (!builder.Environment.IsDevelopment() || settings.Host is not ("localhost" or "127.0.0.1") || settings.Database != "sgol_local")
     throw new InvalidOperationException("Esta herramienta solo prepara sgol_local en localhost y Development.");
 builder.Services.AddSgolPersistence(builder.Configuration);
 using var host = builder.Build();
 await using var scope = host.Services.CreateAsyncScope();
 var db = scope.ServiceProvider.GetRequiredService<SgolDbContext>();
-await db.Database.MigrateAsync();
-if (args.Contains("--migrate-only")) { Console.WriteLine("Migraciones locales aplicadas; datos operativos conservados."); return; }
+if (args.Contains("--migrate-only")) throw new InvalidOperationException("Usa Sgol.DatabaseSecurity con la cuenta migradora; LocalSetup solo recibe runtime.");
 if (!await db.DirectionBootstrapMarkers.AnyAsync())
 {
     await scope.ServiceProvider.GetRequiredService<DirectionBootstrapService>().ExecuteAsync(new()
@@ -163,34 +162,4 @@ if (args.Contains("--seed-board-all-plans"))
     await BoardAllPlansSeeder.SeedAsync(db, scope.ServiceProvider);
     return;
 }
-using var s3 = new AmazonS3Client(new BasicAWSCredentials("sgol-local",
-    Environment.GetEnvironmentVariable("Evidence__Storage__SecretKey")), new AmazonS3Config
-{
-    ServiceURL = "http://localhost:8333", AuthenticationRegion = "us-east-1", ForcePathStyle = true,
-    UseHttp = true, MaxErrorRetry = 0, Timeout = TimeSpan.FromSeconds(10)
-});
-for (var attempt = 0; ; attempt++)
-{
-    try { await s3.ListBucketsAsync(); break; }
-    catch (Exception) when (attempt < 30) { await Task.Delay(2000); }
-}
-var buckets = ((await s3.ListBucketsAsync()).Buckets ?? []).Select(b => b.BucketName).ToHashSet();
-foreach (var bucket in new[] { "sgol-quarantine", "sgol-clean" })
-    if (!buckets.Contains(bucket)) await s3.PutBucketAsync(new PutBucketRequest { BucketName = bucket });
-await s3.PutCORSConfigurationAsync(new PutCORSConfigurationRequest
-{
-    BucketName = "sgol-quarantine",
-    Configuration = new CORSConfiguration
-    {
-        Rules = [new CORSRule
-        {
-            Id = "sgol-evidence-upload",
-            AllowedOrigins = [Environment.GetEnvironmentVariable("Evidence__Storage__AllowedUploadOrigins__0")
-                ?? "https://localhost:7240"], AllowedMethods = ["PUT"],
-            AllowedHeaders = ["Content-Type", "Content-Length", "If-None-Match", "x-amz-meta-sgol-sha256",
-                "x-amz-meta-sgol-media-type", "x-amz-meta-sgol-size-bytes"],
-            MaxAgeSeconds = 600
-        }]
-    }
-});
-Console.WriteLine("Base local migrada y almacenamiento de evidencias listo.");
+Console.WriteLine("Datos locales preparados con runtime; el almacenamiento se aprovisiona por separado.");

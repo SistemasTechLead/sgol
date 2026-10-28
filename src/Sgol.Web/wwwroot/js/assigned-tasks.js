@@ -1,3 +1,4 @@
+document.getElementById("session-error")?.focus();
 (() => {
     "use strict";
     const dialog = document.querySelector('[data-assigned-task-detail]');

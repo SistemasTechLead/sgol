@@ -5,7 +5,10 @@ using Yarp.ReverseProxy.Configuration;
 var builder = WebApplication.CreateBuilder(args);
 var lan = builder.Configuration.GetRequiredSection("Lan");
 var address = IPAddress.Parse(lan["Address"]!);
-var certificate = X509CertificateLoader.LoadPkcs12FromFile(lan["CertificatePath"]!, lan["CertificatePassword"]);
+using var store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+store.Open(OpenFlags.ReadOnly);
+var certificate = store.Certificates.Find(X509FindType.FindByThumbprint, lan["CertificateThumbprint"]!, validOnly: false)
+    .OfType<X509Certificate2>().Single(c => c.HasPrivateKey);
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenLocalhost(7240, endpoint => endpoint.UseHttps());
@@ -32,6 +35,10 @@ builder.Services.AddReverseProxy().LoadFromMemory(
 var app = builder.Build();
 app.Use(async (context, next) =>
 {
+    if (context.Request.Path.StartsWithSegments("/health/ready", StringComparison.OrdinalIgnoreCase))
+    { context.Response.StatusCode = 403; return; }
+    if (context.Connection.LocalPort == 7443 && HttpMethods.IsPost(context.Request.Method))
+    { context.Response.StatusCode = 405; return; }
     if (context.Connection.LocalPort == 7240)
     {
         if (!string.Equals(context.Request.Host.Host, "localhost", StringComparison.OrdinalIgnoreCase))

@@ -1,6 +1,7 @@
 using Sgol.JobInfrastructure;
 using Sgol.Operations;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Sgol.Worker;
 
@@ -14,6 +15,7 @@ public static class WorkerProgram
         },
         configureHostServices: (services, configuration, environment) =>
         {
+            services.AddHostedService<Sgol.Web.Infrastructure.Persistence.RuntimeDatabaseGuard>();
             if (configuration.GetValue<bool>("LegacyWorkflow:Enabled"))
             {
                 services.AddSgolRecurringGeneration();
