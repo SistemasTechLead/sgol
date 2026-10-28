@@ -45,6 +45,7 @@ await using var db = new SgolDbContext(options);
 var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Contains("--process-schema-only") ? await SequenceSchemaChecks.Snapshot(db) : null;
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--expired-refresh-current-preview")) { await ExpiredAssignmentRefreshChecks.PreviewCurrentAsync(db); return; }
 if (args.Contains("--postponement-current")) { await PostponementChecks.Run(db); return; }
 if (args.Contains("--postponement-inbox-current")) { await PostponementChecks.InboxCurrent(db); return; }
 if (args.Contains("--postponement-ui")) { await PostponementChecks.Ui(db); return; }
@@ -101,6 +102,7 @@ var a = AddPerson("A", CanonicalRole.SalesFloor);
 var b = AddPerson("B", CanonicalRole.SalesFloor);
 await db.SaveChangesAsync(); db.ChangeTracker.Clear();
 if (args.Contains("--checklist-only")) { await ChecklistChecks.RunAsync(db,tasks,supervision,direction,clock,director.User,a.User,a.Person,b.User,b.Person); return; }
+if (args.Contains("--expired-refresh-only")) { await ExpiredAssignmentRefreshChecks.RunAsync(db,tasks,direction,clock,director.User,a.Person); return; }
 if (args.Contains("--assignment-retirement-only")) { await AssignmentRetirementChecks.RunAsync(db,tasks,direction,clock,director.User,a.User,a.Person,b.Person); return; }
 if (args.Contains("--assignment-refresh-global-only")) { await GlobalAssignmentRefreshChecks.RunAsync(db,tasks,direction,clock,director.User,a.Person); return; }
 if (args.Contains("--assignment-refresh-only")) { await AssignmentRefreshChecks.RunAsync(db, tasks, direction, clock, director.User, a.User, a.Person, b.Person); return; }

@@ -147,7 +147,7 @@ public sealed partial class OperationalSupervisionService(SgolDbContext db, IClo
             var ledger = new CapacityLedger(loaded.Workers, loaded.Tasks.Where(t => t.Id != id).ToArray(), loaded.Capacities, loaded.Unavailable, loaded.Legacy, loaded.Today) { Temporal = loaded.Temporal };
             var replacement = new OperationalAssignment {
                 Id = Guid.CreateVersion7(), PlanId = task.PlanId, OccasionId = task.OccasionId, TaskId = task.TaskId, TaskRevision = task.TaskRevision, TaskCode = task.TaskCode,
-                Name = task.Name, Description = task.Description, Requirement = task.Requirement, ChecklistJson = task.ChecklistJson, AssignedRole = role, LoadMinutes = task.LoadMinutes,
+                Name = task.Name, Description = task.Description, Requirement = task.Requirement, ChecklistJson = task.ChecklistJson, AssignedRole = role, LoadMinutes = AssignmentDefinition.ConfiguredLoad(task),
                 MinimumPhotos = task.MinimumPhotos, MaximumPhotos = task.MaximumPhotos, MaximumPhotoBytes = task.MaximumPhotoBytes,
                 SpecializationId = task.SpecializationId, SpecializationName = task.SpecializationName,
                 PeriodType = task.PeriodType, Repetitions = task.Repetitions,

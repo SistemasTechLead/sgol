@@ -65,7 +65,7 @@
                         {
                             var row = (diff.After ?? diff.Before)!;
                             <tr class="tabla__fila"><td>@row.PersonName<br /><small>@Model.Plans.GetValueOrDefault(row.PlanId, "Plan")</small></td>
-                                <td>@(diff.Retire || diff.After == null ? "Retirar del trabajo activo" : diff.Before == null ? "Agregar" : "Actualizar")</td>
+                                <td>@(diff.Retire || diff.After == null ? "Retirar del trabajo activo" : diff.Before == null ? "Agregar" : diff.PreservesExpiredAgenda ? "Actualizar sin reacomodar el día pasado" : "Actualizar")</td>
                                 <td>@if (diff.Retire || diff.After == null) { <span>Dejará de aparecer como pendiente.</span> } else if (diff.Before is {} before && (before.StartsAt != row.StartsAt || before.DueAt != row.DueAt)) { <span>Antes: @RefreshModel.Date(before.StartsAt) → @RefreshModel.Date(before.DueAt)</span><br /><strong>Nuevo: @RefreshModel.Date(row.StartsAt) → @RefreshModel.Date(row.DueAt)</strong> } else { <span>Se conserva el horario.</span><br /><small>Vence: @RefreshModel.Date(row.DueAt)</small> }</td>
                                 <td>@if (row.ProgressUnits > 0 || row.ScheduleMode == "PROGRESO") { <span>@row.ProgressUnits @row.ProgressUnit</span> } else { <span>Sin avance registrado</span> }</td>
                             </tr>

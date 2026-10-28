@@ -5,6 +5,25 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 // The required role belongs to the definition; Assignment.AssignedRole describes its worker.
 public static class AssignmentDefinition
 {
+    // A past, untouched obligation can adopt a new definition without rewriting its historical workload.
+    public static int ConfiguredLoad(OperationalAssignment a)
+    {
+        if (a.DefinitionSnapshotJson != null)
+        {
+            var snapshot = JsonSerializer.Deserialize<JsonElement>(a.DefinitionSnapshotJson);
+            if (snapshot.TryGetProperty("_HistoricalAgendaLoadMinutes", out var historical) && historical.GetInt32() == a.LoadMinutes &&
+                snapshot.TryGetProperty("LoadMinutes", out var configured)) return configured.GetInt32();
+        }
+        return a.LoadMinutes;
+    }
+    public static void AdoptExpiredDefinition(OperationalAssignment a, OperationalTask t)
+    {
+        AdoptMetadata(a, t);
+        var snapshot = System.Text.Json.Nodes.JsonNode.Parse(a.DefinitionSnapshotJson!)!;
+        snapshot["_HistoricalAgendaLoadMinutes"] = a.LoadMinutes;
+        snapshot["LoadMinutes"] = t.LoadMinutes;
+        a.DefinitionSnapshotJson = snapshot.ToJsonString();
+    }
     public static T Copy<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
     public static string Capture(OperationalTask task) => JsonSerializer.Serialize(task);
     public static bool IsMetadataField(string field) => field is "Nombre" or "Descripción" or "Requisito" or "Límites de imágenes" or "Checklist";
@@ -37,7 +56,7 @@ public static class AssignmentDefinition
         Change(a.ChecklistJson != t.ChecklistJson, "Checklist");
         Change(a.MinimumPhotos != t.MinimumPhotos || a.MaximumPhotos != t.MaximumPhotos || a.MaximumPhotoBytes != t.MaximumPhotoBytes, "Límites de imágenes");
         Change(old.AssignedRole != t.AssignedRole || a.SpecializationId != t.SpecializationId || t.SpecializationId == null && a.AssignedRole != null && a.AssignedRole != t.AssignedRole, "Elegibilidad");
-        Change(a.LoadMinutes != t.LoadMinutes, "Carga");
+        Change(ConfiguredLoad(a) != t.LoadMinutes, "Carga");
         Change(a.OperationalCriticality != t.OperationalCriticality, "Criticidad");
         Change(!process && old.ProcessId != t.ProcessId, "Pertenencia al proceso");
         if (!process && a.OccasionId == null)

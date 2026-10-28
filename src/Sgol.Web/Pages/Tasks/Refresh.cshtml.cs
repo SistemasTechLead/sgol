@@ -90,6 +90,8 @@ public sealed class RefreshModel(IRazorSessionState sessions, AssignmentRefreshS
         if (diff.Retire || diff.After == null) return ["Se quitará del trabajo activo. Sus avances y archivos se conservarán como historial."];
         if (diff.Before == null) return ["Se agregará una asignación según el calendario actual."];
         var a = diff.Before; var b = diff.After; var changes = new List<string>();
+        if (diff.PreservesExpiredAgenda)
+            changes.Add($"Pendiente vencido sin avance: carga configurada {AssignmentDefinition.ConfiguredLoad(a)} → {AssignmentDefinition.ConfiguredLoad(b)} minutos. Se conservan los {a.LoadMinutes} minutos de carga histórica, responsable y fechas; continúa vencida. No se recalcula ese día ni se mueven sus otras tareas.");
         changes.AddRange(OperationalChecklist.Changes(a.ChecklistJson, b.ChecklistJson));
         if (a.Name != b.Name) changes.Add($"Nombre: {a.Name} → {b.Name}");
         if (a.Description != b.Description) changes.Add("Se actualizarán las instrucciones.");
