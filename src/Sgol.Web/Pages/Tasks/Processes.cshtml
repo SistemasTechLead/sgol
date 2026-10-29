@@ -108,14 +108,18 @@
                 <dialog class="process-task-picker" data-process-add-dialog aria-labelledby="process-add-title"><div class="process-section-heading"><h3 id="process-add-title">Añadir tarea al proceso</h3><button type="button" class="boton boton--secundario" data-process-add-close>Cerrar</button></div>
                     <a class="boton boton--secundario" href="/tareas?create=true&amp;ReturnProcess=@editor.Process.Id">Crear tarea dentro del proceso</a>
                     <form method="get" class="tasks-search" data-process-search><input type="hidden" name="id" value="@editor.Process.Id" /><label class="campo"><span class="campo__etiqueta">Buscar por nombre o código</span><input class="campo__control" name="Search" type="search" value="@Model.Search" /></label><button class="boton boton--secundario" type="submit">Buscar</button></form>
-                    <p>Añadir desde General suspende la generación independiente futura. Las asignaciones anteriores conservan su historia. Guarda tus cambios antes de buscar o añadir.</p>
+                    <p role="status" aria-live="polite" data-process-search-status></p>
+                    <div data-process-search-results>
+                    <p>Añadir desde General suspende la generación independiente futura. Las asignaciones anteriores conservan su historia. Guarda tus cambios antes de añadir una etapa. Buscar conserva los cambios del editor.</p>
                     @foreach (var task in Model.Candidates.Take(30))
                     {
                         <form method="post" asp-page-handler="Add" class="process-candidate"><input type="hidden" name="Input.Id" value="@editor.Process.Id" /><input type="hidden" name="Input.Revision" value="@editor.Process.Revision" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="taskRevision" value="@task.Revision" />
                             <span><strong>@task.Name</strong> · @task.TaskCode · @IndexModel.RoleLabel(task.AssignedRole) · @task.LoadMinutes min</span><button class="boton boton--secundario" type="submit">Añadir etapa</button>
                         </form>
                     }
+                    @if (Model.Candidates.Length==0) { <p>No se encontraron tareas con esa búsqueda.</p> }
                     @if (Model.Candidates.Length>30) { <p>Se muestran 30 resultados. Afina la búsqueda para encontrar otra tarea.</p> }
+                    </div>
                 </dialog>
                 @if(editor.Draft != null)
                 {

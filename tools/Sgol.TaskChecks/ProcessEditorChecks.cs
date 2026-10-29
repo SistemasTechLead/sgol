@@ -38,7 +38,7 @@ public static class ProcessEditorChecks
         Check(System.Text.Json.JsonSerializer.Serialize(requirements)==System.Text.Json.JsonSerializer.Serialize(await db.OperationalTasks.AsNoTracking().Where(t=>t.ProcessId==root.Id).OrderBy(t=>t.Id).Select(t=>new{t.Id,t.Requirement}).ToArrayAsync()),"All original evidence requirements remain identical");
         Check(before==System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a=>a.Id).ToArrayAsync()),"Every original assignment remains identical after saving and publishing the restored copy");
     }
-    public static async Task RunAsync(SgolDbContext db, bool checklistOnly = false, bool itemsOnly = false, bool itemsMore = false, bool itemsIntegrity = false, bool itemsUiCurrent = false)
+    public static async Task RunAsync(SgolDbContext db, bool checklistOnly = false, bool itemsOnly = false, bool itemsMore = false, bool itemsIntegrity = false, bool itemsUiCurrent = false, bool processSearchOnly = false)
     {
         if (!itemsMore && await db.People.AnyAsync()) throw new Exception("Requires an empty dedicated database");
         var actor = Guid.CreateVersion7(); var person = Guid.CreateVersion7(); var now = new Clock().UtcNow;
@@ -92,7 +92,8 @@ public static class ProcessEditorChecks
         if (itemsOnly || itemsMore)
         {
             if(itemsUiCurrent) { Console.WriteLine("ITEMS_EXISTING_UI_READY https://localhost:7259/mi-trabajo/procesos");await app.WaitForShutdownAsync();return; }
-            if (itemsIntegrity) await ProcessItemIntegrityChecks.RunAsync(db, actor, person, clock, client, value=>clock.UtcNow=value);
+            if (processSearchOnly) await ProcessSearchChecks.RunAsync(db,client);
+            else if (itemsIntegrity) await ProcessItemIntegrityChecks.RunAsync(db, actor, person, clock, client, value=>clock.UtcNow=value);
             else if (itemsMore) await ProcessItemChecks.CapacityAsync(db, actor, person, clock, client, value=>clock.UtcNow=value);
             else await ProcessItemChecks.RunAsync(db, actor, person, clock, client);
             if (Environment.GetEnvironmentVariable("SGOL_ITEMS_UI_PREVIEW") == "1") {

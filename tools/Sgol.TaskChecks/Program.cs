@@ -80,6 +80,7 @@ if (args.Contains("--weekly-plan-http")) { await WeeklyPlanHttpChecks.RunAsync(d
 if(args.Contains("--balance-snapshot-only")) { await DailyBalanceChecks.SnapshotAsync(db); return; }
 if(args.Contains("--process-items-legacy-replay")) { await ProcessItemLegacyReplayChecks.RunAsync(db); return; }
 if(args.Contains("--process-migrate-only")) { Console.WriteLine("Dedicated database migrated; no fixtures or catalogue changes added."); return; }
+if(args.Contains("--process-search-only")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true, processSearchOnly:true); return; }
 if(args.Contains("--process-items-ui-current")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true, itemsUiCurrent:true); return; }
 if(args.Contains("--process-items-integrity")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true, itemsIntegrity:true); return; }
 if(args.Contains("--process-items-more")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true); return; }

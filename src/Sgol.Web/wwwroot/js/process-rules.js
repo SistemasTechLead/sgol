@@ -203,14 +203,13 @@
             leaving = true;
         });
         // External submissions reload the editor; never silently discard its local edits.
-        page.querySelectorAll('form').forEach(other => {
-            if (other === form) return;
-            other.addEventListener('submit', event => {
-                if (dirty && (other.matches('[data-process-publish]') || !window.confirm('Hay cambios sin guardar. ¿Quieres descartarlos y continuar?'))) {
-                    event.preventDefault(); return;
-                }
-                leaving = true;
-            });
+        page.addEventListener('submit', event => {
+            const other = event.target;
+            if (other === form || event.defaultPrevented) return;
+            if (dirty && (other.matches('[data-process-publish]') || !window.confirm('Hay cambios sin guardar. ¿Quieres descartarlos y continuar?'))) {
+                event.preventDefault(); return;
+            }
+            leaving = true;
         });
         window.addEventListener('pageshow', () => { leaving = false; });
         window.addEventListener('beforeunload', event => {
