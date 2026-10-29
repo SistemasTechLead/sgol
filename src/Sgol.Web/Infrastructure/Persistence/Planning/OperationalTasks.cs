@@ -93,6 +93,9 @@ public sealed class OperationalTask
 
 public sealed class OperationalAssignment
 {
+    public Guid? ItemLoadSourceAttemptId { get; set; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public long? PendingItemDemand { get; set; }
     public string? OperationalCriticality { get; set; }
     public Guid? SchedulingPolicyId { get; set; }
     public int? ClosureMarginPercent { get; set; }

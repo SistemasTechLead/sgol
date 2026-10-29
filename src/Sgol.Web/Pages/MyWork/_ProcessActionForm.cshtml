@@ -1,4 +1,5 @@
 @model Sgol.Web.Presentation.MyWork.ProcessActionForm
+<script src="~/js/process-items.js" asp-append-version="true" defer></script>
 @using Sgol.Web.Pages.Tasks
 @using Sgol.Web.Presentation.MyWork
 @inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
@@ -9,6 +10,20 @@
     var attempt = view.Attempts.SingleOrDefault(a => a.Id == active.CurrentAttemptId);
 }
         <p>@rule.Instructions</p>
+        @if (active.LoadSourceAttemptId is {} loadSource) {
+            var producer = view.Attempts.Single(a => a.Id == loadSource);
+            var sourceStage = view.Stages.Single(s => s.Id == producer.StageId);
+            <p><strong>Carga recibida:</strong> @producer.ItemQuantity × @sourceStage.OutputItemMinutes min de @sourceStage.OutputItemName = @active.CalculatedLoadMinutes min.</p>
+        }
+        @if (attempt?.ContinuationAttemptId != null && view.Attempts.Any(a=>a.StageId==active.Id && a.Id!=attempt.Id && a.AssignmentId!=null)) {
+            <details open><summary>Trabajo conservado para continuar</summary>
+            @foreach (var prior in view.Attempts.Where(a => a.StageId == active.Id && a.Id != attempt.Id && a.AssignmentId != null)) {
+                @foreach(var photo in view.PreservedPhotos.Where(p=>p.AttemptId==prior.Id)) { <p><a href="/mi-trabajo/procesos?handler=PreservedPhoto&amp;currentAttemptId=@attempt.Id&amp;photoId=@photo.PhotoId">Material conservado: @photo.Name · intento @prior.Number</a></p> }
+                <p>Intento @prior.Number · @prior.Comment <a href="/mi-trabajo?assignedTask=@prior.AssignmentId">Consultar trabajo y evidencia anteriores</a></p>
+            }
+            <p>La carga corregida es el total completo; no descuenta trabajo anterior.</p></details>
+        }
+        @if (view.Stages.Any(s => s.Status == "OMITIDA")) { <p>Se omitieron tareas por conteo cero. Consulta el historial; la auditoría conserva su carga y entregable.</p> }
         @if(!string.IsNullOrWhiteSpace(attempt?.UnresolvedDifferences)) { <p><strong>Diferencias pendientes recibidas:</strong> @attempt.UnresolvedDifferences</p> }
         @if(active.EnabledAt!=null) { <p>Disponible desde @active.EnabledAt.Value.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM/yyyy HH:mm") · Vence @active.EffectiveDueAt?.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM/yyyy HH:mm") · Ciudad de México</p> }
         else { <p>@(active.BlockReason ?? "Espera su habilitación; todavía no hay un vencimiento efectivo.")</p> }
@@ -19,7 +34,7 @@
                 @foreach (var delivery in view.Attempts.Where(a => a.FinishedAt != null).OrderBy(a => a.CreatedAt))
                 {
                     var deliveredStage = view.Stages.Single(s => s.Id == delivery.StageId);
-                    <p><strong>@deliveredStage.Name · Intento @delivery.Number</strong> · @delivery.Status<br />@delivery.Comment</p>
+                    <p><strong>@deliveredStage.Name · Intento @delivery.Number</strong> · @delivery.Status<br />@delivery.Comment @if(delivery.OmittedStagesJson != null) { <span>Omisiones por cero: @string.Join(", ", System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(delivery.OmittedStagesJson).EnumerateArray().Select(e=>e.GetProperty("Name").GetString()))</span> } @if(delivery.ItemQuantity != null) { <span>Conteo: @delivery.ItemQuantity @deliveredStage.OutputItemName · tarifa @deliveredStage.OutputItemMinutes min/unidad</span> }</p>
                     @if (delivery.AssignmentId is { } checklistId && view.ChecklistEvidence.TryGetValue(checklistId, out var checklist)) { <partial name="_ChecklistEvidence" model="@(new Sgol.Web.Presentation.Components.ChecklistEvidenceModel(checklist.Definition, checklist.Draft, checklistId, true))" /> }
                     @if (delivery.AssignmentId is { } evidenceId && deliveredStage.Requirement is "EXCEL" or "DOCUMENTO" or "FOTOGRAFIA" or "CAPTURA_PANTALLA" && view.Events.Any(e => e.AttemptId == delivery.Id && e.Kind is "ENTREGA" or "APROBACION" or "CIERRE"))
                     {
@@ -27,6 +42,15 @@
                     }
                 }
             </details>
+        }
+        @if(view.CanReturnPendingCount && view.PendingCountProducerId is {} pendingProducerId) {
+            var producer=view.Attempts.Single(a=>a.Id==pendingProducerId);var source=view.Stages.Single(s=>s.Id==producer.StageId);
+            <section class="panel-seccion"><h3>Corregir conteo antes de asignar</h3><p>La etapa todavía no tiene asignación. Puedes devolver el conteo @producer.ItemQuantity de @source.OutputItemName a @source.Name. No se registrará una ejecución de la etapa pendiente.</p>
+            <form method="post" asp-page="/MyWork/Processes" asp-page-handler="ReturnPendingCount" asp-antiforgery="false" class="process-item-form">
+                <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="RunId" value="@view.Run.Id" /><input type="hidden" name="stageId" value="@active.Id" /><input type="hidden" name="stageRevision" value="@active.Revision" /><input type="hidden" name="Key" value="@Guid.CreateVersion7()" />
+                <label class="campo"><span class="campo__etiqueta">Motivo para devolver el conteo</span><textarea class="campo__control" name="reason" maxlength="4000" required></textarea></label>
+                <button class="boton boton--secundario" type="submit">Devolver conteo para corregir</button>
+            </form></section>
         }
         @if(view.Run.Status=="EN_CURSO" && active.Status=="DISPONIBLE" && active.ReservedPersonId==Model.PersonId && attempt!=null && (Model.AssignmentId == null || attempt.AssignmentId == Model.AssignmentId))
         {
@@ -51,10 +75,21 @@
                 }
                 else if (active.Requirement == "FOTOGRAFIA")
                 {
-                    <input type="hidden" name="captureSessionId" /><input type="hidden" name="photographIds" />
+                    <input type="hidden" name="captureSessionId" value="@Model.RetainedCaptureSessionId" /><input type="hidden" name="photographIds" value="@Model.RetainedPhotographIds" />
+                    @if(Model.RetainedCaptureSessionId!=null && Model.RetainedPhotographIds!=null) { <p role="status">Se conservan las fotografías verificadas de esta sesión para confirmar la entrega. Si tomas otras, sustituirán esta selección; una sesión vencida requiere capturar de nuevo.</p> }
                     <partial name="_CameraCapture" model='@(new CameraPresentation("process-camera", active.MinimumPhotos, active.MaximumPhotos, active.MaximumPhotoBytes))' />
                     <button class="boton boton--secundario" type="button" data-camera-upload disabled>Subir fotografías</button>
                     <button class="boton boton--secundario" type="button" data-camera-cancel-upload hidden>Detener carga</button>
+                }
+                @if(attempt.ContinuationAttemptId != null) { <label><input type="checkbox" name="UsePreservedWork" value="true" checked="@Model.UsePreservedWork" /> Reutilizar material conservado de esta tarea si no adjunto material nuevo. Se valida y registra una nueva copia con su origen; no se reabren sesiones anteriores.</label> }
+                @if (active.OutputItemRateId != null) {
+                    <label class="campo"><span class="campo__etiqueta">Cantidad de @active.OutputItemName</span><input class="campo__control" name="ItemQuantity" type="number" min="0" max="2147483647" step="1" value="@Model.ItemQuantity" required data-item-quantity data-item-minutes="@active.OutputItemMinutes" /></label>
+                    <p data-item-formula aria-live="polite">La cantidad × @active.OutputItemMinutes min sustituye la estimación siguiente. Cero salta a auditoría final.</p>
+                    @if (Model.ItemConflict != null) {
+                        <input type="hidden" name="CapacityFingerprint" value="@Model.CapacityFingerprint" /><div class="alerta alerta--peligro" role="alert" tabindex="-1" data-item-conflict><div class="alerta__contenido"><p>@Model.ItemConflict</p><p>La entrega aún no se guardó. Selecciona una opción y confirma de nuevo.</p>
+                        <label class="campo"><span class="campo__etiqueta">Resolver la siguiente tarea</span><select class="campo__control" name="CapacityResolution" required><option value="">Selecciona una opción</option><option value="PENDING">Guardar entrega y dejar siguiente etapa pendiente</option>@if(Sgol.Web.Infrastructure.Persistence.Planning.ProcessItemRules.CanResolve(active.Role)) { @if(Model.CanSearch) { <option value="LOWEST">Buscar persona compatible de menor carga</option> } @if(Model.CanForce) { <option value="FORCE">Asignar de todos modos: sobrecarga, solapamiento y descanso dentro del turno</option> } }</select></label>
+                        <p>Forzar registra el intervalo y descanso utilizado como excepción de esta asignación. No amplía el turno ni permite ausencias.</p></div></div>
+                    }
                 }
                 <label><input type="checkbox" name="Declared" value="true" checked="@Model.Declared" required /> @(view.Run.UsesTaskEvidence ? "Confirmo la entrega, revisión o devolución de esta tarea." : active.Position==1 ? "Declaro que registré todo el inventario o completé la búsqueda solicitada." : "Revisé el documento recibido y sus diferencias.")</label>
                 <label class="campo"><span class="campo__etiqueta">Conclusión o motivo de devolución</span><textarea class="campo__control" name="conclusion" maxlength="4000" required>@Model.Conclusion</textarea></label>
@@ -65,7 +100,7 @@
                     else { <button class="boton boton--primario" type="submit" name="Decision" value="APROBACION">Revisar y pasar a @IndexModel.RoleLabel(view.Stages.Single(s=>s.Position==active.Position+1).Role)</button> }
                     @if(rule.ReturnToPosition is { } target) { <button class="boton boton--secundario" type="submit" name="Decision" value="DEVOLUCION" formnovalidate>Devolver a @IndexModel.RoleLabel(view.Stages.Single(s=>s.Position==target).Role)</button> }
                 </div>
-                @if (Model.AssignmentId != null && Model.Conclusion != null) { <p>Selecciona nuevamente el archivo antes de enviar.</p> }
+                @if (Model.AssignmentId != null && Model.Conclusion != null && !Model.UsePreservedWork && active.Requirement is "DOCUMENTO" or "EXCEL" or "CAPTURA_PANTALLA") { <p>Selecciona nuevamente el archivo antes de enviar.</p> }
                 <p role="status" data-assigned-task-busy hidden>Guardando entrega…</p>
             </form>
             }

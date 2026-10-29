@@ -15,6 +15,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     public OperationalSequence[] Processes { get; private set; } = [];
     public ProcessEditor? Editor { get; private set; }
+    public ProcessItemEntry[] Items { get; private set; } = [];
     public OperationalTask[] Candidates { get; private set; } = [];
     public bool CanManage { get; private set; }
     public bool Creating { get; private set; }
@@ -30,6 +31,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     private async Task Load(Guid actor, Guid? id, CancellationToken token, bool preserveInput = false)
     {
         Processes = await processes.ListAsync(actor, token);
+        Items = await processes.ItemsAsync(actor, token);
         if (id == null) return;
         Editor = await processes.ReadAsync(actor, id.Value, token);
         if (Editor.Process.IsGeneral) return;
@@ -45,7 +47,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
             Input.Name, Input.Description, Input.StartKind, Input.FirstMonth, Input.WindowFromDay,
             Input.WindowThroughDay, Input.PreferredWeekDay, Input.StartHour,
             Steps = Input.Steps.Select(s => new { s.TaskId, s.Position, s.Action, s.ReleaseCondition,
-                s.MinimumStartOffsetHours, s.ReturnToPosition, s.Instructions })
+                s.MinimumStartOffsetHours, s.ReturnToPosition, s.Instructions, s.OutputItemId, s.OutputTargetTaskId, s.IsFinalAudit })
         });
         if (preserveInput) Input = submitted;
         Candidates = (await tasks.ListAsync(actor, token)).Where(t =>

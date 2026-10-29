@@ -2,23 +2,29 @@ document.getElementById("session-error")?.focus();
 (() => {
     "use strict";
     const dialog = document.querySelector('[data-assigned-task-detail]');
-    if (!dialog) return;
-    dialog.showModal();
-    const form = dialog.querySelector('[data-assigned-task-submit]');
-    const close = dialog.querySelector('[data-dialog-close]');
+    const container = dialog || document.querySelector('[data-process-standalone]');
+    if (!container) return;
+    if (dialog && !dialog.open) dialog.showModal();
+    const form = container.querySelector('[data-assigned-task-submit]');
+    const close = container.querySelector('[data-dialog-close]');
     const cameraRoot = form?.querySelector('[data-camera-capture]');
     let camera = null, capture = null, uploading = false, request = null, submitting = false, preparedSubmission = false;
     const upload = form?.querySelector('[data-camera-upload]');
     const submit = form?.querySelector('button[type=submit]');
     const conclusion = form?.querySelector('[name=conclusion]');
     let selectedPhotos = [];
+    const retainedSession = form?.querySelector('[name=captureSessionId]')?.value;
+    let retainedIds = [];
+    try { retainedIds = JSON.parse(form?.querySelector('[name=photographIds]')?.value || '[]'); } catch { retainedIds = []; }
+    const retaining = () => !!retainedSession && Array.isArray(retainedIds) && retainedIds.length > 0 && selectedPhotos.length === 0;
+    const reusing = () => !!form?.querySelector('[name=UsePreservedWork]')?.checked && selectedPhotos.length === 0;
     const screenshots = form?.querySelector('[data-screenshots]');
     if (screenshots) {
         screenshots.addEventListener('change', () => {
             const files = Array.from(screenshots.files);
             const bytes = files.reduce((total, file) => total + file.size, 0);
             const minimum = Number(screenshots.dataset.min), maximum = Number(screenshots.dataset.max);
-            const message = files.length < minimum || files.length > maximum
+            const message = files.length === 0 && reusing() ? '' : files.length < minimum || files.length > maximum
                 ? `Selecciona de ${minimum} a ${maximum} capturas de pantalla.`
                 : files.some(file => file.size < 1 || file.size > 15728640 || !['image/jpeg', 'image/png'].includes(file.type))
                     ? 'Cada captura debe ser JPG/PNG, de hasta 15 MiB.'
@@ -27,12 +33,12 @@ document.getElementById("session-error")?.focus();
             form.querySelector('[data-screenshots-status]').textContent = message || `${files.length} capturas seleccionadas · ${(bytes / 1048576).toFixed(2)} MiB`;
         });
     }
+    if (screenshots) form.querySelector('[name=UsePreservedWork]')?.addEventListener('change', () => screenshots.dispatchEvent(new Event('change')));
     function updateControls() {
         if (!cameraRoot) return;
-        form.querySelector('[name=captureSessionId]').value = capture?.captureSessionId || '';
-        form.querySelector('[name=photographIds]').value = JSON.stringify(selectedPhotos.map(p => p.id));
-        const ready = selectedPhotos.length >= Number(cameraRoot.dataset.cameraMin) && selectedPhotos.length <= Number(cameraRoot.dataset.cameraMax)
-            && capture && form.checkValidity();
+        form.querySelector('[name=captureSessionId]').value = retaining() ? retainedSession : capture?.captureSessionId || '';
+        form.querySelector('[name=photographIds]').value = JSON.stringify(retaining() ? retainedIds : selectedPhotos.map(p => p.id));
+        const ready = (reusing() || retaining() || selectedPhotos.length >= Number(cameraRoot.dataset.cameraMin) && selectedPhotos.length <= Number(cameraRoot.dataset.cameraMax) && capture) && form.checkValidity();
         const occupied = uploading || submitting || cameraRoot.getAttribute('aria-busy') === 'true';
         upload.disabled = occupied || !selectedPhotos.length || selectedPhotos.every(p => p.clean);
         submit.disabled = occupied || !ready;
@@ -40,7 +46,7 @@ document.getElementById("session-error")?.focus();
     async function post(handler, values, signal) {
         const data = new FormData();
         data.append('__RequestVerificationToken', form.querySelector('[name=__RequestVerificationToken]').value);
-        data.append('id', dialog.dataset.assignedTaskDetail);
+        data.append('id', dialog?.dataset.assignedTaskDetail || form.querySelector('[name=id]').value);
         Object.entries(values).forEach(([key, value]) => data.append(key, value));
         const response = await fetch(`/mi-trabajo?handler=${handler}`, { method: 'POST', body: data, credentials: 'same-origin', cache: 'no-store', signal });
         if (!/application\/(?:problem\+)?json/i.test(response.headers.get('content-type') || '')) throw new Error('No se confirmó el resultado. Recupera la carga o inicia sesión nuevamente.');
@@ -66,7 +72,7 @@ document.getElementById("session-error")?.focus();
         async function uploadPhotographs() {
             if (uploading || !capture || !camera.valid()) { camera.error('Toma la cantidad de fotografías requerida antes de enviar.'); return false; }
             if (camera.photos.every(p => p.clean)) return true;
-            uploading = true; request = new AbortController(); camera.error(''); camera.setBusy(true); close.disabled = true;
+            uploading = true; request = new AbortController(); camera.error(''); camera.setBusy(true); if (close) close.disabled = true;
             form.querySelector('[data-camera-cancel-upload]').hidden = false;
             try {
                 for (const photo of camera.photos) {
@@ -91,14 +97,14 @@ document.getElementById("session-error")?.focus();
                 camera.error(failure.name === 'AbortError' ? 'Carga detenida. Pulsa Subir fotografías para recuperar el resultado.' : failure.message);
                 return false;
             } finally {
-                uploading = false; request = null; close.disabled = false; camera.setBusy(false);
+                uploading = false; request = null; if (close) close.disabled = false; camera.setBusy(false);
                 form.querySelector('[data-camera-cancel-upload]').hidden = true;
                 upload.textContent = camera.photos.some(p => p.uncertain) ? 'Recuperar o reintentar carga' : 'Subir fotografías';
             }
         }
         upload.addEventListener('click', () => { if (!submitting) uploadPhotographs(); });
         form.addEventListener('submit', async event => {
-            if (event.submitter?.value === 'DEVOLUCION') return;
+            if (event.submitter?.value === 'DEVOLUCION' || reusing() || retaining()) return;
             if (preparedSubmission) return;
             event.preventDefault();
             const chosenSubmit = event.submitter || submit;
@@ -116,7 +122,7 @@ document.getElementById("session-error")?.focus();
         });
         form.querySelector('[data-camera-cancel-upload]').addEventListener('click', () => request?.abort());
     }
-    dialog.addEventListener('close', () => {
+    dialog?.addEventListener('close', () => {
         request?.abort(); camera?.dispose();
         const url = new URL(location.href);
         url.searchParams.delete('assignedTask');
@@ -124,14 +130,14 @@ document.getElementById("session-error")?.focus();
         history.replaceState(null, '', url);
         document.querySelector(`[data-assigned-task="${dialog.dataset.assignedTaskDetail}"]`)?.focus();
     });
-    dialog.addEventListener('cancel', event => {
+    dialog?.addEventListener('cancel', event => {
         if (uploading || form?.getAttribute('aria-busy') === 'true') event.preventDefault();
     });
     form?.addEventListener('submit', event => {
         if (event.defaultPrevented) return;
         const returning = event.submitter?.value === 'DEVOLUCION';
-        if (camera && !preparedSubmission && !returning) return;
-        if (uploading || !returning && camera && (!camera.valid() || camera.photos.some(p => !p.clean))) {
+        if (camera && !preparedSubmission && !returning && !reusing() && !retaining()) return;
+        if (uploading || !returning && camera && !reusing() && !retaining() && (!camera.valid() || camera.photos.some(p => !p.clean))) {
             event.preventDefault(); camera?.error('Toma y sube todas las fotografías antes de enviar la tarea.'); return;
         }
         form.setAttribute('aria-busy', 'true');
@@ -142,7 +148,7 @@ document.getElementById("session-error")?.focus();
             event.submitter.disabled = true;
         }
         form.querySelector('button[type="submit"]').disabled = true;
-        close.disabled = true;
+        if (close) close.disabled = true;
         form.querySelector('[data-assigned-task-busy]').hidden = false;
     });
 })();

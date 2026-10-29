@@ -11,6 +11,8 @@
         </div>
         <partial name="_SectionNavigation" model='@("my-work")' />
     </header>
+@if(Request.Query["notice"]=="returned-count") { <p role="status">Conteo devuelto para corrección. Se conserva el historial y la estimación de las etapas pendientes.</p> }
+@if(Request.Query["notice"]=="saved") { <p role="status">Acción del proceso guardada. Consulta el estado de la siguiente etapa.</p> }
 @if(Model.Error!=null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
 @if(Model.View is not { } view)
 {
@@ -20,14 +22,20 @@
 else
 {
     <h2>@view.Run.Name</h2><p>Ronda @view.Run.Round · @view.Run.Status</p>
-    <div class="process-list">@foreach(var stage in view.Stages) { <section class="panel-seccion @(stage.Status=="DISPONIBLE" ? "process-stage--active" : stage.Status is "EN_ESPERA" or "PROGRAMADA" ? "process-stage--waiting" : "")"><h3>@IndexModel.RoleLabel(stage.Role)</h3><p>@stage.Name</p><p>@stage.ReservedPersonName · @(stage.Status switch { "DISPONIBLE"=>"Disponible", "EN_ESPERA"=>"En espera", "PROGRAMADA"=>"Programada", "CONCLUIDA"=>"Concluida", "PENDIENTE_ASIGNACION"=>"Pendiente de asignación", _=>stage.Status })</p>@if(stage.BlockReason!=null) { <p>@stage.BlockReason</p> }<p>@stage.LoadMinutes min de carga</p></section> }</div>
+    <div class="process-list">@foreach(var stage in view.Stages) { <section class="panel-seccion @(stage.Status=="DISPONIBLE" ? "process-stage--active" : stage.Status is "EN_ESPERA" or "PROGRAMADA" ? "process-stage--waiting" : "")"><h3>@IndexModel.RoleLabel(stage.Role)</h3><p>@stage.Name</p><p>@stage.ReservedPersonName · @(stage.Status switch { "DISPONIBLE"=>"Disponible", "EN_ESPERA"=>"En espera", "PROGRAMADA"=>"Programada", "CONCLUIDA"=>"Concluida", "PENDIENTE_ASIGNACION"=>"Pendiente de asignación", _=>stage.Status })</p>@if(stage.BlockReason!=null) { <p>@stage.BlockReason</p> }<p>@(stage.CalculatedLoadMinutes ?? stage.LoadMinutes) min de carga @(stage.LoadSourceAttemptId == null ? "estimada" : "calculada")</p></section> }</div>
     var active=view.Stages.Single(s=>s.Position==view.Run.ActivePosition);
     var rule=view.Rules.Single(s=>s.Position==active.Position);
     var attempt=view.Attempts.SingleOrDefault(a=>a.Id==active.CurrentAttemptId);
-    <div class="process-editor"><section class="panel-seccion"><h3>Etapa @active.Position de @view.Stages.Length · @active.Name</h3>
-        <partial name="_ProcessActionForm" model="@(new Sgol.Web.Presentation.MyWork.ProcessActionForm(view, Model.PersonId, "Decide", Conclusion: Model.Conclusion, Differences: Model.Differences, Key: Model.Key, Declared: Model.Declared))" />
+    <div class="process-editor" data-process-standalone><section class="panel-seccion"><h3>Etapa @active.Position de @view.Stages.Length · @active.Name</h3>
+        <partial name="_ProcessActionForm" model="@(new Sgol.Web.Presentation.MyWork.ProcessActionForm(view, Model.PersonId, "Decide", AssignmentId: active.ReservedPersonId == Model.PersonId ? attempt?.AssignmentId : null, Conclusion: Model.Conclusion, Differences: Model.Differences, Key: Model.Key, Declared: Model.Declared, ItemQuantity: Request.HasFormContentType ? Request.Form["ItemQuantity"].ToString() : null, CapacityResolution: Model.CapacityResolution, ItemConflict: Model.ItemConflict, CapacityFingerprint: Model.CapacityFingerprint, UsePreservedWork: Model.UsePreservedWork, CanForce: Model.CanForce, CanSearch: Model.CanSearch, RetainedCaptureSessionId: Model.ItemConflict!=null ? Model.CaptureSessionId : null, RetainedPhotographIds: Model.ItemConflict!=null ? Model.PhotographIds : null, ChecklistDraftJson: attempt?.AssignmentId is {} checklistId && view.ChecklistEvidence.TryGetValue(checklistId,out var checklist) ? checklist.Draft : "null"))" />
         @if(view.Run.Status=="CONCLUIDA") { <h3>@(view.Run.ClosureOutcome=="SIN_DIFERENCIAS" ? "Sin diferencias" : "Aceptado con diferencias pendientes")</h3><p>@view.Run.ClosureComment</p><p>@attempt?.UnresolvedDifferences</p> }
     </section><section class="panel-seccion"><h3>Historial del trámite</h3><ol>@foreach(var evt in view.Events) { <li><strong>@IndexModel.RoleLabel(view.Stages.Single(s=>s.Id==evt.StageId).Role) · @evt.Kind</strong> · @evt.OccurredAt.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM HH:mm")<p>@evt.Comment</p>@if(evt.DocumentId is { } documentId) { var doc=view.Documents.Single(d=>d.Id==documentId); <a href="/mi-trabajo/procesos?handler=Document&amp;id=@view.Run.Id&amp;documentId=@doc.Id">Consultar PDF V@(doc.Number)</a> }</li> }</ol><p>Las versiones anteriores se conservan. Una revisión previa no autoriza una hoja corregida.</p></section></div>
 }
 </section>
 
+
+@section Scripts {
+    <script src="~/js/camera-capture.js" asp-append-version="true"></script>
+    <script src="~/js/occasion-material.js" asp-append-version="true"></script>
+    <script src="~/js/assigned-tasks.js" asp-append-version="true"></script>
+}

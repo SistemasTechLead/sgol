@@ -31,9 +31,11 @@ public sealed record ProcessEditor(OperationalSequence Process, OperationalSeque
 
 // Catalog writes share the assignment/capacity lock. Membership and draft changes
 // commit together; a published configuration is never edited in place.
-public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectionPreparedPlanService direction,
+public sealed partial class OperationalProcessCatalogService(SgolDbContext db, IDirectionPreparedPlanService direction,
     IClock clock, IConfiguration configuration)
 {
+    public Task<ProcessItemEntry[]> ItemsAsync(Guid actor, CancellationToken ct) => new ProcessItemCatalogService(db, direction, clock).ListAsync(actor, ct);
+    public Task SaveItemAsync(Guid actor, Guid id, long revision, string name, int minutes, bool active, CancellationToken ct) => new ProcessItemCatalogService(db, direction, clock).SaveAsync(actor, id, revision, name, minutes, active, ct);
     public async Task<OperationalSequence[]> ListAsync(Guid actor, CancellationToken token)
     {
         await TaskCatalogAuthorization.RequireReadAsync(db, actor, clock.UtcNow, token);
@@ -95,6 +97,7 @@ public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectio
         var members = await db.OperationalTasks.Where(t => t.ProcessId == root.Id && !t.Deleted).ToArrayAsync(token);
         if (input.Steps.Any(s => members.All(t => t.Id != s.TaskId))) throw Error("PROCESS_MEMBERSHIP_INVALID");
         var draft = await EnsureDraft(root, actor, token);
+        await ValidateItems(input.Steps.ToArray(), draft.Id, token);
         // Delete only mutable draft rows, before reinserting possibly reordered keys.
         await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).ExecuteDeleteAsync(token);
         DetachDraftSteps(draft.Id);
@@ -143,6 +146,7 @@ public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectio
         var draft = await db.Set<OperationalSequenceVersion>().SingleOrDefaultAsync(v => v.SequenceId == id && v.PublishedAt == null, token) ?? throw Error("PROCESS_DRAFT_REQUIRED");
         var steps = await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).OrderBy(s => s.Position).ToArrayAsync(token);
         var members = await db.OperationalTasks.Where(t => t.ProcessId == id && !t.Deleted).ToArrayAsync(token);
+        await ValidateItems(steps, draft.Id, token);
         ValidateRules(new() { StartKind = draft.StartKind, FirstMonth = draft.FirstMonth, WindowFromDay = draft.WindowFromDay,
             WindowThroughDay = draft.WindowThroughDay, PreferredWeekDay = draft.PreferredWeekDay,
             StartHour = draft.StartHourConfirmed ? draft.StartHour : null, Steps = steps.ToList() }, true);
@@ -236,6 +240,7 @@ public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectio
     }
 
     private static OperationalSequenceStep CopyStep(OperationalSequenceStep s, Guid version) => new() { VersionId = version,
+        OutputItemId=s.OutputItemId, OutputTargetTaskId=s.OutputTargetTaskId, IsFinalAudit=s.IsFinalAudit,
         Position = s.Position, TaskId = s.TaskId, Action = s.Action, ReleaseCondition = s.ReleaseCondition,
         DeadlineKind = s.DeadlineKind, DeadlineHours = s.DeadlineHours, MinimumStartOffsetHours = s.MinimumStartOffsetHours,
         ReturnToPosition = s.ReturnToPosition, Instructions = s.Instructions.Trim() };
@@ -270,8 +275,27 @@ public sealed class OperationalProcessCatalogService(SgolDbContext db, IDirectio
                 if (s.ReleaseCondition != (previous.Action == "ENTREGAR" ? "ENTREGA" : "APROBACION")) throw Error("PROCESS_RULES_INVALID");
             }
         }
+        if (input.Steps.Any(s => s.OutputItemId != null)) {
+            if (input.Steps.Count(s => s.IsFinalAudit) != 1 || !input.Steps.Single(s => s.Position == input.Steps.Count).IsFinalAudit)
+                throw Error("PROCESS_ITEM_AUDIT_REQUIRED");
+            foreach (var s in input.Steps.Where(s => s.OutputItemId != null))
+                if (s.IsFinalAudit || s.Position == input.Steps.Count || input.Steps.Single(x => x.Position == s.Position + 1).TaskId != s.OutputTargetTaskId)
+                    throw Error("PROCESS_ITEM_TARGET_INVALID");
+        }
+        if (input.Steps.Any(s => s.IsFinalAudit && s.Position != input.Steps.Count || s.OutputItemId == null && s.OutputTargetTaskId != null)) throw Error("PROCESS_ITEM_TARGET_INVALID");
         if(publish && (input.Steps.Count<2 || input.Steps.Single(s=>s.Position==1).Action!="ENTREGAR" || input.Steps.Single(s=>s.Position==input.Steps.Count).Action!="AUTORIZAR"))
             throw Error("PROCESS_DOCUMENT_BOUNDARIES_REQUIRED");
+    }
+
+    private async Task ValidateItems(OperationalSequenceStep[] steps, Guid version, CancellationToken ct)
+    {
+        var selected = steps.Where(s => s.OutputItemId != null).ToArray();
+        var ids = selected.Select(s => s.OutputItemId!.Value).ToArray();
+        var items = await db.Set<ProcessItem>().AsNoTracking().Where(i => ids.Contains(i.Id)).ToArrayAsync(ct);
+        var previous = await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s => s.VersionId == version).ToArrayAsync(ct);
+        foreach (var s in selected)
+            if (!items.Any(i => i.Id == s.OutputItemId && (i.Active || previous.Any(p => p.TaskId == s.TaskId && p.OutputItemId == i.Id))))
+                throw Error("PROCESS_ITEM_RETIRED");
     }
 
     private void Audit(Guid actor, string action, Guid id, object? data = null) => db.AuditEvents.Add(new AuditEvent {

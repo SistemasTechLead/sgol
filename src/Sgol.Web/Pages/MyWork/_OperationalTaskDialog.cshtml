@@ -64,7 +64,8 @@
                 <h3>Decisión de supervisión</h3>
                 <p>@(task.ReviewStatus == "CONCLUIDA" ? "Concluida" : task.ReviewStatus == "REASIGNADA" ? "No concluida · reasignada" : "Terminada no satisfecha")</p>
                 @if (task.ReviewComment is not null) { <p class="supervision-text">@task.ReviewComment</p> }
-            } else { <p>Tu entrega fue enviada y está pendiente de revisión por Supervisión.</p> }
+            } else if(Model.OperationalProcessForm is {} deliveredProcess) { <p>Tu entrega fue guardada. La revisión sigue las etapas del proceso.</p><a class="boton boton--secundario" href="/mi-trabajo/procesos?id=@deliveredProcess.View.Run.Id">Ver estado del proceso</a> }
+            else { <p>Tu entrega fue enviada y está pendiente de revisión por Supervisión.</p> }
             <button class="boton boton--secundario" type="button" disabled>Ya en revisión</button>
         } else if (Model.OperationalProcessForm is { } processForm) {
             <h3>Entrega del proceso</h3>

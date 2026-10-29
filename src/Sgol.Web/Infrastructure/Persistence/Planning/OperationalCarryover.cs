@@ -74,7 +74,7 @@ public sealed class OperationalCarryoverRequest
 // The calculator consumes a single day's pending ordinary tasks. Closed and long-window work cannot bridge chains.
 public static class OperationalCarryoverCalculator
 {
-    public static string Structure(OperationalAssignment a) => JsonSerializer.Serialize(new { a.TaskId, a.TaskRevision, a.PersonId, a.PlanId, a.StartsAt, a.DueAt, a.AssignedRole, a.SpecializationId, a.ScheduleMode, a.OperationalCriticality, a.SchedulingPolicyId, a.TemporalPolicyJson, a.TemporalDecisionJson, a.ReassignedFromId, a.LoadMinutes, a.Requirement, a.MinimumPhotos, a.MaximumPhotos, a.MaximumPhotoBytes });
+    public static string Structure(OperationalAssignment a) => JsonSerializer.Serialize(new { a.ItemLoadSourceAttemptId, a.TaskId, a.TaskRevision, a.PersonId, a.PlanId, a.StartsAt, a.DueAt, a.AssignedRole, a.SpecializationId, a.ScheduleMode, a.OperationalCriticality, a.SchedulingPolicyId, a.TemporalPolicyJson, a.TemporalDecisionJson, a.ReassignedFromId, a.LoadMinutes, a.Requirement, a.MinimumPhotos, a.MaximumPhotos, a.MaximumPhotoBytes });
     public static CarryoverItem[] Calculate(IEnumerable<OperationalAssignment> source, DateTimeOffset end, int minutes,
         IReadOnlyList<WorkInterval> availability)
     {

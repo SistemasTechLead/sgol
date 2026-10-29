@@ -3941,6 +3941,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<int>("GoalUnits")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("ItemLoadSourceAttemptId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("LoadMinutes")
                         .HasColumnType("integer");
 
@@ -4716,9 +4719,18 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("AssignmentId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CapacityExceptionJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CapacityResolution")
+                        .HasColumnType("text");
+
                     b.Property<string>("Comment")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid?>("ContinuationAttemptId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -4729,8 +4741,14 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("InputDocumentId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("ItemQuantity")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Number")
                         .HasColumnType("integer");
+
+                    b.Property<string>("OmittedStagesJson")
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("OutputDocumentId")
                         .HasColumnType("uuid");
@@ -4776,8 +4794,16 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.HasIndex("StageId", "Number")
                         .IsUnique();
 
+                    b.HasIndex("RunId", "StageId", "ContinuationAttemptId");
+
                     b.ToTable("operational_sequence_attempt", null, t =>
                         {
+                            t.HasCheckConstraint("CK_process_item_continuation", "\"ContinuationAttemptId\" IS NULL OR \"ContinuationAttemptId\" <> \"Id\"");
+
+                            t.HasCheckConstraint("CK_process_item_quantity", "\"ItemQuantity\" IS NULL OR \"ItemQuantity\" >= 0");
+
+                            t.HasCheckConstraint("CK_process_item_resolution", "\"CapacityResolution\" IS NULL OR \"CapacityResolution\" IN ('','PENDING','LOWEST','FORCE')");
+
                             t.HasCheckConstraint("CK_sequence_attempt_state", "\"Number\" > 0 AND \"Round\" > 0 AND \"Revision\" > 0 AND \"Status\" IN ('PREPARADO','ACTIVO','ENTREGADO','APROBADO','SUSTITUIDO','CANCELADO') AND (\"Status\" NOT IN ('ACTIVO','ENTREGADO','APROBADO') OR \"AssignmentId\" IS NOT NULL)");
                         });
                 });
@@ -4995,6 +5021,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<long?>("CalculatedLoadMinutes")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("ChecklistJson")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -5029,11 +5058,20 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("EnabledAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("EstimatedLoadMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset?>("FixedDueAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsFinalAudit")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("LoadMinutes")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("LoadSourceAttemptId")
+                        .HasColumnType("uuid");
 
                     b.Property<long>("MaximumPhotoBytes")
                         .HasColumnType("bigint");
@@ -5055,9 +5093,22 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("NominalStartsAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("OmittedByAttemptId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("OperationalCriticality")
                         .HasMaxLength(12)
                         .HasColumnType("character varying(12)");
+
+                    b.Property<int?>("OutputItemMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OutputItemName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid?>("OutputItemRateId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("PlannedDueAt")
                         .HasColumnType("timestamp with time zone");
@@ -5126,6 +5177,8 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.HasIndex("CurrentAttemptId")
                         .IsUnique();
 
+                    b.HasIndex("OutputItemRateId");
+
                     b.HasIndex("ReservedPersonId");
 
                     b.HasIndex("SchedulingPolicyId");
@@ -5135,6 +5188,8 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.HasIndex("TaskId");
 
                     b.HasIndex("RunId", "DependencyEventId");
+
+                    b.HasIndex("RunId", "LoadSourceAttemptId");
 
                     b.HasIndex("RunId", "Position")
                         .IsUnique();
@@ -5147,13 +5202,17 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.ToTable("operational_sequence_stage", null, t =>
                         {
+                            t.HasCheckConstraint("CK_process_item_result", "(\"CalculatedLoadMinutes\" IS NULL AND \"LoadSourceAttemptId\" IS NULL) OR (\"CalculatedLoadMinutes\" IS NOT NULL AND \"CalculatedLoadMinutes\" > 0 AND \"LoadSourceAttemptId\" IS NOT NULL AND (\"CalculatedLoadMinutes\" > 4800 OR \"LoadMinutes\" = \"CalculatedLoadMinutes\"))");
+
+                            t.HasCheckConstraint("CK_process_item_snapshot", "(\"OutputItemRateId\" IS NULL AND \"OutputItemName\" IS NULL AND \"OutputItemMinutes\" IS NULL) OR (\"OutputItemRateId\" IS NOT NULL AND \"OutputItemName\" IS NOT NULL AND \"OutputItemMinutes\" IS NOT NULL AND \"OutputItemMinutes\" > 0 AND NOT \"IsFinalAudit\")");
+
                             t.HasCheckConstraint("CK_sequence_stage_dates", "\"PlannedDueAt\" > \"PlannedStartsAt\" AND ((\"EnabledAt\" IS NULL AND \"EffectiveDueAt\" IS NULL) OR (\"EnabledAt\" IS NOT NULL AND \"EligibleAt\" IS NOT NULL AND \"EffectiveDueAt\" IS NOT NULL AND \"EffectiveDueAt\" > \"EnabledAt\" AND \"EnabledAt\" >= \"EligibleAt\"))");
 
                             t.HasCheckConstraint("CK_sequence_stage_dependency", "(\"DependencySatisfiedAt\" IS NULL AND \"DependencyEventId\" IS NULL) OR (\"DependencySatisfiedAt\" IS NOT NULL AND \"DependencyEventId\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
 
-                            t.HasCheckConstraint("CK_sequence_stage_state", "\"Status\" IN ('EN_ESPERA','PROGRAMADA','DISPONIBLE','PENDIENTE_ASIGNACION','FUERA_DE_PLAZO','CONCLUIDA','CANCELADA') AND (\"Status\" NOT IN ('DISPONIBLE','CONCLUIDA') OR (\"CurrentAttemptId\" IS NOT NULL AND \"EnabledAt\" IS NOT NULL))");
+                            t.HasCheckConstraint("CK_sequence_stage_state", "\"Status\" IN ('EN_ESPERA','PROGRAMADA','DISPONIBLE','PENDIENTE_ASIGNACION','FUERA_DE_PLAZO','CONCLUIDA','CANCELADA','OMITIDA') AND (\"Status\" NOT IN ('DISPONIBLE','CONCLUIDA') OR (\"CurrentAttemptId\" IS NOT NULL AND \"EnabledAt\" IS NOT NULL))");
                         });
                 });
 
@@ -5183,8 +5242,17 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<bool>("IsFinalAudit")
+                        .HasColumnType("boolean");
+
                     b.Property<int?>("MinimumStartOffsetHours")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("OutputItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OutputTargetTaskId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ReleaseCondition")
                         .IsRequired()
@@ -5202,10 +5270,20 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.HasKey("VersionId", "Position");
 
+                    b.HasIndex("OutputItemId");
+
                     b.HasIndex("TaskId");
+
+                    b.HasIndex("VersionId")
+                        .IsUnique()
+                        .HasFilter("\"IsFinalAudit\"");
+
+                    b.HasIndex("VersionId", "OutputTargetTaskId");
 
                     b.ToTable("operational_sequence_step", null, t =>
                         {
+                            t.HasCheckConstraint("CK_process_item_link", "(\"OutputItemId\" IS NULL AND \"OutputTargetTaskId\" IS NULL) OR (\"OutputItemId\" IS NOT NULL AND \"OutputTargetTaskId\" IS NOT NULL AND \"OutputTargetTaskId\" <> \"TaskId\" AND NOT \"IsFinalAudit\")");
+
                             t.HasCheckConstraint("CK_sequence_step_position", "\"Position\" BETWEEN 1 AND 32 AND (\"ReturnToPosition\" IS NULL OR \"ReturnToPosition\" BETWEEN 1 AND \"Position\" - 1)");
 
                             t.HasCheckConstraint("CK_sequence_step_rule", "\"Action\" IN ('ENTREGAR','REVISAR','SELLAR','AUTORIZAR') AND ((\"Position\" = 1 AND \"ReleaseCondition\" = 'INICIO') OR (\"Position\" > 1 AND \"ReleaseCondition\" IN ('ENTREGA','APROBACION'))) AND \"DeadlineKind\" IN ('RELATIVO','FIJO') AND \"DeadlineHours\" BETWEEN 1 AND 8760 AND (\"MinimumStartOffsetHours\" IS NULL OR \"MinimumStartOffsetHours\" BETWEEN 0 AND 8760)");
@@ -5915,6 +5993,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<string>("AgendaJson")
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("ItemRatesJson")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("Participants")
                         .IsRequired()
                         .HasColumnType("jsonb");
@@ -5957,6 +6038,71 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.ToTable("operational_process_plan_start", null, t =>
                         {
                             t.HasCheckConstraint("CK_process_plan_start", "\"Status\" IN ('PREPARADO','ACTIVADO') AND \"Revision\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.ProcessItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("process_item", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_process_item", "length(trim(\"Name\")) > 0 AND \"Revision\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.ProcessItemRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("ItemId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("process_item_rate", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_process_item_rate", "\"Minutes\" > 0 AND \"Revision\" > 0");
                         });
                 });
 
@@ -7136,6 +7282,12 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("RunId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceAttempt", null)
+                        .WithMany()
+                        .HasForeignKey("RunId", "StageId", "ContinuationAttemptId")
+                        .HasPrincipalKey("RunId", "StageId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceDocument", b =>
@@ -7222,6 +7374,11 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceStage", b =>
                 {
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.ProcessItemRate", null)
+                        .WithMany()
+                        .HasForeignKey("OutputItemRateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Sgol.Organization.Contracts.Person", null)
                         .WithMany()
                         .HasForeignKey("ReservedPersonId")
@@ -7250,6 +7407,12 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .HasConstraintName("FK_sequence_stage_dependency_event");
 
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceAttempt", null)
+                        .WithMany()
+                        .HasForeignKey("RunId", "LoadSourceAttemptId")
+                        .HasPrincipalKey("RunId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceRun", null)
                         .WithMany()
                         .HasForeignKey("RunId", "VersionId")
@@ -7273,6 +7436,11 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceStep", b =>
                 {
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.ProcessItem", null)
+                        .WithMany()
+                        .HasForeignKey("OutputItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalTask", null)
                         .WithMany()
                         .HasForeignKey("TaskId")
@@ -7284,6 +7452,12 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasForeignKey("VersionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceStep", null)
+                        .WithMany()
+                        .HasForeignKey("VersionId", "OutputTargetTaskId")
+                        .HasPrincipalKey("VersionId", "TaskId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceVersion", b =>
@@ -7386,6 +7560,21 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ProcessId", "VersionId")
                         .HasPrincipalKey("SequenceId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.ProcessItemRate", b =>
+                {
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Bootstrap.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.ProcessItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

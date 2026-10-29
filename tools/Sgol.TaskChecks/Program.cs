@@ -40,6 +40,7 @@ if (args.Contains("--balance-rules-only")) { DailyBalanceChecks.Run(); return; }
 if (args.Contains("--schedule-rules-only")) { PersonalScheduleChecks.Run(); return; }
 if (args.Contains("--capacity-rules-only")) { CapacityRuleChecks.Run(); return; }
 if (args.Contains("--weekly-flag-rules-only")) { WeeklyOperationsFlagChecks.Run(); return; }
+if(args.Contains("--process-items-rules")) { ProcessItemBoundaryChecks.Run(); return; }
 TaskDescriptionChecks.Run();
 if (args.Contains("--description-rules-only")) return;
 SequenceRuleChecks.Run();
@@ -77,7 +78,12 @@ if (args.Contains("--opening-daily-current")) { await DailyOpeningChecks.RunAsyn
 if (args.Contains("--full-weekly-current")) { await FullWeeklyPlanChecks.RunAsync(db); return; }
 if (args.Contains("--weekly-plan-http")) { await WeeklyPlanHttpChecks.RunAsync(db); return; }
 if(args.Contains("--balance-snapshot-only")) { await DailyBalanceChecks.SnapshotAsync(db); return; }
+if(args.Contains("--process-items-legacy-replay")) { await ProcessItemLegacyReplayChecks.RunAsync(db); return; }
 if(args.Contains("--process-migrate-only")) { Console.WriteLine("Dedicated database migrated; no fixtures or catalogue changes added."); return; }
+if(args.Contains("--process-items-ui-current")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true, itemsUiCurrent:true); return; }
+if(args.Contains("--process-items-integrity")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true, itemsIntegrity:true); return; }
+if(args.Contains("--process-items-more")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true); return; }
+if(args.Contains("--process-items-only")) { await ProcessEditorChecks.RunAsync(db, itemsOnly:true); return; }
 if(args.Contains("--process-editor-only")) { await ProcessEditorChecks.RunAsync(db); return; }
 if(args.Contains("--checklist-http-only")) { await ProcessEditorChecks.RunAsync(db, checklistOnly:true); return; }
 if(args.Contains("--process-editor-current")) { await ProcessEditorChecks.CurrentAsync(db); return; }

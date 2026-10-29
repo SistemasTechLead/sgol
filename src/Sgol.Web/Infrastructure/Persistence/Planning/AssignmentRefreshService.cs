@@ -52,7 +52,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         var linked = attempts.Where(a => stages.Any(s => s.CurrentAttemptId == a.Id)).Select(a => a.AssignmentId!.Value).ToHashSet();
         var result = rows.Where(AssignmentDefinition.Pending).Where(a => !linked.Contains(a.Id) && tasks.ContainsKey(a.TaskId) &&
             (AssignmentDefinition.Differences(a, tasks[a.TaskId]).Length > 0 || !tasks[a.TaskId].Active || weeklyPlans.Contains(a.PlanId) && !tasks[a.TaskId].IsWeeklyOperationsTask)).GroupBy(a => a.TaskId).ToDictionary(g => g.Key, g => g.Count());
-        foreach (var stage in stages.Where(s => s.Status is not ("CONCLUIDA" or "CANCELADA")))
+        foreach (var stage in stages.Where(s => s.Status is not ("CONCLUIDA" or "CANCELADA" or "OMITIDA")))
         {
             if (!tasks.TryGetValue(stage.TaskId, out var task)) continue;
             var a = OperationalProcessService.Reservation(stage, Guid.Empty);
@@ -106,7 +106,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
                 conflicts.Add(message); decisionConflicts.Add(message);
             }
         }
-        var cancelRuns = stages.Where(s => selected.TryGetValue(s.TaskId, out var t) && !t.Active && s.Status is not ("CONCLUIDA" or "CANCELADA") &&
+        var cancelRuns = stages.Where(s => selected.TryGetValue(s.TaskId, out var t) && !t.Active && s.Status is not ("CONCLUIDA" or "CANCELADA" or "OMITIDA") &&
             attempts.Any(a => a.Id == s.CurrentAttemptId && a.Status is "PREPARADO" or "ACTIVO" &&
                 (a.AssignmentId == null || all.Any(row => row.Id == a.AssignmentId && AssignmentDefinition.Pending(row)))))
             .Select(s => s.RunId).ToHashSet();
@@ -114,7 +114,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         var diffs = new List<AssignmentRefreshDifference>();
         var stageRows = new Dictionary<Guid, OperationalSequenceStage>();
         var targets = all.Where(a => selected.ContainsKey(a.TaskId) && AssignmentDefinition.Pending(a) && !linked.ContainsKey(a.Id)).ToList();
-        foreach (var stage in stages.Where(s => (selected.ContainsKey(s.TaskId) || cancelRuns.Contains(s.RunId)) && s.Status is not ("CONCLUIDA" or "CANCELADA")))
+        foreach (var stage in stages.Where(s => (selected.ContainsKey(s.TaskId) || cancelRuns.Contains(s.RunId)) && s.Status is not ("CONCLUIDA" or "CANCELADA" or "OMITIDA")))
         {
             var attempt = attempts.SingleOrDefault(a => a.Id == stage.CurrentAttemptId);
             var assignment = attempt?.AssignmentId is {} id ? all.SingleOrDefault(a => a.Id == id) : null;
@@ -296,7 +296,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             diffs.Add(diff); scheduled.Add(diff);
         }
         var affectedRuns = scheduled.Where(d => d.ProcessStage).Select(d => stageRows[d.Before!.Id].RunId).ToHashSet();
-        foreach (var stage in stages.Where(s => affectedRuns.Contains(s.RunId) && s.Status is not ("CONCLUIDA" or "CANCELADA")))
+        foreach (var stage in stages.Where(s => affectedRuns.Contains(s.RunId) && s.Status is not ("CONCLUIDA" or "CANCELADA" or "OMITIDA")))
         {
             var attempt = attempts.SingleOrDefault(a => a.Id == stage.CurrentAttemptId);
             if (attempt == null || attempt.Status is not ("PREPARADO" or "ACTIVO")) continue;

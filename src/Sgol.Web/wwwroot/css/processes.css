@@ -99,3 +99,6 @@
 .process-plan-flow>.process-plan-card>small,.process-plan-flow>.process-plan-card>p{grid-area:meta}
 .process-plan-flow>.process-plan-card>.campo{grid-area:recipient;min-width:0;width:100%}
 .process-plan-flow>.process-plan-card>button,.process-plan-flow>.process-plan-card>strong:not(.process-plan-task-name){grid-area:instructions;min-width:0;width:100%;align-self:end}
+
+.process-item-form{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--espacio-16)}
+.process-item-form>.boton{justify-self:start}

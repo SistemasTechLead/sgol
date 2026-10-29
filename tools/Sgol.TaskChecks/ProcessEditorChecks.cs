@@ -38,15 +38,20 @@ public static class ProcessEditorChecks
         Check(System.Text.Json.JsonSerializer.Serialize(requirements)==System.Text.Json.JsonSerializer.Serialize(await db.OperationalTasks.AsNoTracking().Where(t=>t.ProcessId==root.Id).OrderBy(t=>t.Id).Select(t=>new{t.Id,t.Requirement}).ToArrayAsync()),"All original evidence requirements remain identical");
         Check(before==System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a=>a.Id).ToArrayAsync()),"Every original assignment remains identical after saving and publishing the restored copy");
     }
-    public static async Task RunAsync(SgolDbContext db, bool checklistOnly = false)
+    public static async Task RunAsync(SgolDbContext db, bool checklistOnly = false, bool itemsOnly = false, bool itemsMore = false, bool itemsIntegrity = false, bool itemsUiCurrent = false)
     {
-        if (await db.People.AnyAsync()) throw new Exception("Requires an empty dedicated database");
+        if (!itemsMore && await db.People.AnyAsync()) throw new Exception("Requires an empty dedicated database");
         var actor = Guid.CreateVersion7(); var person = Guid.CreateVersion7(); var now = new Clock().UtcNow;
+        if (itemsMore) {
+            person=await db.People.Where(p=>p.StableCode=="EDITOR-TEST").Select(p=>p.Id).SingleAsync();
+            actor=await db.AppUsers.Where(u=>u.PersonId==person).Select(u=>u.Id).SingleAsync();
+        } else {
         db.People.Add(new() { Id=person, DisplayName="Process editor test", StableCode="EDITOR-TEST", CreatedAt=now.AddYears(-1) });
         db.AppUsers.Add(new() { Id=actor, PersonId=person, Status=AccountStatus.Active, SecurityStamp="isolated" });
         db.EmploymentVersions.Add(new(Guid.CreateVersion7(),person,Sgol.Organization.Contracts.BranchScope.LorettaId,Sgol.Organization.Contracts.EmploymentStatus.Active,now.AddYears(-1)));
         db.RoleAssignmentVersions.Add(new() { Id=Guid.CreateVersion7(), UserId=actor, BranchId=Sgol.Organization.Contracts.BranchScope.LorettaId, RoleCode=CanonicalRole.Direction, Status=RoleAssignmentStatus.Active, ValidFrom=now.AddYears(-1) });
         await db.SaveChangesAsync();
+        }
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (!File.Exists(Path.Combine(root.FullName, "SistemaSGOL.slnx"))) root = root.Parent ?? throw new Exception("Source root not found.");
         var webRoot = Path.Combine(root.FullName, "src", "Sgol.Web", "wwwroot");
@@ -66,6 +71,7 @@ public static class ProcessEditorChecks
         builder.Services.AddDbContext<SgolDbContext>(o => o.UseNpgsql(db.Database.GetConnectionString()));
         builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Identity.IPersonAvatarReader, Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatarService>();
         var clock = new Clock();
+        if(itemsUiCurrent) clock.UtcNow=await db.Set<OperationalSequenceEvent>().MaxAsync(e=>e.OccurredAt);
         builder.Services.AddSingleton<IClock>(clock); builder.Services.AddSingleton<IUuidGenerator, Uuid7Generator>();
         builder.Services.AddScoped<AuditTransaction>(); builder.Services.AddScoped<IDirectionPreparedPlanService, EfDirectionPreparedPlanService>();
         builder.Services.AddScoped<IDirectionPlanningCatalogReader, DirectionPlanningCatalogReader>();
@@ -83,6 +89,18 @@ public static class ProcessEditorChecks
         await app.StartAsync();
         using var handler = new HttpClientHandler { AllowAutoRedirect=false, CookieContainer=new() };
         using var client = new HttpClient(handler) { BaseAddress=new("https://localhost:7259") };
+        if (itemsOnly || itemsMore)
+        {
+            if(itemsUiCurrent) { Console.WriteLine("ITEMS_EXISTING_UI_READY https://localhost:7259/mi-trabajo/procesos");await app.WaitForShutdownAsync();return; }
+            if (itemsIntegrity) await ProcessItemIntegrityChecks.RunAsync(db, actor, person, clock, client, value=>clock.UtcNow=value);
+            else if (itemsMore) await ProcessItemChecks.CapacityAsync(db, actor, person, clock, client, value=>clock.UtcNow=value);
+            else await ProcessItemChecks.RunAsync(db, actor, person, clock, client);
+            if (Environment.GetEnvironmentVariable("SGOL_ITEMS_UI_PREVIEW") == "1") {
+                Console.WriteLine("Items real Razor preview: https://localhost:7259/tareas/procesos/items");
+                await app.WaitForShutdownAsync();
+            }
+            await app.StopAsync(); return;
+        }
         if (checklistOnly)
         {
             await IndependentChecklist(db,actor,person,clock,client);

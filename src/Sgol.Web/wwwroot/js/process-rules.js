@@ -40,12 +40,12 @@
                 FirstMonth: value('FirstMonth'), WindowFromDay: value('WindowFromDay'), WindowThroughDay: value('WindowThroughDay'),
                 PreferredWeekDay: value('PreferredWeekDay'), StartHour: value('StartHour'),
                 Steps: stages().map(row => Object.fromEntries(['TaskId', 'Position', 'Action', 'ReleaseCondition',
-                    'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions'].map(key => [key, field(row, key)?.value ?? '']))) };
+                    'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions', 'OutputItemId', 'OutputTargetTaskId', 'IsFinalAudit'].map(key => [key, field(row, key)?.value ?? '']))) };
         };
         const canonical = input => JSON.stringify([
             String(input.Name ?? '').trim(), String(input.Description ?? '').trim(), input.StartKind,
             ...(input.StartKind === 'SEMESTRAL' ? ['FirstMonth', 'WindowFromDay', 'WindowThroughDay', 'PreferredWeekDay', 'StartHour'].map(k => String(input[k] ?? '')) : []),
-            (input.Steps || []).map(row => ['TaskId', 'Position', 'Action', 'ReleaseCondition', 'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions'].map(k => String(row[k] ?? '').trim()))
+            (input.Steps || []).map(row => ['TaskId', 'Position', 'Action', 'ReleaseCondition', 'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions', 'OutputItemId', 'OutputTargetTaskId', 'IsFinalAudit'].map(k => String(row[k] ?? '').trim()))
         ]);
         let baseline = canonical(read());
         if (form.dataset.processSaved) baseline = canonical(JSON.parse(form.dataset.processSaved));
@@ -70,9 +70,26 @@
             const summary = form.querySelector('[data-process-settings-summary]');
             if (summary) summary.textContent = `${read().Name} · ${startKind.value === 'SEMESTRAL' ? 'Calendario semestral' : 'Ocasión del proceso'}`;
         };
+        form.addEventListener('change', event => {
+            if (!event.target.matches('[data-output-item]')) return;
+            const row = event.target.closest('[data-process-stage]'), ordered = stages();
+            const following = ordered[ordered.indexOf(row) + 1];
+            field(row, 'OutputTargetTaskId').value = event.target.value && following ? field(following, 'TaskId').value : '';
+            updateEntries(); updateDirty();
+        });
         const updateEntries = () => {
             const ordered = stages();
             ordered.forEach((row, index) => {
+                const item = field(row, 'OutputItemId'), destination = field(row, 'OutputTargetTaskId');
+                if (item && destination) {
+                    const nextTask = ordered[index + 1];
+                    if (!item.value) destination.value = '';
+                    // Keep the destination identity after reordering; a changed neighbour requires explicit reselection.
+                    row.querySelector('[data-output-description]').textContent = item.value
+                        ? `La cantidad reportada calculará la carga de ${nextTask?.querySelector('.process-stage-title strong')?.textContent || 'ninguna tarea: revisa el enlace'}.`
+                        : 'Sin conteo de salida. La carga estimada se conserva.';
+                    item.setCustomValidity(item.value && (!nextTask || destination.value !== field(nextTask, 'TaskId').value) ? 'El destino inmediato cambió. Vuelve a seleccionar el ítem para confirmar el nuevo enlace.' : '');
+                }
                 const entry = field(row, 'ReleaseCondition');
                 entry.value = index === 0 ? 'INICIO' : field(ordered[index - 1], 'Action').value === 'ENTREGAR' ? 'ENTREGA' : 'APROBACION';
                 const target = field(row, 'ReturnToPosition');
@@ -135,6 +152,13 @@
             row.querySelector('[data-process-up]')?.addEventListener('click', () => { move(row, stages().indexOf(row)); row.querySelector('[data-process-edit]')?.focus(); });
             row.querySelector('[data-process-down]')?.addEventListener('click', () => { move(row, stages().indexOf(row) + 2); row.querySelector('[data-process-edit]')?.focus(); });
             const editor = row.querySelector('[data-process-stage-dialog]');
+            editor.addEventListener('keydown', event => {
+                if (event.key !== 'Tab') return;
+                const controls = Array.from(editor.querySelectorAll('button,input,select,textarea,summary,[tabindex]')).filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+                const first = controls[0], last = controls[controls.length - 1];
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+            });
             row.querySelector('[data-process-edit]')?.addEventListener('click', () => editor.showModal());
             row.querySelector('[data-process-edit-close]')?.addEventListener('click', () => editor.close());
             row.querySelector('[data-process-drag]')?.addEventListener('dragstart', event => {

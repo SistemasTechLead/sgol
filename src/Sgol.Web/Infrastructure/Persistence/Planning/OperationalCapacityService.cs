@@ -428,7 +428,7 @@ public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignme
     public IEnumerable<(DateOnly Day, decimal Minutes)> Footprint(OperationalAssignment t, Guid? person = null)
     {
         var start = Day(t);
-        if (t.GoalUnits <= 0) return [(start, (decimal)t.RemainingMinutes)];
+        if (t.GoalUnits <= 0) return [(start, t.PendingItemDemand is {} demand ? (decimal)demand : (decimal)t.RemainingMinutes)];
         var end = WeekContract.LocalToday(t.DueAt.AddTicks(-1));
         if (end < start) end = start;
         var days = Days(start, end).Where(d => DayCapacity(person ?? t.PersonId, d) > 0).ToArray();

@@ -1,0 +1,36 @@
+@page "/tareas/procesos/items"
+@model Sgol.Web.Pages.Tasks.ProcessItemsModel
+@{ ViewData["Title"] = "Ítems y tiempos"; }
+<link rel="stylesheet" href="~/css/processes.css" asp-append-version="true" />
+<section class="process-page">
+    <header class="encabezado-pagina"><h1>Ítems y tiempos</h1><partial name="_SectionNavigation" model='@("tasks")' /></header>
+    <p>Catálogo compartido entre procesos. Las nuevas tarifas se aplican a futuras preparaciones sin republicar. Los planes preparados y las ejecuciones iniciadas conservan su tarifa.</p>
+    <p>Retirar impide nuevas selecciones; los procesos que ya usaban el ítem pueden seguir utilizándolo.</p>
+    <a class="boton boton--secundario" href="/tareas/procesos?id=@Model.ProcessId">Volver al proceso</a>
+    @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+    @if (Request.Query.ContainsKey("saved")) { <p role="status">Ítem guardado para futuras preparaciones.</p> }
+    <div class="process-list">
+    @foreach(var row in Model.Items) {
+        <section class="panel-seccion"><h2>@row.Item.Name · @(row.Item.Active ? "Activo" : "Retirado")</h2>
+        @if(Model.CanManage) {
+            <form class="process-item-form" method="post" asp-page-handler="Save">
+                <input type="hidden" name="id" value="@row.Item.Id" /><input type="hidden" name="revision" value="@row.Item.Revision" /><input type="hidden" asp-for="ProcessId" />
+                <label class="campo"><span class="campo__etiqueta">Nombre</span><input class="campo__control" name="name" value="@row.Item.Name" maxlength="120" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Minutos por ítem</span><input class="campo__control" name="minutes" type="number" min="1" max="2147483647" step="1" value="@row.Rate.Minutes" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Disponible para nuevas selecciones</span><select class="campo__control" name="active"><option value="true" selected="@row.Item.Active">Activo</option><option value="false" selected="@(!row.Item.Active)">Retirado</option></select></label>
+                <button class="boton boton--primario" type="submit">Guardar nueva revisión</button>
+            </form>
+        } else { <p>@row.Rate.Minutes minutos por ítem · revisión @row.Item.Revision</p> }
+        </section>
+    }
+    @if(Model.Items.Length == 0) { <p>No hay ítems configurados.</p> }
+    @if(Model.CanManage) {
+        <section class="panel-seccion"><h2>Agregar ítem compartido</h2><form class="process-item-form" method="post" asp-page-handler="Save">
+            <input type="hidden" name="id" value="@Guid.CreateVersion7()" /><input type="hidden" name="revision" value="0" /><input type="hidden" name="active" value="true" /><input type="hidden" asp-for="ProcessId" />
+            <label class="campo"><span class="campo__etiqueta">Nombre</span><input class="campo__control" name="name" maxlength="120" required /></label>
+            <label class="campo"><span class="campo__etiqueta">Minutos por ítem</span><input class="campo__control" name="minutes" type="number" min="1" max="2147483647" step="1" required /></label>
+            <button class="boton boton--primario" type="submit">Agregar ítem</button>
+        </form></section>
+    }
+    </div>
+</section>

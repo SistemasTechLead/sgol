@@ -81,7 +81,9 @@ public sealed partial class IndexModel
                     OperationalProcessForm = new(process, OperationalSelectedTask.PersonId, "CompleteProcess", id,
                         OperationalAttemptedConclusion, OperationalAttemptedTaskId is not null ? Request.Form["Differences"].ToString() : null,
                         OperationalAttemptedTaskId is not null && Guid.TryParse(Request.Form["Key"], out var key) ? key : null,
-                        OperationalAttemptedTaskId is not null && Request.Form["Declared"].Contains("true"), OperationalSelectedTask.ChecklistDraftJson);
+                        OperationalAttemptedTaskId is not null && Request.Form["Declared"].Contains("true"), OperationalSelectedTask.ChecklistDraftJson,
+                        OperationalAttemptedTaskId != null ? Request.Form["ItemQuantity"].ToString() : null,
+                        OperationalAttemptedTaskId != null ? Request.Form["CapacityResolution"].ToString() : null, OperationalItemConflict, OperationalCapacityFingerprint, OperationalAttemptedTaskId != null && Request.Form["UsePreservedWork"].Contains("true"), OperationalCanForce, OperationalCanSearch, OperationalItemConflict != null && Guid.TryParse(Request.Form["captureSessionId"],out var retainedCapture) ? retainedCapture : null, OperationalItemConflict != null ? Request.Form["photographIds"].ToString() : null);
                 OperationalHistory = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().ProgressHistoryAsync(actor, id, token);
                 OperationalContributions = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().ContributionsAsync(actor, id, token);
                 OperationalLifecycle = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().LifecycleHistoryAsync(actor, id, token);
@@ -117,9 +119,13 @@ public sealed partial class IndexModel
         }
         return await LoadWorkAsync(session, token, true);
     }
+    public string? OperationalItemConflict { get; private set; }
+    public string? OperationalCapacityFingerprint { get; private set; }
+    public bool OperationalCanForce { get; private set; } = true;
+    public bool OperationalCanSearch { get; private set; } = true;
     public async Task<IActionResult> OnPostCompleteProcessAsync(Guid id, Guid attemptId, long revision, Guid key,
         string decision, string conclusion, string? differences, IFormFile? document, bool declared, CancellationToken token,
-        Guid? captureSessionId, string? photographIds, List<IFormFile>? screenshots, string? checklistAnswer)
+        Guid? captureSessionId, string? photographIds, List<IFormFile>? screenshots, string? checklistAnswer, int? itemQuantity, string? capacityResolution, string? capacityFingerprint, bool usePreservedWork)
     {
         NoStore();
         var session = await sessionState.GetAsync(token); if (session is null) return Redirect("/acceso");
@@ -129,6 +135,7 @@ public sealed partial class IndexModel
             Guid[]? photoIds = null;
             try { if (photographIds is not null && photographIds.Length <= 1000) photoIds = System.Text.Json.JsonSerializer.Deserialize<Guid[]>(photographIds); }
             catch (System.Text.Json.JsonException) { throw new DirectionPlanException("TASK_PHOTO_LIMIT", 422); }
+            if (ModelState.TryGetValue("itemQuantity", out var quantityState) && quantityState.Errors.Count > 0) throw new DirectionPlanException("PROCESS_ITEM_QUANTITY_INVALID",422);
             if (!ModelState.IsValid || Request.Form.Files.Count > 21 || Request.Form.Files.Count(f => f.Name == "Document") > 1 || Request.Form.Files.Any(f => f.Name is not ("Document" or "screenshots")))
                 throw new DirectionPlanException("TASK_FILE_INVALID", 422);
             var service = HttpContext.RequestServices.GetRequiredService<OperationalProcessService>();
@@ -137,10 +144,14 @@ public sealed partial class IndexModel
             if (!process.Attempts.Any(a => a.Id == attemptId && a.AssignmentId == id))
                 throw new DirectionPlanException("PROCESS_CONFLICT", 409);
             await service.DecideAsync(session.UserId, process.Run.Id, attemptId, revision, key,
-                decision, conclusion, differences, document, declared, token, captureSessionId, photoIds, screenshots?.Count > 0 ? screenshots : null, checklistAnswer);
+                decision, conclusion, differences, document, declared, token, captureSessionId, photoIds, screenshots?.Count > 0 ? screenshots : null, checklistAnswer, itemQuantity, capacityResolution, capacityFingerprint, usePreservedWork);
+            TempData["OperationalSuccess"] = decision == "DEVOLUCION" ? "Devolución del proceso guardada." : "Entrega del proceso guardada. Consulta el estado de la siguiente etapa en el proceso.";
             return Redirect(OperationalTaskHref(id));
         } catch (DirectionPlanException e) {
             Response.StatusCode = e.Status; OperationalError = Pages.Tasks.IndexModel.Message(e.Code);
+            OperationalItemConflict = e.Data["ItemConflict"] as string;
+            OperationalCapacityFingerprint = e.Data["CapacityFingerprint"] as string;
+            OperationalCanForce = e.Data["CanForce"] is not false; OperationalCanSearch = e.Data["CanSearch"] is not false;
             OperationalAttemptedChecklist = checklistAnswer;
             OperationalAttemptedTaskId = id; OperationalAttemptedConclusion = conclusion;
         }

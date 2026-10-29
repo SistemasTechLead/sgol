@@ -15,7 +15,7 @@ public sealed partial class OperationalProcessService
         var critical = stage.OperationalCriticality == "CRITICA";
         if (critical && (dependency > nominal || (stage.MinimumStartsAt ?? nominal) > nominal)) { Block("PENDIENTE_ASIGNACION", "La dependencia llegó después del ancla crítica. Se conserva la hora; revisa el conflicto."); return; }
         if (critical && stage.PlannedDueAt <= clock.UtcNow) { Block("FUERA_DE_PLAZO", "El bloque crítico venció antes de habilitar la etapa; no se renovó el cierre."); return; }
-        if (release > clock.UtcNow) { Block("PROGRAMADA", "Espera su activación reservada"); return; }
+        if (release > clock.UtcNow && stage.LoadSourceAttemptId == null && !stage.IsFinalAudit) { Block("PROGRAMADA", "Espera su activación reservada"); return; }
         var downstream = await db.Set<OperationalSequenceStage>().Where(s => s.RunId == run.Id && s.Position > stage.Position && s.Status == "EN_ESPERA").OrderBy(s => s.Position).ToArrayAsync(token);
         var released = downstream.Where(s => s.OperationalCriticality != "CRITICA").Select(s => s.Id).Append(stage.Id).ToHashSet();
         ledger = new(ledger.Workers, ledger.Tasks.Where(t => !released.Contains(t.Id)).ToArray(), ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) { Temporal = ledger.Temporal };
@@ -38,6 +38,7 @@ public sealed partial class OperationalProcessService
         if (assignment.StartsAt > clock.UtcNow) { stage.EligibleAt = assignment.StartsAt; Block("PROGRAMADA", "Espera el hueco disponible del responsable"); return; }
         assignment.Id = Guid.CreateVersion7(); assignment.PersonId = selected.Worker.Id; assignment.PersonName = selected.Worker.Name; assignment.AssignedRole = selected.Worker.Role;
         ledger.CaptureTime(assignment, clock.UtcNow);
+        await RestoreContinuation(attempt, assignment, token);
         db.Add(assignment); attempt.AssignmentId = assignment.Id; attempt.Status = "ACTIVO"; attempt.Revision++;
         stage.ReservedPersonId = assignment.PersonId; stage.ReservedPersonName = assignment.PersonName;
         stage.Status = "DISPONIBLE"; stage.EnabledAt = assignment.StartsAt; stage.EffectiveDueAt = assignment.DueAt; stage.BlockReason = null; stage.Revision++;

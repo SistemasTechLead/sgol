@@ -56,7 +56,7 @@ public static class AssignmentDefinition
         Change(a.ChecklistJson != t.ChecklistJson, "Checklist");
         Change(a.MinimumPhotos != t.MinimumPhotos || a.MaximumPhotos != t.MaximumPhotos || a.MaximumPhotoBytes != t.MaximumPhotoBytes, "Límites de imágenes");
         Change(old.AssignedRole != t.AssignedRole || a.SpecializationId != t.SpecializationId || t.SpecializationId == null && a.AssignedRole != null && a.AssignedRole != t.AssignedRole, "Elegibilidad");
-        Change(ConfiguredLoad(a) != t.LoadMinutes, "Carga");
+        Change(a.ItemLoadSourceAttemptId == null && ConfiguredLoad(a) != t.LoadMinutes, "Carga");
         Change(a.OperationalCriticality != t.OperationalCriticality, "Criticidad");
         Change(!process && old.ProcessId != t.ProcessId, "Pertenencia al proceso");
         if (!process && a.OccasionId == null)
@@ -99,7 +99,7 @@ public static class AssignmentDefinition
         a.Description = t.Description; a.Requirement = t.Requirement;
         a.MinimumPhotos = t.MinimumPhotos; a.MaximumPhotos = t.MaximumPhotos; a.MaximumPhotoBytes = t.MaximumPhotoBytes;
         a.SpecializationId = t.SpecializationId; a.SpecializationName = specialty;
-        a.LoadMinutes = t.LoadMinutes; a.OperationalCriticality = t.OperationalCriticality;
+        if (a.ItemLoadSourceAttemptId == null) a.LoadMinutes = t.LoadMinutes; a.OperationalCriticality = t.OperationalCriticality;
         if (!process && a.OccasionId == null)
         {
             a.PeriodType = t.PeriodType; a.Repetitions = t.Repetitions; a.ScheduleMode = t.ScheduleMode;

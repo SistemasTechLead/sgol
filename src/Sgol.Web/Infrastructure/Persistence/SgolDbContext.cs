@@ -135,6 +135,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
         modelBuilder.ApplyConfiguration<Identity.ScreenLinkRequest>(screenDevices);
         modelBuilder.ApplyConfiguration<Identity.ScreenBrowserTicket>(screenDevices);
         OperationalSequenceSchema.Configure(modelBuilder);
+        ProcessItemRules.Configure(modelBuilder);
         PreparedProcessStart.Configure(modelBuilder);
         modelBuilder.ApplyConfiguration(new OperationalAttachmentConfiguration());
         modelBuilder.ApplyConfiguration(new StoredPlanCapacityAdjustmentConfiguration());

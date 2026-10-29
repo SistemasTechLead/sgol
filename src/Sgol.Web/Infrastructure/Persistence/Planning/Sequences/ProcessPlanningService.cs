@@ -20,12 +20,17 @@ public sealed class ProcessPlanInput
     public Dictionary<int,Guid> People { get; set; }=[];
     public string? Fingerprint { get; set; }
 }
-public sealed record ProcessPlanStage(int Position,string Name,string Role,Guid PersonId,string PersonName,int Minutes,int DeadlineHours);
+public sealed record ProcessPlanStage(int Position,string Name,string Role,Guid PersonId,string PersonName,int Minutes,int DeadlineHours)
+{
+    public bool IsEstimate { get; init; }
+    public ProcessItemSnapshot? OutputItem { get; init; }
+}
 public sealed record ProcessPlanPreview(Guid VersionId,int Version,string ProcessName,DateTimeOffset[] Starts,
     ProcessPlanStage[] Stages,string Fingerprint)
 {
     public Guid? SchedulingPolicyId { get; init; }
     public Dictionary<string, OperationalAssignment[]> Agenda { get; init; } = [];
+    public Dictionary<int, ProcessItemSnapshot> ItemRates { get; init; } = [];
 }
 public sealed record ProcessPlanConfiguration(Guid StartId,string Name,int Version,ProcessPlanStage[] Stages);
 public sealed record ProcessPlanView(DirectionPreparedPlan Plan,PreparedProcessStart[] Starts,OperationalSequenceRun[] Runs,ProcessPlanConfiguration[] Configurations);
@@ -51,6 +56,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
         if(proposal != null && proposal.VersionId != version.Id) throw Error("PLAN_CAPACITY_STALE",409);
         if(!version.StartHourConfirmed) throw Error("PROCESS_RULES_INVALID");
         var steps=await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>s.VersionId==version.Id).OrderBy(s=>s.Position).ToArrayAsync(token);
+        var itemRates = await ProcessItemRules.CaptureAsync(db, steps, token);
         var tasks=steps.Select(s=>JsonSerializer.Deserialize<OperationalTask>(s.TaskSnapshot!)!).ToArray();
         var today=WeekContract.LocalToday(clock.UtcNow);
         if(input.From<today || input.People.Count!=steps.Length || steps.Any(s=>!input.People.ContainsKey(s.Position))) throw Error("PROCESS_PLAN_PEOPLE_REQUIRED");
@@ -69,7 +75,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
         var agenda = new Dictionary<string, OperationalAssignment[]>();
         var workers=steps.Select(s=>ledger.Workers.SingleOrDefault(w=>w.Id==people[s.Position] && w.EligibleFor(tasks[s.Position-1].AssignedRole, tasks[s.Position-1].SpecializationId))
             ?? throw Error("OCCASION_RECIPIENT_INVALID")).ToArray();
-        var rows=steps.Select((s,i)=>new ProcessPlanStage(s.Position,tasks[i].Name,tasks[i].AssignedRole,workers[i].Id,workers[i].Name,tasks[i].LoadMinutes,s.DeadlineHours)).ToArray();
+        var rows=steps.Select((s,i)=>new ProcessPlanStage(s.Position,tasks[i].Name,tasks[i].AssignedRole,workers[i].Id,workers[i].Name,tasks[i].LoadMinutes,s.DeadlineHours) { IsEstimate = i>0 && itemRates.ContainsKey(i), OutputItem = itemRates.GetValueOrDefault(s.Position) }).ToArray();
         foreach(var startsAt in starts)
         {
             var startKey=input.Mode=="CALENDARIO" ? $"C:{root.Id:N}:{WeekContract.LocalToday(startsAt):yyyyMMdd}" : $"P:{input.Key:N}:{root.Id:N}";
@@ -85,12 +91,12 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
                 ledger=new(ledger.Workers,ledger.Tasks.Append(reservation).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal = ledger.Temporal };
             }
         }
-        var hash=Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { policy, Agenda = agenda, input.Key,Name=input.Name.Trim(),input.ProcessId,input.Mode,input.From,input.Through,
+        var hash=Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { itemRates, policy, Agenda = agenda, input.Key,Name=input.Name.Trim(),input.ProcessId,input.Mode,input.From,input.Through,
             People=people.OrderBy(p=>p.Key),root.Revision,version,steps,starts,snapshot.Workers,snapshot.Tasks,snapshot.Capacities,snapshot.Temporal,
             Unavailable=snapshot.Unavailable.OrderBy(a=>a.Item1).ThenBy(a=>a.Item2).Select(a=>new { a.Item1,a.Item2 }),
             Legacy=snapshot.Legacy.OrderBy(a=>a.Key) })));
         input.People = new(people);
-        return new(version.Id,version.Number,version.Name,starts,rows,hash) { SchedulingPolicyId = policy?.Id, Agenda = agenda };
+        return new(version.Id,version.Number,version.Name,starts,rows,hash) { SchedulingPolicyId = policy?.Id, Agenda = agenda, ItemRates = itemRates };
     }
 
     public async Task<Guid> PrepareAsync(Guid actor,ProcessPlanInput input,CancellationToken token)
@@ -118,7 +124,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
             db.Add(new DirectionPreparedPlanItem(plan.Id,task.TaskCode,task.Name,step.Position-1));
         }
         foreach(var start in preview.Starts) db.Add(new PreparedProcessStart { Id=Guid.CreateVersion7(),PlanId=plan.Id,ProcessId=input.ProcessId,VersionId=preview.VersionId,StartsAt=start,
-            StartKey=input.Mode=="CALENDARIO" ? $"C:{input.ProcessId:N}:{WeekContract.LocalToday(start):yyyyMMdd}" : $"P:{input.Key:N}:{input.ProcessId:N}",Participants=JsonSerializer.Serialize(input.People), AgendaJson = preview.SchedulingPolicyId == null ? null : JsonSerializer.Serialize(preview.Agenda[start.ToString("O")]) });
+            StartKey=input.Mode=="CALENDARIO" ? $"C:{input.ProcessId:N}:{WeekContract.LocalToday(start):yyyyMMdd}" : $"P:{input.Key:N}:{input.ProcessId:N}",Participants=JsonSerializer.Serialize(input.People), ItemRatesJson=JsonSerializer.Serialize(preview.ItemRates), AgendaJson = preview.SchedulingPolicyId == null ? null : JsonSerializer.Serialize(preview.Agenda[start.ToString("O")]) });
         Audit(actor,plan.Id,"PROCESS_PLAN_PREPARED",new { preview.Fingerprint,preview.VersionId,input.Mode,input.From,input.Through });
         await db.SaveChangesAsync(token); await tx.CommitAsync(token); return plan.Id;
     }
@@ -152,10 +158,11 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
         var names=await db.People.AsNoTracking().ToDictionaryAsync(p=>p.Id,p=>p.DisplayName,token);
         var configurations=starts.Select(start=> {
             var version=versions.Single(v=>v.Id==start.VersionId);
+            var rates=start.ItemRatesJson == null ? new Dictionary<int,ProcessItemSnapshot>() : JsonSerializer.Deserialize<Dictionary<int,ProcessItemSnapshot>>(start.ItemRatesJson)!;
             var people=JsonSerializer.Deserialize<Dictionary<int,Guid>>(start.Participants)!;
             return new ProcessPlanConfiguration(start.Id,version.Name,version.Number,steps.Where(s=>s.VersionId==version.Id).Select(step=> {
                 var task=JsonSerializer.Deserialize<OperationalTask>(step.TaskSnapshot!)!;
-                return new ProcessPlanStage(step.Position,task.Name,task.AssignedRole,people[step.Position],names.GetValueOrDefault(people[step.Position],"Responsable registrado"),task.LoadMinutes,step.DeadlineHours);
+                return new ProcessPlanStage(step.Position,task.Name,task.AssignedRole,people[step.Position],names.GetValueOrDefault(people[step.Position],"Responsable registrado"),task.LoadMinutes,step.DeadlineHours) { IsEstimate = step.Position>1 && rates.ContainsKey(step.Position-1), OutputItem = rates.GetValueOrDefault(step.Position) };
             }).ToArray());
         }).ToArray();
         return new(plan,starts,await db.Set<OperationalSequenceRun>().AsNoTracking().Where(r=>r.PlanId==planId).ToArrayAsync(token),configurations);

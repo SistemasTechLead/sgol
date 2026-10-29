@@ -133,11 +133,12 @@ public sealed partial class EfDirectionPreparedPlanService
             .SetProperty(r => r.ClosureComment, "Eliminación confirmada del plan"), token);
         var stages = db.Set<OperationalSequenceStage>().Where(s => runIds.Contains(s.RunId));
         await stages.ExecuteUpdateAsync(s => s.SetProperty(x => x.CurrentAttemptId, (Guid?)null)
+            .SetProperty(x => x.LoadSourceAttemptId, (Guid?)null).SetProperty(x => x.CalculatedLoadMinutes, (long?)null)
             .SetProperty(x => x.Status, "CANCELADA").SetProperty(x => x.DependencyEventId, (Guid?)null)
             .SetProperty(x => x.DependencySatisfiedAt, (DateTimeOffset?)null), token);
         var attempts = db.Set<OperationalSequenceAttempt>().Where(a => runIds.Contains(a.RunId));
         await attempts.ExecuteUpdateAsync(s => s.SetProperty(a => a.InputDocumentId, (Guid?)null)
-            .SetProperty(a => a.OutputDocumentId, (Guid?)null), token);
+            .SetProperty(a => a.OutputDocumentId, (Guid?)null).SetProperty(a => a.ContinuationAttemptId, (Guid?)null), token);
         await db.Set<OperationalSequenceEvent>().Where(e => runIds.Contains(e.RunId)).ExecuteDeleteAsync(token);
         var documents = db.Set<OperationalSequenceDocument>().Where(d => runIds.Contains(d.RunId));
         await documents.ExecuteDeleteAsync(token);
