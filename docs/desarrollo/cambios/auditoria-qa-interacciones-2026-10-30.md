@@ -1,6 +1,6 @@
 # Auditoría QA de interacciones y plan de corrección — 30/10/2026
 
-**Actualización:** QA-01, QA-02 y QA-03 implementados. Los resultados de la auditoría original se conservan debajo; la validación posterior, los contratos actualizados y las limitaciones están en «Implementación de correcciones — 30/10/2026». No se desplegó el cambio sobre la aplicación compartida.
+**Actualización:** QA-01, QA-02 y QA-03 implementados. Los resultados de la auditoría original se conservan debajo; la validación posterior, los contratos actualizados y las limitaciones están en «Implementación de correcciones — 30/10/2026». La aplicación compartida se actualizó después por autorización expresa del usuario; ver «Actualización de la aplicación compartida» al final.
 
 ## Resultado y alcance
 
@@ -309,3 +309,26 @@ La decisión del usuario cierra exclusivamente el pendiente de responsable. No m
 | Suite integral | Completa planificación, concurrencia, selección activa, procesos y reacomodo | `--scheduling-integration-only`, BD nueva | **Aprobado**, exit0; `.local/qa-fix-20261030/owner-policy.log` y `owner-policy-result.json` |
 
 Compilación aislada aprobada con 0 errores y 0 advertencias (`build-owner-policy.log`). Alcance: prueba y documentación; sin cambio funcional, migración ni interfaz. No requiere navegador ni despliegue. El runtime compartido se mantuvo sin reiniciar y no se escribieron datos en `sgol_local`.
+
+
+### Actualización de la aplicación compartida — 30/10/2026
+
+El usuario solicitó explícitamente actualizar el algoritmo y la aplicación compartida con los cambios de este chat, sustituyendo la restricción inicial de no reiniciar ni desplegar. La prioridad de inicio más temprano ya estaba implementada y verificada; no se cambió artificialmente el algoritmo para representar la misma regla. Se publicó el código de `3cc8db1`, que incluye los cambios previos de `f904269` y las correcciones QA de `9e4a1e7`, y se sustituyó la instancia Web compartida por esa compilación. QA-03 y los fixtures son herramientas del repositorio; sus cambios no requieren un servicio aparte.
+
+- Publicación Release aislada: `.local/runtime/qa-interactions-3cc8db1/Web/Sgol.Web.dll`. Se conservó el runtime anterior para recuperación.
+- Instancia anterior identificada por el listener y la ruta exacta: PID 31028, `reassigned-color-20261030`. Nueva instancia comprobada: PID 26992. Se mantuvieron el proxy LAN y las dependencias existentes.
+- Destino efectivo comprobado: `sgol_local`, PostgreSQL local 5440 y usuario runtime configurado por los scripts existentes. No se imprimieron ni publicaron contraseñas. Las 81 migraciones aplicadas coinciden exactamente con las 81 del código; no se ejecutó ninguna migración.
+- Respaldo privado previo mediante `pg_dump`, sin limpiar ni restaurar datos sobre la simulación. Evidencia y manifiesto de despliegue en `.local/deploy-qa-20261030/`, ignorados por Git.
+- Comparación antes/después: conteo y huella completa idénticos de `operational_assignment`, `operational_submission`, `operational_review`, `operational_transfer`, `operational_progress_entry` y `operational_task`. No se recalcularon responsables, cargas, fechas ni checklist. Esta comprobación cubre esas seis tablas, no afirma identidad de cada tabla auxiliar del sistema.
+
+| Verificación del runtime actualizado | Entorno | Resultado |
+|---|---|---|
+| Proceso que atiende 7241 carga el DLL publicado, con SHA-256 del manifiesto | Aplicación compartida | **Aprobado**, `deployment.json` |
+| `/health/live` y `/health/ready` | Acceso interno | **Aprobado**: alive / ready |
+| `/health/live` a través del proxy HTTPS | Acceso LAN | **Aprobado**: alive |
+| `/acceso` contiene el formulario y CSRF | HTTP real por LAN | **Aprobado**,200 |
+| `/js/checklist.js` servido coincide byte a byte con el archivo corregido | HTTP real por LAN | **Aprobado**, SHA-256 coincidente |
+| Conservación de las seis tablas operativas y del historial de migraciones | Base compartida, consultas de lectura antes/después | **Aprobado**, `verification.json`, `operations-before.txt` y `operations-after.txt` |
+| Repetición de entregas, transferencias y conflictos autenticados sobre datos compartidos | Simulación diaria | **No ejecutado**: esos recorridos ya fueron aprobados en bases aisladas; el despliegue no introduce datos de prueba en la operación |
+
+El cierre anterior de no despliegue describe la fase inicial. La versión corregida está ahora cargada en la aplicación compartida; las pestañas abiertas antes de la actualización deben recargarse para obtener los formularios y el JavaScript del mismo contrato. Se mantienen las limitaciones de navegadores/dispositivos y cobertura de la auditoría.
