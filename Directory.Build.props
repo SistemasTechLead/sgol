@@ -6,5 +6,8 @@
     <EnableNETAnalyzers>false</EnableNETAnalyzers>
     <Deterministic>true</Deterministic>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Audit builds may leave generated sources beneath a project. Exclude all
+         output trees, including the default ones when an artifacts path is used. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**;**/artifacts/**</DefaultItemExcludes>
   </PropertyGroup>
 </Project>

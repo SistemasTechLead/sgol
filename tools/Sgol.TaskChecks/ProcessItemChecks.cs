@@ -51,7 +51,7 @@ public static class ProcessItemChecks
         var steps=tasks.Select((t,i)=>new OperationalSequenceStep { TaskId=t.Id, Position=i+1, Action=i==3?"AUTORIZAR":"ENTREGAR", ReleaseCondition=i==0?"INICIO":"ENTREGA", DeadlineHours=1, ReturnToPosition=i>0?i:null,
             OutputItemId=i<2?item:null, OutputTargetTaskId=i<2?tasks[i+1].Id:null, IsFinalAudit=i==3 }).ToList();
         var editor=await catalog.ReadAsync(actor,root,default);
-        var input=new ProcessDraftInput { Id=root,Revision=editor.Process.Revision,Name=editor.Process.Name,StartKind="OCASIONAL",StartHour=12,Steps=steps };
+        var input=new ProcessDraftInput { Id=root,Revision=editor.Process.Revision,Name=editor.Process.Name,StartKind="OCASIONAL",Steps=steps };
         steps[3].IsFinalAudit=false;await Reject("PROCESS_ITEM_AUDIT_REQUIRED",()=>catalog.SaveAsync(actor,input,default));steps[3].IsFinalAudit=true;
         steps[0].OutputTargetTaskId=tasks[2].Id;await Reject("PROCESS_ITEM_TARGET_INVALID",()=>catalog.SaveAsync(actor,input,default));steps[0].OutputTargetTaskId=tasks[1].Id;
         await catalog.SaveAsync(actor,input,default);db.ChangeTracker.Clear();editor=await catalog.ReadAsync(actor,root,default);
@@ -60,17 +60,64 @@ public static class ProcessItemChecks
         await catalog.PublishAsync(actor,root,editor.Process.Revision,default);db.ChangeTracker.Clear();editor=await catalog.ReadAsync(actor,root,default);
         await catalog.SetEnabledAsync(actor,root,editor.Process.Revision,true,default);db.ChangeTracker.Clear();
         async Task<Guid> Prepare() {
-            var request=new ProcessPlanInput { Name="Items test",ProcessId=root,Mode="OCASION",From=day,Through=day,People=Enumerable.Range(1,4).ToDictionary(i=>i,i=>person) };
+            var request=new ProcessPlanInput { Name="Items test",ProcessId=root,Mode="OCASION",OccasionTime=new(12,0),From=day,Through=day,People=Enumerable.Range(1,4).ToDictionary(i=>i,i=>person) };
             request.Fingerprint=(await planning.PreviewAsync(actor,request,default)).Fingerprint;
             var id=await planning.PrepareAsync(actor,request,default);db.ChangeTracker.Clear();return id;
         }
-        var plan=await Prepare();
+        // Reproduce the real occasional editor: publication has no calendar hour.
+        var published = await catalog.ReadPublishedAsync(actor, root, default);
+        Check(!published.Configuration!.StartHourConfirmed,"Occasional item process publishes without a calendar hour");
+        html=await client.GetStringAsync($"/planificacion/procesos?processId={root}");
+        Check(html.Contains("Input.OccasionTime"),"Actual plan form offers an occasion time");
+        var fields=new Dictionary<string,string> { ["Input.Key"]=Guid.CreateVersion7().ToString(), ["Input.Name"]="Plan con conteo sin hora de calendario", ["Input.ProcessId"]=root.ToString(), ["Input.Mode"]="OCASION", ["Input.From"]=day.ToString("yyyy-MM-dd"), ["Input.Through"]=day.ToString("yyyy-MM-dd") };
+        foreach(var position in Enumerable.Range(1,4)) fields[$"Input.People[{position}]"]=person.ToString();
+        foreach(var invalid in new string?[] { null, "25:99", "12:00:01" }) {
+            if(invalid == null) fields.Remove("Input.OccasionTime"); else fields["Input.OccasionTime"]=invalid;
+            var rejected=await client.PostAsync("/planificacion/procesos?handler=Preview",Form(html,fields));
+            var rejectedHtml=WebUtility.HtmlDecode(await rejected.Content.ReadAsStringAsync());
+            Check(rejected.StatusCode==HttpStatusCode.UnprocessableEntity && rejectedHtml.Contains("Falta una hora de inicio válida"),"Missing/malformed/subminute occasion time identifies the cause over HTTP");
+        }
+        fields["Input.OccasionTime"]="12:15";
+        var capacitySetting=await db.Set<OperationalCapacity>().SingleAsync(c=>c.PersonId==person);
+        capacitySetting.Percent=0; await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        foreach(var handlerName in new[]{"Preview","Prepare"}) {
+            foreach(var mixed in new[]{0,1,2}) {
+                fields["Input.People[1]"]=mixed==2?Guid.Empty.ToString():person.ToString();
+                fields["Input.People[2]"]=mixed==1?Guid.Empty.ToString():person.ToString();
+                var blocked=await client.PostAsync("/planificacion/procesos?handler="+handlerName,Form(html,fields));
+                var text=WebUtility.HtmlDecode(await blocked.Content.ReadAsStringAsync());
+                Check(blocked.StatusCode==HttpStatusCode.UnprocessableEntity && text.Contains("Etapa 1 (Ítems etapa 1) · Process editor test") && text.Contains("capacidad: 0 min") && text.Contains("esta etapa añade 1 min") && text.Contains("Elige otro responsable"),"Actual "+handlerName+" identifies overloaded stage with recipient mode "+mixed+"; "+blocked.StatusCode+"; "+Regex.Match(text,"<p class=\"alerta[^>]*>(.*?)</p>").Groups[1].Value);
+            }
+        }
+        Check(!await db.DirectionPreparedPlans.AnyAsync(p=>p.Id==Guid.Parse(fields["Input.Key"])) && !await db.Set<PreparedProcessStart>().AnyAsync(p=>p.PlanId==Guid.Parse(fields["Input.Key"])),"Capacity rejection leaves no partial prepared plan or starts");
+        capacitySetting=await db.Set<OperationalCapacity>().SingleAsync(c=>c.PersonId==person);
+        capacitySetting.Percent=100; await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        fields["Input.People[1]"]=person.ToString();
+        fields["Input.People[2]"]=person.ToString();
+        await PlanTimeDiagnostics(db,catalog,direction,clock,actor,person,client,day.AddDays(1));
+        fields["Input.OccasionTime"]="12:15";
+        var reviewed=await client.PostAsync("/planificacion/procesos?handler=Preview",Form(html,fields));
+        html=await reviewed.Content.ReadAsStringAsync();
+        Check(reviewed.StatusCode==HttpStatusCode.OK && html.Contains("12:15") && html.Contains("Input.Fingerprint"),"Real plan preview accepts explicit minute time without a published hour");
+        fields["Input.Fingerprint"]=WebUtility.HtmlDecode(Regex.Match(html,"name=\"Input.Fingerprint\"[^>]*value=\"([^\"]*)\"").Groups[1].Value);
+        fields["Input.OccasionTime"]="12:16";
+        var changed=await client.PostAsync("/planificacion/procesos?handler=Prepare",Form(html,fields));
+        Check(changed.StatusCode==HttpStatusCode.Conflict && !await db.DirectionPreparedPlans.AnyAsync(p=>p.Id==Guid.Parse(fields["Input.Key"])),"Changed time rejects stale preview without partial persistence");
+        fields["Input.OccasionTime"]="12:15";
+        var prepared=await client.PostAsync("/planificacion/procesos?handler=Prepare",Form(html,fields));
+        Check(prepared.StatusCode==HttpStatusCode.Redirect,"Real form prepares the item plan with explicit occasion time");
+        var plan=Guid.Parse(fields["Input.Key"]); db.ChangeTracker.Clear();
+        var savedStart=await db.Set<PreparedProcessStart>().AsNoTracking().SingleAsync(p=>p.PlanId==plan);
+        Check(savedStart.StartsAt==OperationalSchedule.Instant(day,12).AddMinutes(15),"Prepared occasion persists exact local minute in UTC");
+        var calendar=new ProcessPlanInput { Name="Sin hora de calendario",ProcessId=root,From=day,Through=day,People=Enumerable.Range(1,4).ToDictionary(i=>i,i=>person) };
+        await Reject("PROCESS_CALENDAR_HOUR_REQUIRED",()=>planning.PreviewAsync(actor,calendar,default));
         var ratesBefore=(await db.Set<PreparedProcessStart>().AsNoTracking().SingleAsync(p=>p.PlanId==plan)).ItemRatesJson;
         await catalog.SaveItemAsync(actor,item,1,"Fotografías nuevas",4,false,default);db.ChangeTracker.Clear();
         var future=await Prepare();
         Check(JsonSerializer.Deserialize<Dictionary<int,ProcessItemSnapshot>>((await db.Set<PreparedProcessStart>().AsNoTracking().SingleAsync(p=>p.PlanId==future)).ItemRatesJson!)![1].Minutes==4,"Retired item remains usable by published process; new preparation adopts current rate without republishing");
         Check((await db.Set<PreparedProcessStart>().AsNoTracking().SingleAsync(p=>p.PlanId==plan)).ItemRatesJson==ratesBefore,"Prepared rate frozen after global change");
         var run=(await planning.ActivateAsync(actor,plan,default)).Single();db.ChangeTracker.Clear();
+        Check((await engine.ReadAsync(actor,run,default)).Run.PlannedStartsAt==savedStart.StartsAt,"Activation preserves the reviewed occasion time");
         Check((await engine.ReadAsync(actor,run,default)).Stages.First().OutputItemMinutes==3,"Activation uses prepared rate");
         async Task<(OperationalSequenceStage Stage,OperationalSequenceAttempt Attempt)> Active() {
             var v=await engine.ReadAsync(actor,run,default);var s=v.Stages.Single(x=>x.Position==v.Run.ActivePosition);
@@ -106,6 +153,33 @@ public static class ProcessItemChecks
         Check((await engine.ReadAsync(actor,run,default)).Attempts.Any(a=>a.ItemQuantity==20),"Original erroneous count remains in history");
         Console.WriteLine("ITEMS_PHASE_CORE_PASS");
     }
+    private static async Task PlanTimeDiagnostics(SgolDbContext db, OperationalProcessCatalogService catalog, IDirectionPreparedPlanService direction, IClock clock, Guid actor, Guid person, HttpClient client, DateOnly day)
+    {
+        var root=Guid.CreateVersion7(); await catalog.CreateAsync(actor,root,"Diagnóstico de turnos","",default); db.ChangeTracker.Clear();
+        var definitions=Enumerable.Range(1,2).Select(i=>new OperationalTask { Id=Guid.CreateVersion7(), TaskCode=$"DIA-{i}",Name="Diagnóstico etapa "+i, ProcessId=root, Requirement="NINGUNO", AssignedRole=CanonicalRole.Direction, LoadMinutes=1,OperationalCriticality=i==1?"CRITICA":"FLEXIBLE" }).ToArray();
+        db.AddRange(definitions); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        var editor=await catalog.ReadAsync(actor,root,default);
+        await catalog.SaveAsync(actor,new(){Id=root,Revision=editor.Process.Revision,Name=editor.Process.Name,Steps=definitions.Select((t,i)=>new OperationalSequenceStep{TaskId=t.Id,Position=i+1,Action=i==0?"ENTREGAR":"AUTORIZAR",ReleaseCondition=i==0?"INICIO":"ENTREGA",DeadlineHours=1}).ToList()},default); db.ChangeTracker.Clear();
+        editor=await catalog.ReadAsync(actor,root,default); await catalog.PublishAsync(actor,root,editor.Process.Revision,default); db.ChangeTracker.Clear();
+        editor=await catalog.ReadAsync(actor,root,default); await catalog.SetEnabledAsync(actor,root,editor.Process.Revision,true,default); db.ChangeTracker.Clear();
+        var html=await client.GetStringAsync($"/planificacion/procesos?processId={root}");
+        var fields=new Dictionary<string,string>{["Input.Key"]=Guid.CreateVersion7().ToString(),["Input.ProcessId"]=root.ToString(),["Input.Name"]="Diagnóstico horario",["Input.Mode"]="OCASION",["Input.From"]=day.ToString("yyyy-MM-dd"),["Input.Through"]=day.ToString("yyyy-MM-dd"),["Input.People[1]"]=person.ToString(),["Input.People[2]"]=person.ToString()};
+        foreach(var (time,message) in new[]{("08:00","turno de esta persona aún no comienza"),("13:30","pausa entre tramos"),("20:00","turno de esta persona ya terminó")}) {
+            fields["Input.OccasionTime"]=time;
+            var response=await client.PostAsync("/planificacion/procesos?handler=Preview",Form(html,fields));
+            var text=WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+            Check(response.StatusCode==HttpStatusCode.UnprocessableEntity && text.Contains(message) && text.Contains("Etapa 1 (Diagnóstico etapa 1) · Process editor test") && text.Contains("Hora evaluada: "+time),"Actual HTTP identifies shift conflict at "+time);
+        }
+        var schedule=new PersonalScheduleService(db,direction,clock);
+        var exception=await schedule.ReadExceptionAsync(actor,actor,day,default); exception.Reason="Descanso para regresión aislada";
+        exception.Fingerprint=(await schedule.PreviewExceptionAsync(actor,exception,default)).Fingerprint;
+        await schedule.SaveExceptionAsync(actor,exception,default); db.ChangeTracker.Clear();
+        fields["Input.OccasionTime"]="12:00";
+        var rest=await client.PostAsync("/planificacion/procesos?handler=Preview",Form(html,fields));
+        var restText=WebUtility.HtmlDecode(await rest.Content.ReadAsStringAsync());
+        Check(rest.StatusCode==HttpStatusCode.UnprocessableEntity && restText.Contains("descanso ese día") && restText.Contains("Process editor test"),"Actual HTTP distinguishes rest day from missing schedule or capacity");
+        Check(!await db.DirectionPreparedPlans.AnyAsync(p=>p.Id==Guid.Parse(fields["Input.Key"])),"Shift conflicts create no partial prepared plan");
+    }
     public static async Task CapacityAsync(SgolDbContext db, Guid actor, Guid person, IClock clock, HttpClient client, Action<DateTimeOffset> setClock)
     {
         var direction = new EfDirectionPreparedPlanService(db,new AuditTransaction(db),clock,new Uuid7Generator(clock),new DirectionPlanningCatalogReader(db));
@@ -123,7 +197,7 @@ public static class ProcessItemChecks
             var day=originalDay.AddDays(++serial);
             setClock(OperationalSchedule.Instant(day,12));
             var cap=await db.OperationalCapacities.SingleAsync(c=>c.PersonId==person); cap.DailyMinutes=480;await db.SaveChangesAsync();db.ChangeTracker.Clear();
-            var input=new ProcessPlanInput { Name="Items exception HTTP",ProcessId=root.Id,Mode="OCASION",From=day,Through=day,People=Enumerable.Range(1,4).ToDictionary(i=>i,i=>person) };
+            var input=new ProcessPlanInput { Name="Items exception HTTP",ProcessId=root.Id,Mode="OCASION",OccasionTime=new(12,0),From=day,Through=day,People=Enumerable.Range(1,4).ToDictionary(i=>i,i=>person) };
             input.Fingerprint=(await planning.PreviewAsync(actor,input,default)).Fingerprint;
             var plan=await planning.PrepareAsync(actor,input,default);db.ChangeTracker.Clear();
             var run=(await planning.ActivateAsync(actor,plan,default)).Single();db.ChangeTracker.Clear();return run;

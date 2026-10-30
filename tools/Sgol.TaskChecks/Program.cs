@@ -86,8 +86,21 @@ if(args.Contains("--process-items-integrity")) { await ProcessEditorChecks.RunAs
 if(args.Contains("--process-items-more")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true); return; }
 if(args.Contains("--process-items-only")) { await ProcessEditorChecks.RunAsync(db, itemsOnly:true); return; }
 if(args.Contains("--process-editor-only")) { await ProcessEditorChecks.RunAsync(db); return; }
+if(args.Contains("--process-refresh-only")) { await ProcessEditorChecks.RunAsync(db, processRefreshOnly:true); return; }
 if(args.Contains("--checklist-http-only")) { await ProcessEditorChecks.RunAsync(db, checklistOnly:true); return; }
 if(args.Contains("--process-editor-current")) { await ProcessEditorChecks.CurrentAsync(db); return; }
+if (args.Contains("--process-mywork-preview")) {
+    var attempt = await db.Set<OperationalSequenceAttempt>().AsNoTracking().FirstAsync(a => a.Status == "ACTIVO");
+    var person = await db.OperationalAssignments.Where(a => a.Id == attempt.AssignmentId).Select(a => a.PersonId).SingleAsync();
+    var actor = await db.AppUsers.Where(u => u.PersonId == person).Select(u => u.Id).SingleAsync();
+    var sourceRoot = new DirectoryInfo(AppContext.BaseDirectory);
+    while (!File.Exists(Path.Combine(sourceRoot.FullName, "SistemaSGOL.slnx"))) sourceRoot = sourceRoot.Parent ?? throw new Exception("Source root not found.");
+    var bytes = await File.ReadAllBytesAsync(Path.Combine(sourceRoot.FullName, "outputs/procesos/inventario-ejemplo-v1.pdf"));
+    var pdf = new FormFile(new MemoryStream(bytes), 0, bytes.Length, "Document", "ejemplo.pdf") { Headers = new HeaderDictionary(), ContentType = "application/pdf" };
+    Environment.SetEnvironmentVariable("SGOL_PROCESS_MYWORK_PREVIEW", "1");
+    await ProcessMyWorkHttpChecks.RunAsync(db, actor, attempt.RunId, pdf); return;
+}
+if (args.Contains("--process-mywork-only")) { await ProcessRuntimeChecks.RunAsync(db, preparePlan:true, myWorkOnly:true); return; }
 if (args.Contains("--process-cross-role-only")) { await ProcessRuntimeChecks.RunAsync(db, preparePlan:true, reassignment:true, crossRole:true); return; }
 if (args.Contains("--process-runtime-only") || args.Contains("--process-demo-seed") || args.Contains("--process-plan-only") || args.Contains("--process-reassign-only") || args.Contains("--process-deletion-only")) { await ProcessRuntimeChecks.RunAsync(db,args.Contains("--process-demo-seed"),args.Contains("--process-plan-only") || args.Contains("--process-deletion-only"),args.Contains("--process-reassign-only"),args.Contains("--process-deletion-only")); return; }
 if (args.Contains("--process-schema-only")) { await ProcessCatalogChecks.SchemaAsync(db, sequenceBeforeUpgrade!); return; }

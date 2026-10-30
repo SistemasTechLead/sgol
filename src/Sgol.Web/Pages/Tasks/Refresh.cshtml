@@ -29,12 +29,16 @@
                 <p>Marca las opciones que autorizas y pulsa <strong>Revisar cambios</strong>. Debajo verás el resultado antes de guardar.</p>
                 @foreach (var decision in preview.Decisions)
                 {
-                    var field = RefreshModel.DecisionField(decision.Code);
+                    var field = decision.AssignmentId != null ? nameof(Model.PreserveProcessAssignmentIds) : RefreshModel.DecisionField(decision.Code);
+                    var value = decision.AssignmentId?.ToString() ?? "true";
+                    <div class="assignment-refresh__case">
+                    @if (decision.Problem != null) { <p class="assignment-refresh__problem" id="refresh-problem-@decision.AssignmentId">@decision.Problem</p> }
                     <label class="assignment-refresh__choice @(decision.Accepted ? "assignment-refresh__choice--accepted" : "")">
-                        <input type="checkbox" name="@field" value="true" checked="@decision.Accepted" />
+                        <input type="checkbox" name="@field" value="@value" checked="@decision.Accepted" aria-describedby="@(decision.Problem != null ? $"refresh-problem-{decision.AssignmentId}" : null)" />
                         <span><strong>@decision.Title</strong><span>@decision.Help</span><small data-refresh-choice-status>@(decision.Accepted ? "Incluido en esta revisión" : "Marca esta opción para continuar")</small>
                         <span class="assignment-refresh__affected">@string.Join(" · ", decision.TaskCodes.Select(c => $"{c}: {Model.DecisionTasks.GetValueOrDefault(c, c)}"))</span></span>
                     </label>
+                    </div>
                 }
                 @if (pendingDecisions > 0) { <p class="assignment-refresh__pending" role="status">@(pendingDecisions == 1 ? "Falta 1 opción por autorizar para poder continuar." : $"Faltan {pendingDecisions} opciones por autorizar para poder continuar.")</p> }
             }
@@ -82,6 +86,7 @@
                 <h2>@(reviewStep + 1). Confirma la actualización</h2>
                 <input type="hidden" asp-for="Key" /><input type="hidden" asp-for="NotBefore" /><input type="hidden" asp-for="Fingerprint" />
                 <input type="hidden" asp-for="ReplaceRemainingEstimate" /><input type="hidden" asp-for="ChangeAuthorizedDeadline" /><input type="hidden" asp-for="AdoptLegacyCalendar" /><input type="hidden" asp-for="RetireInactiveAssignments" /><input type="hidden" asp-for="RetireExcludedAssignments" />
+                @foreach (var id in Model.PreserveProcessAssignmentIds) { <input type="hidden" name="PreserveProcessAssignmentIds" value="@id" /> }
                 <label class="campo"><span class="campo__etiqueta">Motivo para el historial</span><textarea class="campo__control" asp-for="Reason" maxlength="1000" required rows="2" placeholder="Por ejemplo: Actualizar requisitos y retirar tareas que ya no se realizan"></textarea></label>
                 <p>Se guardarán todos los cambios mostrados arriba.</p>
                 <button class="boton boton--primario" type="submit">@(retired == 0 ? "Confirmar cambios" : updated == 0 ? "Confirmar retiros" : "Confirmar cambios y retiros")</button>

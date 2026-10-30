@@ -139,7 +139,7 @@ internal static class ChecklistChecks
         var service=new OperationalProcessService(db,direction,clock,new FileTechnicalValidator(),new CheckScanner());
         var day=WeekContract.LocalToday(clock.UtcNow);
         var planning=new ProcessPlanningService(db,direction,clock,new FileTechnicalValidator(),new CheckScanner());
-        var input=new ProcessPlanInput {Key=Guid.NewGuid(),Name="Plan checklist",ProcessId=id,Mode="OCASION",From=day,Through=day,People=new Dictionary<int,Guid>{{1,person},{2,person}}};
+        var input=new ProcessPlanInput {Key=Guid.NewGuid(),Name="Plan checklist",ProcessId=id,Mode="OCASION",OccasionTime=new(12,0),From=day,Through=day,People=new Dictionary<int,Guid>{{1,person},{2,person}}};
         var preview=await planning.PreviewAsync(director,input,default);input.Fingerprint=preview.Fingerprint;
         var prepared=await planning.PrepareAsync(director,input,default);db.ChangeTracker.Clear();
         var run=(await planning.ActivateAsync(director,prepared,default)).Single();db.ChangeTracker.Clear();

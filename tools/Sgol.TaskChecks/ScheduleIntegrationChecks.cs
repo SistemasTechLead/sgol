@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Sgol.Identity.Contracts;
@@ -140,7 +140,7 @@ internal static class ScheduleIntegrationChecks
         editor=await catalog.ReadAsync(actor,process,default); await catalog.PublishAsync(actor,process,editor.Process.Revision,default); db.ChangeTracker.Clear();
         editor=await catalog.ReadAsync(actor,process,default); await catalog.SetEnabledAsync(actor,process,editor.Process.Revision,true,default); db.ChangeTracker.Clear();
         var planning=new ProcessPlanningService(db,direction,clock,new FileTechnicalValidator(),new CheckScanner());
-        var processInput=new ProcessPlanInput { ProcessId=process,Name="Reserva en turno",Mode="OCASION",From=day,Through=day,People=new() {[1]=b,[2]=b} };
+        var processInput=new ProcessPlanInput { ProcessId=process,Name="Reserva en turno",Mode="OCASION",OccasionTime=new(15,0),From=day,Through=day,People=new() {[1]=b,[2]=b} };
         var processPreview=await planning.PreviewAsync(actor,processInput,default); processInput.Fingerprint=processPreview.Fingerprint;
         var plan=await planning.PrepareAsync(actor,processInput,default); db.ChangeTracker.Clear();
         clock.UtcNow=TemporalEligibilityContext.At(day,900);
@@ -149,7 +149,7 @@ internal static class ScheduleIntegrationChecks
         var processService=new OperationalProcessService(db,direction,clock,new FileTechnicalValidator(),new CheckScanner());
         var run=await processService.ReadAsync(actor,runs.Single(),default);
         await Reject(()=>processService.ReassignAsync(actor,run.Run.Id,run.Run.Revision,Guid.CreateVersion7(),new Dictionary<int,Guid> { [1]=a },"Fuera de turno",null,default),"PLAN_NO_AVAILABLE_WORKER");
-        var another=new ProcessPlanInput { ProcessId=process,Name="Cambio después de reservar",Mode="OCASION",From=day,Through=day,People=new() {[1]=b,[2]=b} };
+        var another=new ProcessPlanInput { ProcessId=process,Name="Cambio después de reservar",Mode="OCASION",OccasionTime=new(15,0),From=day,Through=day,People=new() {[1]=b,[2]=b} };
         another.Fingerprint=(await planning.PreviewAsync(actor,another,default)).Fingerprint;
         var pendingPlan=await planning.PrepareAsync(actor,another,default); db.ChangeTracker.Clear();
         var userB=await db.AppUsers.Where(u=>u.PersonId==b).Select(u=>u.Id).SingleAsync();

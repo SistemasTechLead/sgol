@@ -45,14 +45,19 @@ public sealed partial class IndexModel
     public DateTimeOffset OperationalNow { get; private set; }
     public DateOnly OperationalDay => WeekContract.LocalToday(OperationalNow);
     public bool OperationalToday(OperationalAssignmentDetails task) => OperationalWorkPlan.IsForDay(task, OperationalDay);
-    public string OperationalColor(OperationalAssignmentDetails task) => task.ReviewStatus switch {
-        "NO_SATISFECHA" => "urgent", "REASIGNADA" => "scheduled",
+    public string OperationalColor(OperationalAssignmentDetails task) => task.PendingProcessRunId != null ? "scheduled" : task.ReviewStatus switch {
+        "NO_SATISFECHA" => "urgent", "REASIGNADA" => task.CompletedAt != null && task.CompletionKind == "ENTREGA" ? "delivered" : "scheduled",
         _ => LiveBoardTask.FromAssignment(task).Color(OperationalNow)
     };
-    public string OperationalTiming(OperationalAssignmentDetails task) => OperationalColor(task) switch {
+    public string OperationalTiming(OperationalAssignmentDetails task) => task.PendingProcessStatus switch {
+        "EN_ESPERA" => "En espera de la etapa anterior", "PROGRAMADA" => "Programada", "PENDIENTE_ASIGNACION" => "Pendiente de asignación",
+        // Reassignment closes the original assignment; it never schedules it again.
+        // A supervision closure without a delivery must not be presented as an entrega.
+        _ when task.ReviewStatus == "REASIGNADA" => task.CompletionKind == "ENTREGA" ? "Entregada" : "Reasignada",
+        _ => OperationalColor(task) switch {
         "delivered" => "Entregada", "scheduled" => "Por activar", "active" => "Activa",
         "warning" => "Último 30% del tiempo", _ => task.DueAt <= OperationalNow ? "Vencida" : "Último 10% del tiempo"
-    };
+    }};
     public Dictionary<string, string> WorkRoutes => Request.Query.Where(q => q.Key is "WorkPage" or "WorkSearch").ToDictionary(q => q.Key, q => q.Value.ToString());
     public string OperationalTaskHref(Guid id) => QueryHelpers.AddQueryString(QueryHelpers.AddQueryString("/mi-trabajo", WorkRoutes.ToDictionary(q => q.Key, q => (string?)q.Value)), "assignedTask", id.ToString("D")) + "#plan-tasks";
     public static bool OperationalSubmitted(OperationalAssignmentDetails task) =>

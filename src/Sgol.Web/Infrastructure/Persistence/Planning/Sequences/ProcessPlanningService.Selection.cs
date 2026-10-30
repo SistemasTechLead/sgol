@@ -20,6 +20,7 @@ public sealed partial class ProcessPlanningService
                 (automatic || w.Id == people[step.Position])).ToArray();
             if (!automatic && candidates.Length == 0) throw Error("OCCASION_RECIPIENT_INVALID");
             var choices = new List<(Guid Person, decimal Occupancy, string Draw)>();
+            var failures = new List<DirectionPlanException>();
             foreach (var candidate in candidates)
             {
                 token.ThrowIfCancellationRequested();
@@ -35,7 +36,7 @@ public sealed partial class ProcessPlanningService
                         var reservations = Reservations(input.Key, version, start, people, steps.Take(index + 1).ToArray(), policy, simulated, now).ToArray();
                         foreach (var reservation in reservations)
                         {
-                            if (!simulated.CanAssign(reservation.PersonId, reservation)) throw Error("PLAN_NO_AVAILABLE_WORKER");
+                            RequireReservation(simulated, reservation, steps.Single(s => s.TaskId == reservation.TaskId));
                             simulated = simulated.WithAdded(reservation);
                             if (reservation.TaskId == task.Id) own.Add(reservation);
                         }
@@ -50,12 +51,14 @@ public sealed partial class ProcessPlanningService
                     (e.Code.StartsWith("SCHEDUL", StringComparison.Ordinal) || e.Code == "PLAN_NO_AVAILABLE_WORKER" || e.Code == "CLOSING_COVERAGE_REQUIRED"))
                 {
                     // A free daily balance is insufficient when no valid working interval exists.
+                    failures.Add(e);
                 }
             }
             if (choices.Count == 0)
             {
                 var error = Error("PLAN_NO_AVAILABLE_WORKER");
                 error.Data["StagePosition"] = step.Position; error.Data["StageName"] = task.Name;
+                if (failures.Count > 0) error.Data["CandidateFailures"] = failures.ToArray();
                 throw error;
             }
             people[step.Position] = choices.OrderBy(c => c.Occupancy).ThenBy(c => c.Draw, StringComparer.Ordinal).First().Person;

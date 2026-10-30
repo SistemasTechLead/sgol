@@ -66,7 +66,7 @@ public static class ProcessPlanAutoChecks
             db.Add(assignment);
         }
         await db.SaveChangesAsync();db.ChangeTracker.Clear();
-        ProcessPlanInput Input() => new() { ProcessId=id,Name="Selección por etapa",Mode="OCASION",From=day,Through=day,People=new() { [1]=Guid.Empty,[2]=Guid.Empty } };
+        ProcessPlanInput Input() => new() { ProcessId=id,Name="Selección por etapa",Mode="OCASION",OccasionTime=new(9,0),From=day,Through=day,People=new() { [1]=Guid.Empty,[2]=Guid.Empty } };
         var input=Input();var preview=await plans.PreviewAsync(actor,input,default);
         Check(input.People[1]==a && input.People[2]==b,"Automatic stages prefer lower projected occupancy and distribute individual 40-minute loads across 60-minute capacities");
         Check(preview.Stages.All(s=>s.PersonId!=absent&&s.PersonId!=wrongRole&&s.PersonId!=owner),"Automatic choice excludes rest days, incompatible roles and zero capacity");

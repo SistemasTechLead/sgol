@@ -102,3 +102,4 @@
 
 .process-item-form{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--espacio-16)}
 .process-item-form>.boton{justify-self:start}
+.process-page [data-process-occasion-time][hidden] { display: none; }

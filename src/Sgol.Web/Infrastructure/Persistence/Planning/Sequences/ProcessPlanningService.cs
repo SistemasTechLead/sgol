@@ -18,6 +18,7 @@ public sealed class ProcessPlanInput
     public DateOnly From { get; set; }
     public DateOnly Through { get; set; }
     public Dictionary<int,Guid> People { get; set; }=[];
+    public TimeOnly? OccasionTime { get; set; }
     public string? Fingerprint { get; set; }
 }
 public sealed record ProcessPlanStage(int Position,string Name,string Role,Guid PersonId,string PersonName,int Minutes,int DeadlineHours)
@@ -50,18 +51,19 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
         if(input.Key==Guid.Empty || string.IsNullOrWhiteSpace(input.Name) || input.Name.Trim().Length>120 || input.Name.Any(char.IsControl) ||
             input.From.Year<1 || input.Through<input.From || input.Through.DayNumber-input.From.DayNumber>366 ||
             input.Mode is not ("CALENDARIO" or "OCASION")) throw Error("PROCESS_INVALID");
-        var root=await db.Set<OperationalSequence>().AsNoTracking().SingleOrDefaultAsync(p=>p.Id==input.ProcessId && !p.IsGeneral && p.Enabled,token)
+        var root=await db.Set<OperationalSequence>().AsNoTracking().SingleOrDefaultAsync(p=>p.Id==input.ProcessId && !p.IsGeneral && p.DeletedAt == null && p.Enabled,token)
             ?? throw Error("PROCESS_OPERATION_NOT_READY",409);
         var version=await db.Set<OperationalSequenceVersion>().AsNoTracking().SingleAsync(v=>v.Id==root.PublishedVersionId && v.PublishedAt!=null,token);
         if(proposal != null && proposal.VersionId != version.Id) throw Error("PLAN_CAPACITY_STALE",409);
-        if(!version.StartHourConfirmed) throw Error("PROCESS_RULES_INVALID");
+        if(input.Mode == "OCASION" && (input.OccasionTime == null || input.OccasionTime.Value.Ticks % TimeSpan.TicksPerMinute != 0)) throw Error("PROCESS_PLAN_TIME_REQUIRED");
+        if(input.Mode == "CALENDARIO" && !version.StartHourConfirmed) throw Error("PROCESS_CALENDAR_HOUR_REQUIRED");
         var steps=await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>s.VersionId==version.Id).OrderBy(s=>s.Position).ToArrayAsync(token);
         var itemRates = await ProcessItemRules.CaptureAsync(db, steps, token);
         var tasks=steps.Select(s=>JsonSerializer.Deserialize<OperationalTask>(s.TaskSnapshot!)!).ToArray();
         var today=WeekContract.LocalToday(clock.UtcNow);
         if(input.From<today || input.People.Count!=steps.Length || steps.Any(s=>!input.People.ContainsKey(s.Position))) throw Error("PROCESS_PLAN_PEOPLE_REQUIRED");
         var starts=(input.Mode=="OCASION" ? new[] { input.From } : OperationalSequenceRules.Dates(input.From,input.Through,version).ToArray())
-            .Select(d=>OperationalSchedule.Instant(d,version.StartHour)).ToArray();
+            .Select(d=>input.Mode == "OCASION" ? OperationalSchedule.Instant(d).AddMinutes(input.OccasionTime!.Value.Hour * 60 + input.OccasionTime.Value.Minute) : OperationalSchedule.Instant(d,version.StartHour)).ToArray();
         if(starts.Length==0) throw Error("PROCESS_PLAN_NO_DATES");
         if(await db.OperationalTasks.AnyAsync(t=>tasks.Select(x=>x.Id).Contains(t.Id) && (t.ProcessId!=root.Id || !t.Active || t.Deleted),token)) throw Error("PROCESS_MEMBERSHIP_INVALID");
         var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,token);
@@ -87,7 +89,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
             foreach(var reservation in reservations)
             {
                 reservation.PersonName = snapshot.Workers.Single(w => w.Id == reservation.PersonId).Name;
-                if(!ledger.CanAssign(reservation.PersonId,reservation)) throw Error("PLAN_NO_AVAILABLE_WORKER");
+                RequireReservation(ledger, reservation, steps.Single(s => s.TaskId == reservation.TaskId));
                 ledger=new(ledger.Workers,ledger.Tasks.Append(reservation).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal = ledger.Temporal };
             }
         }
@@ -178,7 +180,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
             var reservation = new OperationalAssignment { Id=new Guid(digest.AsSpan(0,16)),TaskId=task.Id,TaskCode=task.TaskCode,TaskRevision=task.Revision,
                 Name=task.Name,Description=task.Description,AssignedRole=task.AssignedRole,PersonId=people[step.Position],LoadMinutes=task.LoadMinutes,Requirement=task.Requirement, ChecklistJson = task.ChecklistJson,
                 StartsAt=planned,DueAt=planned.AddHours(step.DeadlineHours),SpecializationId=task.SpecializationId,PeriodType="OCASIONAL" };
-            if (policy != null) {
+            try { if (policy != null) {
                 var fixedMinimum = step.MinimumStartOffsetHours is {} offset ? starts.AddHours(offset) : starts;
                 var nominal = task.OperationalCriticality == "CRITICA" ? fixedMinimum : new[] { planned, fixedMinimum }.Max();
                 OperationalAgenda.Capture(reservation, policy, task.OperationalCriticality, nominal);
@@ -187,10 +189,57 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
                     OperationalAgenda.Apply(reservation, OperationalAgenda.Find(ledger, reservation.PersonId, reservation, notBefore ?? starts));
                     ledger = new(ledger.Workers, ledger.Tasks.Append(reservation).ToArray(), ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) { Temporal = ledger.Temporal };
                 }
+            } }
+            catch (DirectionPlanException error) {
+                if (ledger != null) error.Data["ConflictReason"] = TimeConflict(error.Code, reservation, ledger, notBefore ?? starts);
+                error.Data["EvaluatedTime"] = new[] { reservation.StartsAt, notBefore ?? starts }.Max().ToOffset(TimeSpan.FromHours(-6)).ToString("HH:mm");
+                throw StageError(error, step, reservation, ledger);
             }
             yield return reservation;
             planned=reservation.DueAt;
         }
+    }
+    private static void RequireReservation(CapacityLedger ledger, OperationalAssignment reservation, OperationalSequenceStep step)
+    {
+        if (ledger.CanAssign(reservation.PersonId, reservation)) return;
+        var time = ledger.CheckTime(reservation.PersonId, reservation);
+        var reason = !time.Eligible ? time.Reason : !ledger.CanFit(reservation.PersonId, reservation)
+            ? "PROCESS_PLAN_CAPACITY_EXCEEDED" : OperationalAgenda.FindExact(ledger, reservation.PersonId, reservation).Reason;
+        var error = Error("PLAN_NO_AVAILABLE_WORKER");
+        error.Data["ConflictReason"] = TimeConflict(reason == "ELIGIBLE" ? error.Code : reason, reservation, ledger, reservation.StartsAt);
+        throw StageError(error, step, reservation, ledger);
+    }
+    internal static string TimeConflict(string reason, OperationalAssignment reservation, CapacityLedger ledger, DateTimeOffset notBefore)
+    {
+        var day = WeekContract.LocalToday(reservation.StartsAt);
+        if (ledger.Unavailable.Contains((reservation.PersonId, day))) return reason;
+        var intervals = ledger.Temporal.Day(reservation.PersonId, day, ledger.Temporal.UsesCoverageSchedule(reservation)).Intervals;
+        if (reason == "SCHEDULE_ABSENT" && intervals is { Length: 0 }) return "PROCESS_PLAN_REST_DAY";
+        if (reason is not ("SCHEDULING_NO_CONTIGUOUS_SLOT" or "SCHEDULE_NOT_PRESENT_AT_ACTIVATION" or "SCHEDULE_NOT_PRESENT_AT_RECEPTION") || intervals is not { Length: > 0 }) return reason;
+        var evaluated = new[] { reservation.StartsAt, notBefore }.Max();
+        if (evaluated < TemporalEligibilityContext.At(day, intervals.Min(i => i.Entry))) return "PROCESS_PLAN_BEFORE_SHIFT";
+        if (evaluated >= TemporalEligibilityContext.At(day, intervals.Max(i => i.Exit))) return "PROCESS_PLAN_SHIFT_ENDED";
+        if (!intervals.Any(i => TemporalEligibilityContext.At(day, i.Entry) <= evaluated && evaluated < TemporalEligibilityContext.At(day, i.Exit))) return "PROCESS_PLAN_BREAK";
+        return reason;
+    }
+    private static DirectionPlanException StageError(DirectionPlanException error, OperationalSequenceStep step,
+        OperationalAssignment reservation, CapacityLedger? ledger)
+    {
+        if (error.Data.Contains("StagePosition")) return error;
+        var day = WeekContract.LocalToday(reservation.StartsAt);
+        error.Data["StagePosition"] = step.Position;
+        error.Data["StageName"] = reservation.Name;
+        error.Data["PersonName"] = ledger?.Workers.SingleOrDefault(w => w.Id == reservation.PersonId)?.Name;
+        error.Data["ConflictDay"] = day;
+        error.Data["RequiredMinutes"] = reservation.LoadMinutes;
+        if (!error.Data.Contains("EvaluatedTime")) error.Data["EvaluatedTime"] = reservation.StartsAt.ToOffset(TimeSpan.FromHours(-6)).ToString("HH:mm");
+        if (ledger != null) {
+            error.Data["CurrentMinutes"] = ledger.DayLoad(reservation.PersonId, day);
+            error.Data["CapacityMinutes"] = ledger.DayCapacity(reservation.PersonId, day);
+            error.Data["WorkHours"] = string.Join(" · ", (ledger.Temporal.Day(reservation.PersonId, day).Intervals ?? [])
+                .Select(i => $"{i.Entry / 60:00}:{i.Entry % 60:00}–{i.Exit / 60:00}:{i.Exit % 60:00}"));
+        }
+        return error;
     }
     internal static async Task<OperationalAssignment[]> PreparedReservationsAsync(SgolDbContext db,CancellationToken token)
     {

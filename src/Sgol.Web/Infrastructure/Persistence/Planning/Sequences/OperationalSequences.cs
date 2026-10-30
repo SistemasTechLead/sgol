@@ -16,6 +16,7 @@ public sealed class OperationalSequence
     public bool IsGeneral { get; set; }
     public Guid? PublishedVersionId { get; set; }
     public bool Enabled { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
     public long Revision { get; set; } = 1;
 }
 

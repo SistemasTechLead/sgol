@@ -26,7 +26,18 @@ public static class AssignmentDefinition
     }
     public static T Copy<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
     public static string Capture(OperationalTask task) => JsonSerializer.Serialize(task);
-    public static bool IsMetadataField(string field) => field is "Nombre" or "Descripción" or "Requisito" or "Límites de imágenes" or "Checklist";
+    public static bool IsMetadataField(string field) => field is "Nombre" or "Descripción" or "Requisito" or "Límites de imágenes" or "Checklist" or "Conservar proceso anterior";
+    private const string PreservedProcessTarget = "_PreservedProcessTargetId";
+    private static bool HasPreservedProcess(OperationalAssignment a, OperationalTask current) => a.DefinitionSnapshotJson != null &&
+        JsonSerializer.Deserialize<JsonElement>(a.DefinitionSnapshotJson).TryGetProperty(PreservedProcessTarget, out var target) &&
+        target.TryGetGuid(out var id) && id == current.ProcessId;
+    public static void PreserveProcess(OperationalAssignment a, OperationalTask current)
+    {
+        var snapshot = a.DefinitionSnapshotJson != null ? System.Text.Json.Nodes.JsonNode.Parse(a.DefinitionSnapshotJson)!
+            : JsonSerializer.SerializeToNode(Baseline(a, current))!;
+        snapshot[PreservedProcessTarget] = JsonSerializer.SerializeToNode(current.ProcessId);
+        a.DefinitionSnapshotJson = snapshot.ToJsonString();
+    }
     public static bool Pending(OperationalAssignment a) => a.RetiredAt == null && a.CompletedAt == null &&
         a.ReviewStatus is not ("CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA" or "PENDIENTE_REVISION");
 
@@ -58,7 +69,7 @@ public static class AssignmentDefinition
         Change(old.AssignedRole != t.AssignedRole || a.SpecializationId != t.SpecializationId || t.SpecializationId == null && a.AssignedRole != null && a.AssignedRole != t.AssignedRole, "Elegibilidad");
         Change(a.ItemLoadSourceAttemptId == null && ConfiguredLoad(a) != t.LoadMinutes, "Carga");
         Change(a.OperationalCriticality != t.OperationalCriticality, "Criticidad");
-        Change(!process && old.ProcessId != t.ProcessId, "Pertenencia al proceso");
+        Change(old.ProcessId != t.ProcessId && !HasPreservedProcess(a, t), "Pertenencia al proceso");
         if (!process && a.OccasionId == null)
         {
             Change(a.ScheduleMode != t.ScheduleMode, "Modalidad");
@@ -106,6 +117,15 @@ public static class AssignmentDefinition
             a.GoalUnits = t.ScheduleMode == "PROGRESO" ? t.GoalUnits ?? 0 : 0;
             a.ProgressUnit = t.ProgressUnit; a.DifferentPeople = t.DifferentPeople; a.PreferredMonthDays = t.PreferredMonthDays;
         }
+        var preserveProcess = HasPreservedProcess(a, t);
+        var previousProcess = preserveProcess ? Baseline(a, t).ProcessId : t.ProcessId;
         a.TaskRevision = t.Revision; a.DefinitionSnapshotJson = Capture(t);
+        if (preserveProcess)
+        {
+            var snapshot = System.Text.Json.Nodes.JsonNode.Parse(a.DefinitionSnapshotJson)!;
+            snapshot["ProcessId"] = JsonSerializer.SerializeToNode(previousProcess);
+            a.DefinitionSnapshotJson = snapshot.ToJsonString();
+            PreserveProcess(a, t);
+        }
     }
 }

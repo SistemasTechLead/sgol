@@ -1447,6 +1447,8 @@ body{background:var(--color-superficie-elevada)}
 .supervision-custom summary { cursor: pointer; }
 .supervision-custom .campo { margin-top: 8px; }
 .supervision-count { color: var(--color-texto-secundario); font: var(--tipografia-pequena); }
+.supervision-more { display: flex; justify-content: center; padding-block: var(--espacio-16); }
+.supervision-section tr[id] { scroll-margin-top: var(--espacio-16); }
 .supervision-section .supervision-action-cell { width: 168px; min-width: 168px; box-sizing: border-box; vertical-align: middle; }
 .supervision-action { width: 144px; box-sizing: border-box; white-space: nowrap; }
 .supervision-action .icono { flex-shrink: 0; }

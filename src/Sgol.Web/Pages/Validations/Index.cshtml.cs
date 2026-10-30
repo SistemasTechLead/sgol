@@ -10,7 +10,7 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Validations;
 
-public sealed record SupervisionSection(string Key, string Title, IReadOnlyList<SupervisedTask> All, IReadOnlyList<SupervisedTask> Items) { public int Total { get; init; } public ListPage? Pagination { get; init; } }
+public sealed record SupervisionSection(string Key, string Title, IReadOnlyList<SupervisedTask> All, IReadOnlyList<SupervisedTask> Items) { public int Total { get; init; } public int Filtered { get; init; } public string? MoreHref { get; init; } public ListPage? Pagination { get; init; } }
 public sealed record SupervisionFilterModel(IndexModel Page, SupervisionSection Section);
 
 public sealed partial class IndexModel(IRazorSessionState sessions, OperationalSupervisionService supervision, OperationalCapacityService capacity, OperationalTaskService tasks, IClock clock, OperationalCarryoverService carryovers) : PageModel
@@ -81,9 +81,14 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
         foreach (var key in new[] { "pending" }.Concat(OperationalSupervisionService.RolesFor(Role)))
         {
             var filter = Request.Query.Where(q => q.Key.StartsWith(key + ".")).ToDictionary(q => q.Key[(key.Length + 1)..], q => q.Value.ToString());
-            var result = await supervision.PageAsync(actor, key, filter, ListPage.Read(Request, key + ".page"), token);
+            var result = await supervision.PageAsync(actor, key, filter, ListPage.Read(Request, key + ".page"), token, expand: !Validation);
+            var moreQuery = Request.Query.Where(q => q.Key != key + ".page" && q.Key != "task" && q.Key != "handler")
+                .ToDictionary(q => q.Key, q => (string?)q.Value.ToString());
+            moreQuery[key + ".page"] = (result.Page + 1).ToString();
             sections.Add(new(key, key == "pending" ? "Pendientes de revisión" : SessionPresentation.RoleName(key)!, result.Options, result.Items)
-                { Total = result.Total, Pagination = new(key + ".page", result.Page, result.Filtered, 50, Request, key) });
+                { Total = result.Total, Filtered = result.Filtered,
+                    MoreHref = !Validation && result.Items.Length < result.Filtered ? QueryHelpers.AddQueryString("/validaciones", moreQuery) + $"#{key}-row-{result.Items.Length}" : null,
+                    Pagination = Validation ? new(key + ".page", result.Page, result.Filtered, 50, Request, key) : null });
         }
         Sections = sections;
         if (Validation)

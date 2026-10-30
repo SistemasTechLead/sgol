@@ -15,7 +15,7 @@ public static class ProcessPlanDeletionChecks
         Guid[] users, ProcessPlanInput original)
     {
         var input = new ProcessPlanInput { Key = Guid.CreateVersion7(), Name = "Prepared deletion fixture", ProcessId = original.ProcessId,
-            Mode = "OCASION", From = original.From.AddDays(10), Through = original.From.AddDays(10), People = original.People };
+            Mode="OCASION",OccasionTime=new(11,0), From = original.From.AddDays(10), Through = original.From.AddDays(10), People = original.People };
         input.Fingerprint = (await planning.PreviewAsync(users[3], input, default)).Fingerprint;
         var id = await planning.PrepareAsync(users[3], input, default); db.ChangeTracker.Clear();
         var preview = await direction.PreviewDeletionAsync(users[3], id);

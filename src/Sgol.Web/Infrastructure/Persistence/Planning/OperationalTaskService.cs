@@ -51,7 +51,7 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         await OperationalProcessCatalogService.RequireMembershipChangeAsync(db, task, input.ProcessId, token);
         if (task != null && !input.Active && await (from step in db.Set<OperationalSequenceStep>()
             join process in db.Set<OperationalSequence>() on step.VersionId equals process.PublishedVersionId
-            where step.TaskId == task.Id select step).AnyAsync(token))
+            where step.TaskId == task.Id && process.Id == task.ProcessId && process.DeletedAt == null select step).AnyAsync(token))
             throw new DirectionPlanException("PROCESS_TASK_COMMITTED", 409);
         if (task is null)
         {
@@ -101,7 +101,7 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         if (task.Revision != revision) throw new DirectionPlanException("TASK_CONFLICT", 409);
         if ((delete || task.Active) && await (from step in db.Set<OperationalSequenceStep>()
             join process in db.Set<OperationalSequence>() on step.VersionId equals process.PublishedVersionId
-            where step.TaskId == id select step).AnyAsync(token))
+            where step.TaskId == id && process.Id == task.ProcessId && process.DeletedAt == null select step).AnyAsync(token))
             throw new DirectionPlanException("PROCESS_TASK_COMMITTED", 409);
         if (!delete && !task.Active && task.SpecializationId is { } specialization &&
             !await db.Set<Sgol.Web.Infrastructure.Persistence.Organization.Specialization>().AnyAsync(s => s.Id == specialization && s.Active, token))
@@ -149,16 +149,17 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         return await MineQuery(person).ToArrayAsync(token);
     }
 
-    private IQueryable<OperationalAssignmentDetails> MineQuery(Guid person, Guid? id = null, string? search = null, int? page = null, DateTimeOffset? now = null)
+    private IQueryable<OperationalAssignmentDetails> MineQuery(Guid person, Guid? id = null, string? search = null, int? page = null, DateTimeOffset? now = null, Guid[]? ids = null)
     {
         var assignments = db.OperationalAssignments.AsNoTracking().Where(a => a.PersonId == person);
         if (id != null) assignments = assignments.Where(a => a.Id == id);
+        if (ids != null) assignments = assignments.Where(a => ids.Contains(a.Id));
         var query = assignments.Join(db.DirectionPreparedPlans.AsNoTracking(), a => a.PlanId, p => p.Id, (a, p) => new { Assignment = a, Plan = p });
         if (!string.IsNullOrWhiteSpace(search)) {
             var text = Sgol.Web.Presentation.Search.SearchText.Normalize(search.Trim());
             query = query.Where(x => Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Assignment.Name).Contains(text) || Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Assignment.TaskCode).Contains(text) || Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Plan.Name).Contains(text));
         }
-        if (now is {} at) query = query.OrderBy(x => x.Assignment.ReviewStatus == "NO_SATISFECHA" ? 0 : x.Assignment.ReviewStatus == "REASIGNADA" ? 3 : x.Assignment.CompletedAt != null ? 4 : x.Assignment.StartsAt > at ? 3 :
+        if (now is {} at) query = query.OrderBy(x => x.Assignment.ReviewStatus == "NO_SATISFECHA" ? 0 : x.Assignment.ReviewStatus == "REASIGNADA" ? (x.Assignment.CompletedAt != null && x.Assignment.CompletionKind == "ENTREGA" ? 4 : 3) : x.Assignment.CompletedAt != null ? 4 : x.Assignment.StartsAt > at ? 3 :
             x.Assignment.DueAt <= at || (x.Assignment.DueAt - at).TotalSeconds <= (x.Assignment.DueAt - x.Assignment.StartsAt).TotalSeconds * .1 ? 0 :
             (x.Assignment.DueAt - at).TotalSeconds <= (x.Assignment.DueAt - x.Assignment.StartsAt).TotalSeconds * .3 ? 2 : 1).ThenBy(x => x.Assignment.DueAt).ThenBy(x => x.Assignment.Id);
         else query = query.OrderBy(x => x.Assignment.CompletedAt != null).ThenBy(x => x.Assignment.DueAt).ThenBy(x => x.Assignment.Id);
@@ -171,14 +172,12 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
                 x.Plan.Id, x.Plan.Name, x.Plan.PeriodType, x.Plan.StartsOn, x.Plan.EndsOn,
                 x.Assignment.ScheduleMode, x.Assignment.GoalUnits, x.Assignment.ProgressUnits, x.Assignment.ProgressUnit, x.Assignment.Revision,
                 x.Assignment.SpecializationId, x.Assignment.SpecializationName, x.Assignment.MinimumPhotos, x.Assignment.MaximumPhotos, x.Assignment.MaximumPhotoBytes, x.Assignment.OccasionId, x.Assignment.Description, x.Assignment.TemporalPolicyJson, x.Assignment.TemporalDecisionJson, x.Assignment.OperationalCriticality, x.Assignment.NominalStartsAt, x.Assignment.SchedulingPolicyId,
-                x.Assignment.TransferRemainingMinutes, x.Assignment.TransferProgressUnits, x.Assignment.ChecklistJson, x.Assignment.ChecklistDraftJson));
+                x.Assignment.TransferRemainingMinutes, x.Assignment.TransferProgressUnits, x.Assignment.ChecklistJson, x.Assignment.ChecklistDraftJson) { CompletionKind = x.Assignment.CompletionKind });
     }
 
     public async Task<(OperationalAssignmentDetails[] Items, int Total, int Page)> MinePageAsync(Guid actor, string? search, int page, DateTimeOffset now, CancellationToken token)
     {
-        var person = await PersonAsync(actor, token);
-        var total = await MineQuery(person, search: search).CountAsync(token); page = Math.Clamp(page, 1, Math.Max(1, (total + 49) / 50));
-        return (await MineQuery(person, search: search, page: page, now: now).ToArrayAsync(token), total, page);
+        return await MineIncludingPendingProcessesAsync(actor, search, page, now, token);
     }
     public async Task<OperationalAssignmentDetails> MineFindAsync(Guid actor, Guid id, CancellationToken token) =>
         await MineQuery(await PersonAsync(actor, token), id: id).SingleOrDefaultAsync(token) ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);

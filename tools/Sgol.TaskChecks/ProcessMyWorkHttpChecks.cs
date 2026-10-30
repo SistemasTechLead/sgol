@@ -42,9 +42,13 @@ public static class ProcessMyWorkHttpChecks
         builder.Services.AddScoped<AuditTransaction>(); builder.Services.AddScoped<IDirectionPreparedPlanService, EfDirectionPreparedPlanService>();
         builder.Services.AddScoped<IDirectionPlanningCatalogReader, DirectionPlanningCatalogReader>();
         builder.Services.AddScoped<OperationalTaskService>(); builder.Services.AddScoped<OperationalProcessCatalogService>();
+        builder.Services.AddScoped<OperationalCarryoverReader>();
+        builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Identity.IPersonAvatarReader, Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatarService>();
+        builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatarService>();
         builder.Services.AddScoped<ProcessPlanningService>(); builder.Services.AddScoped<OperationalProcessService>();
         builder.Services.AddSingleton<IFileTechnicalValidator, FileTechnicalValidator>(); builder.Services.AddSingleton<IFileMalwareScanner, Scanner>();
-        builder.Services.AddSingleton<IRazorSessionState>(new Session(actor, await db.AppUsers.Where(u => u.Id == actor).Select(u => u.PersonId).SingleAsync()));
+        var testSession = new Session(actor, await db.AppUsers.Where(u => u.Id == actor).Select(u => u.PersonId).SingleAsync());
+        builder.Services.AddSingleton<IRazorSessionState>(testSession);
         await using var app = builder.Build();
         app.Use(async (ctx, next) => { ctx.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, actor.ToString())], "TEST_ONLY")); await next(); });
         app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(webRoot) }); app.MapRazorPages();
@@ -54,6 +58,47 @@ public static class ProcessMyWorkHttpChecks
         var path = $"/mi-trabajo?assignedTask={id:D}";
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, CookieContainer = new CookieContainer() };
         using var client = new HttpClient(handler) { BaseAddress = new Uri("https://localhost:7259") };
+        var waitingStage = await db.Set<OperationalSequenceStage>().AsNoTracking().SingleAsync(s => s.RunId == runId && s.Position == 2);
+        var waitingActor = await db.AppUsers.Where(u => u.PersonId == waitingStage.ReservedPersonId).Select(u => u.Id).SingleAsync();
+        testSession.User = waitingActor; testSession.Person = waitingStage.ReservedPersonId!.Value;
+        var historicalPlanId = await db.Set<OperationalSequenceRun>().Where(r => r.Id == runId).Select(r => r.PlanId).SingleAsync();
+        var historical = new[] { "ENTREGA", "SUPERVISION" }.Select(kind => new OperationalAssignment {
+            Id = Guid.NewGuid(), PlanId = historicalPlanId,
+            TaskId = waitingStage.TaskId, TaskCode = waitingStage.TaskCode, Name = "Histórica " + kind,
+            PersonId = testSession.Person, PersonName = "Fixture", Requirement = "COMENTARIO", LoadMinutes = 5,
+            StartsAt = DateTimeOffset.UtcNow.AddDays(-3), DueAt = DateTimeOffset.UtcNow.AddDays(-3).AddMinutes(10),
+            CompletedAt = DateTimeOffset.UtcNow.AddDays(-2), CompletedBy = waitingActor, CompletionKind = kind,
+            ReviewStatus = "REASIGNADA", ReviewedAt = DateTimeOffset.UtcNow.AddDays(-1), ReviewedBy = waitingActor
+        }).ToArray();
+        db.AddRange(historical); await db.SaveChangesAsync();
+        var pendingBody = await client.GetStringAsync("/mi-trabajo");
+        foreach (var original in historical) {
+            var row = Regex.Match(pendingBody, $"<tr[^>]*data-work-task=\"{original.Id}\"[\\s\\S]*?</tr>").Value;
+            var expected = original.CompletionKind == "ENTREGA" ? "Entregada" : "Reasignada";
+            Check(row.Contains($"data-work-timing>{expected}</small>") && row.Contains("Reasignada</span>") && !row.Contains("Por activar"),
+                "Historical reassignment preserves delivery or supervision closure in the real My Work table");
+            var color = original.CompletionKind == "ENTREGA" ? "delivered" : "scheduled";
+            Check(row.Contains("my-work-color--" + color), "Reassigned delivery uses blue; supervision closure keeps its own color");
+            if (original.CompletionKind == "ENTREGA")
+                Check(pendingBody.IndexOf($"data-work-task=\"{waitingStage.Id}\"") < pendingBody.IndexOf($"data-work-task=\"{original.Id}\""),
+                    "Delivered reassignment sorts after gray reservations in the real table");
+        }
+        using (var scope = app.Services.CreateScope()) {
+            var page = await scope.ServiceProvider.GetRequiredService<OperationalTaskService>().MinePageAsync(waitingActor, null, 1, DateTimeOffset.UtcNow, default);
+            var deliveredIndex = Array.FindIndex(page.Items, a => a.Id == historical[0].Id);
+            Check(deliveredIndex > Array.FindIndex(page.Items, a => a.Id == waitingStage.Id), "SQL pagination puts reserved work ahead of reassigned deliveries");
+            Check(OperationalWorkPlan.Priority(page.Items[deliveredIndex], DateOnly.FromDateTime(DateTime.UtcNow), DateTimeOffset.UtcNow) == 4,
+                "Presentation priority groups reassigned deliveries with blue work");
+        }
+        db.RemoveRange(historical); await db.SaveChangesAsync();
+        Check(pendingBody.Contains($"data-work-task=\"{waitingStage.Id}\"") && pendingBody.Contains("En espera de la etapa anterior") &&
+            pendingBody.Contains($"/mi-trabajo/procesos?id={runId}") && !pendingBody.Contains($"data-assigned-task=\"{waitingStage.Id}\""),
+            "Real My work page renders the waiting task in the shared table with process navigation and no delivery dialog");
+        if (Environment.GetEnvironmentVariable("SGOL_PROCESS_MYWORK_PREVIEW") == "1") {
+            Console.WriteLine("MYWORK_PREVIEW_READY http://127.0.0.1:7258/mi-trabajo");
+            await app.WaitForShutdownAsync(); return;
+        }
+        testSession.User = actor; testSession.Person = await db.AppUsers.Where(u => u.Id == actor).Select(u => u.PersonId).SingleAsync();
         var body = await client.GetStringAsync(path);
         Check(body.Contains("handler=CompleteProcess") && body.Contains("Entregar PDF") && !body.Contains("handler=CompleteOperational"), "Mi trabajo shows the process delivery form instead of the generic completion form");
         Check((await client.GetStringAsync($"/mi-trabajo/procesos?id={runId:D}")).Contains("handler=Decide"), "Process page keeps its delivery form");
@@ -98,8 +143,10 @@ public static class ProcessMyWorkHttpChecks
     private sealed class Scanner : IFileMalwareScanner { public Task CheckAvailabilityAsync(CancellationToken token) => Task.CompletedTask; public Task<EvidenceScanOutcome> ScanAsync(Stream s,long n,CancellationToken t) => Task.FromResult(new EvidenceScanOutcome(EvidenceScanResult.Limpio)); }
     private sealed class Session(Guid user, Guid person) : IRazorSessionState
     {
+        public Guid User { get; set; } = user;
+        public Guid Person { get; set; } = person;
         public bool IsInvalid => false; public void Invalidate() { }
-        public Task<SessionSnapshot?> GetAsync(CancellationToken token = default) => Task.FromResult<SessionSnapshot?>(new(user,person,"test","Dirección · Prueba aislada","LOR-001",CanonicalRole.Direction,
+        public Task<SessionSnapshot?> GetAsync(CancellationToken token = default) => Task.FromResult<SessionSnapshot?>(new(User,Person,"test","Dirección · Prueba aislada","LOR-001",CanonicalRole.Direction,
             [WeekAuthorization.View],DateTimeOffset.UtcNow,DateTimeOffset.UtcNow.AddHours(1),DateTimeOffset.UtcNow.AddHours(2)));
     }
 }

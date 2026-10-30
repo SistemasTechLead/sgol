@@ -35,18 +35,39 @@ public sealed partial class ProcessesModel(IRazorSessionState sessions,Operation
         try { if(planId!=null) Plan=await plans.ReadAsync(actor.Value,planId.Value,token); else { if(!CanManage) return StatusCode(403); Input.ProcessId=processId??Guid.Empty; await Load(actor.Value,token); if(Editor != null) { Input.Mode=Editor.Configuration?.StartKind == "OCASIONAL" ? "OCASION" : "CALENDARIO"; Input.Name=("Plan de " + Editor.Process.Name); if(Input.Name.Length>120) Input.Name=Input.Name[..120]; } } return Page(); }
         catch(DirectionPlanException e) { return StatusCode(e.Status); }
     }
+    private void ValidateInput()
+    {
+        if (!ModelState.IsValid) throw new DirectionPlanException(ModelState.TryGetValue("Input.OccasionTime", out var time) && time.Errors.Count > 0 ? "PROCESS_PLAN_TIME_REQUIRED" : "PROCESS_INVALID", 422);
+    }
+    public static string PlanError(DirectionPlanException error)
+    {
+        if (error.Data["CandidateFailures"] is DirectionPlanException[] failures)
+            return string.Join(" ", failures.Select(PlanError).Distinct());
+        var reason = error.Data["ConflictReason"] as string ?? error.Code;
+        var message = Sgol.Web.Pages.Validations.IndexModel.Message(reason);
+        if (reason.StartsWith("SCHEDUL", StringComparison.Ordinal)) message += " Elige otra hora o responsable y vuelve a revisar fechas y capacidad.";
+        if (error.Data["StagePosition"] is not {} position) return message;
+        var prefix = $"Etapa {position} ({error.Data["StageName"]})";
+        if (error.Data["PersonName"] is string person) prefix += $" · {person}";
+        if (error.Data["ConflictDay"] is DateOnly day) message += $" Fecha: {day:dd/MM/yyyy}.";
+        if (error.Data["EvaluatedTime"] is string evaluated) message += $" Hora evaluada: {evaluated}.";
+        if (error.Data["CurrentMinutes"] is decimal current && error.Data["CapacityMinutes"] is decimal capacity)
+            message += $" Carga computada: {current:0.##} min; capacidad: {capacity:0.##} min; esta etapa añade {error.Data["RequiredMinutes"]} min.";
+        if (error.Data["WorkHours"] is string hours && hours.Length > 0) message += $" Horario: {hours} (Ciudad de México).";
+        return prefix + ": " + message;
+    }
     public async Task<IActionResult> OnPostPreviewAsync(CancellationToken token)
     {
         var actor=await Actor(token,true); if(actor==null) return StatusCode(403);
-        try { AutomaticPositions=Input.People.Where(p=>p.Value==Guid.Empty).Select(p=>p.Key).ToArray(); Preview=await plans.PreviewAsync(actor.Value,Input,token); Input.Fingerprint=Preview.Fingerprint; ModelState.Remove("Input.Fingerprint"); }
-        catch(DirectionPlanException e) { Response.StatusCode=e.Status; Error=(e.Data["StagePosition"] is {} position ? $"Etapa {position} ({e.Data["StageName"]}): " : "") + Sgol.Web.Pages.Tasks.IndexModel.Message(e.Code); }
+        try { ValidateInput(); AutomaticPositions=Input.People.Where(p=>p.Value==Guid.Empty).Select(p=>p.Key).ToArray(); Preview=await plans.PreviewAsync(actor.Value,Input,token); Input.Fingerprint=Preview.Fingerprint; ModelState.Remove("Input.Fingerprint"); }
+        catch(DirectionPlanException e) { Response.StatusCode=e.Status; Error=PlanError(e); }
         await Load(actor.Value,token); return Page();
     }
     public async Task<IActionResult> OnPostPrepareAsync(CancellationToken token)
     {
         var actor=await Actor(token,true); if(actor==null) return StatusCode(403);
-        try { var id=await plans.PrepareAsync(actor.Value,Input,token); return RedirectToPage(new { planId=id }); }
-        catch(DirectionPlanException e) { Response.StatusCode=e.Status; Error=Sgol.Web.Pages.Tasks.IndexModel.Message(e.Code); await Load(actor.Value,token); return Page(); }
+        try { ValidateInput(); var id=await plans.PrepareAsync(actor.Value,Input,token); return RedirectToPage(new { planId=id }); }
+        catch(DirectionPlanException e) { Response.StatusCode=e.Status; Error=PlanError(e); await Load(actor.Value,token); return Page(); }
     }
     public async Task<IActionResult> OnPostActivateAsync(Guid planId,CancellationToken token)
     {

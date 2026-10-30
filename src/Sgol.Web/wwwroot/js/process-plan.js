@@ -24,6 +24,17 @@
     });
     const editor = page.querySelector('[data-process-plan-editor]');
     if (!editor) return;
+    const mode = editor.querySelector('[name="Input.Mode"]');
+    const occasionTime = editor.querySelector('[data-process-occasion-time]');
+    const updateTime = () => {
+        const occasion = mode.value === 'OCASION';
+        occasionTime.hidden = !occasion;
+        const input = occasionTime.querySelector('input');
+        input.disabled = !occasion;
+        input.required = occasion;
+    };
+    mode.addEventListener('change', updateTime);
+    updateTime();
     const snapshot = () => JSON.stringify(Array.from(new FormData(editor)));
     const baseline = snapshot();
     const reviewed = editor.dataset.hasPreview === 'true';

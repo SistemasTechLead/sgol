@@ -68,7 +68,7 @@ public static class ProcessCatalogChecks
         await service.CreateAsync(actor, key, "Process test", "Description", default); db.ChangeTracker.Clear();
         Check(await db.Set<OperationalSequence>().CountAsync(p => p.Id == key) == 1, "Creation retry preserves one draft identity");
         Check(!await db.OperationalAssignments.AnyAsync(), "Creation creates no assignments");
-        await tasks.SaveAsync(actor,new OperationalTask { Name="Process PDF fixture",Requirement="DOCUMENTO",Revision=0 },default); db.ChangeTracker.Clear();
+        await tasks.SaveAsync(actor,new OperationalTask { Name="Process PDF fixture",Requirement="DOCUMENTO",OperationalCriticality="FLEXIBLE",Revision=0 },default); db.ChangeTracker.Clear();
         var task = await db.OperationalTasks.SingleAsync(t=>t.Name=="Process PDF fixture"); var originalCode = task.TaskCode;
         var root = await service.ReadAsync(actor, key, default);
         await service.AddTaskAsync(actor, key, root.Process.Revision, task.Id, task.Revision, default); db.ChangeTracker.Clear();
@@ -77,7 +77,7 @@ public static class ProcessCatalogChecks
         var independent = new DirectionPlanInput("Independent rejected", "Store", "SEMANAL", 2026, 41, [originalCode]);
         await Reject(() => direction.CreateAsync(actor, Guid.CreateVersion7(), Guid.CreateVersion7(), independent), "DIRECTION_PLAN_TASK_INVALID"); db.ChangeTracker.Clear();
         root = await service.ReadAsync(actor, key, default);
-        await tasks.SaveAsync(actor,new OperationalTask { Name="Process acceptance fixture",Requirement="DOCUMENTO",AssignedRole=CanonicalRole.Direction,Revision=0 },default); db.ChangeTracker.Clear();
+        await tasks.SaveAsync(actor,new OperationalTask { Name="Process acceptance fixture",Requirement="DOCUMENTO",OperationalCriticality="FLEXIBLE",AssignedRole=CanonicalRole.Direction,Revision=0 },default); db.ChangeTracker.Clear();
         var finalTask=await db.OperationalTasks.SingleAsync(t=>t.Name=="Process acceptance fixture");
         await service.AddTaskAsync(actor,key,root.Process.Revision,finalTask.Id,finalTask.Revision,default); db.ChangeTracker.Clear();
         root=await service.ReadAsync(actor,key,default);

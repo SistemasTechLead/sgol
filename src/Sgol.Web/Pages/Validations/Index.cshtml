@@ -23,15 +23,16 @@
         <header class="panel-seccion__cabecera"><h2 id="title-@group.Key">@group.Title <span class="badge badge--neutro">@group.Total</span></h2></header>
         <partial name="_Filters" model="@(new Sgol.Web.Pages.Validations.SupervisionFilterModel(Model, group))" />
         @if (group.Pagination is {} pagination) { <partial name="_ListPage" model="pagination" /> }
-        <p class="supervision-count">@group.Items.Count de @group.Total tareas</p>
+        <p class="supervision-count">@group.Items.Count de @group.Filtered tareas@(group.Filtered != group.Total ? $" · {group.Total} en el apartado" : "")</p>
         @if (group.Items.Count == 0) { <p class="estado-vacio">@(group.Total == 0 ? "No hay tareas en este apartado." : "No hay tareas que coincidan con estos filtros.")</p> }
         else {
             <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th scope="col">Tarea / plan</th><th scope="col">Responsable</th><th scope="col">Inicio / vencimiento</th><th scope="col">Requisito</th><th scope="col">Carga</th><th scope="col">Estado</th><th class="supervision-action-cell" scope="col">Revisión</th></tr></thead><tbody>
-            @foreach (var item in group.Items) {
+            @for (var index = 0; index < group.Items.Count; index++) {
+                var item = group.Items[index];
                 var a = item.Assignment;
                 var reviewed = a.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA";
                 var actionLabel = reviewed ? "Ver revisión" : "Supervisar";
-                <tr class="tabla__fila">
+                <tr class="tabla__fila" id="@group.Key-row-@index">
                     <td>@a.Name<br /><small>@item.PlanName · @a.TaskCode</small></td>
                     <td>@a.PersonName<br /><small>@SessionPresentation.RoleName(item.Role)</small></td>
                     <td><partial name="~/Pages/Shared/_CarryoverTiming.cshtml" model="@((a.Id, a.DueAt, a.CompletedAt))" />@MyWorkPresentation.Time(a.StartsAt)<br /><small>@MyWorkPresentation.Time(a.DueAt)</small></td>
@@ -41,6 +42,9 @@
                 </tr>
             }
             </tbody></table></div>
+            @if (group.MoreHref is not null) {
+                <div class="supervision-more"><a class="boton boton--secundario" href="@group.MoreHref" aria-label="Mostrar más tareas de @group.Title"><svg class="icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M6 13l6 6 6-6" /></svg><span>Mostrar @Math.Min(10, group.Filtered - group.Items.Count) más</span></a></div>
+            }
         }
     </section>
     @if (group.Key == "pending" && Model.PendingAuthorizedCarryoverCount == 0) { <partial name="_Carryovers" model="Model" /> }

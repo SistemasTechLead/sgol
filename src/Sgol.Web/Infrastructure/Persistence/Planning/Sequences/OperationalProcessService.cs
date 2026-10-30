@@ -30,7 +30,7 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
         if (key == Guid.Empty || starts.Offset != TimeSpan.Zero || people.Count == 0) throw Error("PROCESS_INVALID");
         await using var tx = db.Database.CurrentTransaction==null ? await db.Database.BeginTransactionAsync(token) : null;
         await OperationalTaskService.LockAsync(db, token); await direction.AuthorizeAsync(actor, token);
-        var root = await db.Set<OperationalSequence>().SingleOrDefaultAsync(p => p.Id == processId && !p.IsGeneral && p.Enabled, token) ?? throw Error("PROCESS_OPERATION_NOT_READY",409);
+        var root = await db.Set<OperationalSequence>().SingleOrDefaultAsync(p => p.Id == processId && !p.IsGeneral && p.DeletedAt == null && p.Enabled, token) ?? throw Error("PROCESS_OPERATION_NOT_READY",409);
         var startKey = capturedStartKey ?? $"O:{processId:N}:{key:N}";
         var existing = await db.Set<OperationalSequenceRun>().SingleOrDefaultAsync(r => r.StartKey == startKey, token);
         if (existing != null) { if(tx!=null) await tx.CommitAsync(token); return existing.Id; }

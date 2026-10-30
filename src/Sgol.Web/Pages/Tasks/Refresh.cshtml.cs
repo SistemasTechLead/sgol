@@ -20,13 +20,14 @@ public sealed class RefreshModel(IRazorSessionState sessions, AssignmentRefreshS
     [BindProperty] public bool AdoptLegacyCalendar { get; set; }
     [BindProperty] public bool RetireInactiveAssignments { get; set; }
     [BindProperty] public bool RetireExcludedAssignments { get; set; }
+    [BindProperty] public Guid[] PreserveProcessAssignmentIds { get; set; } = [];
     [BindProperty] public string Fingerprint { get; set; } = "";
     [BindProperty] public string Reason { get; set; } = "";
     public AssignmentRefreshPreview? Preview { get; private set; }
     public Dictionary<Guid, string> Plans { get; private set; } = [];
     public Dictionary<string, string> DecisionTasks { get; private set; } = [];
     public string? Error { get; private set; }
-    private AssignmentRefreshRequest RequestInput => new(Guid.Empty, Key, NotBefore, null, ReplaceRemainingEstimate, ChangeAuthorizedDeadline, AdoptLegacyCalendar, RetireInactiveAssignments, RetireExcludedAssignments);
+    private AssignmentRefreshRequest RequestInput => new(Guid.Empty, Key, NotBefore, null, ReplaceRemainingEstimate, ChangeAuthorizedDeadline, AdoptLegacyCalendar, RetireInactiveAssignments, RetireExcludedAssignments, PreserveProcessAssignmentIds);
     private async Task<Guid?> Actor(CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";
@@ -90,6 +91,8 @@ public sealed class RefreshModel(IRazorSessionState sessions, AssignmentRefreshS
         if (diff.Retire || diff.After == null) return ["Se quitará del trabajo activo. Sus avances y archivos se conservarán como historial."];
         if (diff.Before == null) return ["Se agregará una asignación según el calendario actual."];
         var a = diff.Before; var b = diff.After; var changes = new List<string>();
+        if (diff.Fields.Contains("Conservar proceso anterior"))
+            changes.Add("Se conservará el proceso anterior de esta asignación. El proceso nuevo se aplicará a las nuevas ejecuciones; los demás cambios se muestran por separado.");
         if (diff.PreservesExpiredAgenda)
             changes.Add($"Pendiente vencido sin avance: carga configurada {AssignmentDefinition.ConfiguredLoad(a)} → {AssignmentDefinition.ConfiguredLoad(b)} minutos. Se conservan los {a.LoadMinutes} minutos de carga histórica, responsable y fechas; continúa vencida. No se recalcula ese día ni se mueven sus otras tareas.");
         changes.AddRange(OperationalChecklist.Changes(a.ChecklistJson, b.ChecklistJson));

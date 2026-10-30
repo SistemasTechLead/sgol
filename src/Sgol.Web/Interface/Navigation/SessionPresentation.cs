@@ -11,7 +11,8 @@ public static class SessionPresentation
     public static string? RoleName(string roleCode) => roleCode switch
     {
         "DIRECCION" => "Dirección",
-        "ADMINISTRACION" => "Administración",
+        // Keep the persisted code and authority compatible with existing sessions and audit history.
+        "ADMINISTRACION" => "Asesor Externo",
         "SUBCOORDINACION" => "Subcoordinación",
         "PISO_VENTAS" => "Piso de ventas",
         _ => null,

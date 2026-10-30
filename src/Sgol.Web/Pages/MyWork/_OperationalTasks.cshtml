@@ -14,7 +14,11 @@
         <section class="my-work-plan" aria-labelledby="assigned-work-title">
             <header class="my-work-plan__header">
                 <div><h3 id="assigned-work-title">Todas tus asignaciones</h3></div>
-                <partial name="_TaskProgress" model="@(Model.WorkProgress)" />
+                @if (Model.WorkProgress.Total == 0 && Model.OperationalTasks.Any(t => t.PendingProcessRunId != null)) {
+                    <small>Sin tareas habilitadas para hoy.</small>
+                } else {
+                    <partial name="_TaskProgress" model="@(Model.WorkProgress)" />
+                }
                 <span class="my-work-plan__count">@Model.WorkPagination?.Total tareas</span>
             </header>
             <partial name="_OperationalTaskTable" model="@((Model, Model.OperationalOrderedTasks, true))" />

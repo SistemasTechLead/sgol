@@ -13,9 +13,10 @@ public sealed record OperationalWorkPlan(Guid? Id, string Name, string PeriodTyp
 
     public static int Priority(OperationalAssignmentDetails task, DateOnly day, DateTimeOffset now)
     {
+        if (task.PendingProcessRunId != null) return 3;
         return task.ReviewStatus switch {
             "NO_SATISFECHA" => 0,
-            "REASIGNADA" => 3,
+            "REASIGNADA" => task.CompletedAt != null && task.CompletionKind == "ENTREGA" ? 4 : 3,
             _ => LiveBoardTask.FromAssignment(task).Priority(now)
         };
     }
@@ -29,7 +30,7 @@ public sealed record OperationalWorkPlan(Guid? Id, string Name, string PeriodTyp
     {
         var start = OperationalSchedule.Instant(day);
         var end = OperationalSchedule.Instant(day.AddDays(1));
-        return task.ReviewStatus is not ("REASIGNADA" or "NO_SATISFECHA") &&
+        return task.PendingProcessRunId == null && task.ReviewStatus is not ("REASIGNADA" or "NO_SATISFECHA") &&
             (task.CompletedAt is null || task.CompletedAt >= start && task.CompletedAt < end) &&
             (task.StartsAt >= start && task.StartsAt < end || task.DueAt >= start && task.DueAt < end ||
                 task.StartsAt < start || task.CompletedAt >= start && task.CompletedAt < end);

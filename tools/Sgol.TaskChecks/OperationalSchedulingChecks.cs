@@ -228,7 +228,7 @@ internal static class OperationalSchedulingChecks
         for(var i=0;i<tasks.Length;i++)db.Add(new OperationalSequenceStep {VersionId=version.Id,Position=i+1,TaskId=tasks[i].Id,DeadlineHours=1,ReleaseCondition=i==0?"INICIO":"ENTREGA",Action=i==0?"ENTREGAR":"AUTORIZAR",TaskSnapshot=JsonSerializer.Serialize(tasks[i])});
         await db.SaveChangesAsync(); version.PublishedAt=clock.UtcNow;version.PublishedBy=actor;process.PublishedVersionId=version.Id;process.Enabled=true;await db.SaveChangesAsync();db.ChangeTracker.Clear();
         var service=new ProcessPlanningService(db,direction,clock,new FileTechnicalValidator(),new CheckScanner());
-        var input=new ProcessPlanInput {Key=Guid.CreateVersion7(),Name="Prepared schedule fixture",ProcessId=process.Id,Mode="OCASION",From=new(2026,11,3),Through=new(2026,11,3),People=new(){[1]=person,[2]=person}};
+        var input=new ProcessPlanInput {Key=Guid.CreateVersion7(),Name="Prepared schedule fixture",ProcessId=process.Id,Mode="OCASION",OccasionTime=new(startMinute/60,0),From=new(2026,11,3),Through=new(2026,11,3),People=new(){[1]=person,[2]=person}};
         var preview=await service.PreviewAsync(actor,input,default);Require(preview.SchedulingPolicyId!=null && preview.Agenda.Values.Single().Length==2,"Process preview captures policy and stage blocks");
         input.Fingerprint=preview.Fingerprint;var plan=await service.PrepareAsync(actor,input,default);
         var capturedPolicy=await policies.ReadAsync(actor,default);await policies.ChangeAsync(actor,75,capturedPolicy.Revision,default);db.ChangeTracker.Clear();

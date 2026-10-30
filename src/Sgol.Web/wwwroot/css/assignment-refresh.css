@@ -6,6 +6,8 @@
 .assignment-refresh__summary strong { display: block; font-size: 1.7rem; }
 .assignment-refresh__summary span { display: block; margin-top: 6px; color: var(--color-texto-secundario); }
 .assignment-refresh__options, .assignment-refresh__confirm { margin: 0; display: grid; gap: 14px; }
+.assignment-refresh__case { min-width: 0; }
+.assignment-refresh__problem { overflow-wrap: anywhere; }
 .assignment-refresh h2 { font-size: 1.2rem; margin: 0 0 8px; }
 .assignment-refresh p { margin-block: 0 8px; line-height: 1.6; }
 .assignment-refresh__choice { display: flex; align-items: flex-start; gap: 14px; border: 2px solid var(--color-borde); background: var(--color-superficie); border-radius: 12px; padding: 18px; cursor: pointer; }

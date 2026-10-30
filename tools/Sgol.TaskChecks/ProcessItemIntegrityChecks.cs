@@ -42,7 +42,7 @@ public static class ProcessItemIntegrityChecks
         var temporal=await db.Set<TemporalAssignmentState>().SingleOrDefaultAsync(s=>s.Id==1);if(temporal==null)db.Add(new TemporalAssignmentState{Enabled=true});else temporal.Enabled=true;
         await db.SaveChangesAsync();db.ChangeTracker.Clear();
         int serial=0;
-        ProcessPlanInput Input()=>new(){Name="Items integrity",ProcessId=root.Id,Mode="OCASION",From=WeekContract.LocalToday(clock.UtcNow),Through=WeekContract.LocalToday(clock.UtcNow),People=Enumerable.Range(1,4).ToDictionary(i=>i,i=>person)};
+        ProcessPlanInput Input()=>new(){Name="Items integrity",ProcessId=root.Id,Mode="OCASION",OccasionTime=new(12,0),From=WeekContract.LocalToday(clock.UtcNow),Through=WeekContract.LocalToday(clock.UtcNow),People=Enumerable.Range(1,4).ToDictionary(i=>i,i=>person)};
         async Task<Guid> NewRun() {
             var nextDay=day.AddDays(serial++);if(nextDay<=WeekContract.LocalToday(clock.UtcNow)&&serial>1) nextDay=WeekContract.LocalToday(clock.UtcNow).AddDays(1);
             setClock(OperationalSchedule.Instant(nextDay,12));
@@ -65,9 +65,9 @@ public static class ProcessItemIntegrityChecks
         var sharedEditor=await catalog.ReadAsync(actor,sharedRoot,default);
         await catalog.SaveAsync(actor,new(){Id=sharedRoot,Revision=sharedEditor.Process.Revision,Name="Proceso compartido de etiquetas",StartKind="OCASIONAL",StartHour=12,Steps=[new(){TaskId=sharedTasks[0].Id,Position=1,Action="ENTREGAR",ReleaseCondition="INICIO",DeadlineHours=1,OutputItemId=second,OutputTargetTaskId=sharedTasks[1].Id},new(){TaskId=sharedTasks[1].Id,Position=2,Action="AUTORIZAR",ReleaseCondition="ENTREGA",DeadlineHours=1,IsFinalAudit=true}]},default);db.ChangeTracker.Clear();sharedEditor=await catalog.ReadAsync(actor,sharedRoot,default);
         await catalog.PublishAsync(actor,sharedRoot,sharedEditor.Process.Revision,default);db.ChangeTracker.Clear();sharedEditor=await catalog.ReadAsync(actor,sharedRoot,default);await catalog.SetEnabledAsync(actor,sharedRoot,sharedEditor.Process.Revision,true,default);db.ChangeTracker.Clear();
-        var sharedInput=new ProcessPlanInput{Name="Tarifa compartida capturada",ProcessId=sharedRoot,Mode="OCASION",From=WeekContract.LocalToday(clock.UtcNow),Through=WeekContract.LocalToday(clock.UtcNow),People=new(){{1,person},{2,person}}};sharedInput.Fingerprint=(await planning.PreviewAsync(actor,sharedInput,default)).Fingerprint;
+        var sharedInput=new ProcessPlanInput{Name="Tarifa compartida capturada",ProcessId=sharedRoot,Mode="OCASION",OccasionTime=new(12,0),From=WeekContract.LocalToday(clock.UtcNow),Through=WeekContract.LocalToday(clock.UtcNow),People=new(){{1,person},{2,person}}};sharedInput.Fingerprint=(await planning.PreviewAsync(actor,sharedInput,default)).Fingerprint;
         var sharedPlan=await planning.PrepareAsync(actor,sharedInput,default);db.ChangeTracker.Clear();await catalog.SaveItemAsync(actor,second,1,"Etiquetas",8,true,default);db.ChangeTracker.Clear();
-        var sharedFuture=new ProcessPlanInput{Name="Compartida futura",ProcessId=sharedRoot,Mode="OCASION",From=sharedInput.From,Through=sharedInput.Through,People=new(){{1,person},{2,person}}};
+        var sharedFuture=new ProcessPlanInput{Name="Compartida futura",ProcessId=sharedRoot,Mode="OCASION",OccasionTime=new(12,0),From=sharedInput.From,Through=sharedInput.Through,People=new(){{1,person},{2,person}}};
         var futureShared=await planning.PreviewAsync(actor,sharedFuture,default);var futureMain=await planning.PreviewAsync(actor,Input(),default);
         Check(futureShared.ItemRates[1].Minutes==8&&futureMain.ItemRates[2].Minutes==8&&(await planning.ReadAsync(actor,sharedPlan,default)).Configurations.Single().Stages[0].OutputItem!.Minutes==7&&(await engine.ReadAsync(actor,run,default)).Stages[1].OutputItemMinutes==7,"Shared rate change reaches two processes without republishing while preserving prepared plan and started run rates");
         await Decide(run,"ENTREGA",2);var receiver=await Active(run);

@@ -39,13 +39,13 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
     public async Task<OperationalSequence[]> ListAsync(Guid actor, CancellationToken token)
     {
         await TaskCatalogAuthorization.RequireReadAsync(db, actor, clock.UtcNow, token);
-        return await db.Set<OperationalSequence>().AsNoTracking().OrderByDescending(p => p.IsGeneral).ThenBy(p => p.Name).ToArrayAsync(token);
+        return await db.Set<OperationalSequence>().AsNoTracking().Where(p => p.DeletedAt == null).OrderByDescending(p => p.IsGeneral).ThenBy(p => p.Name).ToArrayAsync(token);
     }
 
     public async Task<ProcessEditor> ReadAsync(Guid actor, Guid id, CancellationToken token)
     {
         await TaskCatalogAuthorization.RequireReadAsync(db, actor, clock.UtcNow, token);
-        var root = await db.Set<OperationalSequence>().AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, token)
+        var root = await db.Set<OperationalSequence>().AsNoTracking().SingleOrDefaultAsync(p => p.Id == id && p.DeletedAt == null, token)
             ?? throw Error("PROCESS_NOT_FOUND", 404);
         var draft = await db.Set<OperationalSequenceVersion>().AsNoTracking().SingleOrDefaultAsync(v => v.SequenceId == id && v.PublishedAt == null, token);
         var version = draft?.Id ?? root.PublishedVersionId;
@@ -66,6 +66,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         var existing = await db.Set<OperationalSequence>().SingleOrDefaultAsync(p => p.Id == key, token);
         if (existing != null)
         {
+            if (existing.DeletedAt != null) throw Error("PROCESS_NOT_FOUND", 404);
             var first = await db.Set<OperationalSequenceVersion>().SingleOrDefaultAsync(v => v.SequenceId == key && v.Number == 1, token);
             if (first?.CreatedBy != actor || existing.Name != name.Trim() || existing.Description != description.Trim()) throw Error("PROCESS_CONFLICT", 409);
             await tx.CommitAsync(token); return key;
@@ -78,7 +79,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
     public async Task<ProcessEditor> ReadPublishedAsync(Guid actor,Guid id,CancellationToken token)
     {
         await TaskCatalogAuthorization.RequireReadAsync(db,actor,clock.UtcNow,token);
-        var root=await db.Set<OperationalSequence>().AsNoTracking().SingleOrDefaultAsync(p=>p.Id==id && !p.IsGeneral && p.PublishedVersionId!=null,token) ?? throw Error("PROCESS_NOT_FOUND",404);
+        var root=await db.Set<OperationalSequence>().AsNoTracking().SingleOrDefaultAsync(p=>p.Id==id && p.DeletedAt==null && !p.IsGeneral && p.PublishedVersionId!=null,token) ?? throw Error("PROCESS_NOT_FOUND",404);
         var version=await db.Set<OperationalSequenceVersion>().AsNoTracking().SingleAsync(v=>v.Id==root.PublishedVersionId && v.PublishedAt!=null,token);
         var steps=await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>s.VersionId==version.Id).OrderBy(s=>s.Position).ToArrayAsync(token);
         root.Name=version.Name; root.Description=version.Description;
@@ -97,7 +98,18 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         var members = await db.OperationalTasks.Where(t => t.ProcessId == root.Id && !t.Deleted).ToArrayAsync(token);
         if (input.Steps.Any(s => members.All(t => t.Id != s.TaskId))) throw Error("PROCESS_MEMBERSHIP_INVALID");
         var draft = await EnsureDraft(root, actor, token);
+        var previousTaskIds = await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).Select(s => s.TaskId).ToArrayAsync(token);
+        // A task just created in this process may still be waiting in the picker.
+        // Only omission of an existing stage represents an explicit removal.
+        var removed = members.Where(t => previousTaskIds.Contains(t.Id) && input.Steps.All(s => s.TaskId != t.Id)).ToArray();
+        if (removed.Length > 0) await RequireNoPreparedPlans(root.Id, token);
         await ValidateItems(input.Steps.ToArray(), draft.Id, token);
+        foreach (var task in removed) await ReturnToGeneral(task, token);
+        if (removed.Length > 0)
+        {
+            root.Enabled = false;
+            Audit(actor, "PROCESS_TASKS_REMOVED", root.Id, new { TaskIds = removed.Select(t => t.Id).ToArray() });
+        }
         // Delete only mutable draft rows, before reinserting possibly reordered keys.
         await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).ExecuteDeleteAsync(token);
         DetachDraftSteps(draft.Id);
@@ -129,6 +141,13 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         if (task.IsWeeklyOperationsTask && id != OperationalSequence.GeneralId) throw Error("WEEKLY_OPERATIONS_TASK_INVALID", 422);
         // Move the default acceptance to the new final stage, preserving custom actions.
         if (previous?.Action == "AUTORIZAR") previous.Action = "ENTREGAR";
+        // Preserve the known membership before changing the catalogue, including legacy assignments.
+        foreach (var assignment in (await db.OperationalAssignments.Where(a => a.TaskId == task.Id && a.DefinitionSnapshotJson == null && a.CompletedAt == null).ToArrayAsync(token)).Where(AssignmentDefinition.Pending))
+        {
+            var snapshot = JsonSerializer.SerializeToNode(AssignmentDefinition.Baseline(assignment, task))!;
+            snapshot["_CalendarKnown"] = assignment.TaskRevision == task.Revision;
+            assignment.DefinitionSnapshotJson = snapshot.ToJsonString();
+        }
         task.ProcessId = id; task.Revision++; root.Revision++;
         db.Add(new OperationalSequenceStep { VersionId = draft.Id, Position = position, TaskId = task.Id,
             Action = "AUTORIZAR", ReleaseCondition = previous == null ? "INICIO" :
@@ -193,8 +212,12 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         var root = await RequireRoot(id, revision, token);
         var draft = await db.Set<OperationalSequenceVersion>().SingleOrDefaultAsync(v => v.SequenceId == id && v.PublishedAt == null, token) ?? throw Error("PROCESS_DRAFT_REQUIRED");
         var committed = root.PublishedVersionId == null ? [] : await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == root.PublishedVersionId).Select(s => s.TaskId).ToArrayAsync(token);
+        var restored = await db.OperationalTasks.Where(t => committed.Contains(t.Id) && t.ProcessId != id).ToArrayAsync(token);
+        if (restored.Any(t => t.ProcessId != OperationalSequence.GeneralId || t.Deleted || !t.Active))
+            throw Error("PROCESS_RESTORE_MEMBERSHIP_CONFLICT", 409);
+        foreach (var task in restored) { await PreservePendingDefinition(task, token); task.ProcessId = id; task.Revision++; }
         var returned = await db.OperationalTasks.Where(t => t.ProcessId == id && !committed.Contains(t.Id)).ToArrayAsync(token);
-        foreach (var task in returned) { task.ProcessId = OperationalSequence.GeneralId; task.Revision++; }
+        foreach (var task in returned) await ReturnToGeneral(task, token);
         await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).ExecuteDeleteAsync(token);
         DetachDraftSteps(draft.Id);
         // Preserve the draft identity and its audit; it becomes an empty, unpublished draft.
@@ -207,7 +230,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
 
     internal static async Task RequireMembershipChangeAsync(SgolDbContext db, OperationalTask? task, Guid target, CancellationToken token)
     {
-        if (!await db.Set<OperationalSequence>().AnyAsync(p => p.Id == target, token)) throw Error("PROCESS_NOT_FOUND", 404);
+        if (!await db.Set<OperationalSequence>().AnyAsync(p => p.Id == target && p.DeletedAt == null, token)) throw Error("PROCESS_NOT_FOUND", 404);
         if (task == null || task.ProcessId == target) return;
         if (task.ProcessId != OperationalSequence.GeneralId || target != OperationalSequence.GeneralId)
             throw Error("PROCESS_USE_EDITOR", 409);
@@ -215,7 +238,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
 
     private async Task<OperationalSequence> RequireRoot(Guid id, long revision, CancellationToken token)
     {
-        var root = await db.Set<OperationalSequence>().SingleOrDefaultAsync(p => p.Id == id, token) ?? throw Error("PROCESS_NOT_FOUND", 404);
+        var root = await db.Set<OperationalSequence>().SingleOrDefaultAsync(p => p.Id == id && p.DeletedAt == null, token) ?? throw Error("PROCESS_NOT_FOUND", 404);
         if (root.IsGeneral) throw Error("PROCESS_GENERAL_RESERVED", 409);
         if (root.Revision != revision) throw Error("PROCESS_CONFLICT", 409);
         return root;

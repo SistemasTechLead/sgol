@@ -5,7 +5,7 @@
         <div class="tabla-contenedor"><table class="tabla"><thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Inicio</th><th scope="col">Vencimiento</th><th scope="col">Carga</th><th scope="col">Requisito</th><th scope="col">Estado</th><th class="my-work-action-cell" scope="col">Evidencia</th></tr></thead><tbody data-work-task-list>
         @foreach (var task in Model.Tasks) {
             var submitted = WorkModel.OperationalSubmitted(task);
-            var status = task.ReviewStatus switch { "CONCLUIDA" => "done", "NO_SATISFECHA" => "rejected", "REASIGNADA" => "reassigned", _ => submitted ? "review" : "pending" };
+            var status = task.PendingProcessRunId != null ? "reserved" : task.ReviewStatus switch { "CONCLUIDA" => "done", "NO_SATISFECHA" => "rejected", "REASIGNADA" => "reassigned", _ => submitted ? "review" : "pending" };
             var color = Model.Page.OperationalColor(task);
             var statusLabel = status switch { "done" => "✓ Concluida", "review" => "◷ En revisión", "rejected" => "No satisfecha", "reassigned" => "Reasignada", _ => Model.Page.OperationalTiming(task) };
             var actionLabel = submitted ? "Ver evidencia" : task.GoalUnits > task.ProgressUnits ? "Registrar avance" : "Adjuntar evidencia";
@@ -21,7 +21,15 @@
                 </td><td>@MyWorkPresentation.Time(task.StartsAt)</td>
                 <td><partial name="~/Pages/Shared/_CarryoverTiming.cshtml" model="@((task.Id, task.DueAt, task.CompletedAt))" />@MyWorkPresentation.Time(task.DueAt)<br /><small data-work-timing>@Model.Page.OperationalTiming(task)</small></td>
                 <td>@task.LoadMinutes min</td><td>@IndexModel.Label(task.Requirement)</td><td><span class="badge my-work-state">@statusLabel</span></td>
-                <td class="my-work-action-cell"><a class="boton @(submitted ? "boton--secundario" : "boton--primario") my-work-action" href="@Model.Page.OperationalTaskHref(task.Id)" aria-label="@actionLabel: @task.Name" aria-haspopup="dialog" data-assigned-task="@task.Id"><partial name="_Icon" model='@(submitted ? "eye" : "upload")' /><span>@actionLabel</span></a></td>
+                <td class="my-work-action-cell">
+                    @if (task.PendingProcessRunId is {} runId) {
+                        <a class="boton boton--secundario my-work-action" href="/mi-trabajo/procesos?id=@runId" aria-label="Ver proceso: @task.Name">Ver proceso</a>
+                        <small>Fechas estimadas. La entrega se habilita al llegar a esta etapa.</small>
+                        @if (task.PendingProcessReason != null) { <p>@task.PendingProcessReason</p> }
+                    } else {
+                        <a class="boton @(submitted ? "boton--secundario" : "boton--primario") my-work-action" href="@Model.Page.OperationalTaskHref(task.Id)" aria-label="@actionLabel: @task.Name" aria-haspopup="dialog" data-assigned-task="@task.Id"><partial name="_Icon" model='@(submitted ? "eye" : "upload")' /><span>@actionLabel</span></a>
+                    }
+                </td>
             </tr>
         }
         </tbody></table></div>

@@ -17,7 +17,7 @@ using Sgol.Web.Infrastructure.Persistence.Planning;
 
 public static class ProcessRuntimeChecks
 {
-    public static async Task RunAsync(SgolDbContext db,bool seedOnly=false,bool preparePlan=false,bool reassignment=false,bool deletion=false,bool crossRole=false)
+    public static async Task RunAsync(SgolDbContext db,bool seedOnly=false,bool preparePlan=false,bool reassignment=false,bool deletion=false,bool crossRole=false,bool myWorkOnly=false)
     {
         if(await db.People.AnyAsync()) throw new Exception("Runtime checks require an empty dedicated database.");
         var clock=new Clock(); var scanner=new Scanner(); var validator=new FileTechnicalValidator();
@@ -40,6 +40,8 @@ public static class ProcessRuntimeChecks
             db.EmploymentVersions.Add(new(Guid.CreateVersion7(),person,BranchScope.LorettaId,EmploymentStatus.Active,from));
             db.RoleAssignmentVersions.Add(new() { Id=Guid.CreateVersion7(),UserId=actor,BranchId=BranchScope.LorettaId,RoleCode=roles[i],Status=RoleAssignmentStatus.Active,ValidFrom=from });
             db.OperationalCapacities.Add(new() { Id=Guid.CreateVersion7(),PersonId=person,From=WeekContract.LocalToday(clock.UtcNow).AddDays(-1),Through=WeekContract.LocalToday(clock.UtcNow).AddDays(30),DailyMinutes=480,Reason="Capacidad del ejemplo aislado; no modifica personas reales" });
+            db.Add(new PersonalScheduleVersion { Id=Guid.CreateVersion7(),PersonId=person,Revision=1,From=WeekContract.LocalToday(clock.UtcNow).AddDays(-1),ChangedBy=actor,ChangedAt=clock.UtcNow,IntentKey=Guid.CreateVersion7(),RequestHash=new string('0',64),
+                DaysJson=System.Text.Json.JsonSerializer.Serialize(Enumerable.Range(0,7).ToDictionary(d=>d,d=>new[]{new WorkInterval(0,1440)})) });
             if(password!=null) db.IdentityCredentials.Add(new() { UserId=actor,UserName=$"inventario.ejemplo.{i+1}",NormalizedUserName=$"INVENTARIO.EJEMPLO.{i+1}",PasswordHash=new PasswordHasher<AppUser>().HashPassword(user,password) });
         }
         if(crossRole) db.Add(new Sgol.Web.Infrastructure.Persistence.Organization.PersonSpecialization { PersonId=people[1],SpecializationId=specialty });
@@ -53,7 +55,7 @@ public static class ProcessRuntimeChecks
             await tasks.SaveAsync(users[3],new OperationalTask { Revision=0,Name=rule.Name+" · Ejemplo",ProcessId=root,
                 Description="Descripción de etapa "+i,
                 SpecializationId=crossRole && i==0 ? specialty : null,
-                AssignedRole=rule.Role,Requirement="DOCUMENTO",LoadMinutes=loads[i],DeadlineHours=rule.DeadlineHours,PeriodType="OCASIONAL" },default); db.ChangeTracker.Clear();
+                AssignedRole=rule.Role,Requirement="DOCUMENTO",LoadMinutes=loads[i],DeadlineHours=rule.DeadlineHours,PeriodType="OCASIONAL",OperationalCriticality="FLEXIBLE" },default); db.ChangeTracker.Clear();
             taskIds[i]=await db.OperationalTasks.Where(t=>t.ProcessId==root && t.AssignedRole==rule.Role).Select(t=>t.Id).SingleAsync();
         }
         var editor=await catalog.ReadAsync(users[3],root,default);
@@ -71,7 +73,7 @@ public static class ProcessRuntimeChecks
         if(preparePlan)
         {
             var planning=new ProcessPlanningService(db,direction,clock,validator,scanner);
-            var planInput=new ProcessPlanInput { Key=key,Name="Plan de inventario de ejemplo",ProcessId=root,Mode="OCASION",From=WeekContract.LocalToday(clock.UtcNow),Through=WeekContract.LocalToday(clock.UtcNow),People=people };
+            var planInput=new ProcessPlanInput { Key=key,Name="Plan de inventario de ejemplo",ProcessId=root,Mode="OCASION",OccasionTime=new(11,0),From=WeekContract.LocalToday(clock.UtcNow),Through=WeekContract.LocalToday(clock.UtcNow),People=people };
             var preview=await planning.PreviewAsync(users[3],planInput,default); planInput.Fingerprint=preview.Fingerprint;
             var plan=await planning.PrepareAsync(users[3],planInput,default); db.ChangeTracker.Clear();
             if(deletion) await ProcessPlanDeletionChecks.PreparedAsync(db, direction, planning, users, planInput);
@@ -88,6 +90,15 @@ public static class ProcessRuntimeChecks
             .SequenceEqual(Enumerable.Range(0,4).Select(i=>"Descripción de etapa "+i)),"Process stages preserve task descriptions");
         Check(await db.OperationalAssignments.Where(a=>a.PlanId==db.Set<OperationalSequenceRun>().Where(r=>r.Id==run).Select(r=>r.PlanId).Single()).AllAsync(a=>a.Description!=null),"Process assignments include description");
         Check(await db.OperationalAssignments.CountAsync()==1,"Only first enabled stage receives an effective assignment");
+        var waitingPage = await tasks.MinePageAsync(users[1], null, 1, clock.UtcNow, default);
+        var waitingTask = waitingPage.Items.Single();
+        Check(waitingPage.Total == 1 && waitingTask.PendingProcessRunId == run && waitingTask.PendingProcessStatus == "EN_ESPERA",
+            "My work includes the reserved stage beside effective tasks before dependency completion");
+        Check((await tasks.MinePageAsync(users[1], waitingTask.TaskCode.ToLowerInvariant(), 99, clock.UtcNow, default)).Items.Single().Id == waitingTask.Id,
+            "Reserved work supports normalized search and page clamping");
+        await Reject(() => tasks.MineFindAsync(users[1], waitingTask.Id, default), "TASK_NOT_FOUND");
+        Check((await tasks.MinePageAsync(users[0], null, 1, clock.UtcNow, default)).Items.Single().PendingProcessRunId == null,
+            "Enabled stage appears once as an effective task and other people's reservations stay private");
         var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,default);
         Check(ledger.Tasks.Length==4 && ledger.Tasks.Sum(t=>t.LoadMinutes)==540,"Capacity accounts for first assignment and three reservations exactly once");
         if(seedOnly)
@@ -147,6 +158,17 @@ public static class ProcessRuntimeChecks
         var first=await processes.ReadAsync(users[0],run,default); var floorAttempt=first.Attempts.Single(a=>a.Id==first.Stages[0].CurrentAttemptId);
         await Reject(()=>tasks.CompleteAsync(users[0],floorAttempt.AssignmentId!.Value,null,Pdf("v1"),default,"No saltar flujo"),"PROCESS_USE_ACTION"); db.ChangeTracker.Clear();
         await ProcessMyWorkHttpChecks.RunAsync(db, users[0], run, Pdf("v1")); db.ChangeTracker.Clear();
+        if (myWorkOnly) {
+            var scheduled = (await processes.ReadAsync(users[1], run, default)).Stages.Single(s => s.Position == 2);
+            Check((await tasks.MinePageAsync(users[1], null, 1, clock.UtcNow, default)).Items.Single().PendingProcessStatus == "PROGRAMADA",
+                "Dependency completion preserves the scheduled row until its reserved start");
+            clock.UtcNow = new[] { scheduled.PlannedStartsAt, scheduled.EligibleAt ?? clock.UtcNow, clock.UtcNow }.Max();
+            await processes.TickAsync(default); db.ChangeTracker.Clear();
+        }
+        var releasedPage = await tasks.MinePageAsync(users[1], null, 1, clock.UtcNow, default);
+        Check(releasedPage.Total == 1 && releasedPage.Items.Single().PendingProcessRunId == null,
+            "Dependency completion replaces the reservation with one executable task");
+        if (myWorkOnly) { Console.WriteLine("Process My work integration checks passed."); return; }
         if(deletion) await ProcessPlanDeletionChecks.ActiveAsync(db, direction, users, run);
         var afterFloor=await processes.ReadAsync(users[1],run,default); var obsolete=afterFloor.Attempts.Single(a=>a.Id==afterFloor.Stages[1].CurrentAttemptId);
         await Decide(1,"DEVOLUCION","Ejemplo: buscar dos pares faltantes y presentar un sobrante");
@@ -174,7 +196,7 @@ public static class ProcessRuntimeChecks
     }
     private static void Check(bool value,string text) { if(!value) throw new Exception("FAILED: "+text); Console.WriteLine("PASS: "+text); }
     private static async Task Reject(Func<Task> action,string code) { try { await action(); throw new Exception("Expected: "+code); } catch(Sgol.Planning.Contracts.DirectionPlanException e) when(e.Code==code) { Console.WriteLine("PASS: Rejected "+code); } }
-    private sealed class Clock : IClock { public DateTimeOffset UtcNow=>new(2026,10,13,18,0,0,TimeSpan.Zero); }
+    private sealed class Clock : IClock { public DateTimeOffset UtcNow { get; set; } = new(2026,10,13,18,0,0,TimeSpan.Zero); }
     private sealed class Scanner : IFileMalwareScanner { public Task CheckAvailabilityAsync(CancellationToken token)=>Task.CompletedTask; public Task<EvidenceScanOutcome> ScanAsync(Stream stream,long size,CancellationToken token)=>Task.FromResult(new EvidenceScanOutcome(EvidenceScanResult.Limpio)); }
 }
 

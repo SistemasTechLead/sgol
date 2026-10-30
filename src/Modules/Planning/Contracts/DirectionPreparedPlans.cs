@@ -26,7 +26,13 @@ public sealed record OperationalAssignmentDetails(Guid Id, string TaskCode, stri
     string ScheduleMode = "DISTRIBUIDA", int GoalUnits = 0, int ProgressUnits = 0, string ProgressUnit = "unidades", long Revision = 1,
     Guid? SpecializationId = null, string? SpecializationName = null, int MinimumPhotos = 1, int MaximumPhotos = 20, long MaximumPhotoBytes = 31457280,
     Guid? OccasionId = null, string? Description = null, string? TemporalPolicyJson = null, string? TemporalDecisionJson = null, string? OperationalCriticality = null, DateTimeOffset? NominalStartsAt = null, Guid? SchedulingPolicyId = null,
-    int? TransferRemainingMinutes = null, int TransferProgressUnits = 0, string ChecklistJson = "[]", string ChecklistDraftJson = "null");
+    int? TransferRemainingMinutes = null, int TransferProgressUnits = 0, string ChecklistJson = "[]", string ChecklistDraftJson = "null")
+{
+    public string? CompletionKind { get; init; }
+    public Guid? PendingProcessRunId { get; init; }
+    public string? PendingProcessStatus { get; init; }
+    public string? PendingProcessReason { get; init; }
+}
 public sealed record DirectionPlanDetails(Guid PlanId, string BranchCode, string Name, string Area,
     string PeriodType, int Year, int? PeriodNumber, DateOnly StartsOn, DateOnly EndsOn,
     int StartIsoYear, int StartIsoWeek, int EndIsoYear, int EndIsoWeek, string Status,

@@ -38,7 +38,7 @@ public static class ProcessEditorChecks
         Check(System.Text.Json.JsonSerializer.Serialize(requirements)==System.Text.Json.JsonSerializer.Serialize(await db.OperationalTasks.AsNoTracking().Where(t=>t.ProcessId==root.Id).OrderBy(t=>t.Id).Select(t=>new{t.Id,t.Requirement}).ToArrayAsync()),"All original evidence requirements remain identical");
         Check(before==System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a=>a.Id).ToArrayAsync()),"Every original assignment remains identical after saving and publishing the restored copy");
     }
-    public static async Task RunAsync(SgolDbContext db, bool checklistOnly = false, bool itemsOnly = false, bool itemsMore = false, bool itemsIntegrity = false, bool itemsUiCurrent = false, bool processSearchOnly = false)
+    public static async Task RunAsync(SgolDbContext db, bool checklistOnly = false, bool processRefreshOnly = false, bool itemsOnly = false, bool itemsMore = false, bool itemsIntegrity = false, bool itemsUiCurrent = false, bool processSearchOnly = false)
     {
         if (!itemsMore && await db.People.AnyAsync()) throw new Exception("Requires an empty dedicated database");
         var actor = Guid.CreateVersion7(); var person = Guid.CreateVersion7(); var now = new Clock().UtcNow;
@@ -70,6 +70,7 @@ public static class ProcessEditorChecks
         builder.Services.AddScoped<RazorAntiforgeryBridge>(); builder.Services.AddSingleton<AccessNotice>();
         builder.Services.AddDbContext<SgolDbContext>(o => o.UseNpgsql(db.Database.GetConnectionString()));
         builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Identity.IPersonAvatarReader, Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatarService>();
+        builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatarService>();
         var clock = new Clock();
         if(itemsUiCurrent) clock.UtcNow=await db.Set<OperationalSequenceEvent>().MaxAsync(e=>e.OccurredAt);
         builder.Services.AddSingleton<IClock>(clock); builder.Services.AddSingleton<IUuidGenerator, Uuid7Generator>();
@@ -101,6 +102,17 @@ public static class ProcessEditorChecks
                 await app.WaitForShutdownAsync();
             }
             await app.StopAsync(); return;
+        }
+        if (processRefreshOnly)
+        {
+            await ProcessAssignmentRefreshChecks.RunAsync(db, actor, person, clock, client);
+            if (Environment.GetEnvironmentVariable("SGOL_REFRESH_UI_PREVIEW") == "1")
+            {
+                Console.WriteLine("Process refresh real Razor preview: https://localhost:7259/tareas/actualizar");
+                await app.WaitForShutdownAsync();
+            }
+            await app.StopAsync();
+            return;
         }
         if (checklistOnly)
         {
@@ -146,6 +158,8 @@ public static class ProcessEditorChecks
         Check(!await db.OperationalAssignments.AnyAsync(),"Draft save and publication create no assignments");
         await MixedEvidence(db, actor, person, id, clock, builder.Configuration, client, Hidden(page,"__RequestVerificationToken"));
         await IndependentChecklist(db,actor,person,clock,client);
+        await ProcessCatalogDeletionChecks.RunAsync(db, actor, person, clock, value => clock.UtcNow = value, client, builder.Configuration, new Scanner());
+        if (Environment.GetEnvironmentVariable("SGOL_DELETION_UI_PREVIEW") == "1") await app.WaitForShutdownAsync();
         await app.StopAsync();
     }
     private static async Task IndependentChecklist(SgolDbContext db,Guid actor,Guid person,Clock clock,HttpClient client)
@@ -204,7 +218,7 @@ public static class ProcessEditorChecks
         await catalog.SetEnabledAsync(actor,processId,editor.Process.Revision,true,default);db.ChangeTracker.Clear();
         var planning=new ProcessPlanningService(db,direction,clock,new FileTechnicalValidator(),new Scanner());
         var day=WeekContract.LocalToday(clock.UtcNow);
-        var input=new ProcessPlanInput { ProcessId=processId,Name="Mixed evidence isolated",Mode="OCASION",From=day,Through=day,People=Enumerable.Range(1,7).ToDictionary(i=>i,i=>person) };
+        var input=new ProcessPlanInput { ProcessId=processId,Name="Mixed evidence isolated",Mode="OCASION",OccasionTime=new(12,0),From=day,Through=day,People=Enumerable.Range(1,7).ToDictionary(i=>i,i=>person) };
         input.Fingerprint=(await planning.PreviewAsync(actor,input,default)).Fingerprint;
         var plan=await planning.PrepareAsync(actor,input,default);db.ChangeTracker.Clear();
         var run=(await planning.ActivateAsync(actor,plan,default)).Single();db.ChangeTracker.Clear();
@@ -287,7 +301,7 @@ public static class ProcessEditorChecks
         await catalog.SaveAsync(actor,new() { Id=legacyId,Revision=legacyEditor.Process.Revision,Name=legacyEditor.Process.Name,StartKind="OCASIONAL",StartHour=12,Steps=legacySteps },default);db.ChangeTracker.Clear();legacyEditor=await catalog.ReadAsync(actor,legacyId,default);
         await catalog.PublishAsync(actor,legacyId,legacyEditor.Process.Revision,default);db.ChangeTracker.Clear();legacyEditor=await catalog.ReadAsync(actor,legacyId,default);
         await catalog.SetEnabledAsync(actor,legacyId,legacyEditor.Process.Revision,true,default);db.ChangeTracker.Clear();
-        var legacyInput=new ProcessPlanInput { ProcessId=legacyId,Name="Legacy PDF check",Mode="OCASION",From=day,Through=day,People=new() { [1]=person,[2]=person } };
+        var legacyInput=new ProcessPlanInput { ProcessId=legacyId,Name="Legacy PDF check",Mode="OCASION",OccasionTime=new(12,0),From=day,Through=day,People=new() { [1]=person,[2]=person } };
         legacyInput.Fingerprint=(await planning.PreviewAsync(actor,legacyInput,default)).Fingerprint;
         var legacyPlan=await planning.PrepareAsync(actor,legacyInput,default);db.ChangeTracker.Clear();
         var legacyRun=(await planning.ActivateAsync(actor,legacyPlan,default)).Single();db.ChangeTracker.Clear();

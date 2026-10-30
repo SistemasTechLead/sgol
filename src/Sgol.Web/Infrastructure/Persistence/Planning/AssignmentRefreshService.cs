@@ -9,7 +9,8 @@ using Sgol.Web.Infrastructure.Persistence.Auditing;
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed record AssignmentRefreshRequest(Guid TaskId, Guid Key, DateTimeOffset NotBefore,
-    Guid? PersonId = null, bool ReplaceRemainingEstimate = false, bool ChangeAuthorizedDeadline = false, bool AdoptLegacyCalendar = false, bool RetireInactiveAssignments = false, bool RetireExcludedAssignments = false);
+    Guid? PersonId = null, bool ReplaceRemainingEstimate = false, bool ChangeAuthorizedDeadline = false, bool AdoptLegacyCalendar = false, bool RetireInactiveAssignments = false, bool RetireExcludedAssignments = false,
+    Guid[]? PreserveProcessAssignmentIds = null);
 public sealed record AssignmentRefreshDifference(OperationalAssignment? Before, OperationalAssignment? After,
     string[] Fields, bool ProcessStage = false, bool Retire = false)
 {
@@ -17,7 +18,11 @@ public sealed record AssignmentRefreshDifference(OperationalAssignment? Before, 
     public bool PreservesExpiredAgenda { get; init; }
     public bool KeepsAgenda => MetadataOnly || PreservesExpiredAgenda;
 }
-public sealed record AssignmentRefreshDecision(string Code, string Title, string Help, string[] TaskCodes, bool Accepted);
+public sealed record AssignmentRefreshDecision(string Code, string Title, string Help, string[] TaskCodes, bool Accepted)
+{
+    public Guid? AssignmentId { get; init; }
+    public string? Problem { get; init; }
+}
 public sealed record AssignmentRefreshPreview(AssignmentRefreshRequest Request, string TaskName, string Fingerprint,
     AssignmentRefreshDifference[] Differences, string[] Conflicts, int Excluded)
 {
@@ -94,6 +99,8 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         var attempts = await db.Set<OperationalSequenceAttempt>().AsNoTracking().Where(a => stageIds.Contains(a.StageId)).OrderBy(a => a.Id).ToArrayAsync(ct);
         var linked = attempts.Where(a => a.AssignmentId != null).ToDictionary(a => a.AssignmentId!.Value);
         var conflicts = new List<string>();
+        var processDecisions = new List<AssignmentRefreshDecision>();
+        var processNames = await db.Set<OperationalSequence>().AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var decisionConflicts = new List<string>();
         var decisions = new Dictionary<string, (string Title, string Help, bool Accepted, HashSet<string> Tasks)>();
         void Decision(string code, string title, string help, bool accepted, string taskCode)
@@ -156,9 +163,34 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             if (fields.Length == 0) continue;
             if (request.PersonId is {} requestedPerson && requestedPerson != a.PersonId) fields = fields.Append("Responsable").ToArray();
             var specialty = task.SpecializationId is {} sid ? specialties.GetValueOrDefault(sid) : null;
+            var preserveProcess = fields.Contains("Pertenencia al proceso");
+            if (preserveProcess)
+            {
+                var oldProcess = AssignmentDefinition.Baseline(a, task).ProcessId;
+                var oldName = processNames.GetValueOrDefault(oldProcess, oldProcess.ToString());
+                var newName = processNames.GetValueOrDefault(task.ProcessId, task.ProcessId.ToString());
+                var plan = plans.Single(p => p.Id == a.PlanId);
+                var at = TimeZoneInfo.ConvertTime(a.StartsAt, OperationalSchedule.Zone);
+                var due = TimeZoneInfo.ConvertTime(a.DueAt, OperationalSchedule.Zone);
+                var problem = $"{task.TaskCode} · {task.Name}. Asignada a {a.PersonName}, del {at:dd/MM/yyyy HH:mm} al {due:dd/MM/yyyy HH:mm}, en el plan «{plan.Name}». " +
+                    $"La asignación conserva el proceso «{oldName}», pero la tarea ahora pertenece a «{newName}». Cambiarla de proceso alteraría su estructura y dependencias.";
+                const string title = "Conservar las asignaciones y aplicar el proceso nuevo a las ejecuciones";
+                var accepted = request.PreserveProcessAssignmentIds?.Contains(a.Id) == true;
+                processDecisions.Add(new("process:" + a.Id, title,
+                    "Esta asignación conservará su proceso anterior. El proceso nuevo se usará en las nuevas ejecuciones que se generen con esa configuración. Los demás cambios de la tarea se actualizarán con las reglas habituales y pueden ajustar su agenda.",
+                    [task.TaskCode], accepted) { AssignmentId = a.Id, Problem = problem });
+                if (!accepted)
+                {
+                    var message = problem + " Marca «" + title + "» y pulsa Revisar cambios para continuar.";
+                    conflicts.Add(message); decisionConflicts.Add(message);
+                }
+                fields = fields.Where(f => f != "Pertenencia al proceso").Append("Conservar proceso anterior").ToArray();
+                if (fields.Where(f => f != "Calendario anterior sin verificar").All(AssignmentDefinition.IsMetadataField))
+                    fields = fields.Where(f => f != "Calendario anterior sin verificar").ToArray();
+            }
             if (task.SpecializationId != null && specialty == null) { conflicts.Add(task.TaskCode + ": la especialización requerida está inactiva."); continue; }
-            if (fields.Contains("Pertenencia al proceso") || process && task.ScheduleMode == "PROGRESO")
-            { conflicts.Add(a.TaskCode + ": el cambio de proceso o la modalidad de progreso requiere resolver la estructura desde el editor del proceso."); continue; }
+            if (process && task.ScheduleMode == "PROGRESO")
+            { conflicts.Add($"{task.TaskCode} · {task.Name}, asignada a {a.PersonName} el {TimeZoneInfo.ConvertTime(a.StartsAt, OperationalSchedule.Zone):dd/MM/yyyy HH:mm}: la tarea ahora usa PROGRESO, incompatible con una etapa del proceso existente. Conserva una modalidad compatible o resuelve la estructura desde el editor del proceso."); continue; }
             if (fields.Contains("Calendario anterior sin verificar"))
             {
                 Decision("calendar", "Usar el calendario actual de las tareas", "Las asignaciones antiguas no tienen un calendario verificable. Esta opción permite usar los días y horarios configurados hoy.", request.AdoptLegacyCalendar, task.TaskCode);
@@ -167,13 +199,17 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             if (process && !runs.Single(r => r.Id == stageRows[a.Id].RunId).UsesTaskEvidence && task.Requirement != "DOCUMENTO")
             { conflicts.Add(a.TaskCode + ": este proceso usa circulación de documentos PDF. Cambiar el tipo de evidencia requiere preparar una versión y resolver su flujo documental."); continue; }
             var next = AssignmentDefinition.Copy(a);
+            if (preserveProcess) AssignmentDefinition.PreserveProcess(next, task);
             if (a.ProgressUnits > 0 && (task.ScheduleMode != "PROGRESO" || task.ProgressUnit != a.ProgressUnit))
             { conflicts.Add($"{a.PersonName}: hay {a.ProgressUnits} {a.ProgressUnit}. Cambiar unidad o abandonar PROGRESO requiere una conversión documentada; conserva la unidad y modalidad para actualizar este pendiente."); continue; }
             if (a.TransferRemainingMinutes != null && fields.Any(f => f is "Carga" or "Meta o unidad"))
             {
                 Decision("remaining", "Recalcular el tiempo pendiente", "Sustituye la estimación manual anterior por el tiempo calculado con la nueva carga y la meta. El avance registrado se conserva.", request.ReplaceRemainingEstimate, task.TaskCode);
             }
-            if (fields.All(AssignmentDefinition.IsMetadataField)) AssignmentDefinition.AdoptMetadata(next,task);
+            if (fields.All(AssignmentDefinition.IsMetadataField))
+            {
+                if (fields.Any(f => f != "Conservar proceso anterior")) AssignmentDefinition.AdoptMetadata(next,task);
+            }
             else AssignmentDefinition.Adopt(next, task, specialty?.Name, process);
             if (a.TransferRemainingMinutes != null && fields.Any(f => f is "Carga" or "Meta o unidad"))
             { next.TransferRemainingMinutes = null; next.TransferProgressUnits = 0; }
@@ -278,6 +314,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
                 transfers.Any(p => p.AssignmentId == before.Id) || childLinks.Contains(before.Id)) continue;
             var preserved = AssignmentDefinition.Copy(before);
             AssignmentDefinition.AdoptExpiredDefinition(preserved, definitions[before.TaskId]);
+            if (diff.Fields.Contains("Conservar proceso anterior")) AssignmentDefinition.PreserveProcess(preserved, definitions[before.TaskId]);
             diffs[i] = diff with { After = preserved, PreservesExpiredAgenda = true };
         }
         foreach (var diff in diffs.Where(d => d.After == null))
@@ -462,10 +499,10 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             d.Before.SchedulingPolicyId == d.After.SchedulingPolicyId && d.Before.ClosureMarginPercent == d.After.ClosureMarginPercent && d.Before.NominalStartsAt == d.After.NominalStartsAt);
         var fingerprint = Hash(new { request, Selected = selected.Keys.Order(), currentPolicy, definitions = definitions.Values, plans, all, runs, stages, attempts, carryovers,
             source.Workers, source.Tasks, source.Capacities, Temporal = TemporalState(source.Temporal), Unavailable = source.Unavailable.OrderBy(x => x.Item1).ThenBy(x => x.Item2), Legacy = source.Legacy.OrderBy(x => x.Key), evidence, attachments, progress, childLinks, transfers, captureSessions,
-            diffs, conflicts, Algorithm = 2 });
+            diffs, conflicts, processDecisions, Algorithm = 3 });
         return new(request, request.TaskId == Guid.Empty ? "Todas las tareas con asignaciones pendientes desactualizadas" : selected[request.TaskId].Name, fingerprint, diffs.ToArray(), conflicts.Distinct().ToArray(), all.Count(a => selected.ContainsKey(a.TaskId) && !AssignmentDefinition.Pending(a)))
         {
-            Decisions = decisions.Select(d => new AssignmentRefreshDecision(d.Key,d.Value.Title,d.Value.Help,d.Value.Tasks.Order().ToArray(),d.Value.Accepted)).ToArray(),
+            Decisions = processDecisions.Concat(decisions.Select(d => new AssignmentRefreshDecision(d.Key,d.Value.Title,d.Value.Help,d.Value.Tasks.Order().ToArray(),d.Value.Accepted))).ToArray(),
             DecisionConflicts = decisionConflicts.Distinct().ToArray(), Notices = notices
         };
     }

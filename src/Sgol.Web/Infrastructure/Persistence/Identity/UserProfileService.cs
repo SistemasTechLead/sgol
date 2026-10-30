@@ -52,7 +52,7 @@ public sealed class UserProfileService(SgolDbContext db, AuditTransaction audit,
                 r.Status == RoleAssignmentStatus.Active && r.ValidTo == null &&
                 e.BranchId == BranchScope.LorettaId && e.Status == EmploymentStatus.Active && e.ValidTo == null
             select u.Id).AnyAsync(ct);
-        if (!allowed) throw new UserProfileException("Solo Dirección y Administración pueden gestionar usuarios.", 403);
+        if (!allowed) throw new UserProfileException("Solo Dirección y Asesor Externo pueden gestionar usuarios.", 403);
     }
     private IQueryable<UserProfile> Query(Guid? id = null) =>
         from u in db.AppUsers.AsNoTracking()

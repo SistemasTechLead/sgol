@@ -13,7 +13,7 @@ public sealed partial class OperationalSupervisionService
         await Query(await AuthorizeAsync(actor, token), actor).Select(t => t.Assignment.Id).ToArrayAsync(token);
     public async Task<SupervisedTask?> FindAsync(Guid actor, Guid id, CancellationToken token) =>
         await Query(await AuthorizeAsync(actor, token), actor).SingleOrDefaultAsync(t => t.Assignment.Id == id, token);
-    public async Task<SupervisionPage> PageAsync(Guid actor, string section, IReadOnlyDictionary<string, string> filter, int page, CancellationToken token)
+    public async Task<SupervisionPage> PageAsync(Guid actor, string section, IReadOnlyDictionary<string, string> filter, int page, CancellationToken token, bool expand = false)
     {
         var role = await AuthorizeAsync(actor, token);
         var now = clock.UtcNow;
@@ -47,8 +47,9 @@ public sealed partial class OperationalSupervisionService
         var status = Value("status");
         if (status.Length > 0) query = query.Where(t => (t.Assignment.ReviewStatus == "CONCLUIDA" || t.Assignment.ReviewStatus == "NO_SATISFECHA" || t.Assignment.ReviewStatus == "REASIGNADA" ? t.Assignment.ReviewStatus : t.Assignment.CompletedAt != null ? "PENDIENTE_REVISION" : t.Assignment.StartsAt > now ? "PROGRAMADA" : t.Assignment.DueAt < now ? "VENCIDA" : "ASIGNADA") == status);
         var filtered = await query.CountAsync(token);
-        page = Math.Clamp(page, 1, Math.Max(1, (filtered + 49) / 50));
+        var size = expand ? 10 : 50;
+        page = Math.Clamp(page, 1, Math.Max(1, (int)Math.Ceiling(filtered / (double)size)));
         var ordered = section == "pending" ? query.OrderByDescending(t => t.Assignment.CompletedAt).ThenBy(t => t.Assignment.Id) : query.OrderBy(t => t.Assignment.StartsAt).ThenBy(t => t.Assignment.Id);
-        return new(await ordered.Skip((page - 1) * 50).Take(50).ToArrayAsync(token), options, total, filtered, page);
+        return new(await ordered.Skip(expand ? 0 : (page - 1) * size).Take(expand ? (int)Math.Min((long)page * size, filtered) : size).ToArrayAsync(token), options, total, filtered, page);
     }
 }

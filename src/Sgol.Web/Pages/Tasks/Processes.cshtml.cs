@@ -21,6 +21,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     public bool Creating { get; private set; }
     public string? Error { get; private set; }
     public string? Notice { get; private set; }
+    public Guid? BlockingPlanId { get; private set; }
     public string SavedInputJson { get; private set; } = "{}";
     private async Task<Guid?> Actor(CancellationToken token, bool write)
     {
@@ -57,7 +58,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     public async Task<IActionResult> OnGetAsync(Guid? id, bool create, string? notice, CancellationToken token)
     {
         var actor = await Actor(token, false); if (actor == null || create && !CanManage) return StatusCode(403);
-        try { Creating = create; Notice = notice switch { "saved" => "Borrador guardado. No se generó trabajo.", "published" => "Versión publicada. La activación es una acción distinta.", "disabled" => "Nuevos inicios desactivados. La historia se conserva.", "enabled" => "Versión publicada activa para nuevos inicios.", _ => null }; await Load(actor.Value, id, token); return Page(); }
+        try { Creating = create; Notice = notice switch { "deleted" => "Proceso eliminado del catálogo. Sus tareas volvieron a General; las asignaciones y el historial se conservan.", "saved" => "Borrador guardado. Las tareas retiradas vuelven a General. No se generó trabajo.", "published" => "Versión publicada. La activación es una acción distinta.", "disabled" => "Nuevos inicios desactivados. La historia se conserva.", "enabled" => "Versión publicada activa para nuevos inicios.", _ => null }; await Load(actor.Value, id, token); return Page(); }
         catch (DirectionPlanException e) { return StatusCode(e.Status); }
     }
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken token)
@@ -71,6 +72,8 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     public Task<IActionResult> OnPostPublishAsync(CancellationToken token) => Write(token, () => processes.PublishAsync(UserId, Input.Id, Input.Revision, token), "published");
     public Task<IActionResult> OnPostEnableAsync(bool enabled, CancellationToken token) => Write(token, () => processes.SetEnabledAsync(UserId, Input.Id, Input.Revision, enabled, token), enabled ? "enabled" : "disabled");
     public Task<IActionResult> OnPostAbandonAsync(bool confirmed, CancellationToken token) => Write(token, () => confirmed ? processes.AbandonAsync(UserId, Input.Id, Input.Revision, token) : Task.FromException(new DirectionPlanException("PROCESS_INVALID", 422)));
+    public Task<IActionResult> OnPostDeleteAsync(bool confirmed, CancellationToken token) => Write(token,
+        () => confirmed ? processes.DeleteAsync(UserId, Input.Id, Input.Revision, token) : Task.FromException(new DirectionPlanException("PROCESS_DELETE_CONFIRMATION_REQUIRED", 422)), "deleted");
     private Guid UserId;
     private async Task<IActionResult> Write(CancellationToken token, Func<Task> action, string? notice = null, bool preserveInput = false)
     {
@@ -79,10 +82,15 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
             ModelState.Remove("Input.Description");
             for (var i=0; i<Input.Steps.Count; i++) ModelState.Remove($"Input.Steps[{i}].Instructions");
             if (preserveInput && !ModelState.IsValid) throw new DirectionPlanException("PROCESS_RULES_INVALID", 422);
-            await action(); return RedirectToPage(new { id = Input.Id, notice }); }
+            await action(); return notice == "deleted" ? RedirectToPage(new { notice }) : RedirectToPage(new { id = Input.Id, notice }); }
         catch (DirectionPlanException e) {
             Response.StatusCode = e.Status; Error = IndexModel.Message(e.Code);
-            await Load(actor.Value, Input.Id, token, preserveInput);
+            if (e.Code == "PROCESS_PREPARED_PLANS_EXIST" && e.Data["PlanId"] is Guid planId)
+            {
+                BlockingPlanId = planId;
+                Error = $"El plan «{e.Data["PlanName"]}» reserva carga de este proceso. Revisa y elimina ese plan en Planificación antes de quitar tareas o eliminar el proceso. No se aplicó ningún cambio.";
+            }
+            await Load(actor.Value, e.Code == "PROCESS_NOT_FOUND" ? null : Input.Id, token, preserveInput);
             if (e.Code == "PROCESS_RULES_INVALID")
             {
                 var details = ModelState.Where(pair => pair.Value?.Errors.Count > 0)

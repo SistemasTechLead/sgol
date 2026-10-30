@@ -79,6 +79,9 @@
         });
         const updateEntries = () => {
             const ordered = stages();
+            const count = form.querySelector('[data-process-stage-count]'), load = form.querySelector('[data-process-load]');
+            if (count) count.textContent = String(ordered.length);
+            if (load) load.textContent = String(ordered.reduce((sum, row) => sum + Number(row.dataset.processLoadMinutes || 0), 0));
             ordered.forEach((row, index) => {
                 const item = field(row, 'OutputItemId'), destination = field(row, 'OutputTargetTaskId');
                 if (item && destination) {
@@ -146,6 +149,36 @@
             form.querySelector('[data-process-add-slot]')?.classList.remove('process-drop-before');
         };
         stages().forEach(row => {
+            row.querySelector('[data-process-remove]')?.addEventListener('click', () => {
+                const name = row.querySelector('.process-stage-title strong').textContent;
+                if (!window.confirm(`¿Quitar ${name} del proceso? Al guardar volverá a General. Las asignaciones existentes se conservan.`)) return;
+                const ordered = stages();
+                const returns = new Map(ordered.map(item => [item, ordered[Number(field(item, 'ReturnToPosition').value) - 1]]));
+                row.querySelector('dialog[open]')?.close();
+                const removedId = field(row, 'TaskId').value;
+                row.remove();
+                stages().forEach((item, index) => {
+                    field(item, 'Position').value = String(index + 1);
+                    field(item, 'Position').max = String(stages().length);
+                    const target = returns.get(item);
+                    field(item, 'ReturnToPosition').value = target && target !== row ? String(stages().indexOf(target) + 1) : '';
+                    // Do not redirect a count to a different recipient automatically.
+                    if (field(item, 'OutputTargetTaskId')?.value === removedId) {
+                        field(item, 'OutputItemId').value = '';
+                        field(item, 'OutputTargetTaskId').value = '';
+                    }
+                    item.querySelectorAll('[name], [id], label[for]').forEach(control => {
+                        for (const attribute of ['name', 'id', 'for']) {
+                            if (control.hasAttribute(attribute)) control.setAttribute(attribute, control.getAttribute(attribute)
+                                .replace(/Input\.Steps\[\d+\]/g, `Input.Steps[${index}]`)
+                                .replace(/Input_Steps_\d+__/g, `Input_Steps_${index}__`));
+                        }
+                    });
+                });
+                updateEntries(); updateDirty(); updateFlow();
+                if (status) status.textContent = `${name} retirada del borrador. Se quitaron las devoluciones y conteos dirigidos a ella. Revisa las acciones inicial y final; guarda para aplicar.`;
+                (stages()[Math.min(ordered.indexOf(row), stages().length - 1)]?.querySelector('[data-process-edit]') || addSlot?.querySelector('button'))?.focus();
+            });
             const position = field(row, 'Position');
             position.max = String(stages().length);
             position.addEventListener('change', () => move(row, Number(position.value)));
