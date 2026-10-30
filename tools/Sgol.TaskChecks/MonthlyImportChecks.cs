@@ -17,10 +17,11 @@ internal static class MonthlyImportChecks
 
     public static async Task RunAsync(SgolDbContext db)
     {
+        var fixture=await QaFixtures.CreateAsync(db);
         await using var tx = await db.Database.BeginTransactionAsync();
         var now = OperationalSchedule.Instant(new(2026,11,1),0);
         var realNow = DateTimeOffset.UtcNow;
-        var actor = await db.RoleAssignmentVersions.Where(r => r.RoleCode == CanonicalRole.Direction && r.Status == RoleAssignmentStatus.Active && r.ValidTo == null).Select(r=>r.UserId).FirstAsync();
+        var actor = fixture.Director;
         var person = await db.People.Select(p=>p.Id).FirstAsync();
         CapacityWorker[] workers = [new(person,"A","A",CanonicalRole.SalesFloor,null,null)];
         var temporal = new TemporalEligibilityContext { Enabled = true, Now = now, Schedules = [new PersonalScheduleVersion {

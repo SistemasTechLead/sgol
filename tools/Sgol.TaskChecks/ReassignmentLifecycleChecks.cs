@@ -1,3 +1,4 @@
+using Sgol.Identity.Contracts;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Sgol.BuildingBlocks.Time;
@@ -13,21 +14,19 @@ internal static class ReassignmentLifecycleChecks
     private sealed class TestClock : IClock { public DateTimeOffset UtcNow { get; set; } = new(2026, 10, 22, 19, 0, 0, TimeSpan.Zero); }
     private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
 
-    // This scenario uses a restored local database, guarded by the check runner's
-    // sgol_task_checks_* restriction. No request is sent to the running application.
+    // Synthetic lifecycle fragments belong only to this guarded test database.
     public static async Task Run(SgolDbContext db)
     {
+        var fixture=await QaFixtures.CreateAsync(db);
         var clock = new TestClock();
         var direction = new EfDirectionPreparedPlanService(db, new AuditTransaction(db), clock, new Uuid7Generator(clock), new DirectionPlanningCatalogReader(db));
         var service = new OperationalSupervisionService(db, clock, direction);
-        var actor = await db.RoleAssignmentVersions.Where(r => r.RoleCode == "DIRECCION" && r.ValidTo == null).Select(r => r.UserId).FirstAsync();
+        var actor = fixture.Director;
         await ViriSimulation(db, service, actor, clock);
         clock.UtcNow = new(2026, 10, 22, 19, 0, 0, TimeSpan.Zero);
-        var id = Guid.Parse("01a15579-41e5-7a2f-8c5f-587f4c29dd56");
-        var source = await db.OperationalAssignments.SingleAsync(a => a.Id == id);
-        // Isolate the recipient's agenda in this test copy, then add a real
-        // reservation so placement must advance beyond the first possible slot.
-        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE operational_review SET \"ReviewStatus\"='REASIGNADA' WHERE \"AssignmentId\" IN (SELECT \"Id\" FROM operational_assignment WHERE \"PersonId\"={source.PersonId} AND \"Id\"<>{id})");
+        var seeded=await SourceAsync(db,fixture,clock,10);
+        var id=seeded.Id;
+        var source=await db.OperationalAssignments.SingleAsync(a=>a.Id==id);
         source.Requirement = "COMENTARIO"; source.CompletedAt = clock.UtcNow.AddMinutes(-30);
         source.CompletedBy = actor; source.CompletionKind = "ENTREGA"; source.Comment = "Entrega anterior de prueba";
         source.ReviewStatus = "PENDIENTE_REVISION";
@@ -95,13 +94,19 @@ internal static class ReassignmentLifecycleChecks
         Console.WriteLine("PASS legacy reassignment: fresh scheduling policy, workload margin, future slot and preserved original contract.");
     }
 
+    private static async Task<OperationalAssignment> SourceAsync(SgolDbContext db,QaFixtures.Actors fixture,TestClock clock,int load)
+    {
+        var definition=await db.OperationalTasks.SingleAsync(t=>t.Id==fixture.Definition);definition.LoadMinutes=load;
+        var row=new OperationalAssignment {Id=Guid.CreateVersion7(),PlanId=fixture.Plan,TaskId=definition.Id,TaskCode=definition.TaskCode,TaskRevision=definition.Revision,Name="Synthetic historical delivery",PersonId=fixture.Person,PersonName="QA worker",AssignedRole=CanonicalRole.SalesFloor,Requirement="COMENTARIO",Comment="Historical evidence",LoadMinutes=load,CompletedAt=clock.UtcNow.AddMinutes(-30),CompletedBy=fixture.Worker,CompletionKind="ENTREGA",ReviewStatus="PENDIENTE_REVISION"};
+        OperationalAgenda.Capture(row,await OperationalSchedulingPolicyService.CurrentAsync(db,default),"FLEXIBLE",clock.UtcNow.AddHours(-2));
+        db.Add(row);await db.SaveChangesAsync();db.ChangeTracker.Clear();return row;
+    }
+
     private static async Task ViriSimulation(SgolDbContext db, OperationalSupervisionService service, Guid actor, TestClock clock)
     {
-        var id = Guid.Parse("01a15579-416b-753e-b964-5d726d9980d9");
-        var source = await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.Id == id);
-        // The attachment's filename supplies 17:41; no failed request timestamp was
-        // persisted. Use the actual task, recipient and current saved agenda.
-        clock.UtcNow = TemporalEligibilityContext.At(new DateOnly(2026, 10, 22), 17 * 60 + 41);
+        var viriFixture=await QaFixtures.CreateAsync(db,1140);
+        clock.UtcNow=TemporalEligibilityContext.At(new DateOnly(2026,10,22),17*60+41);
+        var source=await SourceAsync(db,viriFixture,clock,40);var id=source.Id;
         var before = await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync();
         var ledger = await OperationalCapacityService.LedgerAsync(db, clock.UtcNow, default);
         var projected = JsonSerializer.Deserialize<OperationalAssignment>(JsonSerializer.Serialize(source))!;
@@ -116,7 +121,7 @@ internal static class ReassignmentLifecycleChecks
         Require(correction.PersonId == source.PersonId && correction.StartsAt == clock.UtcNow && correction.DueAt == clock.UtcNow.AddMinutes(60), "Viri 40+50% starts at 17:41 and ends at 18:41");
         var after = await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync();
         Require(JsonSerializer.Serialize(before.Where(a => a.Id != id)) == JsonSerializer.Serialize(after.Where(a => a.Id != id && a.Id != correction.Id)), "Viri: unrelated assignments unchanged");
-        Console.WriteLine("PASS Viri: real recipient and task, 17:41-18:41, 40+50%, current agenda and unchanged unrelated assignments.");
+        Console.WriteLine("PASS historical scenario: synthetic recipient and task, 17:41-18:41, 40+50%, current agenda and unchanged unrelated assignments.");
 
         // Fill the entire remaining shift and set zero capacity, in the test copy only.
         var day = WeekContract.LocalToday(clock.UtcNow);

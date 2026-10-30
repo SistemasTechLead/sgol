@@ -4,7 +4,10 @@ using Sgol.Identity.Contracts;
 using Sgol.Web.Presentation.Search;
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
-public sealed record SupervisionPage(SupervisedTask[] Items, SupervisedTask[] Options, int Total, int Filtered, int Page);
+public sealed record SupervisionPage(SupervisedTask[] Items, SupervisedTask[] Options, int Total, int Filtered, int Page)
+{
+    public string? FilterError { get; init; }
+}
 public sealed partial class OperationalSupervisionService
 {
     public async Task<SupervisedTask[]> FindManyAsync(Guid actor, Guid[] ids, CancellationToken token) =>
@@ -32,9 +35,18 @@ public sealed partial class OperationalSupervisionService
             "SEMANAL" => today.AddDays(-(((int)today.DayOfWeek + 6) % 7)), "MENSUAL" => new(today.Year, today.Month, 1),
             "TRIMESTRAL" => new(today.Year, (today.Month - 1) / 3 * 3 + 1, 1), "SEMESTRAL" => new(today.Year, (today.Month - 1) / 6 * 6 + 1, 1), "ANUAL" => new(today.Year, 1, 1), _ => null };
         DateOnly? end = start is {} from ? range switch { "SEMANAL" => from.AddDays(6), "MENSUAL" => from.AddMonths(1).AddDays(-1), "TRIMESTRAL" => from.AddMonths(3).AddDays(-1), "SEMESTRAL" => from.AddMonths(6).AddDays(-1), _ => new DateOnly(from.Year, 12, 31) } : null;
-        if (range == "CUSTOM") { start = DateOnly.TryParse(Value("from"), out var f) ? f : null; end = DateOnly.TryParse(Value("to"), out var e) ? e : null; }
+        if (range == "CUSTOM") {
+            static bool Parse(string value, out DateOnly date) => DateOnly.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out date);
+            if (Value("from").Length > 0 && !Parse(Value("from"), out _) || Value("to").Length > 0 && !Parse(Value("to"), out _))
+                return new([], options, total, 0, page) { FilterError = "Revisa Desde y Hasta: escribe fechas válidas con formato año-mes-día. Tus filtros se conservaron." };
+            start = Parse(Value("from"), out var f) ? f : null;
+            end = Parse(Value("to"), out var e) ? e : null;
+            if (start > end)
+                return new([], options, total, 0, page) { FilterError = "Desde debe ser anterior o igual a Hasta. Corrige el rango; tus filtros se conservaron." };
+        }
         if (start is {} first) { var instant = OperationalSchedule.Instant(first); query = query.Where(t => t.Assignment.StartsAt >= instant); }
-        if (end is {} last) { var instant = OperationalSchedule.Instant(last.AddDays(1)); query = query.Where(t => t.Assignment.StartsAt < instant); }
+        // The maximum local day has no following representable date and needs no upper bound.
+        if (end is {} last && last != DateOnly.MaxValue) { var instant = OperationalSchedule.Instant(last.AddDays(1)); query = query.Where(t => t.Assignment.StartsAt < instant); }
         var search = SearchText.Normalize(Value("search").Trim());
         if (search.Length > 0) query = query.Where(t => SearchText.SqlNormalize(t.Assignment.Name).Contains(search) || SearchText.SqlNormalize(t.Assignment.TaskCode).Contains(search));
         var period = Value("period"); if (period.Length > 0) query = query.Where(t => t.Period == period);

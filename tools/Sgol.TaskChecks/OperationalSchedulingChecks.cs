@@ -101,8 +101,9 @@ internal static class OperationalSchedulingChecks
 
     public static async Task Integration(SgolDbContext db)
     {
+        var fixture=await QaFixtures.CreateAsync(db);
         var clock = new SchedulingClock();
-        var actor = await db.RoleAssignmentVersions.Where(r=>r.RoleCode==CanonicalRole.Direction && r.ValidTo==null).Select(r=>r.UserId).FirstAsync();
+        var actor = fixture.Director;
         var baselineIds = await db.OperationalAssignments.Select(a=>a.Id).ToArrayAsync();
         async Task<string> Baseline() => JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().Where(a=>baselineIds.Contains(a.Id)).OrderBy(a=>a.Id).ToArrayAsync());
         var baseline = await Baseline();
@@ -158,8 +159,8 @@ internal static class OperationalSchedulingChecks
             if(row.OperationalCriticality=="CRITICA")Require(row.StartsAt==row.NominalStartsAt,"Transferred critical anchor unchanged");
         }
         await ActivatedSelection(db, direction, clock, actor, tasks.Last(), await policyService.ReadAsync(actor,default));
-        await TargetReflow(db,direction,clock,actor,tasks.Last(),await policyService.ReadAsync(actor,default));
         await ProcessIntegration(db, direction, policyService, clock, actor, worker.Id);
+        await TargetReflow(db,direction,clock,actor,tasks.Last(),await policyService.ReadAsync(actor,default));
         Require(baseline==await Baseline(),"All preexisting assignments preserved across new plans, policy, occasions and adjustment");
         Console.WriteLine($"PASS scheduling integration: preview/save, policy concurrency, immutable published contracts, occasion preview/replay, absence adjustment; {baselineIds.Length} preexisting rows unchanged.");
     }

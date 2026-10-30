@@ -1,5 +1,7 @@
 # Auditoría QA de interacciones y plan de corrección — 30/10/2026
 
+**Actualización:** QA-01, QA-02 y QA-03 implementados. Los resultados de la auditoría original se conservan debajo; la validación posterior, los contratos actualizados y las limitaciones están en «Implementación de correcciones — 30/10/2026». No se desplegó el cambio sobre la aplicación compartida.
+
 ## Resultado y alcance
 
 Se confirmaron **dos bugs del producto mediante formularios/handlers HTTP reales y consulta de persistencia aislada**, y un defecto de la herramienta de QA que comunica éxito de proceso pese a registrar escenarios fallidos. No se implementaron correcciones funcionales.
@@ -180,3 +182,114 @@ No se necesita limpiar datos simulados para implementar QA-01/02. No se propone 
 | Preferencia de responsable y casos históricos vigentes | Resultado coincide con decisión acordada | Preview real en copia aislada, comparar antes/después | **Propuesto**, decisión pendiente |
 
 El cierre de esta auditoría entrega causas reproducidas y plan. La implementación y su validación posterior siguen pendientes; no se presenta el sistema como libre de bugs.
+
+## Implementación de correcciones — 30/10/2026
+
+Este apartado actualiza el estado de la auditoría inicial; los resultados anteriores se conservan como evidencia histórica. Cambio **mixto**, implementado en el checkout existente. La autorización posterior del usuario sustituyó la prohibición inicial de commit/push: los 65 archivos previos se preservaron primero en `f904269`, publicado en `origin/master`. Las correcciones QA se mantienen en un commit separado. No se autorizó ni realizó despliegue o reinicio compartido.
+
+### Cambios realizados y recorrido del dato
+
+- **QA-01:** `_ChecklistEvidence.cshtml` expone la base de la definición y del borrador persistido, incluido el vacío. `checklist.js` envía esa base y un identificador de guardado; el handler `OnPostChecklistDraftAsync` devuelve la base confirmada después de persistir. `OperationalTaskService.Checklist.cs` compara dentro del bloqueo/transacción y devuelve `TASK_CHECKLIST_DRAFT_STALE` ante una lectura anterior. La respuesta identifica la asignación y permite comparar las marcas del servidor.
+- La base es SHA-256 del JSON de definición y borrador. El recibo opcional `ChecklistDraft.Base/SaveId` se guarda en el JSON existente, sin migración ni reescritura de registros anteriores. Los borradores antiguos sin estos campos siguen siendo legibles. El reintento de la última operación exacta reconoce actor, base, identificador y conjunto de marcas; no incrementa revisión ni escribe otra evidencia. Un reintento antiguo después de otra edición recibe conflicto y no resucita casillas desmarcadas.
+- La cola por pestaña conserva el orden. Ante conflicto o respuesta no confirmada conserva las casillas locales, bloquea la entrega y ofrece comparación/reintento explícito. Mantiene una copia por pestaña en `sessionStorage`, con el pedido pendiente para recuperar una respuesta perdida incluso tras recargar. Si el almacenamiento está bloqueado, no promete conservar una copia al recargar y permite copiar los textos antes de salir. No une conjuntos automáticamente. Las acciones usan botones y tokens existentes; el foco vuelve al estado de guardado.
+- Se mantiene la revisión de asignación existente y **no** se usa como base del borrador ni se modifica la revisión del intento de proceso. La autorización por propietario y la condición de tarea pendiente se comprueban antes de reconocer reintentos. La entrega sigue validando definición y completitud, y conserva su transacción e historial.
+- **QA-02:** `OperationalSupervisionService.Paging.cs` evita calcular el día siguiente a `DateOnly.MaxValue`. El día máximo no necesita cota superior. Valida fechas ISO opcionales y rangos invertidos; conserva filtros y opciones del apartado y devuelve un error comprensible con resultado vacío en ese apartado, sin consultar silenciosamente un rango distinto. El modelo de sección y `_Filters.cshtml` muestran el aviso dentro del formulario; la consulta original sigue alimentando navegación y paginación. Sin migración ni cambio del dominio de fechas.
+- **QA-03:** `PerformancePlanningChecks` evalúa todas las muestras al terminar y conserva el JSON antes de fallar. `--performance-planning` es aserción; `--diagnostic` identifica explícitamente una ejecución diagnóstica. Los cambios de conteo de asignaciones fallan incluso en modo diagnóstico. Las expectativas distinguen finalización, `SCHEDULING_SEARCH_INCONCLUSIVE` con `OCCURRENCE_SEARCH_SIZE_LIMIT` y `PLAN_TOO_MANY_OCCURRENCES`, según los límites actuales; ningún límite del producto cambió. `scripts/comprobar-salida-planificacion.ps1` comprueba un fallo deliberado y la conservación del JSON mediante procesos reales.
+
+### Contratos y fixtures actualizados
+
+`QaFixtures.cs` crea actores, empleo, roles, horarios, definición y contenedor propios con vigencia para los relojes fijos de las pruebas. Las suites de transferencia, reasignación, ciclo de vida, importación y planificación dejan de depender de usuarios históricos o IDs concretos de la simulación. La transferencia compara el conteo previo más su delta, y usa definiciones distintas para las claves de etapas. La reasignación conserva sus escenarios históricos con entregas sintéticas y comprueba registros ajenos sin modificarlos mediante SQL global.
+
+Rotación, operaciones semanales y horarios usan generación real de agenda y su fingerprint. Se incorporaron criticidad y horarios requeridos por el contrato vigente. La prueba de rotación exige además conservar la corrección protegida e informar exactamente su carga residual; no exige moverla para eliminar el exceso. `ScheduleIntegrationChecks` diferencia filas realmente generadas de candidatos y avanza hasta el inicio reservado de la etapa, en lugar de suponer que es siempre la hora nominal.
+
+Se contrastaron específicamente estas expectativas antiguas con las rutas actuales, sin cambiar permisos ni reglas del producto:
+
+- Una hora crítica ya transcurrida produce aviso `CRITICAL_ACTIVATION_PASSED`; no una asignación desplazada ni un rechazo genérico de capacidad (`OperationalPlanGenerator`).
+- La revisión fuera de turno devuelve `SCHEDULE_NOT_PRESENT_AT_ACTIVATION`, con causa específica (`ReviewCoreAsync` y `CorrectionPlacement`).
+- `ReadAsync` permite la lectura a Subcoordinación según `CheckAuthorityAsync(...allowSubcoordination:true)`; la suite sigue rechazando las mutaciones que no están autorizadas.
+- Un proceso **con agenda capturada** revalida capacidad/disponibilidad antes de crear la ejecución. La ausencia posterior a la reserva rechaza la activación con `PLAN_NO_AVAILABLE_WORKER` y rollback de reserva, plan, auditoría y asignaciones. La expectativa anterior de crear `PENDIENTE_ASIGNACION` correspondía a otra ruta de activación; no se relajó el guard de `OperationalProcessService.StartAsync`.
+- El downgrade de agenda publicada está expresamente prohibido por migraciones posteriores. `LifecycleChecks` comprueba ese rechazo y la recuperación hacia el esquema actual, conservando autores, comentarios y decisiones; no desactiva el guard para simular un downgrade admitido.
+- `Sgol.UserProfileChecks` registra `IPersonAvatarReader`, `OperationalSchedulingPolicyService` y `AssignmentRefreshService`, y verifica el destino real de especializaciones en vez de su texto histórico. `ProcessEditorChecks` envía el nuevo contrato de borrador con base e identificador.
+
+### Matriz de validación de esta implementación
+
+Evidencia local ignorada: `.local/qa-fix-20261030/`. Cada ejecución automática de servicios/HTTP creó una base `sgol_task_checks_qafix_*` o `sgol_profile_checks_qafix_*` nueva. Los logs pueden contener datos privados y no se publican. Los nombres de log siguientes identifican ejecuciones concretas, no cobertura exhaustiva.
+
+| Escenario y resultado esperado | Prueba / entorno | Resultado real y evidencia |
+|---|---|---|
+| Reproducir pérdidas entre pestañas y fecha máxima antes del arreglo | Nueva regresión HTTP contra binario anterior, CSRF y BD aislada | **Fallido esperado**: fecha máxima 500; B acepta sustitución y pierde A. `red-reproduced.log`, exit no0 |
+| Dos bases iguales: primer guardado confirmado y segundo 409, conservar A | `--qa-interactions-only`, Razor HTTP + PostgreSQL | **Aprobado**, `http-final.log` |
+| Dos POST simultáneos: exactamente un ganador | Mismo harness, contextos HTTP independientes | **Aprobado**, `http-final.log` |
+| Respuesta perdida: reintentar la operación exacta, sin otra revisión/evidencia; reintento antiguo no resucita marcas | HTTP real + comparación BD | **Aprobado**, `http-final.log` |
+| Desmarcado deliberado, CSRF ausente, cambio de definición, rollback sin auditoría adicional | HTTP real + comparación de asignación y auditoría | **Aprobado**, `http-final.log` |
+| Parcial/completo, revisión individual/masiva, actualización de definición y snapshots históricos, transferencia, ocasiones | `--checklist-only`, servicios y BD aislada | **Aprobado**, `checklist-final.log` |
+| Proceso: guardar borrador con intento abierto, entregar y liberar siguiente etapa | Misma suite, planificación/activación/servicios reales | **Aprobado**, `checklist-final.log`; no invalida la revisión del intento |
+| Formularios de catálogo, borrador y entrega parcial/completa, evidencia de solo lectura | `--checklist-http-only` | **Aprobado**, `editor-http-v2.log` |
+| Normal, mínima, máxima, vacía, inválida e invertida; conservar búsqueda/formulario | Servicios consumidos por Razor HTTP | **Aprobado**, `http-final.log` |
+| Reproducir QA-03 contra herramienta anterior conservada | Binario inicial de `.local/qa-20261030/build`, contenedor propio en 5547 | **Fallido esperado**: exit0 con 2 muestras fallidas; 3164 asignaciones antes/después. `planning-baseline-result.json`, `planning-red-results.json` |
+| Planificación anual con límites vigentes; preview no escribe asignaciones | Herramienta corregida, mismo contenedor aislado | **Aprobado**, 4/4 expectativas, 3164 asignaciones antes/después. `planning-real.log`, `planning-green-results.json` |
+| Muestra deliberadamente fallida debe conservar JSON y devolver no0 en aserción | `comprobar-salida-planificacion.ps1`, dos procesos reales | **Aprobado**: aserción no0, diagnóstico0 explícito. `exit-regression/` |
+| Rotación con corrección protegida, semana con un trabajador, rechazo sin capacidad | `--rotation-only`, BD vacía aislada | **Aprobado**, `rotation-final.log` |
+| Maestros semanales, reintentos, unicidad BD, roles, catálogo cambiado | `--weekly-operations-only` | **Aprobado**, `weekly-final.log` |
+| Permisos y autoasignación ocasional de Subcoordinación/Asesor Externo, preview y rollback por ausencia | `--subcoord-occasional-only` | **Aprobado**, `subcoord-v4.log` |
+| Horarios, agenda, crítica vencida, maestros parciales, proceso y rollback de activación por ausencia | `--schedule-integration-only` | **Aprobado**, 38 comprobaciones, `schedule-v8.log` |
+| Transferencia e intento de proceso; conservar evidencia y dependencias | `--transfer-lifecycle` en BD nueva | **Aprobado**, `transfer-v2.log` |
+| Transferencia y reasignación con registros históricos ajenos | Dos copias nuevas del dump aislado previo; no se volvió a leer ni escribir la simulación | **Aprobado**, `copy-transfer-lifecycle.log`, `copy-reassignment-lifecycle.log`; delta e historial ajeno conservados |
+| Reasignación: pausas, turno lleno, capacidad cero, límite de turno, rol, evidencia actual e historial previo | `--reassignment-lifecycle`, BD nueva | **Aprobado**, `reassignment-v3.log` |
+| Fragmentos obligatorios de historial, reintento, downgrade protegido y recuperación | `--lifecycle-only` | **Aprobado**, `lifecycle-v2.log` |
+| Importación mensual sobre fixtures propios y rollback de datos del escenario | `--monthly-import-only` | **Aprobado**, `monthly.log` |
+| Perfiles: servicios, formularios, especialidades, permisos y sesión | `Sgol.UserProfileChecks`, BD propia | **Aprobado**, `profile-final.log`, suite completa |
+| Planificación integral y política de responsable | `--scheduling-integration-only`, fixtures propios | **Parcial**: pasos anteriores, selección activa y proceso automático pasan; **falla** la misma expectativa de conservar responsable pendiente de decisión. `scheduling-v2.log`; no se cambió esa aserción ni el algoritmo |
+| Compilación y entradas generadas | Builds aislados TaskChecks/Web y UserProfileChecks; comprobador de exclusiones | **Aprobado**, 0 errores/advertencias; `build-next.log`, `profile-build-final.log`, `build-inputs.log` |
+| Dos pestañas reales: conservar local y comparar servidor, resolver, desmarcar y entregar | Navegador integrado, host aislado HTTPS7279, sesión `TEST_ONLY` | **Aprobado** en recorrido acotado: conflicto visible, entrega bloqueada hasta resolver; entrega final “En revisión”. No equivale a autenticación real |
+| Respuesta HTTP abortada después del commit, cambio local posterior y reintento | Middleware del harness `SGOL_QA_DROP_DRAFT_RESPONSE=1`; navegador real | **Aprobado**: aviso sin falso éxito; reconoce reintento y conserva desmarcado posterior tras recargar. `ui-loss.log` y observaciones del navegador; no es corte de red física |
+| Escritorio, móvil320, claro/oscuro/especial, teclado y foco | Pantallas reales en navegador integrado | **Aprobado** en muestra acotada: comparación legible, botones accesibles, foco de resolución en estado y sin overflow horizontal en 320. Supervisión conserva valores y enlaces al mostrar error de rango |
+| Firefox/Brave, dispositivos físicos, pérdida física de red, estabilidad de jornada completa y nueva carga general | No ejecutados en esta corrección | **No ejecutado**: no sustituir por el navegador integrado ni los reintentos sintéticos |
+
+Las ejecuciones intermedias que fallaron permanecen en la carpeta local con su causa; una suite solo se marca aprobada donde existe una ejecución posterior completa. Los hosts de vista previa permanecieron deliberadamente esperando intervención mientras se inspeccionaba la pantalla y fueron detenidos al acabar: su terminación manual no se presenta como exit0 de una suite. No se ejecutaron suites destructivas en `sgol_local`, ni se reinició o desplegó el runtime compartido observado al inicio (`reassigned-color-20261030`).
+
+### Decisiones que permanecen abiertas
+
+1. **Responsable en reacomodo:** conservarlo cuando existe un hueco válido mantiene continuidad pero puede posponer el inicio (10:00 en el escenario); priorizar el inicio más temprano puede transferir a otro trabajador (09:00 observado). Se conserva el algoritmo actual y la expectativa discrepante queda identificada como pendiente, sin declarar aprobada la suite completa.
+2. **Volumen anual:** se conserva el buscador limitado a 1000 ocurrencias por búsqueda y el límite global de 10000. Dividir el horizonte reduce presión de recursos y exige coordinar reservas entre planes; ampliar la búsqueda requiere mediciones, cancelación y presupuesto de recursos. No se amplió ningún límite ni se trató un rechazo esperado como finalización de la planificación.
+
+Las correcciones no certifican ausencia total de bugs ni disponibilidad en el runtime compartido: el código se verificó en compilaciones y hosts aislados y no fue desplegado.
+
+También se comprobó en navegador la acción **Recargar tarea (conservar copia local)**: tras la recarga ofreció recuperar las marcas locales, las restauró sin mezclarlas con las guardadas y volvió a pedir resolver el conflicto. La resolución por Enter dejó el foco en el mensaje de guardado. Captura local privada: `.local/qa-fix-20261030/conflicto-checklist.jpg`.
+
+### Archivos de esta corrección
+
+- `docs/desarrollo/cambios/auditoria-qa-interacciones-2026-10-30.md`
+- `scripts/comprobar-salida-planificacion.ps1`
+- `src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalChecklist.cs`
+- `src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalSupervisionService.Paging.cs`
+- `src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalTaskService.Checklist.cs`
+- `src/Sgol.Web/Pages/MyWork/Index.Operational.cs`
+- `src/Sgol.Web/Pages/Shared/_ChecklistEvidence.cshtml`
+- `src/Sgol.Web/Pages/Tasks/Index.cshtml.cs`
+- `src/Sgol.Web/Pages/Validations/_Filters.cshtml`
+- `src/Sgol.Web/Pages/Validations/Index.cshtml.cs`
+- `src/Sgol.Web/wwwroot/js/checklist.js`
+- `tools/Sgol.TaskChecks/ChecklistChecks.cs`
+- `tools/Sgol.TaskChecks/LifecycleChecks.cs`
+- `tools/Sgol.TaskChecks/MonthlyImportChecks.cs`
+- `tools/Sgol.TaskChecks/OperationalSchedulingChecks.cs`
+- `tools/Sgol.TaskChecks/PerformancePlanningChecks.cs`
+- `tools/Sgol.TaskChecks/ProcessEditorChecks.cs`
+- `tools/Sgol.TaskChecks/Program.cs`
+- `tools/Sgol.TaskChecks/QaFixtures.cs`
+- `tools/Sgol.TaskChecks/QaInteractionChecks.cs`
+- `tools/Sgol.TaskChecks/ReassignmentLifecycleChecks.cs`
+- `tools/Sgol.TaskChecks/RotationChecks.cs`
+- `tools/Sgol.TaskChecks/ScheduleIntegrationChecks.cs`
+- `tools/Sgol.TaskChecks/TransferChecks.cs`
+- `tools/Sgol.TaskChecks/WeeklyOperationsChecks.cs`
+- `tools/Sgol.UserProfileChecks/Program.cs`
+
+### Cierre adicional de concurrencia de servicios
+
+La revisión final añadió una regresión con un `DbContext` que ya tenía la asignación rastreada antes del guardado de otra pestaña. Sin recargar la entidad, se reproducía `DbUpdateConcurrencyException` en vez del conflicto recuperable; la protección de persistencia evitó sobrescribir las marcas, pero no devolvía el contrato esperado. Evidencia roja: `tracked-red.log`.
+
+`SaveChecklistDraftAsync` ahora refresca la entidad bajo el bloqueo y vuelve a comprobar propietario/estado antes de comparar la base. Esto cubre además una transferencia ocurrida después de una lectura rastreada. La validación final de esta variante y de las regresiones HTTP está en `tracked-green.log`; el recorrido de checklist/proceso se repite en `checklist-close.log`. Las ejecuciones anteriores siguen registradas por separado.
+
+Cierre comprobado: `tracked-green-result.json` y `checklist-close-result.json` registran **exit0**. La compilación final y el diff no presentan errores; se conserva el fallo de política de responsable como pendiente explícito.

@@ -10,7 +10,7 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Validations;
 
-public sealed record SupervisionSection(string Key, string Title, IReadOnlyList<SupervisedTask> All, IReadOnlyList<SupervisedTask> Items) { public int Total { get; init; } public int Filtered { get; init; } public string? MoreHref { get; init; } public ListPage? Pagination { get; init; } }
+public sealed record SupervisionSection(string Key, string Title, IReadOnlyList<SupervisedTask> All, IReadOnlyList<SupervisedTask> Items) { public int Total { get; init; } public int Filtered { get; init; } public string? FilterError { get; init; } public string? MoreHref { get; init; } public ListPage? Pagination { get; init; } }
 public sealed record SupervisionFilterModel(IndexModel Page, SupervisionSection Section);
 
 public sealed partial class IndexModel(IRazorSessionState sessions, OperationalSupervisionService supervision, OperationalCapacityService capacity, OperationalTaskService tasks, IClock clock, OperationalCarryoverService carryovers) : PageModel
@@ -86,7 +86,7 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
                 .ToDictionary(q => q.Key, q => (string?)q.Value.ToString());
             moreQuery[key + ".page"] = (result.Page + 1).ToString();
             sections.Add(new(key, key == "pending" ? "Pendientes de revisión" : SessionPresentation.RoleName(key)!, result.Options, result.Items)
-                { Total = result.Total, Filtered = result.Filtered,
+                { Total = result.Total, Filtered = result.Filtered, FilterError = result.FilterError,
                     MoreHref = !Validation && result.Items.Length < result.Filtered ? QueryHelpers.AddQueryString("/validaciones", moreQuery) + $"#{key}-row-{result.Items.Length}" : null,
                     Pagination = Validation ? new(key + ".page", result.Page, result.Filtered, 50, Request, key) : null });
         }

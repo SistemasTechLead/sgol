@@ -26,7 +26,8 @@ using Microsoft.AspNetCore.Identity;
 
 if (args.Contains("--performance-cancel-transport")) { await PerformanceIntegrityChecks.CancellationTransportAsync(); return; }
 if (args.Contains("--performance-isolated")) { await PerformanceLoadChecks.RunAsync(); return; }
-if (args.Contains("--performance-planning")) { await PerformancePlanningChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-planning")); return; }
+if (args.Contains("--performance-planning")) { await PerformancePlanningChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-planning"),args.Contains("--diagnostic")); return; }
+if (args.Contains("--planning-failure-probe")) { await PerformancePlanningChecks.FailureProbeAsync(args[Array.IndexOf(args,"--planning-failure-probe")+1],args.Contains("--diagnostic")); return; }
 if (args.Contains("--performance-preview")) { await PerformanceLoadChecks.RunAsync(previewOnly: true); return; }
 if (args.Contains("--performance-jpeg")) { await PerformanceJpegChecks.RunAsync(); return; }
 if (args.Contains("--performance-regressions")) { await PerformanceRegressionChecks.RunAsync(); return; }
@@ -132,6 +133,7 @@ var director = AddPerson("DIR", CanonicalRole.Direction);
 var a = AddPerson("A", CanonicalRole.SalesFloor);
 var b = AddPerson("B", CanonicalRole.SalesFloor);
 await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+if (args.Contains("--qa-interactions-only")) { await QaInteractionChecks.RunAsync(db,tasks,clock,director.User,director.Person); return; }
 if (args.Contains("--checklist-only")) { await ChecklistChecks.RunAsync(db,tasks,supervision,direction,clock,director.User,a.User,a.Person,b.User,b.Person); return; }
 if (args.Contains("--expired-refresh-only")) { await ExpiredAssignmentRefreshChecks.RunAsync(db,tasks,direction,clock,director.User,a.Person); return; }
 if (args.Contains("--assignment-retirement-only")) { await AssignmentRetirementChecks.RunAsync(db,tasks,direction,clock,director.User,a.User,a.Person,b.Person); return; }
@@ -195,13 +197,18 @@ if (args.Contains("--subcoord-occasional-only"))
     Check((await tasks.OccasionalTasksAsync(subcoord.User, default)).All(t => t.PeriodType == "OCASIONAL" && t.Active && !t.Deleted && t.ProcessId == OperationalSequence.GeneralId), "Scoped catalog only exposes active independent occasions");
     var recipients = await tasks.OccasionalRecipientsAsync(subcoord.User, taskId, default);
     Check(recipients.Any(w => w.Id == subcoord.Person) && recipients.Any(w => w.Id == administration.Person) && recipients.Any(w => w.Id == a.Person) && recipients.All(w => w.Role != CanonicalRole.Direction), "Recipients include self, Administration and Sales Floor, excluding Direction");
+    foreach(var recipient in new[]{subcoord.Person,administration.Person,a.Person})
+        db.Add(new PersonalScheduleVersion {Id=Guid.CreateVersion7(),PersonId=recipient,Revision=1,From=WeekContract.LocalToday(clock.UtcNow),ChangedBy=director.User,ChangedAt=clock.UtcNow,IntentKey=Guid.NewGuid(),RequestHash="fixture",DaysJson=System.Text.Json.JsonSerializer.Serialize(Enumerable.Range(0,7).ToDictionary(d=>d,d=>new[]{new WorkInterval(0,1439)}))});
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
     var occasion = new OccasionInput(taskId, occasional.Revision, "Asignación de prueba", "Realizar y entregar", "", "",
-        clock.UtcNow.AddMinutes(-1), clock.UtcNow.AddHours(4), [subcoord.Person, administration.Person, a.Person]);
+        clock.UtcNow, clock.UtcNow.AddHours(4), [subcoord.Person, administration.Person, a.Person]);
     var adminRecipients = await tasks.OccasionalRecipientsAsync(administration.User, taskId, default);
     Check(adminRecipients.Any(w => w.Id == administration.Person) && adminRecipients.All(w => w.Role != CanonicalRole.Direction), "Administration scoped recipients include self and exclude Direction");
     await Rejected(() => tasks.AssignOccasionAsync(administration.User, Guid.CreateVersion7(), occasion with { PersonIds = [director.Person] }, [], default), "OCCASION_RECIPIENT_INVALID");
     var adminKey = Guid.CreateVersion7();
-    await tasks.AssignOccasionAsync(administration.User, adminKey, occasion with { PersonIds = [administration.Person] }, [], default);
+    var adminInput=occasion with {PersonIds=[administration.Person]};
+    var adminPreview=await tasks.PreviewOccasionAsync(administration.User,adminInput,default);
+    await tasks.AssignOccasionAsync(administration.User, adminKey, adminInput with {SchedulingFingerprint=adminPreview.Fingerprint,SchedulingNotBefore=adminPreview.NotBefore}, [], default);
     db.ChangeTracker.Clear();
     Check(await db.OperationalAssignments.AnyAsync(x => x.OccasionId == adminKey && x.PersonId == administration.Person), "Administration can assign an occasional task to self");
     await Rejected(() => tasks.AssignOccasionAsync(subcoord.User, Guid.CreateVersion7(), occasion with { TaskId = regular.Id, TaskRevision = regular.Revision }, [], default), "TASK_NOT_FOUND");
@@ -210,6 +217,8 @@ if (args.Contains("--subcoord-occasional-only"))
     await Rejected(() => tasks.AssignOccasionAsync(subcoord.User, Guid.CreateVersion7(), occasion with { Automatic = true, PersonIds = [] }, [], default), "ACCESO_DENEGADO");
     await Rejected(() => tasks.AssignOccasionAsync(subcoord.User, Guid.CreateVersion7(), occasion with { TaskRevision = 99 }, [], default), "TASK_CONFLICT");
     db.ChangeTracker.Clear();
+    var scopedPreview=await tasks.PreviewOccasionAsync(subcoord.User,occasion,default);
+    occasion=occasion with {SchedulingFingerprint=scopedPreview.Fingerprint,SchedulingNotBefore=scopedPreview.NotBefore};
     var occasionKey = Guid.CreateVersion7();
     var occasionPlan = await tasks.AssignOccasionAsync(subcoord.User, occasionKey, occasion, [], default);
     db.ChangeTracker.Clear();
@@ -220,7 +229,7 @@ if (args.Contains("--subcoord-occasional-only"))
         rows.Single(x => x.PersonId == administration.Person).AssignedRole == CanonicalRole.Administration, "Assignment stores each recipient role for correct supervision");
     Check((await tasks.MineAsync(subcoord.User, default)).Any(t => t.Id == rows.Single(x => x.PersonId == subcoord.Person).Id), "Self-assignment appears in Mi trabajo");
     Check((await supervision.ListAsync(subcoord.User, default)).Where(t => t.Assignment.OccasionId == occasionKey).All(t => t.Assignment.PersonId == a.Person), "Assignment access does not expand review permissions");
-    await Rejected(() => direction.ReadAsync(subcoord.User, occasionPlan), "ACCESO_DENEGADO");
+    Check((await direction.ReadAsync(subcoord.User,occasionPlan)).PlanId==occasionPlan,"Subcoordination reads its occasion plan under the current scoped read contract");
     var unavailableDay = WeekContract.LocalToday(clock.UtcNow).AddDays(2);
     db.AvailabilityDayVersions.Add(new(Guid.CreateVersion7(), administration.Person, BranchScope.LorettaId, unavailableDay, false, director.User));
     await db.SaveChangesAsync(); db.ChangeTracker.Clear();

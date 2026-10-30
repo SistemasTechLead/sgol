@@ -101,6 +101,9 @@ builder.Services.AddAntiforgery();
 builder.Services.AddDbContext<SgolDbContext>(o => o.UseNpgsql(connection));
 builder.Services.AddScoped<AuditTransaction>();
 builder.Services.AddScoped<UserProfileService>();
+builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedulingPolicyService>();
+builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Planning.AssignmentRefreshService>();
+builder.Services.AddScoped<IPersonAvatarReader, PersonAvatarService>();
 builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Planning.PersonalScheduleService>();
 builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Planning.OperationalProcessCatalogService>();
 builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Organization.SpecializationService>();
@@ -142,7 +145,7 @@ Check(posted.IsSuccessStatusCode && (await profiles.ListAsync(admin, default)).S
     "Status POST binds correctly without profile fields");
 fixtureSession.Role = CanonicalRole.Direction; fixtureSession.Actor = director;
 html = await http.GetStringAsync("/personas-y-accesos");
-Check(html.Contains("Ver especializaciones"), "Director sees specialization entry only in People");
+Check(html.Contains("/personas-y-accesos/especializaciones"), "Director sees specialization entry only in People");
 html = await http.GetStringAsync("/personas-y-accesos/especializaciones?create=true");
 csrf = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
 var specializationForm = new Dictionary<string, string> { ["Input.Name"] = "Marketing UI", ["Input.Active"] = "true",

@@ -14,12 +14,9 @@ public static class LifecycleChecks
     public static async Task RunAsync(SgolDbContext db)
     {
         var clock = new CheckClock();
-        var actor = await db.RoleAssignmentVersions.Where(r => r.RoleCode == CanonicalRole.SalesFloor).Select(r => r.UserId).FirstAsync();
-        var director = await db.RoleAssignmentVersions.Where(r => r.RoleCode == CanonicalRole.Direction).Select(r => r.UserId).FirstAsync();
-        var other = await db.RoleAssignmentVersions.Where(r => r.RoleCode == CanonicalRole.SalesFloor && r.UserId != actor).Select(r => r.UserId).FirstAsync();
-        var person = await db.AppUsers.Where(u => u.Id == actor).Select(u => u.PersonId).SingleAsync();
-        var definition = await db.OperationalTasks.FirstAsync();
-        var plan = await db.DirectionPreparedPlans.Select(p => p.Id).FirstAsync();
+        var fixture=await QaFixtures.CreateAsync(db);
+        var actor=fixture.Worker;var director=fixture.Director;var other=fixture.Other;var person=fixture.Person;
+        var definition=await db.OperationalTasks.SingleAsync(t=>t.Id==fixture.Definition);var plan=fixture.Plan;
         var direction = new EfDirectionPreparedPlanService(db, new AuditTransaction(db), clock, new Uuid7Generator(clock), new DirectionPlanningCatalogReader(db));
         var tasks = new OperationalTaskService(db, direction, clock, new Sgol.Evidence.Technical.FileTechnicalValidator(), new CheckScanner());
         var supervision = new OperationalSupervisionService(db, clock, direction);
@@ -56,14 +53,18 @@ public static class LifecycleChecks
         }
         var before = await Snapshot(db);
         var previous = db.Database.GetMigrations().TakeWhile(m => !m.EndsWith("_SeparateOperationalLifecycle")).Last();
-        await db.GetService<IMigrator>().MigrateAsync(previous); await db.Database.MigrateAsync(); db.ChangeTracker.Clear();
+        // Later published agenda policies intentionally forbid downgrade. Keep that guard active.
+        try {await db.GetService<IMigrator>().MigrateAsync(previous);throw new Exception("Published agenda downgrade unexpectedly succeeded");}
+        catch(PostgresException e) when(e.SqlState=="P0001" && e.MessageText.Contains("Published agenda policies are immutable")) {Console.WriteLine("PASS: Published agenda downgrade rejected by current migration contract");}
+        await db.Database.MigrateAsync(); db.ChangeTracker.Clear();
         var after = await Snapshot(db);
         if (before != after)
         {
-            await File.WriteAllTextAsync("outputs/lifecycle/roundtrip-before.json", before);
-            await File.WriteAllTextAsync("outputs/lifecycle/roundtrip-after.json", after);
+            Directory.CreateDirectory(".local/qa-fix-20261030/lifecycle");
+            await File.WriteAllTextAsync(".local/qa-fix-20261030/lifecycle/roundtrip-before.json", before);
+            await File.WriteAllTextAsync(".local/qa-fix-20261030/lifecycle/roundtrip-after.json", after);
         }
-        Assert(before == after, "Lifecycle downgrade and upgrade preserve authors, decisions and both comments");
+        Assert(before == after, "Rejected downgrade and forward recovery preserve authors, decisions and both comments");
     }
     private static async Task<string> Snapshot(SgolDbContext db) => System.Text.Json.JsonSerializer.Serialize(
         await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).Select(a => new {

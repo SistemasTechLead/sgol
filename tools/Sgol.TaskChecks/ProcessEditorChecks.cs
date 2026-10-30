@@ -185,7 +185,7 @@ public static class ProcessEditorChecks
         var token=Hidden(page,"__RequestVerificationToken");
         var answer=System.Text.Json.JsonSerializer.Serialize(new ChecklistAnswer(OperationalChecklist.Fingerprint(task.ChecklistJson),[points[0].Id]));
         response=await client.PostAsync("/mi-trabajo?handler=ChecklistDraft",new FormUrlEncodedContent(new Dictionary<string,string> {
-            ["__RequestVerificationToken"]=token,["id"]=assignment.Id.ToString(),["answer"]=answer }));
+            ["__RequestVerificationToken"]=token,["id"]=assignment.Id.ToString(),["answer"]=answer,["draftBase"]=WebUtility.HtmlDecode(Regex.Match(page,"data-draft-base=\"([^\"]+)\"").Groups[1].Value),["saveId"]=Guid.NewGuid().ToString() }));
         Check(response.StatusCode==HttpStatusCode.OK,"Actual draft HTTP handler saves selected marks");
         page=await client.GetStringAsync("/mi-trabajo?assignedTask="+assignment.Id);
         Check(page.Contains("1 de 2 completados") && page.Contains("<h3 class=\"checklist-title\">Caja y operaci"),"Actual task reload restores marks and displays title outside checkbox count");

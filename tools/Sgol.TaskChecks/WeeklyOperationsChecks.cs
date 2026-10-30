@@ -23,12 +23,14 @@ internal static class WeeklyOperationsChecks
         Check(DirectionPlanContract.OperationsWeek(new(2024, 12, 29)) == (2025, 1), "Sunday handles ISO year rollover");
         await Reject(() => tasks.SaveAsync(director, new OperationalTask { Name = "Invalid occasion", Revision = 0,
             PeriodType = "OCASIONAL", IsWeeklyOperationsTask = true }, default), "WEEKLY_OPERATIONS_TASK_INVALID");
-        var template = new OperationalTask { Name = "Weekly master check", Revision = 0, AssignedRole = CanonicalRole.Direction,
+        await QaFixtures.AvailabilityAsync(db,director,await db.AppUsers.Where(u=>u.Id==director).Select(u=>u.PersonId).SingleAsync());
+        var template = new OperationalTask { OperationalCriticality="FLEXIBLE", Name = "Weekly master check", Revision = 0, AssignedRole = CanonicalRole.Direction,
             IsWeeklyOperationsTask = true, ScheduleMode = "DIAS_FIJOS", WeekDays = 1 << 5, StartHour = 10,
             DeadlineHours = 4, LoadMinutes = 5, Requirement = "COMENTARIO" };
         await tasks.SaveAsync(director, template, default);
         var task = (await tasks.ListAsync(director, default)).Single(t => t.Name == template.Name);
         var input = new DirectionPlanInput("Any name", "Any area", "SEMANAL", 2026, 44, [task.TaskCode], IsWeeklyOperationsPlan: true);
+        input=await QaFixtures.ConfirmAsync(db,input,clock.UtcNow);
         var key = Guid.CreateVersion7();
         var saved = await plans.CreateAsync(director, key, Guid.CreateVersion7(), input);
         Check(saved.Plan.IsWeeklyOperationsPlan && saved.Plan.Name == "Semana 44" && saved.Plan.Area == "Plan de Operaciones Semanal",
@@ -40,7 +42,7 @@ internal static class WeeklyOperationsChecks
         await Reject(() => plans.CreateAsync(director, Guid.CreateVersion7(), Guid.CreateVersion7(), input), "WEEKLY_OPERATIONS_PLAN_EXISTS");
         await Reject(() => plans.CreateAsync(director, Guid.CreateVersion7(), Guid.CreateVersion7(), input with { PeriodNumber = 45, TaskCodes = [] }),
             "WEEKLY_OPERATIONS_CATALOG_CHANGED");
-        var next = await plans.CreateAsync(director, Guid.CreateVersion7(), Guid.CreateVersion7(), input with { PeriodNumber = 45 });
+        var next = await plans.CreateAsync(director, Guid.CreateVersion7(), Guid.CreateVersion7(), await QaFixtures.ConfirmAsync(db,input with { PeriodNumber = 45 },clock.UtcNow));
         Check(next.Plan.PlanId != saved.Plan.PlanId, "Next week has its own master and retains history");
         await using (var tx = await db.Database.BeginTransactionAsync())
         {
@@ -54,19 +56,20 @@ internal static class WeeklyOperationsChecks
             await tx.RollbackAsync();
         }
         await tasks.SaveAsync(director, new OperationalTask { Name = "Ordinary weekly alongside master", Revision = 0,
-            AssignedRole = CanonicalRole.Direction, LoadMinutes = 5 }, default);
+            AssignedRole = CanonicalRole.Direction, OperationalCriticality="FLEXIBLE", LoadMinutes = 5 }, default);
         var normalTask = (await tasks.ListAsync(director, default)).Single(t => t.Name == "Ordinary weekly alongside master");
         var ordinary = input with { Name = "Ordinary", Area = "Tienda", IsWeeklyOperationsPlan = false, TaskCodes = [normalTask.TaskCode] };
+        ordinary=await QaFixtures.ConfirmAsync(db,ordinary,clock.UtcNow);
         var first = await plans.CreateAsync(director, Guid.CreateVersion7(), Guid.CreateVersion7(), ordinary);
         await tasks.SaveAsync(director, new OperationalTask { Name = "Another ordinary task", Revision = 0,
-            AssignedRole = CanonicalRole.Direction, LoadMinutes = 5 }, default);
+            AssignedRole = CanonicalRole.Direction, OperationalCriticality="FLEXIBLE", LoadMinutes = 5 }, default);
         var anotherTask = (await tasks.ListAsync(director, default)).Single(t => t.Name == "Another ordinary task");
-        var second = await plans.CreateAsync(director, Guid.CreateVersion7(), Guid.CreateVersion7(), ordinary with { TaskCodes = [anotherTask.TaskCode], Name = "Ordinary second" });
+        var second = await plans.CreateAsync(director, Guid.CreateVersion7(), Guid.CreateVersion7(), await QaFixtures.ConfirmAsync(db,ordinary with { TaskCodes = [anotherTask.TaskCode], Name = "Ordinary second" },clock.UtcNow));
         Check(!first.Plan.IsWeeklyOperationsPlan && !second.Plan.IsWeeklyOperationsPlan, "Ordinary weekly plans still work beside masters");
         var supervision = new OperationalSupervisionService(db, clock, plans);
         var currentWeek = DirectionPlanContract.OperationsWeek(WeekContract.LocalToday(clock.UtcNow));
         var currentMaster = await plans.CreateAsync(director, Guid.CreateVersion7(), Guid.CreateVersion7(),
-            input with { Year = currentWeek.Year, PeriodNumber = currentWeek.Week });
+            await QaFixtures.ConfirmAsync(db,input with { Year = currentWeek.Year, PeriodNumber = currentWeek.Week },clock.UtcNow));
         await Reject(() => supervision.AddTasksAsync(director, currentMaster.Plan.PlanId, [normalTask.TaskCode], default), "WEEKLY_OPERATIONS_TASK_INVALID");
         Check((await plans.ReadAsync(director, saved.Plan.PlanId)).IsWeeklyOperationsPlan, "Master identity survives detail reads");
         if (subcoordination is { } sub)
@@ -79,6 +82,7 @@ internal static class WeeklyOperationsChecks
             var state = await PlanningCapacity.ReadAsync(db, subInput, clock.UtcNow, default);
             subInput = subInput with { CapacityFingerprint = state.Preview.Fingerprint,
                 CapacityAdjustments = state.Preview.Workers.Select(w => new PlanCapacityAdjustment(w.PersonId, 50)).ToArray() };
+            subInput=await QaFixtures.ConfirmAsync(db,subInput,clock.UtcNow);
             var subKey = Guid.CreateVersion7();
             var subPlan = await plans.CreateAsync(sub, subKey, Guid.CreateVersion7(), subInput);
             Check(subPlan.Plan.IsWeeklyOperationsPlan && subPlan.Plan.Assignments!.Count > 0, "Subcoordination creates and assigns the weekly operations plan with capacity adjustments");

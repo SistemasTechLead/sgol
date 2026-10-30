@@ -4,7 +4,7 @@
     var points = OperationalChecklist.Points(Model.Definition);
     var selected = OperationalChecklist.Checked(Model.Draft).ToHashSet();
 }
-<fieldset class="checklist-evidence" data-checklist-evidence data-assignment="@Model.AssignmentId" data-definition="@OperationalChecklist.Fingerprint(Model.Definition)" data-readonly="@Model.ReadOnly.ToString().ToLowerInvariant()">
+<fieldset class="checklist-evidence" data-checklist-evidence data-assignment="@Model.AssignmentId" data-definition="@OperationalChecklist.Fingerprint(Model.Definition)" data-draft-base="@OperationalChecklist.DraftBase(Model.Definition, Model.Draft)" data-readonly="@Model.ReadOnly.ToString().ToLowerInvariant()">
     <legend>Checklist</legend>
     @if (!Model.ReadOnly) { <input type="hidden" name="checklistAnswer" data-checklist-answer /> }
     <p data-checklist-count role="status">@points.Count(p => !p.IsTitle && selected.Contains(p.Id)) de @points.Count(p => !p.IsTitle) completados</p>

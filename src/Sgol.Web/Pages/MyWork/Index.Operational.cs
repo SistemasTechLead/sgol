@@ -9,7 +9,7 @@ namespace Sgol.Web.Pages.MyWork;
 
 public sealed partial class IndexModel
 {
-    public async Task<IActionResult> OnPostChecklistDraftAsync(Guid id, string answer, CancellationToken token)
+    public async Task<IActionResult> OnPostChecklistDraftAsync(Guid id, string answer, string? draftBase, Guid? saveId, CancellationToken token)
     {
         NoStore();
         var session = await sessionState.GetAsync(token);
@@ -17,9 +17,9 @@ public sealed partial class IndexModel
         try { await HttpContext.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(HttpContext); }
         catch (AntiforgeryValidationException) { return BadRequest(); }
         try {
-            await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().SaveChecklistDraftAsync(session.UserId, id, answer, token);
-            return new JsonResult(new { saved = true });
-        } catch (DirectionPlanException e) { return new JsonResult(new { error = Pages.Tasks.IndexModel.Message(e.Code) }) { StatusCode = e.Status }; }
+            var confirmedBase = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().SaveChecklistDraftAsync(session.UserId, id, answer, token, draftBase, saveId);
+            return new JsonResult(new { saved = true, draftBase = confirmedBase });
+        } catch (DirectionPlanException e) { return new JsonResult(new { id, code = e.Code, error = Pages.Tasks.IndexModel.Message(e.Code), draftBase = e.Data["DraftBase"], @checked = e.Data["Checked"] }) { StatusCode = e.Status }; }
     }
     public Sgol.Web.Presentation.Navigation.ListPage? WorkPagination { get; private set; }
     public Sgol.Web.Presentation.Components.TaskProgressViewModel WorkProgress { get; private set; } = new(0,0,"Tu progreso de hoy");

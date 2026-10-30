@@ -14,12 +14,13 @@ internal static class TransferChecks
     private static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
     public static async Task Run(SgolDbContext db)
     {
+        var fixture=await QaFixtures.CreateAsync(db);
         var clock = new TestClock(); var day = WeekContract.LocalToday(clock.UtcNow);
         var direction = new EfDirectionPreparedPlanService(db, new AuditTransaction(db), clock, new Uuid7Generator(clock), new DirectionPlanningCatalogReader(db));
         var service = new OperationalSupervisionService(db, clock, direction);
-        var actor = await db.RoleAssignmentVersions.Where(r => r.RoleCode == "DIRECCION" && r.ValidTo == null).Select(r => r.UserId).FirstAsync();
-        var workers = (await OperationalCapacityService.WorkersAsync(db, clock.UtcNow, default)).Where(w => w.Role == "PISO_VENTAS").GroupBy(w => w.Id).Where(g => g.Count() == 1).Select(g => g.Single()).Take(2).ToArray();
-        Check(workers.Length == 2, "Need two real workers in the restored copy");
+        var actor = fixture.Director;
+        var workers = (await OperationalCapacityService.WorkersAsync(db, clock.UtcNow, default)).Where(w => w.Id==fixture.Person || w.Id==fixture.OtherPerson).GroupBy(w => w.Id).Where(g => g.Count() == 1).Select(g => g.Single()).Take(2).ToArray();
+        Check(workers.Length == 2, "Need two independently owned synthetic workers");
         var from = workers[0]; var to = workers[1];
         var fromUser = await db.AppUsers.Where(u => u.PersonId == from.Id).Select(u => u.Id).SingleAsync();
         var toUser = await db.AppUsers.Where(u => u.PersonId == to.Id).Select(u => u.Id).SingleAsync();
@@ -31,8 +32,8 @@ internal static class TransferChecks
             exception.IntervalsJson = JsonSerializer.Serialize(new[] { new WorkInterval(9 * 60, 13 * 60), new WorkInterval(14 * 60, 18 * 60) });
             foreach (var a in await db.AvailabilityDayVersions.Where(a => a.PersonId == w.Id && a.LocalDate == day).ToArrayAsync()) db.Entry(a).Property(x => x.IsAvailable).CurrentValue = true;
         }
-        var definition = await db.OperationalTasks.FirstAsync(t => t.ProcessId == OperationalSequence.GeneralId && t.AssignedRole == "PISO_VENTAS" && t.Id != state.ClosingTaskId);
-        var plan = await db.DirectionPreparedPlans.FirstAsync();
+        var definition = await db.OperationalTasks.SingleAsync(t=>t.Id==fixture.Definition);
+        var plan = await db.DirectionPreparedPlans.SingleAsync(p=>p.Id==fixture.Plan);
         var source = new OperationalAssignment { Id = Guid.CreateVersion7(), PlanId = plan.Id, TaskId = definition.Id,
             TaskCode = definition.TaskCode, Name = "Prueba aislada: transferencia 60 de 100", Requirement = "NINGUNO", AssignedRole = from.Role,
             PersonId = from.Id, PersonName = from.Name, LoadMinutes = 100, GoalUnits = 100, ProgressUnits = 60,
@@ -46,10 +47,11 @@ internal static class TransferChecks
         await OperationalCapacityService.StoreSettingAsync(db, new(to.Id, day, day, 0, 240, "Prueba de sobrecarga"), default);
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         var request = new TransferRequest(source.Id, source.Revision, to.Id, 30, clock.UtcNow.AddHours(1), "Ausencia operativa del responsable");
+        var transfersBefore = await db.Set<OperationalTransfer>().CountAsync();
         var before = await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync();
         var preview = await service.PreviewTransferAsync(actor, request, default);
         Check(preview.LoadAfter > preview.Available && preview.Overlaps.Contains(block.Name), "Preview warns of overload and overlaps");
-        Check(!await db.Set<OperationalTransfer>().AnyAsync(), "Preview must not persist a transfer");
+        Check(await db.Set<OperationalTransfer>().CountAsync()==transfersBefore, "Preview must not persist a transfer");
         // Concurrent advancement invalidates the preview, without side effects.
         var concurrent = await db.OperationalAssignments.SingleAsync(a => a.Id == source.Id); concurrent.Revision++;
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
@@ -86,7 +88,7 @@ internal static class TransferChecks
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         await Reject(() => service.PreviewTransferAsync(actor, next with { Revision = pending.Revision }, default), "TRANSFER_STATE");
         await Reject(() => service.PreviewTransferAsync(toUser, next, default), "ACCESO_DENEGADO");
-        Check(await db.Set<OperationalTransfer>().CountAsync() == 1, "Rejected requests never create handoffs");
+        Check(await db.Set<OperationalTransfer>().CountAsync() == transfersBefore+1, "Rejected requests never create handoffs");
         var tasks = new OperationalTaskService(db, direction, clock, new Sgol.Evidence.Technical.FileTechnicalValidator(), new CheckScanner());
         Check((await tasks.ContributionsAsync(actor, source.Id, default)).Single().PersonId == from.Id, "SQL contribution reader attributes preserved units");
         Check((await tasks.MyTransfersAsync(fromUser, default)).Any(t => t.AssignmentId == source.Id), "Previous owner retains transfer history");
@@ -101,9 +103,10 @@ internal static class TransferChecks
         var root = new OperationalSequence { Id = Guid.CreateVersion7(), Name = "Prueba aislada de transferencia de etapa" };
         var version = new OperationalSequenceVersion { Id = Guid.CreateVersion7(), SequenceId = root.Id, Number = 1,
             Name = root.Name, StartKind = "OCASIONAL", CreatedBy = actor, CreatedAt = clock.UtcNow };
-        db.AddRange(root, version);
+        var nextDefinition=new OperationalTask {Id=Guid.CreateVersion7(),TaskCode="QA-"+Guid.NewGuid().ToString("N")[..12],Name="QA downstream",Requirement="NINGUNO",OperationalCriticality="FLEXIBLE",LoadMinutes=20};
+        db.AddRange(root, version,nextDefinition);
         db.AddRange(new OperationalSequenceStep { VersionId = version.Id, Position = 1, TaskId = definition.Id, ReleaseCondition = "INICIO", DeadlineHours = 1 },
-            new OperationalSequenceStep { VersionId = version.Id, Position = 2, TaskId = definition.Id, DeadlineHours = 1 });
+            new OperationalSequenceStep { VersionId = version.Id, Position = 2, TaskId = nextDefinition.Id, DeadlineHours = 1 });
         await db.SaveChangesAsync();
         var run = new OperationalSequenceRun { Id = Guid.CreateVersion7(), VersionId = version.Id, PlanId = plan,
             Name = root.Name, StartKey = Guid.NewGuid().ToString(), CreatedBy = actor, CreatedAt = clock.UtcNow, PlannedStartsAt = clock.UtcNow };
@@ -111,7 +114,7 @@ internal static class TransferChecks
             TaskId = definition.Id, TaskRevision = 1, TaskCode = definition.TaskCode, Name = "Etapa seleccionada", Role = from.Role,
             Requirement = "NINGUNO", LoadMinutes = 20, PlannedStartsAt = clock.UtcNow, PlannedDueAt = clock.UtcNow.AddHours(1), ReservedPersonId = from.Id, ReservedPersonName = from.Name };
         var downstream = new OperationalSequenceStage { Id = Guid.CreateVersion7(), RunId = run.Id, VersionId = version.Id, Position = 2,
-            TaskId = definition.Id, TaskRevision = 1, TaskCode = definition.TaskCode, Name = "Etapa que sigue esperando", Role = from.Role,
+            TaskId = nextDefinition.Id, TaskRevision = 1, TaskCode = nextDefinition.TaskCode, Name = "Etapa que sigue esperando", Role = from.Role,
             Requirement = "NINGUNO", LoadMinutes = 20, PlannedStartsAt = clock.UtcNow.AddHours(1), PlannedDueAt = clock.UtcNow.AddHours(2), ReservedPersonId = from.Id, ReservedPersonName = from.Name };
         db.AddRange(run, stage, downstream); await db.SaveChangesAsync();
         var assignment = new OperationalAssignment { Id = Guid.CreateVersion7(), PlanId = plan, TaskId = definition.Id, TaskCode = definition.TaskCode,

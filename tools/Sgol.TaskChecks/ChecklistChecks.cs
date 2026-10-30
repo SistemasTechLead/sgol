@@ -51,6 +51,10 @@ internal static class ChecklistChecks
     public static async Task RunAsync(SgolDbContext db, OperationalTaskService tasks, OperationalSupervisionService supervision,
         IDirectionPreparedPlanService direction, IClock clock, Guid director, Guid actor, Guid person, Guid other, Guid otherPerson)
     {
+        async Task SaveDraft(Guid user, Guid id, string answer, CancellationToken token) {
+            var row=await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==id);
+            await tasks.SaveChecklistDraftAsync(user,id,answer,token,OperationalChecklist.DraftBase(row.ChecklistJson,row.ChecklistDraftJson),Guid.NewGuid());
+        }
         Rules();
         var points = new[] { new ChecklistPoint(Guid.NewGuid(), "Revisar limpieza"), new ChecklistPoint(Guid.NewGuid(), "Confirmar orden") };
         var json = JsonSerializer.Serialize(points); var day=WeekContract.LocalToday(clock.UtcNow);
@@ -67,8 +71,8 @@ internal static class ChecklistChecks
         var goalDefinition=await db.OperationalTasks.AsNoTracking().SingleAsync(t=>t.Name=="Meta checklist");
         goal.TaskId=goalDefinition.Id;goal.TaskCode=goalDefinition.TaskCode;goal.TaskRevision=goalDefinition.Revision;goal.DefinitionSnapshotJson=AssignmentDefinition.Capture(goalDefinition);
         db.AddRange(assignment,correction,goal); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
-        await Reject(()=>tasks.SaveChecklistDraftAsync(other,assignment.Id,Answer(json,points[0].Id),default),"TASK_NOT_FOUND",db);
-        await tasks.SaveChecklistDraftAsync(actor,assignment.Id,Answer(json,points[0].Id),default);db.ChangeTracker.Clear();
+        await Reject(()=>SaveDraft(other,assignment.Id,Answer(json,points[0].Id),default),"TASK_NOT_FOUND",db);
+        await SaveDraft(actor,assignment.Id,Answer(json,points[0].Id),default);db.ChangeTracker.Clear();
         var mine=(await tasks.MineAsync(actor,default)).Single(a=>a.Id==assignment.Id);
         Check(mine.CompletedAt==null && OperationalChecklist.Checked(mine.ChecklistDraftJson).SequenceEqual([points[0].Id]),"draft survives reload without submitting");
         await Reject(()=>tasks.CompleteAsync(actor,assignment.Id,null,null,default,checklistAnswer:Answer(json,points[0].Id)),"TASK_CHECKLIST_PENDING",db);
@@ -81,18 +85,19 @@ internal static class ChecklistChecks
         await tasks.CompleteAsync(actor,assignment.Id,null,null,default,checklistAnswer:all);db.ChangeTracker.Clear();
         var submitted=await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==assignment.Id);
         Check(submitted.ReviewStatus=="PENDIENTE_REVISION" && OperationalChecklist.Complete(submitted.ChecklistJson,submitted.ChecklistDraftJson),"complete answer is stored atomically awaiting review");
-        await Reject(()=>tasks.SaveChecklistDraftAsync(actor,assignment.Id,all,default),"TASK_CONFLICT",db);
+        await Reject(()=>SaveDraft(actor,assignment.Id,all,default),"TASK_CONFLICT",db);
         await supervision.ReviewBatchAsync(director,[new(assignment.Id,submitted.Revision,"CONCLUIDA",null)],default);db.ChangeTracker.Clear();
         Check((await supervision.ListAsync(director,default)).Single(a=>a.Assignment.Id==assignment.Id).Assignment.ChecklistDraftJson==submitted.ChecklistDraftJson,"supervision projection retains checklist evidence");
         var refresh=new AssignmentRefreshService(db,direction,clock);
         definition.ChecklistJson=JsonSerializer.Serialize(new[] {points[0],points[1] with {Text="Orden actualizado"},new ChecklistPoint(Guid.NewGuid(),"Nuevo punto")});
         await tasks.SaveAsync(director,definition,default);db.ChangeTracker.Clear();
         Check((await refresh.CountsAsync(director,default)).GetValueOrDefault(definition.Id)==1,"checklist-only edits flag pending assignments and protect reviewed history");
-        await tasks.SaveChecklistDraftAsync(actor,correction.Id,all,default);db.ChangeTracker.Clear();
+        await SaveDraft(actor,correction.Id,all,default);db.ChangeTracker.Clear();
         var request=new AssignmentRefreshRequest(definition.Id,Guid.NewGuid(),clock.UtcNow.AddMinutes(3));
         var preview=await refresh.PreviewAsync(director,request,default);
         Check(preview.CanApply && preview.Differences.All(d=>d.MetadataOnly),"checklist updates require no schedule rearrangement: "+string.Join("; ",preview.Conflicts.Concat(preview.Differences.SelectMany(d=>d.Fields))));
         await refresh.ApplyAsync(director,request,preview.Fingerprint,"Actualizar puntos de prueba",default);db.ChangeTracker.Clear();
+        await Reject(()=>tasks.SaveChecklistDraftAsync(actor,correction.Id,all,default,"stale",Guid.NewGuid()),"TASK_CHECKLIST_CHANGED",db);
         var adopted=await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==correction.Id);
         Check(adopted.StartsAt==correction.StartsAt && OperationalChecklist.Checked(adopted.ChecklistDraftJson).SequenceEqual([points[0].Id]),"pending adoption preserves dates and clears edited/new points");
         var frozen=await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==assignment.Id);
@@ -112,13 +117,13 @@ internal static class ChecklistChecks
         var temporal=await db.Set<TemporalAssignmentState>().SingleOrDefaultAsync();
         if(temporal==null) db.Add(new TemporalAssignmentState {Enabled=true});else temporal.Enabled=true;
         var transfer=Make();db.Add(transfer);await db.SaveChangesAsync();db.ChangeTracker.Clear();
-        await tasks.SaveChecklistDraftAsync(actor,transfer.Id,Answer(json,points[0].Id),default);db.ChangeTracker.Clear();
+        await SaveDraft(actor,transfer.Id,Answer(json,points[0].Id),default);db.ChangeTracker.Clear();
         var beforeTransfer=await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==transfer.Id);
         var move=new TransferRequest(transfer.Id,beforeTransfer.Revision,otherPerson,5,clock.UtcNow.AddHours(1),"Transferencia de prueba");
         var movePreview=await supervision.PreviewTransferAsync(director,move,default);
         await supervision.TransferAsync(director,move,movePreview.Fingerprint,default);db.ChangeTracker.Clear();
         Check((await tasks.MineAsync(other,default)).Single(a=>a.Id==transfer.Id).ChecklistDraftJson==beforeTransfer.ChecklistDraftJson,"transfer preserves saved marks and author");
-        await Reject(()=>tasks.SaveChecklistDraftAsync(actor,transfer.Id,all,default),"TASK_NOT_FOUND",db);
+        await Reject(()=>SaveDraft(actor,transfer.Id,all,default),"TASK_NOT_FOUND",db);
         var occasionalId=await tasks.CreateOccasionalTaskAsync(director,new OccasionalTaskForm("Checklist ocasional","CHECKLIST",1,24,ChecklistJson:json),default);db.ChangeTracker.Clear();
         var occasionTask=await db.OperationalTasks.AsNoTracking().SingleAsync(t=>t.Id==occasionalId);
         var occasion=await tasks.PreviewOccasionAsync(director,new OccasionInput(occasionalId,occasionTask.Revision,"Ocasión checklist","Revisar lista","","",clock.UtcNow,clock.UtcNow.AddHours(1),[person]),default);
@@ -149,6 +154,8 @@ internal static class ChecklistChecks
         var view=await service.ReadAsync(actor,run,default);var stage=view.Stages[0];var attempt=view.Attempts.Single(a=>a.Id==stage.CurrentAttemptId);
         Check(stage.ChecklistJson==json && view.ChecklistEvidence[attempt.AssignmentId!.Value].Definition==json,"process stages and assignments capture checklist");
         await Reject(()=>service.DecideAsync(actor,run,attempt.Id,attempt.Revision,Guid.NewGuid(),"ENTREGA","Lista revisada",null,null,true,default),"TASK_CHECKLIST_CHANGED",db);
+        var draftRow=await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==attempt.AssignmentId!.Value);
+        await tasks.SaveChecklistDraftAsync(actor,draftRow.Id,all,default,OperationalChecklist.DraftBase(draftRow.ChecklistJson,draftRow.ChecklistDraftJson),Guid.NewGuid());db.ChangeTracker.Clear();
         await service.DecideAsync(actor,run,attempt.Id,attempt.Revision,Guid.NewGuid(),"ENTREGA","Lista revisada",null,null,true,default,checklistAnswer:all);db.ChangeTracker.Clear();
         view=await service.ReadAsync(actor,run,default);
         Check(view.Run.ActivePosition==2 && OperationalChecklist.Complete(view.ChecklistEvidence[attempt.AssignmentId!.Value].Definition,view.ChecklistEvidence[attempt.AssignmentId!.Value].Draft),"complete process checklist delivers and releases next stage with preserved evidence");

@@ -111,6 +111,7 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
         "TASK_CHECKLIST_INVALID" => "Agrega al menos un punto. Cada texto admite hasta 1,000 caracteres; revisa los puntos del checklist.",
         "TASK_CHECKLIST_PENDING" => "Marca todos los puntos del checklist antes de enviar o aprobar la tarea.",
         "TASK_CHECKLIST_CHANGED" => "La lista cambió. Recarga la tarea y revisa los puntos antes de continuar.",
+        "TASK_CHECKLIST_DRAFT_STALE" => "Otra pestaña cambió las marcas de esta tarea. Conservamos tus marcas locales; compara la versión guardada antes de volver a guardar.",
         "PROCESS_PROGRESS_SCHEDULING_UNSUPPORTED" => "Las metas por progreso conservan cierre semanal y no se programan como etapas de ejecución continua. Mantén esa meta fuera del proceso.",
         "PROCESS_PREPARE_REQUIRED" => "Prepara y revisa la agenda de este proceso en Planificación antes de activarlo.",
         "PROCESS_CRITICAL_ANCHOR_REQUIRED" => "Una etapa crítica posterior necesita una hora mínima explícita respecto al inicio del proceso.",

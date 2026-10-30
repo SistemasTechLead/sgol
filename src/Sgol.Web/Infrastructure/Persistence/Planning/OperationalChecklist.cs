@@ -8,7 +8,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 public sealed record ChecklistPoint(Guid Id, string Text,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool IsTitle = false);
 public sealed record ChecklistAnswer(string Definition, Guid[] Checked);
-public sealed record ChecklistDraft(Guid Actor, DateTimeOffset At, Guid[] Checked);
+public sealed record ChecklistDraft(Guid Actor, DateTimeOffset At, Guid[] Checked, string? Base = null, Guid? SaveId = null);
 
 public static class OperationalChecklist
 {
@@ -31,6 +31,7 @@ public static class OperationalChecklist
     }
 
     public static string Fingerprint(string json) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
+    public static string DraftBase(string definition, string? draft) => Fingerprint(definition + "\n" + (draft ?? "null"));
     public static Guid[] Checked(string? json)
     {
         try { return JsonSerializer.Deserialize<ChecklistDraft>(json ?? "null")?.Checked ?? []; }

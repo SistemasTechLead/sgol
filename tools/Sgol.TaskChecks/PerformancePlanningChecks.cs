@@ -9,7 +9,21 @@ using Sgol.Web.Infrastructure.Persistence.Planning;
 
 public static class PerformancePlanningChecks
 {
-    public static async Task RunAsync(string outputDirectory)
+    public sealed record Sample(int weekly,int monthly,string expected,string outcome,bool passed,double elapsedMs,long allocatedBytes,Dictionary<string,object?>? diagnostics=null);
+    public static void AssertResults(IReadOnlyList<Sample> samples,int before,int after,bool diagnostic=false)
+    {
+        if(before!=after)throw new Exception("Preview persisted assignments unexpectedly");
+        if(!diagnostic && (samples.Count==0 || samples.Any(s=>!s.passed)))throw new Exception("Planning assertions failed; inspect planning-results.json.");
+        if(diagnostic)Console.WriteLine("DIAGNOSTIC ONLY: process success does not assert sample expectations.");
+    }
+    public static async Task FailureProbeAsync(string path, bool diagnostic)
+    {
+        Directory.CreateDirectory(path);
+        Sample[] samples=[new(0,0,"completed","deliberate-failure",false,0,0)];
+        await File.WriteAllTextAsync(Path.Combine(path,"planning-results.json"),JsonSerializer.Serialize(new{samples}));
+        AssertResults(samples,0,0,diagnostic);
+    }
+    public static async Task RunAsync(string outputDirectory, bool diagnostic = false)
     {
         var connection=Environment.GetEnvironmentVariable("SGOL_TASK_CHECKS_CONNECTION")??throw new Exception("Dedicated connection required");
         var target=new NpgsqlConnectionStringBuilder(connection);
@@ -22,8 +36,8 @@ public static class PerformancePlanningChecks
             db.Add(new PersonalScheduleVersion{Id=Guid.CreateVersion7(),PersonId=worker,Revision=1,From=new(2027,1,1),ChangedBy=actor,ChangedAt=DateTimeOffset.UtcNow,IntentKey=Guid.CreateVersion7(),RequestHash=new string('e',64),DaysJson=JsonSerializer.Serialize(Enumerable.Range(0,7).ToDictionary(d=>d,d=>new[]{new WorkInterval(540,1020)}))});
             await db.SaveChangesAsync();
         }
-        var samples=new List<object>();var before=await db.OperationalAssignments.CountAsync();
-        foreach(var (weekly,monthly,expectLimit) in new[]{(5,1,false),(50,3,false),(175,10,false),(190,10,true)}){
+        var samples=new List<Sample>();var before=await db.OperationalAssignments.CountAsync();
+        foreach(var (weekly,monthly,expected) in new[]{(5,1,"completed"),(50,3,"OCCURRENCE_SEARCH_SIZE_LIMIT"),(175,10,"OCCURRENCE_SEARCH_SIZE_LIMIT"),(190,10,"PLAN_TOO_MANY_OCCURRENCES")}){
             var tasks=Enumerable.Range(0,weekly+monthly).Select(i=>new OperationalTask{Id=Guid.CreateVersion7(),TaskCode="PV-"+Guid.NewGuid().ToString("N")[..12],Name=$"Planner volume {weekly}-{monthly}-{i}",Requirement="NINGUNO",LoadMinutes=1,OperationalCriticality="FLEXIBLE",PeriodType=i<weekly?"SEMANAL":"MENSUAL",Repetitions=1,StartHour=9}).ToArray();
             db.AddRange(tasks);await db.SaveChangesAsync();db.ChangeTracker.Clear();
             var input=new DirectionPlanInput($"Planner volume {weekly}-{monthly}","Synthetic isolated","ANUAL",2027,null,tasks.Select(t=>t.TaskCode).ToArray(),SchedulingNotBefore:new DateTimeOffset(2027,1,1,6,0,0,TimeSpan.Zero));
@@ -32,12 +46,12 @@ public static class PerformancePlanningChecks
             try{
                 var state=await PlanningCapacity.ReadAsync(db,input,DateTimeOffset.UtcNow,budget.Token);
                 await PlanningCapacity.DailyLoadAsync(db,input,state.Preview,state.Ledger,budget.Token);
-                samples.Add(new{weekly,monthly,expectLimit,elapsedMs=sw.Elapsed.TotalMilliseconds,allocatedBytes=GC.GetTotalAllocatedBytes()-allocation,assigned=state.Preview.TemporalRows.Length,pending=state.Preview.MonthlyPending.Length,outcome="completed",passed=!expectLimit});
-            }catch(DirectionPlanException e){samples.Add(new{weekly,monthly,expectLimit,elapsedMs=sw.Elapsed.TotalMilliseconds,allocatedBytes=GC.GetTotalAllocatedBytes()-allocation,outcome=e.Code,diagnostics=e.Data.Keys.Cast<object>().ToDictionary(k=>k.ToString()!,k=>e.Data[k]),passed=expectLimit&&e.Code=="PLAN_TOO_MANY_OCCURRENCES"});}
-            catch(OperationCanceledException){samples.Add(new{weekly,monthly,expectLimit,elapsedMs=sw.Elapsed.TotalMilliseconds,outcome="60s-budget-cancelled",passed=false});}
-            await File.WriteAllTextAsync(Path.Combine(outputDirectory,"planning-results.json"),JsonSerializer.Serialize(new{samples,assignmentsBefore=before,assignmentsAfter=await db.OperationalAssignments.CountAsync(),scope="Real annual generator with synthetic worker schedule; no prepared plan or assignments persisted; one measured execution per volume"},new JsonSerializerOptions{WriteIndented=true}));
+                samples.Add(new(weekly,monthly,expected,"completed",expected=="completed",sw.Elapsed.TotalMilliseconds,GC.GetTotalAllocatedBytes()-allocation));
+            }catch(DirectionPlanException e){var reason=e.Data.Keys.Cast<object>().Select(k=>e.Data[k]?.ToString()).Contains("OCCURRENCE_SEARCH_SIZE_LIMIT") ? "OCCURRENCE_SEARCH_SIZE_LIMIT" : e.Code; samples.Add(new(weekly,monthly,expected,e.Code,expected==reason && (expected!="OCCURRENCE_SEARCH_SIZE_LIMIT" || e.Code=="SCHEDULING_SEARCH_INCONCLUSIVE"),sw.Elapsed.TotalMilliseconds,GC.GetTotalAllocatedBytes()-allocation,e.Data.Keys.Cast<object>().ToDictionary(k=>k.ToString()!,k=>e.Data[k])));}
+            catch(OperationCanceledException){samples.Add(new(weekly,monthly,expected,"60s-budget-cancelled",false,sw.Elapsed.TotalMilliseconds,GC.GetTotalAllocatedBytes()-allocation));}
+            await File.WriteAllTextAsync(Path.Combine(outputDirectory,"planning-results.json"),JsonSerializer.Serialize(new{mode=diagnostic?"diagnostic":"assertion",samples,assignmentsBefore=before,assignmentsAfter=await db.OperationalAssignments.CountAsync(),scope="Real annual generator with synthetic worker schedule; no prepared plan or assignments persisted; one measured execution per volume"},new JsonSerializerOptions{WriteIndented=true}));
             Console.WriteLine(JsonSerializer.Serialize(samples[^1]));
         }
-        if(before!=await db.OperationalAssignments.CountAsync())throw new Exception("Preview persisted assignments unexpectedly");
+        AssertResults(samples, before, await db.OperationalAssignments.CountAsync(), diagnostic);
     }
 }

@@ -13,6 +13,7 @@
     var reset = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString("/validaciones", ViewContext.HttpContext.Request.Query.Where(q => !q.Key.StartsWith(key + ".") && q.Key != "task" && q.Key != "handler").ToDictionary(q => q.Key, q => (string?)q.Value.ToString())) + "#" + key;
 }
 <form method="get" action="/validaciones#@key" class="supervision-filters">
+    @if (Model.Section.FilterError is {} filterError) { <p class="alerta alerta--peligro" role="alert" tabindex="-1">@filterError</p> }
     @foreach (var query in ViewContext.HttpContext.Request.Query.Where(q => !q.Key.StartsWith(key + ".") && q.Key != "task" && q.Key != "handler" && (!screen.Validation || q.Key != "Section"))) { <input type="hidden" name="@query.Key" value="@query.Value" /> }
     @if (screen.Validation) {
         <label class="campo"><span class="campo__etiqueta">Apartado</span><select class="campo__control" name="Section" data-validation-section>
