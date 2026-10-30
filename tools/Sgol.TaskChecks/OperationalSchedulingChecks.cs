@@ -200,7 +200,17 @@ internal static class OperationalSchedulingChecks
         await capacity.ApplyAsync(actor,preview.Change,preview.Fingerprint,default);db.ChangeTracker.Clear();
         var rows=await db.OperationalAssignments.AsNoTracking().Where(a=>a.Id==opening.Id || a.Id==flexible.Id).OrderBy(a=>a.StartsAt).ToArrayAsync();Require(rows.All(a=>a.PersonId==target) && rows[0].DueAt==rows[1].StartsAt && rows[1].DueAt==TemporalEligibilityContext.At(day,645),"Confirmed target reflow preserves anchor, durations and no overlap");
         db.Add(new PersonalScheduleException {Id=Guid.CreateVersion7(),PersonId=target,Day=day,Revision=1,Reason="Shift change fixture",ChangedBy=actor,ChangedAt=clock.UtcNow,IntentKey=Guid.CreateVersion7(),RequestHash=new string('0',64),IntervalsJson=JsonSerializer.Serialize(new[]{new WorkInterval(600,780),new WorkInterval(900,1140)})});await db.SaveChangesAsync();db.ChangeTracker.Clear();
-        var timing=await capacity.PreviewAsync(actor,new(target,day,day,100,480,"Coverage changed without aggregate overload"),default);Require(timing.Conflicts.Any(c=>c.Task==opening.Name),"Time conflicts are diagnosed even without aggregate overload");Require(timing.Moves.Any(m=>m.TaskId==flexible.Id && m.ToId==target && m.StartsAt==TemporalEligibilityContext.At(day,600)),"A future flexible may stay with its owner in a later valid shift interval");
+        var beforeTiming=JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a=>a.Id).ToArrayAsync());
+        var timing=await capacity.PreviewAsync(actor,new(target,day,day,100,480,"Coverage changed without aggregate overload"),default);
+        Require(timing.Conflicts.Any(c=>c.Task==opening.Name),"Time conflicts are diagnosed even without aggregate overload");
+        var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,default);
+        var current=ledger.Tasks.Single(t=>t.Id==flexible.Id);
+        var ownState=new CapacityLedger(ledger.Workers,ledger.Tasks.Where(t=>t.Id!=flexible.Id).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) {Temporal=ledger.Temporal,Override=timing.Change};
+        var ownPlacement=OperationalAgenda.Find(ownState,target,current,new[]{current.StartsAt,timing.Change.SchedulingNotBefore??clock.UtcNow}.Max());
+        Require(ownPlacement.Eligible && ownPlacement.StartsAt==TemporalEligibilityContext.At(day,600),"Original owner remains a valid later alternative at 10:00");
+        var earlier=timing.Moves.Single(m=>m.TaskId==flexible.Id);
+        Require(earlier.ToId!=target && earlier.StartsAt==TemporalEligibilityContext.At(day,540) && earlier.StartsAt<ownPlacement.StartsAt,"Approved policy selects an eligible earlier 09:00 start over keeping the owner at 10:00");
+        Require(beforeTiming==JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a=>a.Id).ToArrayAsync()),"Earlier-start preview preserves all assignments until operational confirmation");
         Console.WriteLine("PASS absence target reflow: critical 09:00-09:15, existing future flexible 09:15-10:45, both changes confirmed together.");
     }
     internal static async Task ProcessOnly(SgolDbContext db, Guid actor)

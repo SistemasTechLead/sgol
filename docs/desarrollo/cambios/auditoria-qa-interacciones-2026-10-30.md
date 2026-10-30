@@ -239,7 +239,7 @@ Evidencia local ignorada: `.local/qa-fix-20261030/`. Cada ejecución automática
 | Fragmentos obligatorios de historial, reintento, downgrade protegido y recuperación | `--lifecycle-only` | **Aprobado**, `lifecycle-v2.log` |
 | Importación mensual sobre fixtures propios y rollback de datos del escenario | `--monthly-import-only` | **Aprobado**, `monthly.log` |
 | Perfiles: servicios, formularios, especialidades, permisos y sesión | `Sgol.UserProfileChecks`, BD propia | **Aprobado**, `profile-final.log`, suite completa |
-| Planificación integral y política de responsable | `--scheduling-integration-only`, fixtures propios | **Parcial**: pasos anteriores, selección activa y proceso automático pasan; **falla** la misma expectativa de conservar responsable pendiente de decisión. `scheduling-v2.log`; no se cambió esa aserción ni el algoritmo |
+| Planificación integral y política de responsable | `--scheduling-integration-only`, fixtures propios | **Aprobado tras decisión del usuario**, `owner-policy.log`, exit0. El resultado parcial anterior permanece en `scheduling-v2.log`; se actualizó la expectativa por la política expresamente elegida, sin modificar el algoritmo |
 | Compilación y entradas generadas | Builds aislados TaskChecks/Web y UserProfileChecks; comprobador de exclusiones | **Aprobado**, 0 errores/advertencias; `build-next.log`, `profile-build-final.log`, `build-inputs.log` |
 | Dos pestañas reales: conservar local y comparar servidor, resolver, desmarcar y entregar | Navegador integrado, host aislado HTTPS7279, sesión `TEST_ONLY` | **Aprobado** en recorrido acotado: conflicto visible, entrega bloqueada hasta resolver; entrega final “En revisión”. No equivale a autenticación real |
 | Respuesta HTTP abortada después del commit, cambio local posterior y reintento | Middleware del harness `SGOL_QA_DROP_DRAFT_RESPONSE=1`; navegador real | **Aprobado**: aviso sin falso éxito; reconoce reintento y conserva desmarcado posterior tras recargar. `ui-loss.log` y observaciones del navegador; no es corte de red física |
@@ -248,9 +248,9 @@ Evidencia local ignorada: `.local/qa-fix-20261030/`. Cada ejecución automática
 
 Las ejecuciones intermedias que fallaron permanecen en la carpeta local con su causa; una suite solo se marca aprobada donde existe una ejecución posterior completa. Los hosts de vista previa permanecieron deliberadamente esperando intervención mientras se inspeccionaba la pantalla y fueron detenidos al acabar: su terminación manual no se presenta como exit0 de una suite. No se ejecutaron suites destructivas en `sgol_local`, ni se reinició o desplegó el runtime compartido observado al inicio (`reassigned-color-20261030`).
 
-### Decisiones que permanecen abiertas
+### Estado de las decisiones
 
-1. **Responsable en reacomodo:** conservarlo cuando existe un hueco válido mantiene continuidad pero puede posponer el inicio (10:00 en el escenario); priorizar el inicio más temprano puede transferir a otro trabajador (09:00 observado). Se conserva el algoritmo actual y la expectativa discrepante queda identificada como pendiente, sin declarar aprobada la suite completa.
+1. **Responsable en reacomodo — resuelto el 30/10/2026:** el usuario decidió «Vamos a priorizar lo que ya hace el sistema». Se mantiene la prioridad del inicio más temprano entre personas elegibles, aunque requiera cambiar de responsable; conservar al responsable no tiene preferencia sobre un inicio anterior válido. Las restricciones de turno, capacidad, rol, especialidad, tareas protegidas y confirmación operativa permanecen vigentes. La expectativa antigua de conservar responsable se actualiza por esta decisión expresa, no para ocultar un fallo. Ver validación de cierre al final.
 2. **Volumen anual:** se conserva el buscador limitado a 1000 ocurrencias por búsqueda y el límite global de 10000. Dividir el horizonte reduce presión de recursos y exige coordinar reservas entre planes; ampliar la búsqueda requiere mediciones, cancelación y presupuesto de recursos. No se amplió ningún límite ni se trató un rechazo esperado como finalización de la planificación.
 
 Las correcciones no certifican ausencia total de bugs ni disponibilidad en el runtime compartido: el código se verificó en compilaciones y hosts aislados y no fue desplegado.
@@ -292,4 +292,20 @@ La revisión final añadió una regresión con un `DbContext` que ya tenía la a
 
 `SaveChecklistDraftAsync` ahora refresca la entidad bajo el bloqueo y vuelve a comprobar propietario/estado antes de comparar la base. Esto cubre además una transferencia ocurrida después de una lectura rastreada. La validación final de esta variante y de las regresiones HTTP está en `tracked-green.log`; el recorrido de checklist/proceso se repite en `checklist-close.log`. Las ejecuciones anteriores siguen registradas por separado.
 
-Cierre comprobado: `tracked-green-result.json` y `checklist-close-result.json` registran **exit0**. La compilación final y el diff no presentan errores; se conserva el fallo de política de responsable como pendiente explícito.
+Cierre comprobado: `tracked-green-result.json` y `checklist-close-result.json` registran **exit0**. La compilación final y el diff no presentan errores. El pendiente de política registrado en aquel cierre se resuelve en el apartado siguiente.
+
+
+### Decisión de reacomodo: priorizar el inicio más temprano — 30/10/2026
+
+La decisión del usuario cierra exclusivamente el pendiente de responsable. No modifica el algoritmo de `OperationalCapacityService.BuildAsync`, que ordena las opciones válidas por `Placement.StartsAt` antes de sus criterios de desempate. El límite del buscador anual permanece sin cambios y su eventual ampliación sigue fuera del alcance.
+
+`OperationalSchedulingChecks.TargetReflow` ahora exige simultáneamente que el responsable original siga siendo una alternativa válida a las 10:00, que la propuesta elija a otra persona elegible a las 09:00 y que la vista previa conserve todas las asignaciones sin aplicarlas. Se conserva la comprobación del conflicto de la tarea crítica. Se repite la suite integral en una base nueva `sgol_task_checks_qafix_*`; no se cambia ni recalcula ninguna asignación de la simulación compartida.
+
+| Escenario | Esperado | Prueba / entorno | Resultado |
+|---|---|---|---|
+| Alternativa del responsable original | Sigue siendo elegible a las 10:00 | Servicio de agenda y PostgreSQL aislado | **Aprobado** |
+| Otra persona puede comenzar antes | Se propone inicio a las 09:00 con otra persona elegible | `TargetReflow`, mismo entorno | **Aprobado** |
+| Propuesta sin confirmar | Conserva todas las asignaciones y mantiene el conflicto crítico | Comparación íntegra antes/después del preview | **Aprobado** |
+| Suite integral | Completa planificación, concurrencia, selección activa, procesos y reacomodo | `--scheduling-integration-only`, BD nueva | **Aprobado**, exit0; `.local/qa-fix-20261030/owner-policy.log` y `owner-policy-result.json` |
+
+Compilación aislada aprobada con 0 errores y 0 advertencias (`build-owner-policy.log`). Alcance: prueba y documentación; sin cambio funcional, migración ni interfaz. No requiere navegador ni despliegue. El runtime compartido se mantuvo sin reiniciar y no se escribieron datos en `sgol_local`.
