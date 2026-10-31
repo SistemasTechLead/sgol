@@ -12,7 +12,7 @@
         @if (Model.CanViewDirectionPlans)
         {
             <partial name="_SectionNavigation" model='@("planning")' />
-            @if (Model.CanPrepareDirectionPlan) { <div class="encabezado-pagina__acciones"><button class="boton boton--secundario closing-planning-open" type="button" data-dialog-open aria-haspopup="dialog" aria-controls="closing-planning-dialog">Cobertura de cierre</button></div> }
+            @if (Model.CanManageClosing) { <div class="encabezado-pagina__acciones"><button class="boton boton--secundario closing-planning-open" type="button" data-dialog-open aria-haspopup="dialog" aria-controls="closing-planning-dialog">Cobertura de cierre</button></div> }
         }
     </header>
     @if (Model.DirectionError is not null) { <div id="direction-plan-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.DirectionError" /></div> }

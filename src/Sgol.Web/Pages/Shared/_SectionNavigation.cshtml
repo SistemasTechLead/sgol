@@ -4,9 +4,9 @@
     var navigation = SectionNavigation.Create(Model, Context.Request, await NavigationSession.GetAsync(Context.RequestAborted));
 }
 @if (navigation.Links.Count > 0) {
-    <nav class="section-navigation" aria-label="@navigation.Label">
+    <nav class="section-navigation" data-section="@Model" aria-label="@navigation.Label">
     @foreach (var link in navigation.Links) {
-        <a class="boton @(link.Active ? "boton--primario" : "boton--secundario")" href="@link.Href" aria-current="@(link.Active ? "page" : null)">
+        <a class="boton @(link.Active ? "boton--primario" : "boton--secundario")" data-presentation="@link.Presentation" href="@link.Href" aria-current="@(link.Active ? "page" : null)">
             @if (link.Icon is not null) { <partial name="_Icon" model="link.Icon" /> }
             <span>@link.Label</span>
         </a>

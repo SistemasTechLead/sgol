@@ -5,14 +5,67 @@
     const states = new Map();
     let nextId = 0;
     const identity = element => {
-        if (!element.id) {
+        if (!element.getAttribute('id')) {
             let id; do { id = `mobile-view-${++nextId}`; } while (document.getElementById(id));
-            element.id = id;
+            element.setAttribute('id', id);
         }
-        return element.id;
+        return element.getAttribute('id');
     };
     const isMobile = () => root.getBoundingClientRect().width <= 48 * parseFloat(getComputedStyle(root).fontSize);
     const hasError = element => !!element.querySelector('.field-validation-error, .validation-summary-errors, [aria-invalid="true"], [role="alert"]');
+    const helps = [];
+    function help(button, content, nativeDetails) {
+        button.setAttribute('aria-controls', identity(content));
+        button.setAttribute('aria-expanded', 'false');
+        content.classList.add('mobile-help-content');
+        const item = { button, content, nativeDetails, open: false };
+        const position = () => {
+            if (!item.open || !isMobile()) return;
+            const r = button.getBoundingClientRect(), bounds = root.getBoundingClientRect();
+            const viewport = window.visualViewport;
+            const left = Math.max(bounds.left + 12, viewport?.offsetLeft || 0);
+            const right = Math.min(bounds.right - 12, (viewport?.offsetLeft || 0) + (viewport?.width || innerWidth) - 12);
+            content.style.width = `${Math.max(0, Math.min(280, right - left))}px`;
+            content.style.left = `${Math.max(left, Math.min(r.right - content.offsetWidth, right - content.offsetWidth))}px`;
+            const bottom = (viewport?.offsetTop || 0) + (viewport?.height || innerHeight) - 12;
+            const top = (viewport?.offsetTop || 0) + 12;
+            if (r.bottom < top || r.top > bottom) { item.close(); return; }
+            const below = Math.max(0, bottom - r.bottom - 4), above = Math.max(0, r.top - top - 4);
+            const useBelow = below >= Math.min(240, above);
+            content.style.maxHeight = `${useBelow ? below : above}px`;
+            content.style.top = `${useBelow ? r.bottom + 4 : r.top - content.offsetHeight - 4}px`;
+        };
+        item.close = (focus = false) => {
+            item.open = false; content.classList.remove('mobile-help-open');
+            if (nativeDetails) nativeDetails.open = false;
+            button.setAttribute('aria-expanded', 'false');
+            content.removeAttribute('style');
+            if (focus) button.focus({ preventScroll: true });
+        };
+        button.addEventListener('click', event => {
+            if (!isMobile()) return;
+            event.preventDefault();
+            if (item.open) return item.close();
+            helps.forEach(other => other.close());
+            item.open = true; if (nativeDetails) nativeDetails.open = true;
+            content.classList.add('mobile-help-open'); button.setAttribute('aria-expanded', 'true'); position();
+        });
+        item.position = position; helps.push(item);
+    }
+    document.addEventListener('click', event => helps.forEach(item => {
+        if (item.open && !item.button.contains(event.target) && !item.content.contains(event.target)) item.close();
+    }));
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && helps.some(item => item.open)) {
+            event.preventDefault(); helps.filter(item => item.open).forEach(item => item.close(true));
+        }
+    });
+    window.addEventListener('scroll', () => helps.forEach(item => item.position()), true);
+    window.visualViewport?.addEventListener('resize', () => helps.forEach(item => item.position()));
+    window.addEventListener('beforeprint', () => helps.forEach(item => item.close()));
+    window.matchMedia('print').addEventListener('change', event => {
+        if (event.matches) helps.forEach(item => item.close());
+    });
 
     function fold(element, label, key, buttonHost) {
         if (!element || element.dataset.mobileFold) return null;
@@ -92,13 +145,24 @@
         const counts = document.querySelector('.people-counts');
         const policy = document.querySelector('.people-page > p[role="status"]');
         foldGroup([policy, counts], 'Resumen de usuarios', 'people-summary', counts);
-        // Keep Configuration and My work as the established visual references.
-        if (!location.pathname.startsWith('/configuracion') && !location.pathname.startsWith('/mi-trabajo')) {
-            document.querySelectorAll('main > .encabezado-pagina .encabezado-pagina__descripcion, main > section > .encabezado-pagina .encabezado-pagina__descripcion')
-                .forEach((p, i) => {
-                    const button = fold(p, 'i', `page-info-${i}`);
-                    if (button) { button.classList.add('mobile-info-toggle'); button.setAttribute('aria-label', 'Información de la página'); p.parentElement.classList.add('mobile-heading'); }
-                });
+        document.querySelectorAll('.encabezado-pagina__descripcion').forEach(p => {
+            const heading = p.parentElement, title = heading.querySelector(':scope > h1');
+            if (!title || p.dataset.mobileHelp || p.closest('.my-work-heading')) return;
+            p.dataset.mobileHelp = 'true'; heading.classList.add('mobile-heading');
+            const button = document.createElement('button'); button.type = 'button';
+            button.className = 'mobile-info-toggle'; button.setAttribute('aria-label', 'Información de la página');
+            button.append(document.querySelector('#mobile-info-icon').content.cloneNode(true));
+            title.after(button); help(button, p);
+        });
+        const workHelp = document.querySelector('.my-work-help');
+        if (workHelp && !workHelp.dataset.mobileHelp) {
+            workHelp.dataset.mobileHelp = 'true';
+            help(workHelp.querySelector('summary'), workHelp.querySelector('.my-work-help__content'), workHelp);
+        }
+        const actions = document.querySelector('.task-action-panel__buttons');
+        if (actions) {
+            const button = foldGroup([...actions.children].filter(e => !e.matches('[data-task-edit], .mobile-fold-toggle')), 'Más acciones', 'task-secondary');
+            button?.classList.add('mobile-task-actions-toggle');
         }
     }
 
@@ -177,7 +241,8 @@
                 });
                 // No added text nodes: existing text-based table searches keep
                 // matching only the original data. The label is visual CSS + ARIA.
-                (cells.find(c => c.classList.contains('mobile-record-actions') && !c.classList.contains('mobile-record-title')) || cells[identityIndex]).append(toggle);
+                (table.classList.contains('people-table') ? cells[identityIndex] :
+                    cells.find(c => c.classList.contains('mobile-record-actions') && !c.classList.contains('mobile-record-title')) || cells[identityIndex]).append(toggle);
             }
         });
     }
@@ -208,8 +273,23 @@
     // Capacity is secondary to the review queue. Move the same element (never a
     // copy of its forms) and restore its exact desktop position on width change.
     let initialized = false, capacity = null, capacityHome = null, reportSave = null, reportSaveHome = null;
+    const mobileOrder = [];
+    function rememberOrder(elements, host) {
+        if (!host || !elements.length) return;
+        const entries = elements.map(element => {
+            const home = document.createComment('original presentation position'); element.before(home);
+            return { element, home };
+        });
+        mobileOrder.push({ entries, host, mobile: false });
+    }
     const arrange = () => {
         const mobile = isMobile();
+        helps.forEach(item => { if (!mobile) item.close(); else item.position(); });
+        mobileOrder.forEach(group => {
+            if (group.mobile === mobile) return;
+            group.entries.forEach(({element, home}) => { if (mobile) group.host.append(element); else home.after(element); });
+            group.mobile = mobile;
+        });
         if (reportSave) {
             const controls = document.querySelector('.report-controls');
             if (mobile && controls && (reportSave.parentElement !== controls || controls.lastElementChild !== reportSave)) controls.append(reportSave);
@@ -270,7 +350,12 @@
             if (capacity) { capacityHome = document.createComment('capacity desktop position'); capacity.before(capacityHome); }
             reportSave = document.querySelector('[data-report-save]');
             if (reportSave) { reportSaveHome = document.createComment('report save desktop position'); reportSave.before(reportSaveHome); }
-            enhance(); observer.observe(document.body, { subtree: true, childList: true });
+            enhance();
+            const nav = document.querySelector('.section-navigation[data-section="tasks"]');
+            if (nav) rememberOrder(['destination', 'primary', 'secondary', 'tertiary'].flatMap(kind => [...nav.querySelectorAll(`[data-presentation="${kind}"]`)]), nav);
+            const buttons = document.querySelector('.task-action-panel__buttons');
+            if (buttons) rememberOrder(['[data-task-edit]', '.mobile-task-actions-toggle', '[data-task-assign]', 'form', '[data-task-delete]'].map(selector => buttons.querySelector(selector)).filter(Boolean), buttons);
+            observer.observe(document.body, { subtree: true, childList: true });
         }
         arrange();
     };

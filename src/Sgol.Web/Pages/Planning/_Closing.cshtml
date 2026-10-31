@@ -1,6 +1,6 @@
 @model Sgol.Web.Pages.Planning.IndexModel
 @using Sgol.Web.Pages.People
-@if(Model.CanPrepareDirectionPlan) {
+@if(Model.CanManageClosing) {
 <dialog id="closing-planning-dialog" class="modal closing-planning closing-planning-dialog" aria-labelledby="closing-planning-title" data-open-on-error="@(Model.ClosingError != null || Context.Request.Query.ContainsKey("closingFrom") || TempData.ContainsKey("ClosingSaved") ? "true" : null)">
     <div class="modal__contenido">
         <header class="closing-planning-dialog__header"><h2 id="closing-planning-title" class="modal__titulo">Cobertura de cierre</h2><button class="boton boton--secundario" type="button" data-dialog-close data-initial-focus>Cerrar</button></header>

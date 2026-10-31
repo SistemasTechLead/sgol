@@ -18,7 +18,8 @@ public sealed partial class PersonalScheduleService
 {
     public async Task<ClosingPlanningRow[]> ReadClosingAsync(Guid actor, DateOnly from, CancellationToken ct)
     {
-        await direction.AuthorizeAsync(actor, ct);
+        // Closing uses the same active Direction/Subcoordination authority as weekly operations.
+        await direction.AuthorizeWeeklyOperationsAsync(actor, ct);
         if(from.DayNumber > DateOnly.MaxValue.DayNumber-7) throw new DirectionPlanException("SCHEDULE_DATE_INVALID",422);
         var ledger = await OperationalCapacityService.LedgerAsync(db, clock.UtcNow, ct);
         var context = ledger.Temporal;
@@ -46,7 +47,7 @@ public sealed partial class PersonalScheduleService
     {
         await using var tx=await db.Database.BeginTransactionAsync(ct);
         await OperationalTaskService.LockAsync(db,ct);
-        await direction.AuthorizeAsync(actor,ct);
+        await direction.AuthorizeWeeklyOperationsAsync(actor,ct);
         var replay=await db.Set<ClosingCoverageVersion>().AsNoTracking().SingleOrDefaultAsync(c=>c.IntentKey==input.Key,ct);
         if(replay!=null)
         {

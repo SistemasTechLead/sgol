@@ -165,6 +165,13 @@ if (args.Contains("--batch-review-only")) {
     return;
 }
 if (args.Contains("--distribution-only")) { await DistributionChecks.RunAsync(db, director.User, a.Person, b.Person); return; }
+if (args.Contains("--closing-permissions-only")) {
+    var closingSub = AddPerson("CLOSING-SUB", CanonicalRole.Subcoordination);
+    var closingAdmin = AddPerson("CLOSING-ADMIN", CanonicalRole.Administration);
+    await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    await ClosingPermissionChecks.RunAsync(db, direction, clock, director.User, closingSub.User, closingSub.Person, closingAdmin.User, a.User, a.Person);
+    return;
+}
 if (args.Contains("--schedule-integration-only")) { await ScheduleIntegrationChecks.RunAsync(db, tasks, direction, supervision, director.User, clock, a.Person, b.Person); return; }
 if (args.Contains("--rotation-only")) { await RotationChecks.RunAsync(db, tasks, direction, supervision, director.User, clock, a.Person, b.Person); return; }
 if (args.Contains("--weekly-operations-only"))

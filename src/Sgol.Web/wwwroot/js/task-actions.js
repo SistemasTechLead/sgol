@@ -56,7 +56,7 @@
             row.classList.remove('task-row--selected');
             row.querySelector('.task-selection').checked = false;
         });
-        panel.querySelectorAll('button, input').forEach(control => { control.disabled = true; });
+        panel.querySelectorAll('button:not(.mobile-fold-toggle), input').forEach(control => { control.disabled = true; });
         catalog.querySelectorAll('[data-task-change] input, [data-task-delete-confirm]').forEach(control => { control.disabled = true; });
         panel.querySelector('[data-task-selection-label]').textContent = 'Ninguna tarea seleccionada';
         panel.querySelector('[data-task-selection-hint]').textContent = 'Selecciona una tarea para habilitar las acciones.';

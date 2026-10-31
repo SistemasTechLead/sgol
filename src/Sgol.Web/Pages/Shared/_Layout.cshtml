@@ -38,6 +38,8 @@
     }
     <link rel="stylesheet" href="~/css/mobile.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/navigation.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/mobile-hierarchy.css" asp-append-version="true" />
+    <script src="~/js/mobile-hierarchy.js" asp-append-version="true" defer></script>
     @if (Context.Request.Path.StartsWithSegments("/validaciones")) {
         <link rel="stylesheet" href="~/css/validation-cards.css" asp-append-version="true" />
     }
@@ -116,6 +118,7 @@
     <script src="~/js/search-text.js" asp-append-version="true"></script>
     <script src="~/js/checklist.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+    <template id="mobile-info-icon"><partial name="_Icon" model='@("info")' /></template>
     <script src="~/js/mobile.js" asp-append-version="true" defer></script>
 </body>
 </html>

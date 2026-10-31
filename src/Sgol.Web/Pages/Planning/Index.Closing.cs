@@ -7,6 +7,8 @@ namespace Sgol.Web.Pages.Planning;
 
 public sealed partial class IndexModel
 {
+    public bool CanManageClosing { get; private set; }
+    private static bool CanManageClosingRole(string? role) => role is CanonicalRole.Direction or CanonicalRole.Subcoordination;
     [BindProperty] public ClosingSelectionInput Closing { get; set; } = new();
     public ClosingPlanningRow[] ClosingRows { get; private set; } = [];
     public DateOnly ClosingFrom { get; private set; }
@@ -22,7 +24,7 @@ public sealed partial class IndexModel
     {
         NoStore();
         var session=await sessionState.GetAsync(ct);
-        if(session?.RoleCode!=CanonicalRole.Direction) return StatusCode(403);
+        if(session is null || !CanManageClosingRole(session.RoleCode) || !session.Permissions.Contains(WeekAuthorization.View)) return StatusCode(403);
         try { await formAntiforgery.ValidateRequestAsync(HttpContext); }
         catch(Microsoft.AspNetCore.Antiforgery.AntiforgeryValidationException) { return BadRequest(); }
         try

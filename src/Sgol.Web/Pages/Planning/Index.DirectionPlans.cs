@@ -72,6 +72,7 @@ public sealed partial class IndexModel
         if (session is null) return Redirect("/acceso");
         CanViewDirectionPlans = (session.RoleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination) && session.Permissions.Contains(WeekAuthorization.View);
         CanPrepareDirectionPlan = session.RoleCode == CanonicalRole.Direction && session.Permissions.Contains(WeekAuthorization.View);
+        CanManageClosing = CanManageClosingRole(session.RoleCode) && session.Permissions.Contains(WeekAuthorization.View);
         CanPrepareWeeklyOperationsPlan = CanPreparePlan(session.RoleCode, true) && session.Permissions.Contains(WeekAuthorization.View);
         if (!CanViewDirectionPlans) { Response.StatusCode = 403; DirectionError = new("No tienes permiso para consultar estos planes", "", null); return Page(); }
         if(Guid.TryParse(Request.Query["planId"],out var processPlanId) && await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
@@ -79,7 +80,7 @@ public sealed partial class IndexModel
             return Redirect($"/planificacion/procesos?planId={processPlanId:D}");
         try
         {
-            if (CanPrepareDirectionPlan) await LoadClosingAsync(session.UserId,token);
+            if (CanManageClosing) await LoadClosingAsync(session.UserId,token);
             if (Request.Method == "GET")
             {
                 string[] allowed = ["mode", "planId", "directionCursor", "closingFrom"];

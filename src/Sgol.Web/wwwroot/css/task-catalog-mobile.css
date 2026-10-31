@@ -1,0 +1,41 @@
+/* Refinement of the mobile catalog; existing desktop/print composition wins. */
+.task-catalog-management { display: none; }
+@media screen {
+@container sgol-viewport (max-width: 48rem) {
+    [data-task-catalog].task-catalog-refined > .encabezado-pagina { gap: 8px; margin-bottom: 8px; }
+    [data-task-catalog] .tasks-header-actions { gap: 8px; }
+    [data-task-catalog] .section-navigation > [data-presentation="destination"] {
+        border: 0; border-radius: 0; background: transparent; box-shadow: none;
+        color: var(--color-texto-secundario); border-bottom: 1px solid var(--color-borde);
+    }
+    [data-task-catalog] .section-navigation > [data-presentation="destination"][aria-current="page"] {
+        color: var(--color-acento); background: transparent; box-shadow: inset 0 -2px var(--color-acento);
+    }
+    [data-task-catalog] .section-navigation > [data-presentation="destination"] .icono { display: none; }
+    [data-task-catalog] .section-navigation > [data-presentation]:not([data-presentation="destination"]) { margin-top: 0; }
+    [data-task-catalog] .task-catalog-management {
+        display: block; grid-column: 1 / -1; grid-row: 3; min-width: 0;
+        border-bottom: 1px solid var(--color-borde); padding: 0 0 4px;
+    }
+    .task-catalog-management > summary {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        min-height: 44px; list-style: none; cursor: pointer; color: var(--color-texto-secundario); font-size: .875rem;
+    }
+    .task-catalog-management > summary::-webkit-details-marker { display: none; }
+    .task-catalog-management > summary::after { content: '+'; font-size: 1.25rem; }
+    .task-catalog-management[open] > summary::after { content: '−'; }
+    .task-catalog-management > summary:focus-visible { outline: 2px solid var(--color-acento); outline-offset: 2px; }
+    .task-catalog-management > .tasks-global-refresh { margin: 8px 0; }
+    .task-catalog-management > p { margin: 8px 0; font-size: .875rem; color: var(--color-texto-secundario); }
+    .task-catalog-management > a { margin-block: 8px; background: transparent; border-color: transparent; color: var(--color-acento); }
+    [data-task-catalog] > [data-mobile-control="task-search"] { margin-block: 0 8px; }
+    [data-task-catalog] .mobile-help-content p { margin-block: 12px 0; }
+    [data-task-catalog].task-catalog-refined .task-action-panel:not([data-has-selection="true"]) { display: none; }
+    [data-task-catalog] .task-action-panel__buttons > [data-task-selection-hint] {
+        display: none; order: 1; color: var(--color-texto-secundario); font-size: .8125rem; margin: 0;
+    }
+    [data-task-catalog] .task-action-panel__buttons:has(.mobile-task-actions-toggle[aria-expanded="true"]) > [data-task-selection-hint] { display: block; }
+    [data-task-catalog] [data-task-row].task-row--selected > td { background: transparent; box-shadow: none; }
+    [data-task-catalog] .mobile-record-title small { font-weight: 400; color: var(--color-texto-secundario); }
+}
+}

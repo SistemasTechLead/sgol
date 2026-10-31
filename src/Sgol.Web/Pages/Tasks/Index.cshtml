@@ -6,11 +6,12 @@
     var showSundayTime = Model.Input.PeriodType == "SEMANAL" && (Model.Input.ScheduleMode == "DIAS_FIJOS" && Model.InputDays.Contains(0) || Model.Input.ScheduleMode == "DISTRIBUIDA" && Model.Input.Repetitions == 7);
 }
 <link rel="stylesheet" href="~/css/task-actions.css" asp-append-version="true" />
-<section aria-labelledby="tasks-title" data-task-catalog>
+<link rel="stylesheet" href="~/css/task-catalog-mobile.css" asp-append-version="true" />
+<section aria-labelledby="tasks-title" data-task-catalog data-pending-refresh="@Model.RefreshCounts.Values.Sum()">
     <header class="encabezado-pagina encabezado-pagina--catalogo">
         <div class="encabezado-pagina__contenido">
             <h1 id="tasks-title" class="encabezado-pagina__titulo">Tareas</h1>
-            <p class="encabezado-pagina__descripcion">Consulta las tareas, sus requisitos y el proceso al que pertenecen.</p>
+            <div class="encabezado-pagina__descripcion"><span>Consulta las tareas, sus requisitos y el proceso al que pertenecen.</span></div>
         </div>
         <div class="tasks-header-actions">
             <partial name="_SectionNavigation" model='@("tasks")' />
@@ -106,7 +107,7 @@
             </form>
         </section>
     }
-    <p>Un plan semanal incluye las fechas que correspondan de cada calendario, también las tareas mensuales. El reparto considera la capacidad disponible y los avances pendientes.</p>
+    <p data-task-catalog-guidance>Un plan semanal incluye las fechas que correspondan de cada calendario, también las tareas mensuales. El reparto considera la capacidad disponible y los avances pendientes.</p>
     @if (Model.CanManage) { <p id="task-selection-help">Selecciona una tarea haciendo clic en su fila o en su selector para habilitar las acciones del panel flotante.</p> }
     @if (Model.Items.Count == 0) { <p class="estado-vacio">No se encontraron tareas.</p> }
     else {
@@ -135,4 +136,4 @@
         <noscript><p>Activa JavaScript para seleccionar tareas y usar el panel de acciones.</p></noscript>
     }
 </section>
-@section Scripts { <script src="~/js/task-actions.js" asp-append-version="true"></script> <script src="~/js/task-process.js" asp-append-version="true"></script> <script src="~/js/task-calendar.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/task-actions.js" asp-append-version="true"></script> <script src="~/js/task-process.js" asp-append-version="true"></script> <script src="~/js/task-calendar.js" asp-append-version="true"></script> <script src="~/js/task-catalog-mobile.js" asp-append-version="true" defer></script> }

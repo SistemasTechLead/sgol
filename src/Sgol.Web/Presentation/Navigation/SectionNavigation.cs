@@ -4,7 +4,7 @@ using Sgol.Planning.Contracts;
 
 namespace Sgol.Web.Presentation.Navigation;
 
-public sealed record SectionNavigationLink(string Label, string Href, bool Active, string? Icon = null);
+public sealed record SectionNavigationLink(string Label, string Href, bool Active, string? Icon = null, string Presentation = "destination");
 public sealed record SectionNavigationModel(string Label, IReadOnlyList<SectionNavigationLink> Links);
 
 public static class SectionNavigation
@@ -33,12 +33,12 @@ public static class SectionNavigation
                 if (canBrowse)
                 {
                     links.Add(new("Tareas", "/tareas", !assigning && !processes && !Flag("create") && !Flag("AdjustClosure"), "checklist"));
-                    if (director) links.Add(new("Crear tarea", "/tareas?create=true", !assigning && !processes && Flag("create")));
+                    if (director) links.Add(new("Crear tarea", "/tareas?create=true", !assigning && !processes && Flag("create"), Presentation: "primary"));
                     links.Add(new("Procesos", "/tareas/procesos", processes, "list"));
                 }
                 if (session.RoleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination)
-                    links.Add(new("Asignar tarea", "/asignar-tarea", assigning, "users"));
-                if (director) links.Add(new("Porcentaje para el cierre", "/tareas?AdjustClosure=true", !assigning && !processes && Flag("AdjustClosure"), "settings"));
+                    links.Add(new("Asignar tarea", "/asignar-tarea", assigning, "users", "secondary"));
+                if (director) links.Add(new("Porcentaje para el cierre", "/tareas?AdjustClosure=true", !assigning && !processes && Flag("AdjustClosure"), "settings", "tertiary"));
                 break;
             case "planning":
                 label = "Apartados de planificación";
@@ -46,7 +46,7 @@ public static class SectionNavigation
                 var processPlan = path.StartsWithSegments("/planificacion/procesos");
                 var viewing = session.Permissions.Contains(WeekAuthorization.View);
                 links.Add(new("Planes", "/planificacion", !processPlan && mode is not ("create" or "operations"), "calendar"));
-                if (director && viewing) links.Add(new("Crear nuevo plan", "/planificacion?mode=create", !processPlan && mode == "create"));
+                if (director && viewing) links.Add(new("Crear nuevo plan", "/planificacion?mode=create", !processPlan && mode == "create", Presentation: "primary"));
                 if (viewing && session.RoleCode is CanonicalRole.Direction or CanonicalRole.Subcoordination)
                     links.Add(new("Operaciones semanales", "/planificacion?mode=operations", !processPlan && mode == "operations", "checklist"));
                 if (director && viewing || processPlan)
@@ -57,7 +57,7 @@ public static class SectionNavigation
                 if (!director) break;
                 var specialties = path.StartsWithSegments("/personas-y-accesos/especializaciones");
                 links.Add(new("Personas y accesos", "/personas-y-accesos", !specialties && !Flag("create"), "users"));
-                links.Add(new("Crear usuario", "/personas-y-accesos?create=true", !specialties && Flag("create")));
+                links.Add(new("Crear usuario", "/personas-y-accesos?create=true", !specialties && Flag("create"), Presentation: "primary"));
                 links.Add(new("Especializaciones", "/personas-y-accesos/especializaciones", specialties, "list"));
                 break;
             case "supervision":

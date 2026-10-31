@@ -10,9 +10,8 @@
         <partial name="_SectionNavigation" model='@("my-work")' />
         @if (Model.ErrorTitle is null)
         {
-            <span class="my-work-mobile-only my-work-heading__subtitle">Tus tareas asignadas</span>
             <details class="my-work-mobile-only my-work-help">
-                <summary aria-label="Información sobre tus tareas y sus colores" title="Información sobre tus tareas"><span aria-hidden="true">i</span></summary>
+                <summary aria-label="Información sobre tus tareas y sus colores" title="Información sobre tus tareas"><partial name="_Icon" model='@("info")' /></summary>
                 <div class="my-work-help__content">
                     <p>Las tareas aparecen por color: rojas, verdes, amarillas, grises y azules. Abre cada tarea para preparar tu entrega o consultar su evidencia.</p>
                     <partial name="_TaskColorLegend" />
