@@ -61,8 +61,8 @@ internal static class ReassignmentLifecycleChecks
         catch (DirectionPlanException e) { Require(e.Code == "TASK_CONFLICT", "Stale request rejects duplicate corrections"); }
         db.ChangeTracker.Clear();
         clock.UtcNow = OperationalSchedule.Instant(new DateOnly(2026, 10, 22), 23).AddMinutes(55);
-        try { await service.ReviewAsync(actor, correction.Id, correction.Revision, "MISMA_PERSONA", "Sin turno", default); throw new Exception("Out of shift correction accepted"); }
-        catch (DirectionPlanException e) { Require(e.Code is "SCHEDULE_NOT_PRESENT_AT_ACTIVATION" or "SCHEDULE_NOT_PRESENT_AT_RECEPTION", "Specific shift conflict instead of generic capacity message: " + e.Code); }
+        var outside = await service.PreviewReviewsAsync(actor, [new(correction.Id, correction.Revision, "MISMA_PERSONA", "Sin turno")], default);
+        Require(outside.Items.Single().StartsAt == TemporalEligibilityContext.At(new(2026,10,23),540), "Outside shift proposes next complete shift without saving");
         db.ChangeTracker.Clear();
         Require(count == await db.OperationalAssignments.CountAsync() && audits == await db.AuditEvents.CountAsync(), "Failed/stale requests leave no assignments or audit writes");
         var unchanged = await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.Id == correction.Id);
@@ -90,7 +90,7 @@ internal static class ReassignmentLifecycleChecks
         var legacyOriginal = await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.Id == next.Id);
         Require(legacyCorrection.SchedulingPolicyId == current.Id && legacyCorrection.StartsAt >= clock.UtcNow && legacyCorrection.DueAt > legacyCorrection.StartsAt, "Legacy correction adopts a current valid agenda");
         Require(legacyOriginal.SchedulingPolicyId == null && legacyOriginal.DueAt < clock.UtcNow, "Legacy delivery keeps its original policy and dates");
-        Console.WriteLine("PASS reassignment: expired delivery, same recipient, occupied slot, current evidence, original history, unrelated commitments, audits, stale request, shift failure rollback and role path.");
+        Console.WriteLine("PASS reassignment: expired delivery, same recipient, occupied slot, current evidence, original history, unrelated commitments, audits, stale request, next-shift preview and role path.");
         Console.WriteLine("PASS legacy reassignment: fresh scheduling policy, workload margin, future slot and preserved original contract.");
     }
 
@@ -138,42 +138,29 @@ internal static class ReassignmentLifecycleChecks
         await service.ReviewAsync(actor, correction.Id, correction.Revision, "MISMA_PERSONA", "Aclaración con turno lleno", default);
         db.ChangeTracker.Clear();
         var capped = await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.ReassignedFromId == correction.Id);
-        Require(capped.StartsAt == clock.UtcNow && capped.DueAt == TemporalEligibilityContext.At(day, 19 * 60), "Full agenda and zero capacity still receive correction; deadline capped at 19:00");
+        Require(capped.StartsAt == TemporalEligibilityContext.At(day.AddDays(1), 540) && capped.DueAt == TemporalEligibilityContext.At(day.AddDays(1), 600), "Full agenda and zero capacity: next complete shift retains sixty minutes");
         var capacityService = new OperationalCapacityService(db, clock, service);
         var adjustment = await capacityService.PreviewAsync(actor, new(source.PersonId, day, day, 0, 1,
             "Simulación: no mover correcciones", true,
-            capped.OperationalCriticality != "CRITICA" && capped.OccasionId == null ? [capped.Id] : []), default);
+            capped.StartsAt <= clock.UtcNow && capped.OperationalCriticality != "CRITICA" && capped.OccasionId == null ? [capped.Id] : []), default);
         Require(!adjustment.Moves.Any(m => m.TaskId == capped.Id), "Capacity adjustment cannot move an evidence correction, even if explicitly selected among activated tasks");
         Console.WriteLine("PASS capacity adjustment preserves the correction's activation and deadline.");
         var snapshot = JsonSerializer.Serialize(capped); var audits = await db.AuditEvents.CountAsync();
         clock.UtcNow = capped.DueAt;
-        try { await service.ReviewAsync(actor, capped.Id, capped.Revision, "MISMA_PERSONA", "En salida", default); throw new Exception("Exit accepted"); }
-        catch (DirectionPlanException e) { Require(e.Code is "SCHEDULE_NOT_PRESENT_AT_ACTIVATION" or "SCHEDULE_NOT_PRESENT_AT_RECEPTION", "Exact exit rejects receipt"); }
-        db.ChangeTracker.Clear();
-        Require(audits == await db.AuditEvents.CountAsync() && snapshot == JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.Id == capped.Id)), "Exact exit rejection rolls back completely");
-        Console.WriteLine("PASS Viri: full shift, zero capacity, immediate 18:55 activation, deadline capped to 19:00, exact exit rejection and rollback.");
-
+        var exitPreview = await service.PreviewReviewsAsync(actor, [new(capped.Id,capped.Revision,"MISMA_PERSONA","En salida")],default);
+        Require(exitPreview.Items.Single().StartsAt == clock.UtcNow, "Next correction can start when full duration fits remaining shift");
+        Require(audits == await db.AuditEvents.CountAsync() && snapshot == JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.Id == capped.Id)), "Preview preserves original and audit");
         foreach (var minute in new[] { 13 * 60 + 25, 14 * 60 })
         {
             var fixture = JsonSerializer.Deserialize<OperationalAssignment>(JsonSerializer.Serialize(source))!;
             fixture.Id = Guid.CreateVersion7(); fixture.ReassignedFromId = null; fixture.ScheduleKey = null;
             db.OperationalAssignments.Add(fixture); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
             clock.UtcNow = TemporalEligibilityContext.At(day, minute);
-            if (minute == 14 * 60)
-            {
-                try { await service.ReviewAsync(actor, fixture.Id, fixture.Revision, "MISMA_PERSONA", "En descanso", default); throw new Exception("Break accepted"); }
-                catch (DirectionPlanException e) { Require(e.Code is "SCHEDULE_NOT_PRESENT_AT_ACTIVATION" or "SCHEDULE_NOT_PRESENT_AT_RECEPTION", "Break rejects receipt"); }
-                db.ChangeTracker.Clear();
-                Require(!await db.OperationalAssignments.AnyAsync(a => a.ReassignedFromId == fixture.Id), "Break creates no partial correction");
-            }
-            else
-            {
-                await service.ReviewAsync(actor, fixture.Id, fixture.Revision, "MISMA_PERSONA", "Antes del descanso", default);
-                db.ChangeTracker.Clear();
-                var lunch = await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.ReassignedFromId == fixture.Id);
-                Require(lunch.StartsAt == clock.UtcNow && lunch.DueAt == TemporalEligibilityContext.At(day, 13 * 60 + 30), "Correction stops at break, never crosses into rest");
-            }
+            await service.ReviewAsync(actor, fixture.Id, fixture.Revision, "MISMA_PERSONA", "Antes o durante descanso", default);
+            db.ChangeTracker.Clear();
+            var lunch = await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.ReassignedFromId == fixture.Id);
+            Require(lunch.StartsAt == TemporalEligibilityContext.At(day,900) && lunch.DueAt == TemporalEligibilityContext.At(day,960), "Before and during break: next full interval, never truncate or split");
         }
-        Console.WriteLine("PASS Viri: 13:25-13:30 correction capped to break; 14:00 receipt rejected without partial correction.");
+        Console.WriteLine("PASS Viri: 13:25 and 14:00 both propose 15:00-16:00; complete sixty minute correction.");
     }
 }

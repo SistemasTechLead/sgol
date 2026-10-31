@@ -285,7 +285,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
                 added.Id = StableId(request.Key, $"{plan.Id}:{day}:{expected.Count}:{diffs.Count}");
                 added.ScheduleKey = $"refresh:{added.Id:N}";
                 added.ProgressUnits = 0; added.TransferRemainingMinutes = null; added.TransferProgressUnits = 0;
-                added.ReassignedFromId = null; added.ReassignmentComment = null; added.ReviewStatus = null;
+                added.ReassignedFromId = null; added.ReassignmentComment = null; added.CorrectionScheduleJson = null; added.ReviewStatus = null;
                 added.ReviewedAt = null; added.ReviewedBy = null; added.ReviewComment = null; added.ReviewDecision = null;
                 added.Comment = null; added.Conclusion = null; added.PreviousLoadMinutes = 0;
                 added.NominalStartsAt = task.StartOn(day); added.StartsAt = added.NominalStartsAt.Value;

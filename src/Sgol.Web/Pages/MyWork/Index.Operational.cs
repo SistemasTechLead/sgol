@@ -32,6 +32,7 @@ public sealed partial class IndexModel
         OperationalWorkPlan.TodayTasks(OperationalTasks, OperationalDay, OperationalNow);
     public IReadOnlyList<OperationalAssignmentDetails> OperationalOrderedTasks =>
         OperationalWorkPlan.OrderedTasks(OperationalTasks, OperationalDay, OperationalNow);
+    public Dictionary<Guid, CorrectionContext> Corrections { get; private set; } = [];
     public string? OperationalError { get; private set; }
     public OperationalAssignmentDetails? OperationalSelectedTask { get; private set; }
     public Sgol.Web.Presentation.MyWork.ProcessActionForm? OperationalProcessForm { get; private set; }
@@ -68,7 +69,7 @@ public sealed partial class IndexModel
         try {
             var service = HttpContext.RequestServices.GetRequiredService<OperationalTaskService>();
             var page = await service.MinePageAsync(actor, Request.Query["WorkSearch"], Sgol.Web.Presentation.Navigation.ListPage.Read(Request, "WorkPage"), OperationalNow, token);
-            OperationalTasks = page.Items; WorkPagination = new("WorkPage", page.Page, page.Total, 50, Request, "plan-tasks");
+            Corrections = await service.MyCorrectionsAsync(actor, token); OperationalTasks = page.Items; WorkPagination = new("WorkPage", page.Page, page.Total, 50, Request, "plan-tasks");
             var progress = await service.MineProgressAsync(actor, OperationalDay, token);
             WorkProgress = new(progress.Concluded, progress.Total, "Tu progreso de hoy");
             OperationalTransfers = await HttpContext.RequestServices.GetRequiredService<OperationalTaskService>().MyTransfersAsync(actor, token);

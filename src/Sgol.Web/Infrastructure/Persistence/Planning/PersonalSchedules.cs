@@ -87,6 +87,7 @@ public sealed record TemporalWindow(DateOnly Day, DateTimeOffset Entry, DateTime
 public sealed class TemporalEligibilityContext
 {
     public static string Message(string code) => code switch {
+        "CORRECTION_SCHEDULE_CHANGED" => "El nuevo horario no contiene toda la corrección. Se conservarán sus fechas y Supervisión deberá reprogramarla explícitamente.",
         "SCHEDULING_INFEASIBLE" => "Las restricciones de esta agenda son incompatibles. Revisa el diagnóstico por tarea, turno y duración.",
         "SCHEDULING_SEARCH_INCONCLUSIVE" => "Se alcanzó el límite de búsqueda sin completar la agenda. No se ha demostrado inviabilidad; no se publicó trabajo parcial.",
         "SCHEDULING_CIRCUIT_ORDER" => "El precorte debe terminar antes de conciliación, y conciliación antes de alarma.",

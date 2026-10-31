@@ -66,6 +66,8 @@ if (args.Contains("--carryover-lifecycle")) {
     await CarryoverChecks.Run(db); return;
 }
 if (args.Contains("--carryover-ui-seed")) { await CarryoverChecks.SeedUi(db); return; }
+if (args.Contains("--correction-http")) { var fixture = await QaFixtures.CreateAsync(db); var correctionClock = new CorrectionSchedulingChecks.Clock(); await CorrectionHttpChecks.Run(db, fixture, correctionClock, await CorrectionSchedulingChecks.Source(db, fixture, correctionClock), args.Contains("--ui")); return; }
+if (args.Contains("--correction-scheduling")) { await CorrectionSchedulingChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--reassignment-lifecycle")) { await ReassignmentLifecycleChecks.Run(db); return; }
 if (args.Contains("--transfer-lifecycle")) { await TransferChecks.Run(db); return; }
 if (args.Contains("--transfer-current-assignments")) { await CurrentAssignmentTransferChecks.Run(db); return; }

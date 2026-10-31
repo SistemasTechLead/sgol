@@ -65,6 +65,8 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
     }
     private async Task LoadAsync(Guid actor, Guid? selected, CancellationToken token)
     {
+        CorrectionConflicts = await supervision.CorrectionConflictsAsync(actor, token);
+        if (CorrectionConflicts.Count > 0) CorrectionNames = (await supervision.FindManyAsync(actor, CorrectionConflicts.Keys.ToArray(), token)).ToDictionary(t => t.Assignment.Id, t => t.Assignment.Name);
         var today = WeekContract.LocalToday(Now);
         CapacityFrom ??= today;
         CapacityThrough ??= today.AddDays(6 - (((int)today.DayOfWeek + 6) % 7));
@@ -94,13 +96,17 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
         if (Validation)
             CardPhotos = await supervision.PhotoIdsAsync(actor, ValidationSection.Items.Select(t => t.Assignment.Id).ToArray(), token);
     }
-    public async Task<IActionResult> OnPostReviewAsync(Guid id, long revision, string decision, string? comment, CancellationToken token)
+    public async Task<IActionResult> OnPostReviewAsync(Guid id, long revision, string decision, string? comment, string? stage, string? result, string? action, CancellationToken token)
     {
         Guid? actor = null;
         try {
             actor = await ActorAsync(token); if (actor is null) return Redirect("/acceso");
-            var correctionId = await supervision.ReviewAsync(actor.Value, id, revision, decision, comment, token);
-            return Redirect(TaskHref(correctionId ?? id));
+            if (result == "yes") decision = "CONCLUIDA";
+            else if (result == "no" && action != null) decision = action;
+            AttemptedDecision = decision; AttemptedComment = comment;
+            await ReviewActionAsync(actor.Value, [new(id, revision, decision, comment, Schedule.Value())], stage == "apply", token);
+            if (stage == "apply") return Redirect(TaskHref(id));
+            await LoadAsync(actor.Value, id, token); return Page();
         } catch (DirectionPlanException e) {
             if (actor is null || e.Status == 403) return StatusCode(e.Status);
             Response.StatusCode = e.Status; Error = Message(e.Code);
@@ -109,9 +115,13 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
         }
     }
     public static string Message(string code) => code switch {
+        "CORRECTION_RANGE_INVALID" => "Elige un día o rango desde hoy hasta hoy + 7 días, sin invertir sus fechas.",
+        "CORRECTION_NO_SLOT" => "No hay un tramo o hueco suficiente para la carga más margen dentro del rango. Cambia la modalidad o el rango; no se guardó la corrección.",
+        "CORRECTION_PREVIEW_STALE" => "Cambió la propuesta o pasaron dos minutos. Calcula otra vista previa y comprueba el destinatario y las fechas.",
+        "CORRECTION_SCHEDULE_CHANGED" => "El horario ya no contiene toda la corrección. Supervisión debe reprogramarla explícitamente; sus fechas se han conservado.",
         "REVIEW_BATCH_INVALID" => "Selecciona entre 1 y 500 tareas distintas para revisar.",
         "REASSIGNMENT_NO_ELIGIBLE_RECIPIENT" => "No hay un destinatario activo y autorizado con el rol y la especialidad requeridos para esta devolución.",
-        "REASSIGNMENT_NO_VALID_SLOT" => "Ningún destinatario autorizado está en turno y disponible para recibir la corrección ahora. La entrega anterior se conservó sin cambios.",
+        "REASSIGNMENT_NO_VALID_SLOT" => "Ningún destinatario autorizado tiene un tramo completo o hueco válido dentro del rango solicitado. Revisa destinatario, horario y duración. La entrega anterior se conservó sin cambios.",
         "REASSIGNMENT_CAPACITY_EXCEEDED" => "La corrección supera la capacidad disponible del destinatario. La entrega anterior se conservó sin cambios.",
         "SCHEDULING_NO_CONTIGUOUS_SLOT" or "SCHEDULING_CRITICAL_ANCHOR_PASSED" or "SCHEDULING_CRITICAL_OVERLAP" or "SCHEDULING_LEGACY_RESERVATION" or
         "SCHEDULE_EMPLOYMENT_END" or "SCHEDULE_ACCOUNT_INACTIVE" or "SCHEDULE_ABSENT" or "SCHEDULE_MISSING" or "SCHEDULE_DEADLINE_PASSED" or

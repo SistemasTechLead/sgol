@@ -106,7 +106,7 @@ public sealed partial class OperationalSupervisionService(SgolDbContext db, IClo
         return result;
     }
 
-    private async Task<Guid?> ReviewCoreAsync(Guid actor, Guid id, long revision, string decision, string? comment, CancellationToken token)
+    private async Task<Guid?> ReviewCoreAsync(Guid actor, Guid id, long revision, string decision, string? comment, CancellationToken token, CorrectionSchedule? schedule = null, bool preview = false, DateTimeOffset? schedulingNow = null, CapacityLedger? correctionLedger = null)
     {
         if (decision is not ("CONCLUIDA" or "MISMA_PERSONA" or "ROL" or "NO_SATISFECHA")) throw Error("REVIEW_INVALID", 422);
         comment = comment?.Trim();
@@ -142,9 +142,9 @@ public sealed partial class OperationalSupervisionService(SgolDbContext db, IClo
         Guid? correctionId = null;
         if (decision is "MISMA_PERSONA" or "ROL")
         {
-            var now = clock.UtcNow;
-            var loaded = await OperationalCapacityService.LedgerAsync(db, now, token);
-            var ledger = new CapacityLedger(loaded.Workers, loaded.Tasks.Where(t => t.Id != id).ToArray(), loaded.Capacities, loaded.Unavailable, loaded.Legacy, loaded.Today) { Temporal = loaded.Temporal };
+            var now = schedulingNow ?? clock.UtcNow;
+            var loaded = correctionLedger ?? await OperationalCapacityService.LedgerAsync(db, now, token);
+            var ledger = new CapacityLedger(loaded.Workers, loaded.Tasks.Where(t => t.Id != id && !db.OperationalAssignments.Local.Any(a => a.Id == t.Id)).Concat(db.OperationalAssignments.Local.Where(t => t.Id != id)).ToArray(), loaded.Capacities, loaded.Unavailable, loaded.Legacy, loaded.Today) { Temporal = loaded.Temporal };
             var replacement = new OperationalAssignment {
                 Id = Guid.CreateVersion7(), PlanId = task.PlanId, OccasionId = task.OccasionId, TaskId = task.TaskId, TaskRevision = task.TaskRevision, TaskCode = task.TaskCode,
                 Name = task.Name, Description = task.Description, Requirement = task.Requirement, ChecklistJson = task.ChecklistJson, AssignedRole = role, LoadMinutes = AssignmentDefinition.ConfiguredLoad(task),
@@ -184,9 +184,10 @@ public sealed partial class OperationalSupervisionService(SgolDbContext db, IClo
                 .Where(w => task.OccasionId == null || !peers.Any(a => a.PersonId == w.Id && a.OccasionId == task.OccasionId))
                 .ToArray();
             if (eligible.Length == 0) throw Error("REASSIGNMENT_NO_ELIGIBLE_RECIPIENT", 422);
-            var options = eligible.Select(w => (Worker: w, Placement: CorrectionPlacement(ledger, w.Id, replacement, nominal, now))).ToArray();
+            var options = eligible.Select(w => (Worker: w, Placement: CorrectionScheduling.Find(ledger, w.Id, replacement, now, schedule ?? new()))).ToArray();
             var selected = options.Where(o => o.Placement.Eligible)
-                .OrderBy(o => !task.DifferentPeople ? 0 : peers.Count(a => a.PersonId == o.Worker.Id && WeekContract.LocalToday(a.StartsAt) >= weekStart && WeekContract.LocalToday(a.StartsAt) <= weekEnd))
+                .OrderBy(o => o.Placement.StartsAt)
+                .ThenBy(o => !task.DifferentPeople ? 0 : peers.Count(a => a.PersonId == o.Worker.Id && WeekContract.LocalToday(a.StartsAt) >= weekStart && WeekContract.LocalToday(a.StartsAt) <= weekEnd))
                 .ThenBy(o => replacement.SpecializationId == null ? ledger.Occupancy(o.Worker.Id, ledger.Today, ledger.Today.AddDays(6)) : ledger.SpecializedPeriodLoad(o.Worker.Id, replacement))
                 .ThenBy(o => ledger.Tasks.Where(t => t.PersonId == o.Worker.Id).Sum(t => (long)t.RemainingMinutes))
                 .ThenBy(o => o.Worker.Code, StringComparer.Ordinal).ThenBy(o => o.Worker.Id).FirstOrDefault();
@@ -196,10 +197,10 @@ public sealed partial class OperationalSupervisionService(SgolDbContext db, IClo
             OperationalAgenda.Apply(replacement, selected.Placement);
             replacement.PersonId = worker.Id; replacement.PersonName = worker.Name; replacement.AssignedRole = worker.Role;
             replacement.PreviousLoadMinutes = ledger.Tasks.Where(t => t.PersonId == worker.Id).Sum(t => (long)t.RemainingMinutes) + ledger.Legacy.GetValueOrDefault(worker.Id);
-            ledger.CaptureTime(replacement, now); db.OperationalAssignments.Add(replacement);
+            ledger.CaptureTime(replacement); replacement.CorrectionScheduleJson = JsonSerializer.Serialize(new { Request = schedule ?? new(), Version = 1, Actor = actor, ScheduledAt = clock.UtcNow }); db.OperationalAssignments.Add(replacement);
             Audit(actor, replacement.Id, "OPERATIONAL_CORRECTION_ASSIGNED", new { PreviousAssignmentId = task.Id, decision, replacement.PersonId,
                 replacement.Requirement, replacement.TaskRevision, replacement.StartsAt, replacement.DueAt, replacement.Revision,
-                SchedulingMode = "CORRECTION_OVERLAP_ALLOWED", replacement.LoadMinutes, replacement.ClosureMarginPercent,
+                SchedulingMode = (schedule ?? new()).Mode, replacement.LoadMinutes, replacement.ClosureMarginPercent,
                 DeadlineCapped = replacement.DueAt < now.AddMinutes(OperationalAgenda.Duration(replacement.LoadMinutes, replacement.ClosureMarginPercent!.Value)) });
             correctionId = replacement.Id;
         }
@@ -211,7 +212,7 @@ public sealed partial class OperationalSupervisionService(SgolDbContext db, IClo
         task.ReviewDecision = decision;
         task.ReviewedAt = clock.UtcNow; task.ReviewedBy = actor; task.ReviewComment = comment; task.Revision++;
         Audit(actor, id, "OPERATIONAL_TASK_REVIEWED", new { task.PlanId, decision, comment, task.Revision });
-        await db.SaveChangesAsync(token);
+        if (!preview) await db.SaveChangesAsync(token);
         return correctionId;
     }
 

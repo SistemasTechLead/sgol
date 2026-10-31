@@ -108,7 +108,7 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
             x.A.PersonName, x.Role, x.P.Name, x.P.Area, x.A.ReviewStatus ?? "", x.A.Requirement, x.A.ScheduleMode,
             x.A.PeriodType, x.A.Repetitions, 0, x.A.LoadMinutes, 0, x.A.StartsAt, x.A.DueAt,
             x.A.CompletedAt, x.A.ReviewedAt, x.A.GoalUnits, x.A.ProgressUnits, x.A.ProgressUnit,
-            x.A.SpecializationName ?? "", x.A.ReviewComment ?? "", x.A.ReassignedFromId) {
+            x.A.SpecializationName ?? "", x.A.ReviewComment ?? x.A.ReassignmentComment ?? "", x.A.ReassignedFromId) {
                 TransferRemainingMinutes = x.A.TransferRemainingMinutes, TransferProgressUnits = x.A.TransferProgressUnits,
                 ChecklistJson = includeChecklist ? x.A.ChecklistJson : "[]", ChecklistDraftJson = includeChecklist ? x.A.ChecklistDraftJson : "null"
             }).ToArrayAsync(token);

@@ -10,6 +10,7 @@
     <dialog class="supervision-dialog my-work-dialog" data-assigned-task-detail="@task.Id" aria-labelledby="assigned-task-title">
         <header class="supervision-dialog__header"><h2 id="assigned-task-title">@task.Name</h2><button class="boton boton--secundario" type="button" data-dialog-close aria-label="Cerrar"><partial name="_Icon" model='@("close")' /></button></header>
         <p>@task.PersonName · @task.PlanName</p>
+        @if (Model.Corrections.TryGetValue(task.Id, out var correction)) { <p class="badge badge--info">Corrección de la entrega @(correction.OriginalDelivery is {} original ? MyWorkPresentation.Time(original) : "anterior")</p><p class="supervision-text">@correction.Comment</p>@if (correction.Conflict is {} conflict) { <p class="alerta alerta--peligro">@Sgol.Web.Pages.Validations.IndexModel.Message(conflict) Solicita a Supervisión una reprogramación.</p> } }
         @if (task.TransferRemainingMinutes is {} pending) { <p class="alerta alerta--info">Recibiste esta tarea con @task.TransferProgressUnits @task.ProgressUnit ya registradas. Estimación del supervisor al transferirla: @pending minutos pendientes.</p> }
         @if (!string.IsNullOrWhiteSpace(task.Description)) { <section aria-label="Descripción de la tarea"><h3>Descripción</h3><p class="supervision-text">@task.Description</p></section> }
         <partial name="_OccasionMaterial" model="@((task.Id, Model.OperationalOccasion))" />
@@ -36,7 +37,7 @@
                 <details><summary>Historial de entrega y revisión</summary><ol>
                 @foreach (var entry in Model.OperationalLifecycle) {
                     <li>
-                        <strong>@(entry.Kind switch { "TRANSFERENCIA" => "Transferencia de responsabilidad", "ENTREGA" => "Entrega enviada", "SUPERVISION" => "Cierre por supervisión", "REVISION" => "Decisión de supervisión", "REASIGNACION" => "Reasignación recibida", "REDISTRIBUCION" => "Redistribución confirmada por supervisión", _ => "Finalización histórica" })</strong>
+                        <strong>@(entry.Kind switch { "TRANSFERENCIA" => "Transferencia de responsabilidad", "ENTREGA" => "Entrega enviada", "SUPERVISION" => "Cierre por supervisión", "REVISION" => "Decisión de supervisión", "REASIGNACION" => "Reasignación recibida", "REPROGRAMACION" => "Corrección reprogramada", "REDISTRIBUCION" => "Redistribución confirmada por supervisión", _ => "Finalización histórica" })</strong>
                         · @(entry.At is { } at ? MyWorkPresentation.Time(at) : "Fecha no registrada")
                         @if (entry.ActorName is not null) { <span> · @entry.ActorName</span> }
                         @if (entry.Decision is not null) { <span> · @(entry.Decision switch { "CONCLUIDA" => "Aprobada", "NO_SATISFECHA" => "No satisfecha", "MISMA_PERSONA" => "Reasignada a la misma persona", "ROL" => "Reasignada por rol", _ => "Decisión histórica" })</span> }

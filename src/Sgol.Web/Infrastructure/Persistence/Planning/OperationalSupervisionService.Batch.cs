@@ -3,7 +3,7 @@ using Sgol.Planning.Contracts;
 
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
-public sealed record SupervisionReview(Guid Id, long Revision, string Decision, string? Comment);
+public sealed record SupervisionReview(Guid Id, long Revision, string Decision, string? Comment, CorrectionSchedule? Schedule = null);
 
 public sealed partial class OperationalSupervisionService
 {
@@ -17,7 +17,7 @@ public sealed partial class OperationalSupervisionService
         {
             foreach (var review in reviews)
             {
-                try { await ReviewCoreAsync(actor, review.Id, review.Revision, review.Decision, review.Comment, token); }
+                try { await ReviewCoreAsync(actor, review.Id, review.Revision, review.Decision, review.Comment, token, review.Schedule); }
                 catch (DirectionPlanException e) { e.Data["ReviewAssignmentId"] = review.Id; throw; }
             }
             await tx.CommitAsync(token);

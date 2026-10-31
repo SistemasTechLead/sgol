@@ -143,6 +143,7 @@ public sealed class OperationalAssignment
     public string? ReviewComment { get; set; }
     public string? ReviewDecision { get; set; }
     public string? ReassignmentComment { get; set; }
+    public string? CorrectionScheduleJson { get; set; }
     public DateTimeOffset? ReviewedAt { get; set; }
     public Guid? ReviewedBy { get; set; }
     public Guid? ReassignedFromId { get; set; }
@@ -339,6 +340,7 @@ internal sealed class OperationalAssignmentConfiguration : IEntityTypeConfigurat
         b.Property(t => t.Conclusion).HasMaxLength(4000);
         b.Property(t => t.ReviewComment).HasMaxLength(4000);
         b.Property(t => t.ReassignmentComment).HasMaxLength(4000);
+        b.Property(t => t.CorrectionScheduleJson).HasColumnType("jsonb");
         b.Property(t => t.CompletionKind).HasMaxLength(16);
         b.Property(t => t.ReviewDecision).HasMaxLength(24);
         b.Property(t => t.ReviewStatus).HasMaxLength(24);

@@ -23,7 +23,7 @@ public sealed partial class IndexModel
         .ToDictionary(q => q.Key, q => (string?)q.Value.ToString())
         .Append(new KeyValuePair<string, string?>("Validation", validation.ToString())).ToDictionary());
 
-    public async Task<IActionResult> OnPostBatchReviewAsync(CancellationToken token)
+    public async Task<IActionResult> OnPostBatchReviewAsync(string? stage, CancellationToken token)
     {
         Guid? actor = null;
         Validation = true;
@@ -31,12 +31,13 @@ public sealed partial class IndexModel
         {
             actor = await ActorAsync(token);
             if (actor is null) return Redirect("/acceso");
-            if (!ModelState.IsValid) throw new DirectionPlanException("REVIEW_BATCH_INVALID", 422);
+            if (HasReviewBindingErrors()) throw new DirectionPlanException("REVIEW_BATCH_INVALID", 422);
             var selected = Reviews.Where(r => !string.IsNullOrEmpty(r.Result)).ToArray();
             if (selected.Any(r => r.Result is not ("yes" or "no") || r.Result == "no" &&
                 r.Action is not ("MISMA_PERSONA" or "ROL" or "NO_SATISFECHA"))) throw new DirectionPlanException("REVIEW_INVALID", 422);
-            await supervision.ReviewBatchAsync(actor.Value, selected.Select(r => new SupervisionReview(r.Id, r.Revision,
-                r.Result == "yes" ? "CONCLUIDA" : r.Action, r.Comment)).ToArray(), token);
+            await ReviewActionAsync(actor.Value, selected.Select(r => new SupervisionReview(r.Id, r.Revision,
+                r.Result == "yes" ? "CONCLUIDA" : r.Action, r.Comment, r.Schedule.Value())).ToArray(), stage == "apply", token);
+            if (stage != "apply") { await LoadAsync(actor.Value, null, token); return Page(); }
             ReviewSuccess = $"Se guardó la revisión de {selected.Length} tareas.";
             return Redirect(ViewHref(true));
         }
@@ -61,4 +62,5 @@ public sealed class ReviewCardForm
     public string? Result { get; set; }
     public string Action { get; set; } = "MISMA_PERSONA";
     public string? Comment { get; set; }
+    public CorrectionScheduleForm Schedule { get; set; } = new();
 }

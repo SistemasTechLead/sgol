@@ -24,12 +24,23 @@ public sealed partial class OperationalTaskService
                 a.ReviewStatus, a.ReviewedAt, a.ReviewedBy, a.ReviewComment, a.ReviewDecision,
                 a.ReassignedFromId, a.ReassignmentComment, a.StartsAt }).SingleAsync(token);
         var events = new List<OperationalLifecycleEntry>();
+        var reschedules = await db.AuditEvents.AsNoTracking().Where(e => e.ResourceId == id && e.Action == "OPERATIONAL_CORRECTION_RESCHEDULED").OrderBy(e => e.OccurredAt).ToArrayAsync(token);
+        foreach (var change in reschedules)
+        {
+            var after = change.AfterData!.RootElement;
+            var before = after.GetProperty("Before");
+            string Dates(System.Text.Json.JsonElement data) => $"{TimeZoneInfo.ConvertTime(data.GetProperty("StartsAt").GetDateTimeOffset(), OperationalSchedule.Zone):dd/MM/yyyy HH:mm}–{TimeZoneInfo.ConvertTime(data.GetProperty("DueAt").GetDateTimeOffset(), OperationalSchedule.Zone):dd/MM/yyyy HH:mm}";
+            events.Add(new("REPROGRAMACION", change.OccurredAt, change.ActorUserId, $"{after.GetProperty("Comment").GetString()} · Antes: {Dates(before)} · Ahora: {Dates(after)}", null, null));
+        }
         var transfers = await db.Set<OperationalTransfer>().AsNoTracking().Where(t => t.AssignmentId == id).OrderBy(t => t.At).ToArrayAsync(token);
         foreach (var t in transfers)
             events.Add(new("TRANSFERENCIA", t.At, t.ActorId,
                 $"{t.FromName} → {t.ToName} · {t.ProgressUnits} unidades conservadas · {t.RemainingMinutes} min pendientes · Plazo anterior {TimeZoneInfo.ConvertTime(t.PreviousDueAt, OperationalSchedule.Zone):dd/MM HH:mm}; nuevo {TimeZoneInfo.ConvertTime(t.NewDueAt, OperationalSchedule.Zone):dd/MM HH:mm} · {t.Reason}", null, null));
         if (state.ReassignedFromId is not null)
-            events.Add(new("REASIGNACION", state.StartsAt, null, state.ReassignmentComment, null, null));
+        {
+            var assigned = await db.AuditEvents.AsNoTracking().Where(e => e.ResourceId == id && e.Action == "OPERATIONAL_CORRECTION_ASSIGNED").OrderBy(e => e.OccurredAt).FirstOrDefaultAsync(token);
+            events.Add(new("REASIGNACION", assigned?.OccurredAt ?? state.StartsAt, assigned?.ActorUserId, state.ReassignmentComment, null, null));
+        }
         if (state.CompletedAt is not null)
             events.Add(new(state.CompletionKind ?? "HISTORICO", state.CompletedAt, state.CompletedBy, state.Comment, state.Conclusion, null));
         if (state.ReviewedAt is not null || state.ReviewStatus is "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA")

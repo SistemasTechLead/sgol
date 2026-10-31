@@ -1,0 +1,16 @@
+@model Sgol.Web.Pages.Validations.IndexModel
+@using Sgol.Web.Presentation.MyWork
+@if (Model.Proposal is {} proposal) {
+    <section class="alerta alerta--info" tabindex="-1" data-correction-preview aria-label="Vista previa de revisión" role="status">
+        <p>Vista previa · sin guardar. Confirma en los próximos dos minutos.</p>
+        <p>Si el inicio es inmediato, se ajustará al instante de confirmar, conservando la duración completa. Si ya no cabe en el mismo tramo o hueco, se exigirá otra vista previa.</p>
+        @foreach (var item in proposal.Items) {
+            <p><strong>@if (Model.Validation) { <a href="#review-card-@item.Id.ToString("N")">@item.Name</a> } else { @item.Name }</strong>: @if(item.Error is {} error) { @Sgol.Web.Pages.Validations.IndexModel.Message(error) }
+                else if (item.StartsAt is {} start && item.DueAt is {} due) { <span>@item.PersonName · @MyWorkPresentation.Time(start) – @MyWorkPresentation.Time(due) · @((due-start).TotalMinutes.ToString("0")) min con margen</span> }
+                else { <span>Revisión preparada.</span> }</p>
+        }
+    </section>
+    <input type="hidden" name="PreviewAt" value="@Model.PreviewAt.ToString("O")" />
+    <input type="hidden" name="ReviewFingerprint" value="@Model.ReviewFingerprint" />
+    @if (proposal.Items.All(i => i.Error == null)) { <button type="submit" name="stage" value="apply" class="boton boton--primario" data-correction-apply>Confirmar y guardar</button> }
+}

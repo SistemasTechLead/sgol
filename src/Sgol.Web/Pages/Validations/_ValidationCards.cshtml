@@ -21,9 +21,11 @@
             var editable = (a.StartsAt <= Model.Now || a.CompletedAt is not null) && a.ReviewStatus is not ("CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA");
             var photos = Model.CardPhotos.GetValueOrDefault(a.Id) ?? [];
             var file = $"/mi-trabajo?handler=OperationalFile&id={a.Id:D}";
-            <article class="validation-card" data-validation-card>
+            <article class="validation-card" id="review-card-@a.Id.ToString("N")" data-validation-card>
                 <header class="validation-card__header"><h3>@a.Name</h3></header>
-                @if (Model.FailedReviewId == a.Id) { <p class="alerta alerta--peligro" role="alert">Esta tarea impidió guardar el grupo. Revisa el aviso antes de volver a guardar.</p> }
+                @if (Model.FailedReviewId == a.Id) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+                @if (Model.Proposal?.Items.FirstOrDefault(i => i.Id == a.Id)?.Error is {} localError) { <p class="alerta alerta--peligro" role="alert">@Sgol.Web.Pages.Validations.IndexModel.Message(localError)</p> }
+                @if (Model.CorrectionConflicts.TryGetValue(a.Id, out var conflict)) { <p class="alerta alerta--peligro">@Sgol.Web.Pages.Validations.IndexModel.Message(conflict) <a href="@Model.TaskHref(a.Id)">Reprogramar</a></p> }
                 <div class="validation-card__evidence">
                     @if (a.Requirement == "CHECKLIST") { @if (a.CompletedAt == null) { <p>Borrador del checklist · sin entrega todavía.</p> } <partial name="_ChecklistEvidence" model="@(new Sgol.Web.Presentation.Components.ChecklistEvidenceModel(a.ChecklistJson, a.ChecklistDraftJson, a.Id, true))" /> }
                     @if (a.Comment is not null) { <p class="supervision-text">@a.Comment</p> }
@@ -66,12 +68,12 @@
                             <option value="ROL" selected="@(previous?.Action == "ROL")">@(a.SpecializationId != null ? "Reasignar entre especialistas" : "Reasignar al rol " + SessionPresentation.RoleName(item.Role))</option>
                             <option value="NO_SATISFECHA" selected="@(previous?.Action == "NO_SATISFECHA")">Terminar como no satisfecha</option>
                         </select></label>
-                        <p class="texto-secundario">La corrección se activa ahora dentro del turno, aunque haya otras tareas o la capacidad esté llena. El plazo usa carga más margen y se limita a la salida del tramo vigente. La entrega original se conserva.</p>
+                        <partial name="_ReassignmentSchedule" model="@(new ReassignmentScheduleModel(prefix + ".Schedule", previous?.Schedule ?? new(), Sgol.Planning.Contracts.WeekContract.LocalToday(Model.Now)))" />
                     </div>
                 } else { <p class="badge @Model.Tone(a)">@Model.Status(a)</p> }
             </article>
         }
         </div>
-        <footer class="validation-save"><span data-validation-count role="status" aria-live="polite">Selecciona las tareas que deseas revisar.</span><button class="boton boton--primario" type="submit" data-validation-save disabled>Guardar Revisión</button></footer>
+        <partial name="_ReviewProposal" model="Model" /><footer class="validation-save"><span data-validation-count role="status" aria-live="polite">Selecciona las tareas que deseas revisar.</span><button class="boton boton--primario" type="submit" data-validation-save disabled name="stage" value="preview">Vista previa</button></footer>
     </form>
 </section>

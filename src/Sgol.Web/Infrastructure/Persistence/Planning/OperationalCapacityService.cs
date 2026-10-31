@@ -192,7 +192,7 @@ public sealed partial class OperationalCapacityService(SgolDbContext db, IClock 
         var moves = new List<CapacityMove>();
         var conflicts = new List<PlanningAssignmentConflict>();
         var candidates = ledger.Relevant(worker.Id, change.From, change.Through)
-            .Where(t => t.CompletedAt == null && t.TransferRemainingMinutes == null && worker.EligibleFor(t.AssignedRole, t.SpecializationId) && t.OccasionId == null && (change.TransferStarted || t.ProgressUnits == 0) &&
+            .Where(t => t.CompletedAt == null && t.ReassignedFromId == null && t.TransferRemainingMinutes == null && worker.EligibleFor(t.AssignedRole, t.SpecializationId) && t.OccasionId == null && (change.TransferStarted || t.ProgressUnits == 0) &&
                 (t.SchedulingPolicyId == null || t.DueAt > clock.UtcNow && t.ProgressUnits == 0 && !protectedIds.Contains(t.Id) && (t.StartsAt > clock.UtcNow || selectedActive.Contains(t.Id) || t.OperationalCriticality == "CRITICA")))
             .OrderBy(t => t.SchedulingPolicyId == null ? 3 : OperationalAgenda.Priority(t.OperationalCriticality)).ThenBy(t => t.ProgressUnits > 0).ThenBy(t => t.StartsAt <= clock.UtcNow).ThenByDescending(t => t.StartsAt)
             .ThenByDescending(t => t.RemainingMinutes).ThenBy(t => t.Id).ToArray();
@@ -317,6 +317,12 @@ public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignme
     public TemporalDecision CheckTime(Guid person, OperationalAssignment task, DateTimeOffset? reception = null)
     {
         var decision=Temporal.Evaluate(person,task,Unavailable,reception);
+        if (task.ReassignedFromId != null && decision.Eligible)
+        {
+            var day = WeekContract.LocalToday(task.StartsAt);
+            if (!(Temporal.Day(person, day, false).Intervals ?? []).Any(i => TemporalEligibilityContext.At(day, i.Entry) <= task.StartsAt && task.DueAt <= TemporalEligibilityContext.At(day, i.Exit)))
+                return new(false, "CORRECTION_SCHEDULE_CHANGED");
+        }
         if(!Temporal.Enabled || !decision.Eligible) return decision;
         var worker=Workers.SingleOrDefault(w=>w.Id==person);
         if(worker==null) return decision with { Eligible=false,Reason="SCHEDULE_ACCOUNT_INACTIVE" };

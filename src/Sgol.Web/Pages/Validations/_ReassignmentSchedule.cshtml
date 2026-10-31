@@ -1,0 +1,14 @@
+@model Sgol.Web.Pages.Validations.ReassignmentScheduleModel
+<div data-correction-schedule>
+    <label class="campo"><span class="campo__etiqueta">Cuándo</span><select class="campo__control" name="@(Model.Prefix).Mode" data-correction-mode>
+        <option value="ASAP" selected="@(Model.Value.Mode == "ASAP")">Cuanto antes</option>
+        <option value="FREE" selected="@(Model.Value.Mode == "FREE")">Primer espacio libre</option>
+        <option value="CUSTOM" selected="@(Model.Value.Mode == "CUSTOM")">Personalizada</option>
+    </select></label>
+    <div data-correction-dates class="correction-dates">
+        <button type="button" class="boton boton--secundario" data-correction-tomorrow="@Model.Today.AddDays(1).ToString("yyyy-MM-dd")">Mañana</button>
+        <label class="campo"><span class="campo__etiqueta">Desde</span><input class="campo__control" type="date" name="@(Model.Prefix).From" value="@Model.Value.From?.ToString("yyyy-MM-dd")" min="@Model.Today.ToString("yyyy-MM-dd")" max="@Model.Today.AddDays(7).ToString("yyyy-MM-dd")" /></label>
+        <label class="campo"><span class="campo__etiqueta">Hasta (opcional)</span><input class="campo__control" type="date" name="@(Model.Prefix).Through" value="@Model.Value.Through?.ToString("yyyy-MM-dd")" min="@Model.Today.ToString("yyyy-MM-dd")" max="@Model.Today.AddDays(7).ToString("yyyy-MM-dd")" /></label>
+    </div>
+    <p class="texto-secundario">Hasta @Model.Today.AddDays(7).ToString("dd/MM/yyyy"). Cuanto antes permite coincidir con otras tareas. Las tres opciones permiten superar la carga diaria, siempre dentro de un tramo completo de turno. La entrega original se conserva.</p>
+</div>

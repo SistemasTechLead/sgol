@@ -13,7 +13,7 @@
             if (choice) count++;
             card.classList.toggle('validation-card--selected', Boolean(choice));
             negative.hidden = choice?.value !== 'no';
-            negative.querySelectorAll('textarea, select').forEach(control => {
+            negative.querySelectorAll('textarea, select, input').forEach(control => {
                 control.disabled = negative.hidden;
                 if (control.tagName === 'TEXTAREA') control.required = !negative.hidden;
             });
@@ -35,13 +35,13 @@
             if (!card.querySelector('[data-validation-choice]:checked'))
                 card.querySelectorAll('input, textarea, select').forEach(control => { control.disabled = true; });
         });
-        save.textContent = 'Guardando revisión…';
+        save.textContent = 'Procesando…';
         update();
     });
     window.addEventListener('pageshow', () => {
         submitting = false;
         cards.forEach(card => card.querySelectorAll('input').forEach(control => { control.disabled = false; }));
-        save.textContent = 'Guardar Revisión'; update();
+        save.textContent = 'Vista previa'; update();
     });
     document.querySelector('[data-validation-section]')?.addEventListener('change', event => {
         if (cards.some(card => card.querySelector('[data-validation-choice]:checked')) && !confirm('Hay revisiones sin guardar. ¿Deseas cambiar de apartado y descartarlas?')) {
