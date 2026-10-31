@@ -83,3 +83,9 @@ Las tablas conservan partición normal de palabras y pueden exceder el ancho est
 ## Decisión de tipografía para publicación — 2026-09-30
 
 «Autorizar Georgia como en la vista presentada y excluir The Seasons del repositorio y su historial de publicación». Georgia reemplaza la familia de marca sólo en bienvenida, con respaldo Times New Roman/serif; Poppins OFL conserva toda la operación. Se elimina @font-face y el archivo de The Seasons, también de los commits no publicados enviados. No se distribuye ningún archivo de Georgia. Esta decisión supera el requisito pendiente de derechos de The Seasons mediante su exclusión; los registros anteriores describen la secuencia histórica. No cambia alcance, contratos ni autorización de merge/despliegue.
+
+### Login móvil compacto — 31 de octubre de 2026
+
+Solo el estado `login` de `/acceso`, en pantalla y dentro de `sgol-viewport` hasta 48rem, reúne logo original, ubicación, título «Acceso a SGOL», formulario y versión dinámica. La columna tiene hasta 360 px útiles y márgenes mínimos de 24 px más áreas seguras. Marca/formulario y formulario/versión se separan 24 px; título/ayuda y etiqueta/control, 8 px; grupos de campos, 16 px. Inputs y acción principal tienen al menos 48 px; Mostrar/Ocultar mantiene su fila y área existente.
+
+La superficie elevada es continua. El conjunto se centra verticalmente cuando cabe y crece hacia abajo con desplazamiento documental cuando falta altura. No hay alto fijo ni scroll anidado. Título y versión móviles excluyen sus variantes de escritorio mediante CSS. Escritorio y otros pasos de acceso conservan su composición y contratos. Esta precisión sustituye la ubicación histórica de versión únicamente para login móvil. Evidencia y límites: [plan de acceso móvil](../desarrollo/cambios/plan-acceso-movil-centrado-2026-10-31.md).

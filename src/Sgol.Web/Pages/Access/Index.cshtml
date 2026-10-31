@@ -2,6 +2,7 @@
 @model Sgol.Web.Pages.Access.IndexModel
 @{
     ViewData["SkipSession"] = true;
+    var systemVersion = typeof(Sgol.Web.Pages.Access.IndexModel).Assembly.GetName().Version?.ToString(3);
     ViewData["Title"] = Model.Stage switch
     {
         "password" => "Cambiar contraseña",
@@ -12,15 +13,24 @@
         _ => "Acceso",
     };
 }
-<div class="bienvenida-acceso"><aside class="bienvenida-acceso__marca">
-    <div><img class="marca-loretta__logo" src="~/images/loretta.svg" alt="Loretta · Zapatería" /><p class="version-sistema">Versión del sistema · @(typeof(Sgol.Web.Pages.Access.IndexModel).Assembly.GetName().Version?.ToString(3))</p></div>
+<div class="bienvenida-acceso @(Model.Stage == "login" ? "bienvenida-acceso--login" : null)"><aside class="bienvenida-acceso__marca">
+    <div><img class="marca-loretta__logo" src="~/images/loretta.svg" alt="Loretta · Zapatería" /><p class="version-sistema">Versión del sistema · @systemVersion</p></div>
     <div><h2>Tu espacio<br />de trabajo.</h2><p class="bienvenida-acceso__ubicacion">Loretta · LOR-001<br />Delicias, Chihuahua</p></div>
     <div class="bienvenida-acceso__simbolo"><partial name="_Icon" model='@("shield")' /></div>
 </aside>
 <section class="acceso" aria-labelledby="acceso-titulo">
     <p class="contexto-acceso">Acceso a SGOL</p>
     <header class="encabezado-pagina">
-        <h1 id="acceso-titulo" class="encabezado-pagina__titulo">@ViewData["Title"]</h1>
+        <h1 id="acceso-titulo" class="encabezado-pagina__titulo">
+            @if (Model.Stage == "login")
+            {
+                <span class="acceso__titulo-escritorio">@ViewData["Title"]</span><span class="acceso__titulo-movil">Acceso a SGOL</span>
+            }
+            else
+            {
+                @ViewData["Title"]
+            }
+        </h1>
     </header>
 
     @if (Model.ErrorTitle is not null)
@@ -150,4 +160,8 @@
             break;
     }
 </section>
+@if (Model.Stage == "login")
+{
+    <p class="version-sistema acceso__version-movil">Versión del sistema · @systemVersion</p>
+}
 </div>

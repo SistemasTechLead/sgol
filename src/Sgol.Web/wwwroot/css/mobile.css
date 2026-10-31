@@ -1,4 +1,5 @@
 /* Mobile presentation only. The container also honours the saved mobile view. */
+.acceso__titulo-movil, .acceso__version-movil { display: none; }
 .mobile-fold-toggle, .mobile-record-toggle, .mobile-section-nav, .mobile-day-picker { display: none; }
 
 /* Keep automatic phone composition when rotated, without changing a saved
@@ -209,4 +210,45 @@
     .report-dialog iframe { height: 50dvh; }
 }
 
+}
+
+/* Compact login only: auto margins centre content only while it fits. */
+@media screen {
+@container sgol-viewport (max-width: 48rem) {
+    .pagina-acceso .aplicacion:has(.bienvenida-acceso--login) { min-height: 0; }
+    .pagina-acceso .contenido-principal:has(> .bienvenida-acceso--login) {
+        display: flex; flex-direction: column; align-items: center;
+        min-height: 100vh; min-height: 100dvh;
+        padding: calc(var(--espacio-24) + env(safe-area-inset-top))
+                 calc(var(--espacio-24) + env(safe-area-inset-right))
+                 calc(var(--espacio-24) + env(safe-area-inset-bottom))
+                 calc(var(--espacio-24) + env(safe-area-inset-left));
+        background: var(--color-superficie-elevada);
+    }
+    .bienvenida-acceso--login {
+        display: flex; flex-direction: column; flex: none;
+        width: 100%; max-width: 360px; min-height: 0; margin-block: auto;
+        gap: var(--espacio-24); border: 0; border-radius: 0;
+        box-shadow: none; overflow: visible; background: transparent;
+    }
+    .bienvenida-acceso--login .bienvenida-acceso__marca {
+        padding: 0; gap: var(--espacio-8); justify-content: flex-start;
+    }
+    .bienvenida-acceso--login .marca-loretta__logo { width: 144px; max-width: 100%; height: auto; }
+    .bienvenida-acceso--login .bienvenida-acceso__ubicacion { margin: 0; }
+    .bienvenida-acceso--login .bienvenida-acceso__marca .version-sistema,
+    .bienvenida-acceso--login .contexto-acceso,
+    .bienvenida-acceso--login .acceso__titulo-escritorio { display: none; }
+    .bienvenida-acceso--login .acceso__titulo-movil { display: inline; }
+    .bienvenida-acceso--login .acceso { padding: 0; gap: var(--espacio-8); }
+    .bienvenida-acceso--login .encabezado-pagina { margin: 0; }
+    .bienvenida-acceso--login .encabezado-pagina__titulo { margin: 0; }
+    .bienvenida-acceso--login .acceso__ayuda { margin: 0; }
+    .bienvenida-acceso--login .acceso__formulario { margin: var(--espacio-16) 0 0; gap: var(--espacio-16); }
+    .bienvenida-acceso--login .campo { gap: var(--espacio-8); }
+    .bienvenida-acceso--login .campo__control,
+    .bienvenida-acceso--login .acceso__formulario > .boton { min-height: 48px; }
+    .bienvenida-acceso--login .campo__control { font-size: max(16px, 1rem); }
+    .bienvenida-acceso--login .acceso__version-movil { display: block; margin: 0; text-align: center; }
+}
 }
