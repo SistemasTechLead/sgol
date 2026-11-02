@@ -7,7 +7,7 @@ using Sgol.Web.Presentation.Navigation;
 namespace Sgol.Web.Pages.Board;
 
 public sealed class IndexModel(IRazorSessionState sessions, LiveBoardReader board,
-    Sgol.Web.Infrastructure.Persistence.Identity.ScreenDeviceService? screenDevices = null) : PageModel
+    Sgol.Web.Infrastructure.Persistence.Identity.ScreenDeviceService? screenDevices = null, TaskBonusService? bonus = null) : PageModel
 {
     [BindProperty(SupportsGet = true)] public Guid? Plan { get; set; }
     [BindProperty(SupportsGet = true, Name = "task")] public string? TaskFilter { get; set; }
@@ -42,7 +42,7 @@ public sealed class IndexModel(IRazorSessionState sessions, LiveBoardReader boar
                     await Response.Body.FlushAsync(token);
                     break;
                 }
-                var current = await board.ReadAsync(session.UserId, Plan, token, SelectedTask);
+                var current = await WithBonusAsync(await board.ReadAsync(session.UserId, Plan, token, SelectedTask), session.UserId, token);
                 if (current.Now >= session.AbsoluteExpiresAt)
                 {
                     await Response.WriteAsync("event: expired\ndata: {}\n\n", token);
@@ -75,8 +75,13 @@ public sealed class IndexModel(IRazorSessionState sessions, LiveBoardReader boar
         var session = await sessions.GetAsync(token);
         if (session is null) return Redirect("/acceso");
         if (!ModelState.IsValid || !ValidFilter) return BadRequest();
-        try { Snapshot = (await board.ReadAsync(session.UserId, Plan, token, SelectedTask)) with { StateFilter = StateFilter }; }
+        try { Snapshot = (await WithBonusAsync(await board.ReadAsync(session.UserId, Plan, token, SelectedTask), session.UserId, token)) with { StateFilter = StateFilter }; }
         catch (DirectionPlanException e) { return StatusCode(e.Status); }
         return refresh ? Partial("_BoardContent", Snapshot) : Page();
+    }
+    private async Task<LiveBoardSnapshot> WithBonusAsync(LiveBoardSnapshot snapshot, Guid actor, CancellationToken token)
+    {
+        if (bonus == null || Sgol.Web.Infrastructure.Authentication.ScreenAuthentication.IsScreen(User)) return snapshot;
+        return snapshot with { Bonuses = await bonus.BoardAsync(actor, snapshot.WeekStartsOn, token) };
     }
 }

@@ -66,6 +66,7 @@ public sealed partial class IndexModel
     private async Task LoadOperationalAsync(Guid actor, CancellationToken token)
     {
         OperationalNow = HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow;
+        await LoadBonusAsync(actor, token);
         try {
             var service = HttpContext.RequestServices.GetRequiredService<OperationalTaskService>();
             var page = await service.MinePageAsync(actor, Request.Query["WorkSearch"], Sgol.Web.Presentation.Navigation.ListPage.Read(Request, "WorkPage"), OperationalNow, token);

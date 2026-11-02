@@ -1,0 +1,33 @@
+@page "/supervision/bono-tareas"
+@model Sgol.Web.Pages.Validations.BonusModel
+@{ ViewData["Title"] = "Porcentaje para el bono"; }
+<section class="bonus-supervision" data-bonus-feed="@Url.Page("/Validations/Bonus", "Snapshot", new { Week = Model.SelectedWeek.ToString("yyyy-MM-dd") })">
+    <header class="encabezado-pagina"><h1>Porcentaje para el bono</h1><partial name="_SectionNavigation" model='@("supervision")' /></header>
+    <form method="get" class="bonus-week"><label for="bonus-week">Semana evaluada</label><select id="bonus-week" name="Week" class="campo__control">
+        <option value="@Model.CurrentWeek.ToString("yyyy-MM-dd")" selected="@(Model.SelectedWeek == Model.CurrentWeek)">Actual · @Model.CurrentWeek.ToString("dd/MM")–@Model.CurrentWeek.AddDays(6).ToString("dd/MM")</option>
+        <option value="@Model.CurrentWeek.AddDays(-7).ToString("yyyy-MM-dd")" selected="@(Model.SelectedWeek == Model.CurrentWeek.AddDays(-7))">Anterior · @Model.CurrentWeek.AddDays(-7).ToString("dd/MM")–@Model.CurrentWeek.AddDays(-1).ToString("dd/MM")</option>
+        @if (Model.SelectedWeek < Model.CurrentWeek.AddDays(-7)) { <option selected value="@Model.SelectedWeek.ToString("yyyy-MM-dd")">@Model.SelectedWeek.ToString("dd/MM/yyyy")–@Model.SelectedWeek.AddDays(6).ToString("dd/MM/yyyy")</option> }
+    </select><button class="boton boton--secundario" type="submit">Ver semana</button></form>
+    @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+    <p data-bonus-status role="status" aria-live="polite"></p>
+    @if (Model.Results.Length == 0) { <p>No hay colaboradores con una evaluación completa dentro de tus permisos.</p> }
+    @foreach (var result in Model.Results) {
+        <section class="bonus-person" data-bonus-person="@result.PersonId"><header><h2>@result.PersonName</h2><partial name="_TaskBonusGauge" model="@(new TaskBonusGaugeViewModel(result))" /></header>
+            <details class="bonus-detail"><summary>Tareas y cambios del resultado · @result.Details.Length obligaciones</summary>
+                <div class="tabla-contenedor"><table class="tabla"><caption>Base y descuentos de @result.PersonName, semana @result.Period.StartsOn.ToString("dd/MM/yyyy")</caption><thead><tr><th scope="col">Tarea / día evaluado</th><th scope="col">Clasificación</th><th scope="col">Base</th><th scope="col">Descuento</th><th scope="col">Motivo</th></tr></thead><tbody data-bonus-rows>
+                @foreach (var task in result.Details) { <tr><th scope="row"><a href="/validaciones?task=@task.AssignmentId">@task.TaskCode · @task.Name</a><small>@task.Day.ToString("dd/MM/yyyy")</small></th><td>@task.Criticality</td><td>@task.Points</td><td>@task.Deducted</td><td>@task.Reason
+                    <small>@(task.SubmittedAt is {} sent ? (task.CreditKind == "ADMIN_COMPLETION" ? "Conclusión administrativa: " : "Envío: ") + TimeZoneInfo.ConvertTime(sent, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("dd/MM HH:mm") : "Sin envío acreditado")</small>
+                    @foreach (var fact in task.Events) { <small>@TimeZoneInfo.ConvertTime(fact.At, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("dd/MM HH:mm") · @TaskBonusGaugeViewModel.EventLabel(fact.Kind) @fact.Reason</small> }
+                </td></tr> }
+                </tbody></table></div>
+                @if (Model.Director && !result.Closed && result.Details.Length > 0) {
+                    <form method="post" asp-page-handler="Exclude" class="bonus-exclusion"><input type="hidden" name="Week" value="@Model.SelectedWeek.ToString("yyyy-MM-dd")" /><input type="hidden" name="Person" value="@result.PersonId" />
+                        <label>Excepción de Dirección: retirar obligación completa de la base<select class="campo__control" name="Obligation">@foreach (var task in result.Details.Where(d => d.Points > 0)) { <option value="@task.ObligationId">@task.TaskCode · @task.Day.ToString("dd/MM") · @task.Name</option> }</select></label>
+                        <label>Motivo<input class="campo__control" name="Reason" required minlength="5" maxlength="1000" /></label><button class="boton boton--secundario" type="submit">Excluir del bono con motivo</button>
+                    </form>
+                }
+            </details>
+        </section>
+    }
+</section>
+@section Scripts { <script src="~/js/task-bonus.js" asp-append-version="true"></script> }

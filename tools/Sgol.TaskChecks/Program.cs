@@ -34,6 +34,7 @@ if (args.Contains("--performance-regressions")) { await PerformanceRegressionChe
 if (args.Contains("--performance-media")) { await PerformanceMediaChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-media")); return; }
 if (args.Contains("--performance-scanner")) { await PerformanceScannerChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-scanner")); await PerformanceScannerChecks.RunHostComparisonAsync(PerformanceLoadChecks.ArtifactDirectory("performance-scanner")); return; }
 if (args.Contains("--checklist-rules")) { ChecklistChecks.Rules(); return; }
+if (args.Contains("--bonus-rules")) { TaskBonusChecks.Rules(); return; }
 if (args.Contains("--carryover-rules")) { CarryoverChecks.Rules(); return; }
 if (args.Contains("--postponement-rules")) { PostponementChecks.Rules(); return; }
 if (args.Contains("--scheduling-rules-only")) { OperationalSchedulingChecks.Rules(); return; }
@@ -55,7 +56,20 @@ var options = new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connection)
 await using var db = new SgolDbContext(options);
 var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Contains("--process-schema-only") ? await SequenceSchemaChecks.Snapshot(db) : null;
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
+var bonusBeforeMigration = args.Contains("--bonus-migration") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--bonus-migration")) {
+    if (bonusBeforeMigration != System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync())) throw new Exception("Bonus migration changed operational assignments");
+    var assignments = await db.OperationalAssignments.IgnoreQueryFilters().CountAsync();
+    var facts = await db.Set<TaskBonusFact>().CountAsync(f => f.Kind == "BASELINE");
+    if (facts != assignments) throw new Exception("Bonus backfill missed or duplicated existing assignments");
+    await db.Database.MigrateAsync();
+    if (await db.Set<TaskBonusFact>().CountAsync(f => f.Kind == "BASELINE") != facts || db.Database.HasPendingModelChanges()) throw new Exception("Bonus migration is not repeatable or model differs");
+    Console.WriteLine($"PASS bonus migration: {assignments} assignments preserved including retired/completed; one baseline each; repeated migration unchanged; model matches.");
+    return;
+}
+if (args.Contains("--bonus-http")) { await TaskBonusChecks.Run(db, args.Contains("--ui")); return; }
+if (args.Contains("--bonus-process")) { await ProcessRuntimeChecks.RunAsync(db, preparePlan:true, bonusChecks:true); return; }
 if (args.Contains("--task-catalog-filters")) { await TaskCatalogFilterChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--performance-browser-workload")) { await PerformanceIntegrityChecks.SeedBrowserWorkloadAsync(db); return; }
 if (args.Contains("--performance-integrity")) { await PerformanceIntegrityChecks.RunAsync(db); return; }

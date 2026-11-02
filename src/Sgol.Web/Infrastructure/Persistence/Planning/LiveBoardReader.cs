@@ -35,6 +35,7 @@ public sealed record LiveBoardSnapshot(DateTimeOffset Now, DateOnly Day, Guid? P
     IReadOnlyList<LiveBoardDeadline>? WeeklyDeadlines = null, string? StateFilter = null,
     IReadOnlyList<LiveBoardTask>? AllTasks = null)
 {
+    public IReadOnlyDictionary<Guid, TaskBonusResult> Bonuses { get; init; } = new Dictionary<Guid, TaskBonusResult>();
     public static IReadOnlyList<string> States { get; } = ["scheduled", "active", "warning", "urgent", "overdue", "delivered"];
     public static string StateLabel(string state) => state switch {
         "scheduled" => "Por activar", "active" => "Activa", "warning" => "Último 30% del tiempo",
@@ -58,7 +59,8 @@ public sealed record LiveBoardSnapshot(DateTimeOffset Now, DateOnly Day, Guid? P
         Day.ToDateTime(TimeOnly.MinValue).ToString("dddd", CultureInfo.GetCultureInfo("es-MX")));
     public string Time(DateTimeOffset instant) => TimeZoneInfo.ConvertTime(instant, OperationalSchedule.Zone)
         .ToString("dd/MM/yyyy · HH:mm", CultureInfo.InvariantCulture);
-    public string Version => System.Text.Json.JsonSerializer.Serialize(new { Day, PlanId, TaskId, Plans, Tasks, DayTasks, WeeklyDeadlines, BoardTasks });
+    public string Version => System.Text.Json.JsonSerializer.Serialize(new { Day, PlanId, TaskId, Plans, Tasks, DayTasks, WeeklyDeadlines, BoardTasks,
+        BonusVersions = Bonuses.OrderBy(b => b.Key).Select(b => b.Value.ResultVersion) });
 }
 
 public sealed class LiveBoardReader(SgolDbContext db, IClock clock)

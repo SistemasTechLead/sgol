@@ -1,0 +1,36 @@
+@model TaskBonusGaugeViewModel
+@using System.Globalization
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@{
+    var r = Model.Result;
+    var key = $"bonus-{r.PersonId:N}-{r.Period.StartsOn:yyyyMMdd}";
+    var score = r.ScorePercent?.ToString(CultureInfo.InvariantCulture);
+}
+<details class="task-bonus @(Model.Compact ? "task-bonus--compact" : "")" data-task-bonus data-person="@r.PersonId" data-week="@r.Period.StartsOn.ToString("yyyy-MM-dd")" data-score="@score" data-version="@r.ResultVersion" id="@key">
+    <summary aria-label="Bono de tareas de @r.PersonName: calificación @Model.Score; bono conservado @(r.BonusPercent?.ToString() ?? "sin resultado"). Ver periodo y explicación">
+        <svg class="task-bonus__gauge" viewBox="0 0 64 38" aria-hidden="true" focusable="false">
+            <path class="task-bonus__track" d="M6 32 A26 26 0 0 1 58 32" pathLength="100" />
+            <path class="task-bonus__band task-bonus__band--low" d="M6 32 A26 26 0 0 1 58 32" pathLength="100" stroke-dasharray="85 100" />
+            <path class="task-bonus__band task-bonus__band--middle" d="M6 32 A26 26 0 0 1 58 32" pathLength="100" stroke-dasharray="10 100" stroke-dashoffset="-85" />
+            <path class="task-bonus__band task-bonus__band--high" d="M6 32 A26 26 0 0 1 58 32" pathLength="100" stroke-dasharray="5 100" stroke-dashoffset="-95" />
+            <g class="task-bonus__needle" style="transform:rotate(@(((r.ScorePercent ?? 0) * 1.8m).ToString(CultureInfo.InvariantCulture))deg)" visibility="@(r.ScorePercent.HasValue ? "visible" : "hidden")"><path d="M32 32 L9 32" /><circle cx="32" cy="32" r="2.5" /></g>
+        </svg>
+        <span class="task-bonus__values">
+            <span class="task-bonus__score" role="@(r.ScorePercent.HasValue ? "meter" : null)" aria-label="Calificación semanal" aria-valuemin="@(r.ScorePercent.HasValue ? "0" : null)" aria-valuemax="@(r.ScorePercent.HasValue ? "100" : null)" aria-valuenow="@score"><span class="task-bonus__label">Calif.</span> <strong data-bonus-score>@Model.Score@(r.ScorePercent.HasValue ? "%" : "")</strong></span>
+            <span class="task-bonus__retained">Bono <strong data-bonus-retained>@(r.BonusPercent.HasValue ? r.BonusPercent + "%" : "—")</strong></span>
+            @if (!Model.Compact) { <small class="task-bonus__period">@r.Period.StartsOn.ToString("d MMM", CultureInfo.GetCultureInfo("es-MX"))–@r.Period.EndsOn.ToString("d MMM", CultureInfo.GetCultureInfo("es-MX")) · <span data-bonus-state>@Model.State</span></small> }
+        </span>
+        <span class="task-bonus__info" aria-hidden="true"><partial name="_Icon" model='@("info")' /></span>
+    </summary>
+    <div class="task-bonus__explanation">
+        <strong>Bono de tareas</strong>
+        <p>Calificación semanal, no avance de tareas ni bono total. Componente de tareas conservado: <span data-bonus-retained>@(r.BonusPercent.HasValue ? r.BonusPercent + "%" : "sin resultado calculable")</span>.</p>
+        <p>Evalúa del @r.Period.StartsOn.ToString("dd/MM/yyyy") al @r.Period.EndsOn.ToString("dd/MM/yyyy"). Cierre: lunes @r.Period.StartsOn.AddDays(7).ToString("dd/MM/yyyy") a las 12:00, America/Mexico_City. Sábado de referencia: @r.Period.PaymentReferenceDate.ToString("dd/MM/yyyy").</p>
+        @if (r.Period.StartsOn == TaskBonusCalculator.FirstWeek) { <p>No corresponde al sábado 7 de noviembre.</p> }
+        <p><span data-bonus-base>@r.EvaluablePoints</span> puntos evaluables; <span data-bonus-deducted>@r.DeductedPoints</span> descontados.</p>
+        <p>95–100% conserva 100%; 85–menos de 95% conserva 50%; menos de 85% conserva 0%. Se compara sin redondear.</p>
+        <p>Flexible: 1 punto; Importante: 5; Crítica: 10. La Flexible enviada al día siguiente pierde la mitad. El domingo termina la ejecución; corregir el lunes no recupera puntos.</p>
+        <p data-bonus-incidences>@string.Join(" ", r.Incidences)</p>
+        <small>Calculado <time data-bonus-at datetime="@r.CalculatedAt.ToString("O")">@TimeZoneInfo.ConvertTime(r.CalculatedAt, OperationalSchedule.Zone).ToString("dd/MM HH:mm:ss")</time></small>
+    </div>
+</details>

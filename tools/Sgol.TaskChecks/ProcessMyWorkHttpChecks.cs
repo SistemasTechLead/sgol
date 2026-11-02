@@ -20,7 +20,7 @@ using Sgol.Web.Presentation.Navigation;
 
 public static class ProcessMyWorkHttpChecks
 {
-    public static async Task RunAsync(SgolDbContext db, Guid actor, Guid runId, IFormFile pdf)
+    public static async Task RunAsync(SgolDbContext db, Guid actor, Guid runId, IFormFile pdf, IClock? testClock = null)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (!File.Exists(Path.Combine(root.FullName, "SistemaSGOL.slnx"))) root = root.Parent ?? throw new Exception("Source root not found.");
@@ -38,7 +38,7 @@ public static class ProcessMyWorkHttpChecks
         builder.Services.AddSgolApiClient(builder.Configuration, builder.Environment);
         builder.Services.AddScoped<RazorAntiforgeryBridge>(); builder.Services.AddSingleton<AccessNotice>();
         builder.Services.AddDbContext<SgolDbContext>(o => o.UseNpgsql(db.Database.GetConnectionString()));
-        builder.Services.AddSingleton<IClock>(new Clock()); builder.Services.AddSingleton<IUuidGenerator, Uuid7Generator>();
+        builder.Services.AddSingleton<IClock>(testClock ?? new Clock()); builder.Services.AddSingleton<IUuidGenerator, Uuid7Generator>();
         builder.Services.AddScoped<AuditTransaction>(); builder.Services.AddScoped<IDirectionPreparedPlanService, EfDirectionPreparedPlanService>();
         builder.Services.AddScoped<IDirectionPlanningCatalogReader, DirectionPlanningCatalogReader>();
         builder.Services.AddScoped<OperationalTaskService>(); builder.Services.AddScoped<OperationalProcessCatalogService>();

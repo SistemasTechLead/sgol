@@ -6,6 +6,7 @@ namespace Sgol.Web.Presentation.Components;
 public sealed record BoardProgressViewModel(string Key, string Label, DateOnly StartsOn,
     IReadOnlyList<LiveBoardDeadline> Deadlines, DateTimeOffset Now, Guid? PersonId = null)
 {
+    public TaskBonusResult? Bonus { get; init; }
     public LiveBoardPace Pace => LiveBoardPace.ForDeadlines(Deadlines, Now);
     public int Delivered => Deadlines.Count(t => t.CompletedAt is not null);
     public int Percent => Deadlines.Count == 0 ? 0 : (int)(100L * Delivered / Deadlines.Count);

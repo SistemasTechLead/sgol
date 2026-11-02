@@ -21,10 +21,24 @@ using Sgol.Web.Infrastructure.Persistence.Validation;
 
 namespace Sgol.Web.Infrastructure.Persistence;
 
-public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConfiguration? configuration = null) : DbContext(options)
+public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConfiguration? configuration = null,
+    Sgol.BuildingBlocks.Time.IClock? bonusClock = null) : DbContext(options)
 {
+    internal readonly HashSet<Guid> PendingBonusFacts = [];
+    internal readonly HashSet<Guid> PendingBonusAvailability = [];
+    internal readonly Dictionary<Guid, DateOnly> PendingBonusExclusions = [];
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        TaskBonusPersistence.Capture(this, bonusClock?.UtcNow ?? DateTimeOffset.UtcNow);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        TaskBonusPersistence.Capture(this, bonusClock?.UtcNow ?? DateTimeOffset.UtcNow);
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
-        optionsBuilder.AddInterceptors(OperationalLockTelemetry.Instance);
+        optionsBuilder.AddInterceptors(OperationalLockTelemetry.Instance, new TaskBonusCommitInterceptor(() => bonusClock?.UtcNow ?? DateTimeOffset.UtcNow));
     public bool LegacyWorkflowEnabled => configuration?.GetValue<bool>("LegacyWorkflow:Enabled") == true;
     public DbSet<OperationalAttachment> OperationalAttachments => Set<OperationalAttachment>();
     public DbSet<StoredPlanCapacityAdjustment> PlanCapacityAdjustments => Set<StoredPlanCapacityAdjustment>();
@@ -126,6 +140,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        TaskBonusPersistence.Configure(modelBuilder);
         modelBuilder.HasDbFunction(typeof(Sgol.Web.Presentation.Search.SearchText).GetMethod(nameof(Sgol.Web.Presentation.Search.SearchText.SqlNormalize))!).HasName("sgol_search");
         modelBuilder.ApplyConfiguration(new OperationalTransferConfiguration());
         modelBuilder.ApplyConfiguration(new OperationalCarryoverConfiguration());

@@ -17,10 +17,13 @@ using Sgol.Web.Infrastructure.Persistence.Planning;
 
 public static class ProcessRuntimeChecks
 {
-    public static async Task RunAsync(SgolDbContext db,bool seedOnly=false,bool preparePlan=false,bool reassignment=false,bool deletion=false,bool crossRole=false,bool myWorkOnly=false)
+    public static async Task RunAsync(SgolDbContext db,bool seedOnly=false,bool preparePlan=false,bool reassignment=false,bool deletion=false,bool crossRole=false,bool myWorkOnly=false,bool bonusChecks=false)
     {
         if(await db.People.AnyAsync()) throw new Exception("Runtime checks require an empty dedicated database.");
         var clock=new Clock(); var scanner=new Scanner(); var validator=new FileTechnicalValidator();
+        if (bonusChecks) clock.UtcNow = new DateTimeOffset(2026,11,2,18,0,0,TimeSpan.Zero);
+        await using var economicDb = bonusChecks ? new SgolDbContext(new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(db.Database.GetConnectionString()).Options, bonusClock: clock) : null;
+        if (economicDb != null) db = economicDb;
         var direction=new EfDirectionPreparedPlanService(db,new AuditTransaction(db),clock,new Uuid7Generator(clock),new DirectionPlanningCatalogReader(db));
         var tasks=new OperationalTaskService(db,direction,clock,validator,scanner);
         var config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["Processes:OperationsEnabled"]="true" }).Build();
@@ -48,7 +51,9 @@ public static class ProcessRuntimeChecks
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         foreach(var old in await db.OperationalTasks.AsNoTracking().ToArrayAsync()) { await tasks.ChangeAsync(users[3],old.Id,old.Revision,true,default); db.ChangeTracker.Clear(); }
         var root=Guid.CreateVersion7(); await catalog.CreateAsync(users[3],root,"Ejemplo: Chequeo de inventario","Demostración sin inventario ni participantes reales. Sizes & Colors se revisa manualmente.",default); db.ChangeTracker.Clear();
-        var loads=new[] {360,60,60,60}; var taskIds=new Guid[4];
+        // The bonus fixture needs a same-day return that fits the authorized schedule.
+        // Keep the original long inventory fixture for all existing operational checks.
+        var loads=bonusChecks ? new[] {60,60,60,60} : new[] {360,60,60,60}; var taskIds=new Guid[4];
         for(var i=0;i<4;i++)
         {
             var rule=OperationalSequenceRules.InventoryPilot[i];
@@ -79,7 +84,7 @@ public static class ProcessRuntimeChecks
             if(deletion) await ProcessPlanDeletionChecks.PreparedAsync(db, direction, planning, users, planInput);
             Check(!await db.OperationalAssignments.AnyAsync() && !await db.Set<OperationalSequenceRun>().AnyAsync(),"Prepared process plan reserves workload without enabling tasks or creating a run");
             var preparedLedger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,default);
-            Check(preparedLedger.Tasks.Length==4 && preparedLedger.Tasks.Sum(t=>t.LoadMinutes)==540,"Prepared plan reserves all four stages exactly once");
+            Check(preparedLedger.Tasks.Length==4 && preparedLedger.Tasks.Sum(t=>t.LoadMinutes)==loads.Sum(),"Prepared plan reserves all four stages exactly once");
             Check(await planning.PrepareAsync(users[3],planInput,default)==plan && await db.Set<PreparedProcessStart>().CountAsync()==1,"Prepared plan retry keeps one process start"); db.ChangeTracker.Clear();
             var activated=await planning.ActivateAsync(users[3],plan,default); db.ChangeTracker.Clear(); run=activated.Single();
             Check((await planning.ActivateAsync(users[3],plan,default)).Single()==run && await db.OperationalAssignments.CountAsync()==1,"Activating a process plan starts only its first stage and is idempotent"); db.ChangeTracker.Clear();
@@ -100,7 +105,7 @@ public static class ProcessRuntimeChecks
         Check((await tasks.MinePageAsync(users[0], null, 1, clock.UtcNow, default)).Items.Single().PendingProcessRunId == null,
             "Enabled stage appears once as an effective task and other people's reservations stay private");
         var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,default);
-        Check(ledger.Tasks.Length==4 && ledger.Tasks.Sum(t=>t.LoadMinutes)==540,"Capacity accounts for first assignment and three reservations exactly once");
+        Check(ledger.Tasks.Length==4 && ledger.Tasks.Sum(t=>t.LoadMinutes)==loads.Sum(),"Capacity accounts for first assignment and three reservations exactly once");
         if(seedOnly)
         {
             Directory.CreateDirectory("outputs/procesos");
@@ -145,7 +150,23 @@ public static class ProcessRuntimeChecks
         if(!preparePlan && !reassignment) Check(await processes.StartAsync(users[3],root,key,start,people,default)==run && await db.OperationalAssignments.CountAsync()==1,"Starting retry does not duplicate the execution"); db.ChangeTracker.Clear();
         async Task Decide(int user,string decision,string conclusion,string? differences=null,IFormFile? pdf=null,Guid? replayKey=null,Guid? oldAttempt=null,long? oldRevision=null)
         {
-            var view=await processes.ReadAsync(users[user],run,default); var stage=view.Stages.Single(s=>s.Position==view.Run.ActivePosition); var attempt=view.Attempts.Single(a=>a.Id==stage.CurrentAttemptId);
+            var view=await processes.ReadAsync(users[user],run,default); var stage=view.Stages.Single(s=>s.Position==view.Run.ActivePosition);
+            if (bonusChecks) {
+                clock.UtcNow = new[] { stage.PlannedStartsAt, stage.EligibleAt ?? clock.UtcNow, clock.UtcNow }.Max();
+                await processes.TickAsync(default); db.ChangeTracker.Clear();
+                view = await processes.ReadAsync(users[user], run, default); stage = view.Stages.Single(s => s.Position == view.Run.ActivePosition);
+                for (var day = 0; stage.Status == "PENDIENTE_ASIGNACION" && day < 7; day++) {
+                    clock.UtcNow = OperationalSchedule.Instant(WeekContract.LocalToday(clock.UtcNow).AddDays(1), 9);
+                    await processes.TickAsync(default); db.ChangeTracker.Clear();
+                    view = await processes.ReadAsync(users[user], run, default); stage = view.Stages.Single(s => s.Position == view.Run.ActivePosition);
+                    if (stage.Status == "PROGRAMADA") {
+                        clock.UtcNow = new[] { stage.PlannedStartsAt, stage.EligibleAt ?? clock.UtcNow, clock.UtcNow }.Max();
+                        await processes.TickAsync(default); db.ChangeTracker.Clear();
+                        view = await processes.ReadAsync(users[user], run, default); stage = view.Stages.Single(s => s.Position == view.Run.ActivePosition);
+                    }
+                }
+            }
+            var attempt=view.Attempts.Single(a=>a.Id==stage.CurrentAttemptId);
             await processes.DecideAsync(users[user],run,oldAttempt??attempt.Id,oldRevision??attempt.Revision,replayKey??Guid.CreateVersion7(),decision,conclusion,differences,pdf,true,default); db.ChangeTracker.Clear();
         }
         IFormFile Pdf(string version)
@@ -157,8 +178,8 @@ public static class ProcessRuntimeChecks
         }
         var first=await processes.ReadAsync(users[0],run,default); var floorAttempt=first.Attempts.Single(a=>a.Id==first.Stages[0].CurrentAttemptId);
         await Reject(()=>tasks.CompleteAsync(users[0],floorAttempt.AssignmentId!.Value,null,Pdf("v1"),default,"No saltar flujo"),"PROCESS_USE_ACTION"); db.ChangeTracker.Clear();
-        await ProcessMyWorkHttpChecks.RunAsync(db, users[0], run, Pdf("v1")); db.ChangeTracker.Clear();
-        if (myWorkOnly) {
+        await ProcessMyWorkHttpChecks.RunAsync(db, users[0], run, Pdf("v1"), bonusChecks ? clock : null); db.ChangeTracker.Clear();
+        if (myWorkOnly || bonusChecks) {
             var scheduled = (await processes.ReadAsync(users[1], run, default)).Stages.Single(s => s.Position == 2);
             Check((await tasks.MinePageAsync(users[1], null, 1, clock.UtcNow, default)).Items.Single().PendingProcessStatus == "PROGRAMADA",
                 "Dependency completion preserves the scheduled row until its reserved start");
@@ -189,10 +210,22 @@ public static class ProcessRuntimeChecks
         var file=await tasks.FileAsync(users[3],closed.Documents[0].AssignmentId,default);
         Check(file.FileContent?.Length>0,"Contextual access can consult V1 after final acceptance");
         var finalLedger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,default);
-        Check(finalLedger.Tasks.Length==0,"Completed process leaves no duplicate reservations or pending assignments");
+        if (bonusChecks) {
+            Check(finalLedger.Tasks.All(t => t.CompletedAt != null && t.DueAt > clock.UtcNow) &&
+                finalLedger.Tasks.Select(t => t.Id).Distinct().Count() == finalLedger.Tasks.Length,
+                "Completed process retains only unexpired completed work blocks, without duplicate reservations or pending assignments");
+        } else Check(finalLedger.Tasks.Length==0,"Completed process leaves no duplicate reservations or pending assignments");
         await processes.TickAsync(default); db.ChangeTracker.Clear();
         Check(await db.OperationalAssignments.CountAsync()==(reassignment?7:6),"Timer restart does not duplicate effective assignments");
         if(deletion) await ProcessPlanDeletionChecks.CompletedAsync(db, direction, users, run);
+        if (bonusChecks)
+        {
+            var facts = await db.Set<TaskBonusFact>().AsNoTracking().ToArrayAsync();
+            var stageFacts = facts.Where(f => f.Kind != "HANDOFF" && System.Text.Json.JsonSerializer.Deserialize<TaskBonusAssignmentSnapshot>(f.SnapshotJson)!.ProcessStageId != null).ToArray();
+            var obligations = TaskBonusService.Materialize(stageFacts, [], [], clock.UtcNow.AddDays(15), clock.UtcNow.AddDays(15));
+            Check(obligations.Length == 4, "B19 bono: cuatro etapas disponibles, sin puntos por reservas ni por proceso completo");
+            Check(stageFacts.Select(f => f.AssignmentId).Distinct().Count() > obligations.Length, "B11/B19 bono: devolución real crea intentos pero conserva una obligación por etapa");
+        }
     }
     private static void Check(bool value,string text) { if(!value) throw new Exception("FAILED: "+text); Console.WriteLine("PASS: "+text); }
     private static async Task Reject(Func<Task> action,string code) { try { await action(); throw new Exception("Expected: "+code); } catch(Sgol.Planning.Contracts.DirectionPlanException e) when(e.Code==code) { Console.WriteLine("PASS: Rejected "+code); } }

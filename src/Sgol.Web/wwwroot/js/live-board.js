@@ -145,11 +145,15 @@
             const previousProgress = new Map([...root.querySelectorAll('[data-progress-key]')].map(progress => [
                 progress.dataset.progressKey, { percent: Number(progress.dataset.progressPercent), period: progress.dataset.progressPeriod }
             ]));
+            const openBonus = [...root.querySelectorAll('[data-task-bonus][open]')].map(g => g.id);
+            const focusedBonus = document.activeElement?.closest('[data-task-bonus]')?.id;
             root.replaceChildren(template.content);
             animateProgress(previousProgress);
             synchronize(); colors();
             root.querySelector('.board-viewport').scrollTop = scroll;
             if (focused) root.querySelector(`#${focused}`).focus({ preventScroll: true });
+            openBonus.forEach(id => { const gauge = document.getElementById(id); if (gauge) gauge.open = true; });
+            if (focusedBonus) document.getElementById(focusedBonus)?.querySelector('summary')?.focus({ preventScroll: true });
             notice.hidden = true;
             retryAfter = 0;
             const actualPlan = root.querySelector('[data-plan]').dataset.plan;

@@ -2,7 +2,7 @@
 
 Fecha: 02/11/2026 · zona operativa America/Mexico_City.
 
-Estado: planificación de un cambio mixto; no implementación. Complementa [las decisiones de cálculo](bono-tareas-decisiones-frontend-api-2026-11-02.md). Las respuestas del usuario recogidas aquí prevalecen en los puntos que precisan. No aplicar propuestas contradictorias del diagnóstico inicial.
+Estado: cambio mixto implementado en el checkout; ejecución y límites registrados en la sección 11. Sin push ni migración manual del entorno compartido. Complementa [las decisiones de cálculo](bono-tareas-decisiones-frontend-api-2026-11-02.md). Las respuestas del usuario recogidas aquí prevalecen en los puntos que precisan. No aplicar propuestas contradictorias del diagnóstico inicial.
 
 ## 1. Alcance y decisiones confirmadas durante este plan
 
@@ -170,7 +170,7 @@ Protocolo obligatorio para el implementador: ante un caso ambiguo, detener solo 
 
 ## 9. Matriz de escenarios y evidencia futura
 
-Todos los escenarios siguientes están **propuestos, no ejecutados**. U=calculador con reloj controlado; I=base aislada `sgol_task_checks_*` y servicios/formularios HTTP reales; N=navegador de aplicación real sobre I. C=consulta futura de contrato, sin endpoint externo implementado. Cada ejecución deberá añadir comando, fixture, resultado observado y evidencia local sin secretos.
+Esta tabla conserva la matriz originalmente propuesta. Su estado de ejecución se registra en la sección 11, que prevalece sobre la columna histórica «Propuesto». U=calculador con reloj controlado; I=base aislada `sgol_task_checks_*` y servicios/formularios HTTP reales; N=navegador de aplicación real sobre I. C=consulta futura de contrato, sin endpoint externo implementado.
 
 | ID | Precondición y acción | Resultado esperado | Prueba/entorno | Estado |
 |---|---|---|---|---|
@@ -215,4 +215,109 @@ Reutilizar fixtures y recorridos pertinentes de `tools/Sgol.TaskChecks`: `Correc
 
 Calificación idéntica en las tres vistas para persona/semana/versión; número siempre entendible, fecha de efecto explícita, sin duplicar puntos ni modificar operación. Mi trabajo conserva entrega real y retorno; Supervisión explica causas; Tablero personal mantiene altura y quiosco excluye datos. Cierres estables y reconstruibles, históricos y completadas conservados.
 
-Revisar diff, compilar proyectos afectados y ejecutar matriz proporcional al riesgo. Registrar aprobados/fallidos/no ejecutados/no aplicables con evidencia o razón. No afirmar validación completa mientras haya ambigüedades económicas o pruebas críticas pendientes. No confundir diseño estático, maqueta, prueba de componente y flujo real. Este documento es el entregable actual; no certifica implementación, base, pruebas ni despliegue.
+Revisar diff, compilar proyectos afectados y ejecutar matriz proporcional al riesgo. Registrar aprobados/fallidos/no ejecutados/no aplicables con evidencia o razón. No afirmar validación completa mientras haya ambigüedades económicas o pruebas críticas pendientes. No confundir diseño estático, maqueta, prueba de componente y flujo real. El registro siguiente distingue implementación, pruebas y activación.
+
+## 11. Implementación y ejecución del 02/11/2026
+
+### Respuestas del usuario durante la implementación
+
+| Decisión | Resolución vigente |
+|---|---|
+| D1 móvil | **Resumen desplegable**, elegido después de presentar tres composiciones en contexto. Tablero conserva el indicador a la derecha. |
+| Plazo multidiario/progreso | Evaluar al finalizar el plazo autorizado. Precisión posterior: si vence el miércoles 4 a las 14:00, el descuento comienza **al terminar ese día**, no a las 14:01. TAR-0021, 2/11 09:00–9/11 00:00, se evalúa al terminar el domingo 8. |
+| Transferencia puntual entre semanas | La obligación cambia a la semana del nuevo plazo autorizado. |
+| Transferencia después de incumplir | El anterior conserva su incumplimiento; el receptor realiza recuperación sin puntos adicionales. |
+| Excepción de Dirección | Retirar la obligación completa de base y descuento. Con A=50/D=10 y obligación de 5, queda A=45/D=5. |
+| Permisos del Tablero | Solo bono propio y de personas que puede supervisar. Las otras barras operativas conservan su visibilidad habitual. |
+| Trabajo sin base | Usar horarios y ausencias como criterio. No se añade formulario de asistencia efectiva. |
+| Conclusión administrativa | `CompletionKind=SUPERVISION` acredita cumplimiento con su fecha; se identifica como conclusión administrativa, no como envío ficticio. |
+| Git | Integrar primero los cambios previos en un commit y dejar el bono en otro. El commit previo es `3756c44`. No se autorizó push. |
+| Watcher existente | El usuario decidió **dejar activo** el `dotnet watch` externo y aceptar sus recargas. No se aplican las migraciones a la base compartida ni se ejecuta despliegue manual. |
+
+### Código y conservación operativa
+
+- `TaskBonusCalculator.cs`: periodos, puntos, descuentos, umbrales decimales, incidencias y cierre. La cifra visible se formatea en servidor para no redondear hacia un tramo superior.
+- `TaskBonusPersistence.cs`, `TaskBonusCommitInterceptor.cs` y `SgolDbContext.cs`: hechos independientes capturados al guardar y confirmados en la misma transacción. Devoluciones, transferencias y eliminaciones conservan identidad económica. El interceptor fecha la visibilidad al confirmar, y rechaza una excepción de Dirección que cruza el corte.
+- `TaskBonusService.cs`: consulta por lote, permisos existentes, materialización de obligaciones, cierre inmutable y worker recuperable. La clasificación original se conserva; reservas de procesos no generan puntos y sus intentos comparten la identidad de etapa.
+- `_TaskBonusGauge.cshtml`, `task-bonus.css/js`: componente compartido con porcentaje prioritario, ayuda, movimiento reducido y resumen móvil desplegable. Mi trabajo conserva sus formularios y retorno; Supervisión añade resumen/detalle y excepción auditada; Tablero consulta solo en sesión personal y preserva la altura.
+- API externa: [propuesta separada](bono-tareas-contrato-externo-propuesto-2026-11-02.md); sin endpoint externo, consumidor, pagos ni credenciales de integración.
+
+La consulta no cambia cargas, responsables, revisión ni plazos. El inventario inicial encontró 780 asignaciones, 246 con inicio en 2–8/11, y 10 retiradas en total. Las completadas forman parte del backfill. Se conservan snapshots anteriores como soporte de linaje, pero no entran como obligaciones nuevas desde noviembre. `DifferentPeople` corresponde a distribución de repeticiones; no acredita participación compartida por minutos y no se usa para dividir puntos.
+
+### Entornos y evidencia reproducible
+
+PostgreSQL comprobado en `localhost:5440`. Base compartida: `sgol_local`, consultada sin aplicar las migraciones del bono. Las bases usadas para regresión comienzan con `sgol_task_checks_bonus_`; el ejecutable rechaza otros destinos. El host HTTP de pruebas usa `https://localhost:7296`, sesiones sintéticas aisladas y las páginas, binding, antiforgery, permisos y servicios reales. No certifica el proveedor de autenticación real ni un despliegue LAN. Los archivos locales pueden contener datos simulados: no se publican ni se incluyen en Git.
+
+Comandos de prueba, después de cargar la conexión dedicada desde el almacén local de secretos sin imprimirla:
+
+```powershell
+dotnet build tools/Sgol.TaskChecks --artifacts-path .local/bonus-build-v3 -m:1
+dotnet .local/bonus-build-v3/bin/Sgol.TaskChecks/debug/Sgol.TaskChecks.dll --bonus-rules
+dotnet .local/bonus-build-v3/bin/Sgol.TaskChecks/debug/Sgol.TaskChecks.dll --bonus-migration
+dotnet .local/bonus-build-v3/bin/Sgol.TaskChecks/debug/Sgol.TaskChecks.dll --bonus-http
+dotnet .local/bonus-build-v3/bin/Sgol.TaskChecks/debug/Sgol.TaskChecks.dll --bonus-process
+dotnet .local/bonus-build-v3/bin/Sgol.TaskChecks/debug/Sgol.TaskChecks.dll --bonus-http --ui
+node tools/Sgol.MobileChecks/task-bonus-flow-checks.cjs .local/bonus-20261102
+node tools/Sgol.MobileChecks/task-bonus-correction-checks.cjs .local/bonus-20261102
+node tools/Sgol.MobileChecks/task-bonus-checks.cjs .local/bonus-20261102
+node tools/Sgol.MobileChecks/task-bonus-resilience-checks.cjs .local/bonus-20261102
+```
+
+`--bonus-process` requiere una base vacía; `--bonus-migration`, una copia previa a las migraciones; `--ui` deja el host encendido y escribe `fixture.json`. Las pruebas de navegador de entrega y corrección se ejecutan en ese orden sobre fixtures nuevos. Playwright se resuelve mediante el `NODE_PATH` del runtime local. La prueba de layouts no debe ejecutarse al mismo tiempo que las que cambian el reloj.
+
+### Matriz ejecutada
+
+| ID | Estado y evidencia concreta |
+|---|---|
+| B01 | Calculador aprobado: seis Importantes = 30. Creación persistida y generador real cubiertos en `TaskBonusCoverageChecks`. |
+| B02 | Aprobado en calculador: 90→50, 85/95 exactos y decimales inferiores; formato del servidor evita salto visual de tramo. |
+| B03–B04 | Aprobado I/N: pendientes futuros dan 100 provisional; formulario NINGUNO envía sin requisito nuevo; envío puntual conserva valor y no anima. |
+| B05–B07 | Aprobado U/I: mitad/total, sustitución sin acumulación, domingo y recuperación sábado-domingo; progreso completo enviado en recuperación mantiene medio punto. |
+| B08–B09 | Aprobado U/I: pendiente de revisión al corte, rechazo anterior y posterior, consulta de cierre persistido no cambia. |
+| B10 | Aprobado I/N: devolución real, corrección real del lunes sin recuperar puntos; corrección dentro del día sí recupera el resultado real y anima. |
+| B11 | Aprobado I en corrección enlazada e intentos de proceso; arrastre autorizado comprobado por suite adicional. |
+| B12–B13 | Aprobado I: transferencia puntual y posterior al incumplimiento con entrega real del receptor; cruce a semana del nuevo plazo aprobado en materialización con reloj. No se ejecutó ese cruce concreto mediante navegador. |
+| B14 | Aprobado U/I: retirada persistida anterior, cancelación tardía en reglas y eliminación real con vista previa/confirmación; sobreviven hechos, transferencia y cierre. No se repitió toda la edición del catálogo y retiro masivo en navegador. |
+| B15 | Aprobado I: formulario real de excepción, motivo, auditoría, CSRF, reintento y cierre inmutable. |
+| B16 | Aprobado I/N: entrega real sale de pendientes y permanece en detalle/base; el proceso concluido conserva sus cuatro obligaciones. |
+| B17 | Aprobado U/I: horarios, rango de vigencia, ausencias, sin base calculable y sin trabajo; no inventa 0%/100% de calificación. |
+| B18 | Aprobado I: meta incompleta rechaza entrega, avance no es envío, plazo multidiario y envío final real; NINGUNO por formulario HTTP y navegador. PDF real de proceso en B19. No se ejecutaron aquí todos los tipos de cámara/checklist/borrador. |
+| B19 | Aprobado I: plan de proceso, reserva, activación, PDF por formulario, devolución, nuevo intento, aprobación y conclusión; cuatro obligaciones, sin puntos por reservas ni por proceso completo. |
+| B20 | Calculador aprobado con participaciones explícitas 6/4. **No aplicable I**: no se encontró productor operativo de participación compartida 60/40; no se inventa a partir de `DifferentPeople`. |
+| B21 | Aprobado I: clasificación, ausencia y cancelación en una misma transacción conservan la base y descuento originales. También se verifican vigencia de horario y ausencia por separado. Es prueba de persistencia; no se presentan esos cambios como un formulario operativo único. |
+| B22–B23 | Aprobado I: migración de 780 asignaciones completas/retiradas sin modificar sus datos, repetición idempotente y modelo coincidente; primera semana/sábado, consultas, exclusión y cierre sin duplicación. |
+| B24 | Aprobado I: rollback; cuatro cierres concurrentes con misma versión; revisión guardada 11:59 y confirmada 12:00 permanece operativa pero no entra en cierre económico; una excepción que cruza ese límite se revierte íntegramente. No se ejecutó una barrera concurrente de todos los tipos de formularios a la vez. |
+| B25 | Aprobado I: reconstrucción sin cierre previo ignora revisión tardía; worker real arrancado después del corte cubierto por suite adicional. |
+| B26–B27 | Aprobado N Chromium/WebKit: entrega real sin cambio, devolución/corrección con cambio y animación visible, aviso de retorno, refresco remoto de Supervisión que conserva el motivo en edición. |
+| B28 | Aprobado N: actual/anterior y búsqueda sin resultados con paginación conservan el bono semanal completo. El filtro de plan del Tablero se inspeccionó en código, sin recorrer todas sus combinaciones en navegador. |
+| B29 | Aprobado I/N: propia/supervisión, CSRF, quiosco HTML/refresh y handlers denegados. Las sesiones de prueba son sintéticas; autenticación externa real no cubierta. |
+| B30 | Aprobado N: error/reconexión, sesión revocada, petición retenida más de 10 segundos, una sola consulta en vuelo y respuesta antigua liberada después de cambiar de semana. Conserva último valor y elimina datos al perder acceso. Se simulan eventos de página restaurada; no certifica BFCache físico de Safari. |
+| B31 | Chromium/WebKit, temas light/dark/special y 320/375/768/1280/1920; capturas locales. Prueba compara la altura real de cada barra con/sin indicador. |
+| B32 | Teclado, Escape/foco, texto raíz al 200% y movimiento reducido en navegador. **No ejecutados** lector de pantalla ni Safari/iPhone físico. |
+| B33 | Medianoche/corte aprobados U/I; refresco temporal y SSR sin JavaScript cubiertos N. |
+| B34 | Documentado; **no aplicable como API ejecutada**, por alcance expresamente futuro. |
+
+Los estados parciales anteriores no equivalen a certificar todas las combinaciones de la matriz. Los comandos y logs de la carpeta `.local/bonus-20261102` distinguen cada ejecución fallida y su reejecución.
+
+Resultados consolidados: compilación sin advertencias/errores (`build-final2.log`); **34** comprobaciones del calculador (`rules-final-reviewed.log`); **53** de integración (`http-final-combinations.log`); migración idempotente con **780** asignaciones conservadas (`migration-final.log`); proceso completo (`process-v5.log`); **98** casos de navegador (`browser-reviewed-v2.log`), más **4** recorridos de entrega y corrección (`browser-flow-clean.log`, `browser-correction-clean.log`) y **4** casos de resiliencia (`browser-resilience-final.log`). Los JSON `browser-*-results.json` y capturas correspondientes contienen el detalle por motor y tamaño. Los fallos de layout anteriores permanecen en sus logs; la ejecución aprobada usa una copia de simulación con fixtures nuevos, sin la acumulación de personas de las regresiones destructivas.
+
+### Fallos encontrados y correcciones
+
+- El indicador compacto aumentaba la altura de la barra móvil. Se corrigieron columnas/filas y altura tipográfica; la regresión compara geometría renderizada.
+- La prueba de proceso largo esperaba que una devolución de seis horas cupiera al final del día. Se conservaron las validaciones y el fixture fallido; el fixture de bono usa cuatro etapas de una hora, espera las reservas autorizadas y verifica el recorrido completo. También se actualizó su expectativa: capacidad conserva bloques terminados cuyo plazo aún no termina.
+- La captura inicial al guardar permitía considerar revisión previa al corte aunque la transacción se confirmara después. Se añadió el interceptor y la regresión con reloj cruzando 11:59→12:00.
+- La prueba inicial de desconexión interceptaba un orden de query string distinto del real. Se cambió el matcher a `URL.searchParams`; no se alteró el producto para hacerla pasar.
+- La prueba de horario futuro violó inicialmente la restricción de solapamiento. Se corrigió el rango del fixture, conservando la restricción de base.
+- El fixture inicial de arrastre no tenía política de agenda y fue rechazado por la regla operativa. Se captura una política real en el fixture; no se omite la validación.
+- Una petición retenida podía detener el refresco indefinidamente. Se limita a 10 segundos, se conserva el último dato y se reintenta; respuestas/errores de una navegación anterior no reemplazan el periodo actual.
+- La alineación superior de escritorio entró en conflicto con el modo de texto al 200%. Se usa el mismo container query de la interfaz existente; la matriz vuelve a comprobar reflow y posición junto al título.
+
+### Activación posterior
+
+No se aplicaron a `sgol_local`. Antes de activar esta versión, respaldar y verificar servidor/base efectivos, ejecutar las migraciones con las herramientas habituales y comprobar las tres pantallas en la sesión real:
+
+1. `20261102214221_AddTaskBonusHistory`: hechos y cierres; snapshot inicial de asignaciones y transferencias.
+2. `20261102214431_AddTaskBonusDecisions`: excepciones de Dirección.
+3. `20261102214845_AddTaskBonusAvailabilityHistory`: historial económico de disponibilidad.
+
+El worker cierra periodos vencidos; no borra ni reinicia simulaciones. Una instalación inicial posterior al primer corte que no pueda acreditar el historial produce incidencia, no un porcentaje inventado. El watcher externo queda activo por decisión expresa del usuario; esa recarga automática no sustituye aplicar y verificar las migraciones en el destino autorizado.

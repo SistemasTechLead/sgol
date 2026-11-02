@@ -65,6 +65,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IDirectionPlanningCatalogReader, DirectionPlanningCatalogReader>();
         services.AddScoped<IDirectionPreparedPlanService, EfDirectionPreparedPlanService>();
         services.AddScoped<OperationalTaskService>();
+        services.AddScoped<TaskBonusService>();
+        services.AddHostedService<TaskBonusClosingWorker>();
         services.AddScoped<AssignmentRefreshService>();
         services.AddScoped<OperationalSchedulingPolicyService>();
         services.AddScoped<OperationalWeeklyRepairService>();

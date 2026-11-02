@@ -7,6 +7,17 @@
             <h1 id="mi-trabajo-titulo" class="encabezado-pagina__titulo">Mi trabajo</h1>
             <p class="encabezado-pagina__descripcion">Consulta tus tareas asignadas y entrega la evidencia de tu trabajo.</p>
         </div>
+        @if (Model.Bonus is {} bonus) {
+            <aside class="my-work-bonus" data-bonus-feed="@Url.Page("/MyWork/Index", "Bonus", new { BonusWeek = bonus.Period.StartsOn.ToString("yyyy-MM-dd") })">
+                <partial name="_TaskBonusGauge" model="@(new TaskBonusGaugeViewModel(bonus))" />
+                <form method="get" class="bonus-week"><label class="solo-lectores" for="my-bonus-week">Semana del bono</label><select id="my-bonus-week" name="BonusWeek" class="campo__control">
+                    <option value="@Model.BonusCurrentWeek.ToString("yyyy-MM-dd")" selected="@(bonus.Period.StartsOn == Model.BonusCurrentWeek)">Actual · @Model.BonusCurrentWeek.ToString("d/M")–@Model.BonusCurrentWeek.AddDays(6).ToString("d/M")</option>
+                    <option value="@Model.BonusCurrentWeek.AddDays(-7).ToString("yyyy-MM-dd")" selected="@(bonus.Period.StartsOn != Model.BonusCurrentWeek)">Anterior · @Model.BonusCurrentWeek.AddDays(-7).ToString("d/M")–@Model.BonusCurrentWeek.AddDays(-1).ToString("d/M")</option>
+                </select><button class="boton boton--secundario" type="submit">Ver</button></form>
+                <p data-bonus-status role="status" aria-live="polite"></p>
+            </aside>
+        }
+        @if (Model.BonusError != null) { <p role="status">@Model.BonusError</p> }
         <partial name="_SectionNavigation" model='@("my-work")' />
         @if (Model.ErrorTitle is null)
         {
@@ -33,5 +44,6 @@
     <script src="~/js/camera-capture.js" asp-append-version="true"></script>
     <script src="~/js/occasion-material.js" asp-append-version="true"></script><script src="~/js/assigned-tasks.js" asp-append-version="true"></script>
     <script src="~/js/my-work-timing.js" asp-append-version="true"></script>
+    <script src="~/js/task-bonus.js" asp-append-version="true"></script>
 }
 

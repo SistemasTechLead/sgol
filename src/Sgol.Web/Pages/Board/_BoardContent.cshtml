@@ -57,7 +57,8 @@
         <div class="board-collaborator-progress" role="group" aria-label="Progreso diario por colaborador">
             @foreach (var collaborator in Model.Collaborators) {
                 var progress = new BoardProgressViewModel($"person-{collaborator.Key:N}", collaborator.First().PersonName, Model.Day,
-                    collaborator.Select(t => new LiveBoardDeadline(t.DueAt, t.CompletedAt)).ToArray(), Model.Now, collaborator.Key);
+                    collaborator.Select(t => new LiveBoardDeadline(t.DueAt, t.CompletedAt)).ToArray(), Model.Now, collaborator.Key)
+                    { Bonus = Model.Bonuses.GetValueOrDefault(collaborator.Key) };
                 <partial name="/Pages/Board/_BoardProgress.cshtml" model="progress" />
             }
         </div>

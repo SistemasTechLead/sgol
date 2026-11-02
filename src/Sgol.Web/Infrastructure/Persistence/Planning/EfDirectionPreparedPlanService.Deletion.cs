@@ -45,6 +45,7 @@ public sealed partial class EfDirectionPreparedPlanService
                 }
                 var preview = await DeletionStateAsync(id, ct);
                 if (preview.Fingerprint != fingerprint) throw new DirectionPlanException("PLAN_DELETE_STALE", 409);
+                await TaskBonusPersistence.CaptureDeletionAsync(db, id, clock.UtcNow, ct);
                 await DeleteProcessExecutionAsync(id, actor, key, ct);
                 await db.Set<PreparedProcessStart>().Where(s=>s.PlanId==id).ExecuteDeleteAsync(ct);
                 var adjustments = await CapacityAdjustmentsAsync(id, ct);
