@@ -40,6 +40,7 @@ if (args.Contains("--scheduling-rules-only")) { OperationalSchedulingChecks.Rule
 if (args.Contains("--balance-rules-only")) { DailyBalanceChecks.Run(); return; }
 if (args.Contains("--schedule-rules-only")) { PersonalScheduleChecks.Run(); return; }
 if (args.Contains("--capacity-rules-only")) { CapacityRuleChecks.Run(); return; }
+if (args.Contains("--plan-resolution-rules")) { PlanResolutionChecks.Rules(); return; }
 if (args.Contains("--weekly-flag-rules-only")) { WeeklyOperationsFlagChecks.Run(); return; }
 if(args.Contains("--process-items-rules")) { ProcessItemBoundaryChecks.Run(); return; }
 TaskDescriptionChecks.Run();
@@ -55,6 +56,7 @@ await using var db = new SgolDbContext(options);
 var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Contains("--process-schema-only") ? await SequenceSchemaChecks.Snapshot(db) : null;
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--task-catalog-filters")) { await TaskCatalogFilterChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--performance-browser-workload")) { await PerformanceIntegrityChecks.SeedBrowserWorkloadAsync(db); return; }
 if (args.Contains("--performance-integrity")) { await PerformanceIntegrityChecks.RunAsync(db); return; }
 if (args.Contains("--expired-refresh-current-preview")) { await ExpiredAssignmentRefreshChecks.PreviewCurrentAsync(db); return; }
@@ -79,7 +81,14 @@ if (args.Contains("--monthly-import-only")) { await MonthlyImportChecks.RunAsync
 if (args.Contains("--monthly-distributed-current")) { await DistributedMonthlyChecks.RunAsync(db); return; }
 if (args.Contains("--opening-daily-current")) { await DailyOpeningChecks.RunAsync(db); return; }
 if (args.Contains("--full-weekly-current")) { await FullWeeklyPlanChecks.RunAsync(db); return; }
+if (args.Contains("--weekly-conflict-diagnostic")) { await FullWeeklyPlanChecks.FallbackAsync(db); return; }
+if (args.Contains("--weekly-person-diagnostic")) { await PlanLoadDiagnostic.Run(db); return; }
+if (args.Contains("--new-plan-capacity-checks")) { await NewPlanCapacityChecks.Run(db); return; }
+if (args.Contains("--weekly-plan-moves-http")) { await WeeklyPlanHttpChecks.RunAsync(db, resolveConflicts: true, isolatedFixture: true, moveConflicts: true, ui: args.Contains("--ui")); return; }
+if (args.Contains("--weekly-navigation-http")) { await WeeklyPlanHttpChecks.RunAsync(db, navigationOnly: true, ui: args.Contains("--ui")); return; }
 if (args.Contains("--weekly-plan-http")) { await WeeklyPlanHttpChecks.RunAsync(db); return; }
+if (args.Contains("--weekly-plan-conflict-http")) { await WeeklyPlanHttpChecks.RunAsync(db, expectConflict: true, ui: args.Contains("--ui")); return; }
+if (args.Contains("--weekly-plan-resolutions-http")) { await WeeklyPlanHttpChecks.RunAsync(db, resolveConflicts: true, ui: args.Contains("--ui"), isolatedFixture: args.Contains("--fixture")); return; }
 if(args.Contains("--balance-snapshot-only")) { await DailyBalanceChecks.SnapshotAsync(db); return; }
 if(args.Contains("--process-items-legacy-replay")) { await ProcessItemLegacyReplayChecks.RunAsync(db); return; }
 if(args.Contains("--process-migrate-only")) { Console.WriteLine("Dedicated database migrated; no fixtures or catalogue changes added."); return; }

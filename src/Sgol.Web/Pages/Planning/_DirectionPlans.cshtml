@@ -63,16 +63,42 @@
                     @foreach (var code in Model.DirectionSelectedCodes)
                     {
                         var selectedTask = Model.DirectionTaskOptions.FirstOrDefault(t => t.TaskCode == code);
-                        if (selectedTask is not null) { <tr class="tabla__fila" data-selected-code="@code"><td>@code<input type="hidden" name="taskCodes" value="@code" /></td><td>@selectedTask.Name</td><td>@if (Model.DirectionOperations) { <span>Catálogo del maestro</span> } else { <button type="button" class="boton boton--secundario" data-direction-remove>Quitar del plan</button> }</td></tr> }
+                        if (selectedTask is not null) { <tr class="tabla__fila" data-selected-code="@code"><td>@code<input type="hidden" name="taskCodes" value="@code" /></td><td>@selectedTask.Name
+                            @if (Model.DirectionAssignmentConflict?.TaskCode == code) { <p class="campo__mensaje-error">Pendiente de resolver · no se pudo asignar</p> }
+                        </td><td>@if (Model.DirectionAssignmentConflict?.TaskCode == code) {
+                            <button type="button" class="boton boton--secundario" data-dialog-open aria-haspopup="dialog" aria-controls="direction-conflict-review" aria-label="Revisar @code · @selectedTask.Name">Revisar</button>
+                        } else if (Model.DirectionOperations) { <span>Catálogo del maestro</span> } else { <button type="button" class="boton boton--secundario" data-direction-remove>Quitar del plan</button> }</td></tr> }
                     }
                 </tbody></table></div>
                 <p role="status" aria-live="polite" data-selection-status></p>
                 <input type="hidden" name="searchMultiplier" value="@Model.DirectionSearchMultiplier" />
                 @if (Model.DirectionSearchMultiplier > 1) { <p role="status">El siguiente intento ampliará la búsqueda sobre las mismas restricciones.</p> }
                 <input type="hidden" name="capacityAdjustments" value="@Model.DirectionCapacityJson" data-plan-capacity-values />
+                <input type="hidden" name="occurrenceMoves" value="@Model.DirectionMovesJson" data-plan-moves />
                 <input type="hidden" name="capacityFingerprint" value="@Model.DirectionCapacityFingerprint" data-plan-capacity-fingerprint />
                 <p role="status" aria-live="polite" data-plan-capacity-summary></p>
+                @if (Model.DirectionMoves.Count > 0)
+                {
+                    <section aria-label="Cambios de fecha pendientes"><h3>Cambios de fecha para este plan</h3><ul>
+                    @foreach (var move in Model.DirectionMoves) {
+                        <li>@move.TaskCode · @Model.DirectionTaskOptions.FirstOrDefault(t => t.TaskCode == move.TaskCode)?.Name · @move.FromDay.ToString("dd/MM/yyyy") → @move.ToDay.ToString("dd/MM/yyyy")
+                            <button type="submit" class="boton boton--secundario" name="removeMove" value="@($"{move.TaskCode}/{move.FromDay:yyyy-MM-dd}")">Deshacer cambio de fecha</button>
+                        </li>
+                    }</ul><p>El catálogo no cambia. La nueva fecha y su vencimiento se confirman al guardar el plan.</p></section>
+                }
+                @if (Model.DirectionDatedAdjustments.Count > 0)
+                {
+                    <section aria-label="Ajustes pendientes del plan"><h3>Ajustes que se guardarán con el plan</h3>
+                        <p>La capacidad quedará disponible para todas las asignaciones de la persona en esa fecha. Todavía no se ha guardado ningún ajuste.</p>
+                        <ul>@foreach (var adjustment in Model.DirectionDatedAdjustments) {
+                            <li>@(Model.DirectionResolutionNames.GetValueOrDefault(adjustment.PersonId, "Persona")) · @adjustment.Day?.ToString("dd/MM/yyyy") · @adjustment.Percent% de @adjustment.DailyMinutes min
+                                <button class="boton boton--secundario" type="submit" name="removeResolution" value="@($"{adjustment.PersonId:D}/{adjustment.Day:yyyy-MM-dd}")">Deshacer ajuste</button>
+                            </li>
+                        }</ul>
+                    </section>
+                }
             </form>
+            <partial name="_DirectionConflictReview" model="Model" />
             <dialog id="direction-capacity" class="modal direction-capacity" aria-labelledby="direction-capacity-title">
                 <div class="modal__contenido">
                     <h2 id="direction-capacity-title" class="modal__titulo">Incidencias</h2>

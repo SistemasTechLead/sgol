@@ -203,7 +203,7 @@ public sealed partial class OperationalCapacityService(SgolDbContext db, IClock 
             var previousStart = task.StartsAt; var previousDue = task.DueAt;
             var valid = new List<CapacityPlacementChoice>();
             if (timeConflict && task.SchedulingPolicyId != null && task.GoalUnits == 0 && ledger.Excess(worker.Id, change.From, change.Through) <= 0) {
-                var ownState = new CapacityLedger(ledger.Workers, ledger.Tasks.Where(t => t.Id != task.Id).ToArray(), ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) { Temporal = ledger.Temporal, PlannedChanges = ledger.PlannedChanges, Override = ledger.Override };
+                var ownState = new CapacityLedger(ledger.Workers, ledger.Tasks.Where(t => t.Id != task.Id).ToArray(), ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) { Temporal = ledger.Temporal, ExcludedDemandIds = ledger.ExcludedDemandIds, PlannedChanges = ledger.PlannedChanges, Override = ledger.Override };
                 var ownPlacement = OperationalAgenda.Find(ownState, worker.Id, task, task.OperationalCriticality == "CRITICA" ? task.StartsAt : new[] { task.StartsAt, change.SchedulingNotBefore ?? clock.UtcNow }.Max());
                 if (ownPlacement.Eligible) { OperationalAgenda.Apply(task, ownPlacement); if (ownState.CanAssign(worker.Id, task, task.StartsAt <= clock.UtcNow ? clock.UtcNow : null)) valid.Add(new(worker, ownPlacement, [])); }
                 task.StartsAt = previousStart; task.DueAt = previousDue;
@@ -313,6 +313,7 @@ public sealed partial class OperationalCapacityService(SgolDbContext db, IClock 
 public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignment[] tasks, OperationalCapacity[] capacities,
     HashSet<(Guid, DateOnly)> unavailable, Dictionary<Guid, long> legacy, DateOnly today)
 {
+    public IReadOnlySet<Guid> ExcludedDemandIds { get; init; } = new HashSet<Guid>();
     public TemporalEligibilityContext Temporal { get; init; } = new();
     public TemporalDecision CheckTime(Guid person, OperationalAssignment task, DateTimeOffset? reception = null)
     {
@@ -357,7 +358,7 @@ public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignme
     public CapacityLedger WithAdded(OperationalAssignment task)
     {
         var next = new CapacityLedger(Workers, Tasks.Append(task).ToArray(), Capacities, Unavailable, Legacy, Today)
-            { Temporal = Temporal, PlannedChanges = PlannedChanges, Override = Override };
+            { Temporal = Temporal, ExcludedDemandIds = ExcludedDemandIds, PlannedChanges = PlannedChanges, Override = Override };
         next.capacityByDay = capacityByDay;
         if (dailyLoads != null) {
             next.dailyLoads = new(dailyLoads);
@@ -433,6 +434,7 @@ public sealed class CapacityLedger(CapacityWorker[] workers, OperationalAssignme
     public DateOnly Day(OperationalAssignment t) => DateOnly.FromDayNumber(Math.Max(WeekContract.LocalToday(t.StartsAt).DayNumber, Today.DayNumber));
     public IEnumerable<(DateOnly Day, decimal Minutes)> Footprint(OperationalAssignment t, Guid? person = null)
     {
+        if (ExcludedDemandIds.Contains(t.Id)) return [];
         var start = Day(t);
         if (t.GoalUnits <= 0) return [(start, t.PendingItemDemand is {} demand ? (decimal)demand : (decimal)t.RemainingMinutes)];
         var end = WeekContract.LocalToday(t.DueAt.AddTicks(-1));

@@ -54,7 +54,7 @@ internal static class FullWeeklyPlanChecks
         Check(before==JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().Where(a=>ids.Contains(a.Id)).OrderBy(a=>a.Id).ToArrayAsync()),$"All {original.Length} original assignments retain identity and complete historical state");
         Console.WriteLine($"PASS full weekly lifecycle {saved.Plan.PlanId}; {rows.Length} new assignments ONLY in isolated DB; total {watch.Elapsed.TotalSeconds:F2}s");
     }
-    private static async Task FallbackAsync(SgolDbContext db)
+    internal static async Task FallbackAsync(SgolDbContext db)
     {
         await using var tx=await db.Database.BeginTransactionAsync();
         var day=new DateOnly(2026,10,26);var at=OperationalSchedule.Instant(day,8);
@@ -72,6 +72,38 @@ internal static class FullWeeklyPlanChecks
         var plan=new DirectionPreparedPlan(Guid.CreateVersion7(),Sgol.Organization.Contracts.BranchScope.LorettaId,Guid.CreateVersion7(),at,new("Search fallback","Test","SEMANAL",2026,44,[first.TaskCode,second.TaskCode]));plan.CaptureSchedulingPolicy(policy.Id);
         var rows=await OperationalPlanGenerator.GenerateAsync(db,plan,[first.TaskCode,second.TaskCode],at,default,true,ledger);
         Check(rows.Single(a=>a.TaskId==first.Id).StartsAt==TemporalEligibilityContext.At(day,630)&&rows.Single(a=>a.TaskId==second.Id).StartsAt==TemporalEligibilityContext.At(day,540),"Lazy fallback still backtracks from the greedy choice to preserve the long task's only window");
+        second.LoadMinutes = 180;
+        await db.SaveChangesAsync();
+        var storedCount = await db.OperationalAssignments.CountAsync();
+        try
+        {
+            await OperationalPlanGenerator.GenerateAsync(db,plan,[first.TaskCode,second.TaskCode],at,default,true,ledger);
+            throw new Exception("Expected the forward feasibility check to reject overlapping work");
+        }
+        catch (DirectionPlanException e) when (e.Code == "PLAN_NO_AVAILABLE_WORKER")
+        {
+            Check(e.Data[nameof(PlanningAssignmentConflict)] is PlanningAssignmentConflict c &&
+                c.TaskCode == second.TaskCode && c.Task == second.Name && c.LoadMinutes == 180 &&
+                c.Candidates.Length == 2 && c.Candidates.All(x => x.Day == day && !string.IsNullOrWhiteSpace(x.Reason)),
+                "Forward rejection includes the blocked task, date and reasons for each candidate");
+        }
+        Check(storedCount == await db.OperationalAssignments.CountAsync(), "Rejected search does not persist partial assignments");
+        second.SpecializationId=spec.Id;
+        await db.SaveChangesAsync();
+        try
+        {
+            await OperationalPlanGenerator.GenerateAsync(db,plan,[first.TaskCode,second.TaskCode],at,default,true,ledger);
+            throw new Exception("Expected mandatory daily load to reject before searching");
+        }
+        catch(DirectionPlanException e) when(e.Code=="PLAN_NO_AVAILABLE_WORKER")
+        {
+            Check(e.Data[nameof(PlanningAssignmentConflict)] is PlanningAssignmentConflict c && c.TaskCode==second.TaskCode &&
+                c.Candidates.Length==1 && c.Candidates[0].PersonId==people[0].Id && c.Candidates[0].PendingMinutes==30 && c.Candidates[0].CapacityMinutes==180,
+                "Fixed work with a sole eligible person reports the exact unavoidable daily excess");
+        }
+        first.OperationalCriticality="CRITICA";await db.SaveChangesAsync();
+        try {await OperationalPlanGenerator.GenerateAsync(db,plan,[first.TaskCode,second.TaskCode],at,default,true,ledger,[new(first.TaskCode,day,day.AddDays(1))]);throw new Exception("Critical date moved");}
+        catch(DirectionPlanException e){Check(e.Code=="PLAN_MOVE_INVALID","Generator rejects moving a critical occurrence before scheduling or writing");}
         await tx.RollbackAsync();db.ChangeTracker.Clear();
     }
     private sealed class FixedClock(DateTimeOffset at):IClock{public DateTimeOffset UtcNow=>at;}

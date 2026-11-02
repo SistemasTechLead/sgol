@@ -14,6 +14,7 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
 {
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public Guid? ProcessFilter { get; set; }
+    [BindProperty(SupportsGet = true)] public TaskCatalogFilter Filter { get; set; } = new();
     [BindProperty(SupportsGet = true)] public Guid? ReturnProcess { get; set; }
     public OperationalSequence[] Processes { get; private set; } = [];
     public string ProcessName(Guid id) => Processes.SingleOrDefault(p => p.Id == id)?.Name ?? "Proceso no disponible";
@@ -101,7 +102,12 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
     }
     private async Task LoadPageAsync(Guid actor, CancellationToken token)
     {
-        var page = await tasks.PageAsync(actor, Search, ProcessFilter, ListPage.Read(Request, "PageNumber"), token);
+        if (!Filter.IsValid || ModelState.Any(entry => (entry.Key.StartsWith("Filter.") || entry.Key == nameof(ProcessFilter)) && entry.Value!.Errors.Count > 0))
+        {
+            Error = "Revisa los filtros: selecciona opciones de la lista y un número de repeticiones entre 1 y 100, o limpia los filtros.";
+            return;
+        }
+        var page = await tasks.PageAsync(actor, Search, ProcessFilter, ListPage.Read(Request, "PageNumber"), token, Filter);
         Items = page.Items;
         Pagination = new("PageNumber", page.Page, page.Total, 50, Request);
     }

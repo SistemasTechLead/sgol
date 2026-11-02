@@ -41,7 +41,7 @@ internal static class OperationalPlanBalancer
             var baseTasks = ledger.Tasks.Where(t => !groupIds.Contains(t.Id)).ToArray();
             CapacityLedger WithTasks(OperationalAssignment[] items) => new(ledger.Workers, items, ledger.Capacities,
                 ledger.Unavailable, ledger.Legacy, ledger.Today)
-                { Temporal = ledger.Temporal, PlannedChanges = ledger.PlannedChanges, Override = ledger.Override };
+                { Temporal = ledger.Temporal, ExcludedDemandIds = ledger.ExcludedDemandIds, PlannedChanges = ledger.PlannedChanges, Override = ledger.Override };
             var proposed = WithTasks(baseTasks);
             var choices = tasks.Select(t => (Task: t, Workers: workers.Where(w => Eligible(proposed, w, t)).ToArray()))
                 .OrderBy(t => t.Workers.Length).ThenByDescending(t => t.Task.RemainingMinutes)
@@ -100,7 +100,7 @@ internal static class OperationalPlanBalancer
                         if (gain <= best) continue;
                         var withoutPair = new CapacityLedger(ledger.Workers, ledger.Tasks.Where(t => t.Id != a.Id && t.Id != b.Id).ToArray(),
                             ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today)
-                            { Temporal = ledger.Temporal, PlannedChanges = ledger.PlannedChanges, Override = ledger.Override };
+                            { Temporal = ledger.Temporal, ExcludedDemandIds = ledger.ExcludedDemandIds, PlannedChanges = ledger.PlannedChanges, Override = ledger.Override };
                         if (!Eligible(withoutPair, workers.Single(w => w.Id == b.PersonId), a) ||
                             !Eligible(withoutPair, workers.Single(w => w.Id == a.PersonId), b)) continue;
                         best = gain; left = a; right = b;

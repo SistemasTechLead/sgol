@@ -305,7 +305,9 @@
     // revealed synchronously before native form validation tries to focus them.
     const reveal = element => {
         for (let parent = element.parentElement; parent; parent = parent.parentElement) {
-            if (parent.matches('details')) parent.open = true;
+            // Focusing a summary must not open its own disclosure before the native
+            // click toggles it, otherwise the first tap immediately closes it again.
+            if (parent.matches('details') && element.closest('summary')?.parentElement !== parent) parent.open = true;
             if (parent.matches('.mobile-fold-target')) {
                 parent.classList.add('mobile-fold-open');
                 document.querySelector(`[aria-controls~="${parent.id}"]`)?.setAttribute('aria-expanded', 'true');

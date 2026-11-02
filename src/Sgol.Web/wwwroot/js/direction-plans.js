@@ -5,6 +5,16 @@
     if (!document.querySelector("#direction-plan-confirm")) document.getElementById("direction-plan-error")?.focus();
     const form = root.querySelector("[data-direction-create]");
     if (!form) return;
+    const reviewDialog = root.querySelector('#direction-conflict-review');
+    reviewDialog?.addEventListener('keydown', event => {
+        if (event.key !== 'Tab') return;
+        const controls = [...reviewDialog.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), summary')]
+            .filter(control => control.getClientRects().length > 0);
+        if (!controls.length) return;
+        const index = controls.indexOf(document.activeElement);
+        event.preventDefault();
+        controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length].focus();
+    });
     document.getElementById("direction-plan-confirm")?.addEventListener("close", () => root.querySelector('button[form="direction-create-form"][type="submit"]')?.focus());
     const search = form.querySelector("#direction-search");
     const options = [...form.querySelectorAll("[data-task-option]")];
@@ -26,6 +36,7 @@
         catch { capacityValues.value = "[]"; capacityFingerprint.value = ""; }
     }
     function invalidateCapacity() {
+        const moves = form.querySelector('[data-plan-moves]'); if (moves) moves.value = '[]';
         if (capacityFingerprint.value) capacitySummary.textContent = "Las tareas o el periodo cambiaron. Vuelve a revisar Asignar cargas de trabajo.";
         capacityValues.value = "[]"; capacityFingerprint.value = ""; capacityState = null; capacityDailyDraft = null; capacityRequest++;
     }
@@ -92,7 +103,7 @@
                     const cell = document.createElement("td");
                     const input = document.createElement("input"); input.className = "campo__control"; input.type = "number";
                     input.min = 0; input.max = worker.percent; input.step = 1; input.required = true; input.dataset.capacityDay = day;
-                    input.value = dailyDraft[worker.personId]?.[day] ?? saved.find(a => a.personId === worker.personId)?.percent ?? worker.percent;
+                    input.value = dailyDraft[worker.personId]?.[day] ?? saved.find(a => a.personId === worker.personId && !a.day)?.percent ?? worker.percent;
                     input.setAttribute("aria-label", `Capacidad de ${worker.name}, ${day}, porcentaje entre 0 y ${worker.percent}`);
                     input.addEventListener("input", update); inputs.push(input); cell.append(input); row.append(cell);
                 });
@@ -112,8 +123,10 @@
         const rows = [...capacityWorkers.querySelectorAll("[data-capacity-person]")];
         capacityDailyDraft = { fingerprint: capacityState.fingerprint, workers: Object.fromEntries(rows.map(row => [row.dataset.capacityPerson,
             Object.fromEntries([...row.querySelectorAll("[data-capacity-day]")].map(input => [input.dataset.capacityDay, Number(input.value)]))])) };
+        const dated = JSON.parse(capacityValues.value || "[]").filter(a => a.day);
         const values = rows.map(row => ({ personId: row.dataset.capacityPerson, percent: Number(row.querySelector("[data-capacity-total]").dataset.percent) }))
             .filter(a => a.percent !== capacityState.workers.find(w => w.personId === a.personId).percent);
+        values.push(...dated);
         capacityValues.value = JSON.stringify(values); capacityFingerprint.value = values.length ? capacityState.fingerprint : "";
         describeCapacity(); capacityDialog.close();
     });

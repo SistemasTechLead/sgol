@@ -97,6 +97,7 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                     : new { normalized.Name, normalized.Area, normalized.PeriodType, normalized.Year, normalized.PeriodNumber, normalized.TaskCodes,
                         normalized.CapacityAdjustments, normalized.CapacityFingerprint, normalized.SchedulingNotBefore, normalized.SchedulingSearchMultiplier };
                 if (normalized.RollingMonthStartsOn != null) hashInput = new { RollingMonth = normalized };
+                if (normalized.OccurrenceMoves is { Count: > 0 }) hashInput = new { Request = hashInput, normalized.OccurrenceMoves };
                 var hash = IdempotencyProtocol.HashCanonical(Operation, actor.ToString("D"), BranchScope.LorettaCode, hashInput);
                 var replay = await db.IdempotencyRecords.FromSqlInterpolated($"SELECT * FROM idempotency_record WHERE scope = {scope} AND key = {key} FOR UPDATE")
                     .AsNoTracking().SingleOrDefaultAsync(ct);
@@ -177,6 +178,15 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                     }
                     plan.MarkAssigned();
                     db.OperationalAssignments.AddRange(assignments);
+                    foreach (var move in normalized.OccurrenceMoves ?? [])
+                    {
+                        var taskId = await db.OperationalTasks.Where(t => t.TaskCode == move.TaskCode).Select(t => t.Id).SingleAsync(ct);
+                        var moved = assignments.Single(a => a.TaskId == taskId && a.ScheduleKey == $"{taskId:N}:{move.FromDay:yyyyMMdd}:0");
+                        db.AuditEvents.Add(new AuditEvent { Id = ids.NewUuid(), ActorUserId = actor, ActorType = "USER", OccurredAt = at,
+                            ResourceId = moved.Id, ResourceType = "OPERATIONAL_ASSIGNMENT", BranchId = BranchScope.LorettaId,
+                            Action = "PLAN_OCCURRENCE_MOVED", Outcome = "SUCCESS", CorrelationId = correlation,
+                            AfterData = JsonSerializer.SerializeToDocument(new { plan.Id, move, moved.PersonId, moved.StartsAt, moved.DueAt, Reason = "Excepción de fecha flexible elegida al preparar el plan" }) });
+                    }
                     var tasks = activeCodes.Select((code, index) => new DirectionPreparedPlanItem(plan.Id, code, options[code].Name, index)).ToArray();
                     db.DirectionPreparedPlanItems.AddRange(tasks);
                     saved = new("CREATED", plan.Details(tasks.Select(t => new DirectionPlanTask(t.TaskCode, t.Name)).ToArray()) with {

@@ -5,9 +5,13 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 internal static class OperationalPlanGenerator
 {
-    private sealed record Occurrence(OperationalTask Task, DateOnly Day, int Slot, MonthlyOccurrence? Monthly = null);
+    private sealed record Occurrence(OperationalTask Task, DateOnly Day, int Slot, MonthlyOccurrence? Monthly = null)
+    {
+        public DateOnly SourceDay { get; init; } = Day;
+    }
     public static async Task<OperationalAssignment[]> GenerateAsync(SgolDbContext db, DirectionPreparedPlan plan,
-        IReadOnlyList<string> codes, DateTimeOffset now, CancellationToken token, bool allowReserved = false, CapacityLedger? preparedLedger = null)
+        IReadOnlyList<string> codes, DateTimeOffset now, CancellationToken token, bool allowReserved = false, CapacityLedger? preparedLedger = null,
+        IReadOnlyList<PlanOccurrenceMove>? moves = null)
     {
         using var timing = Sgol.Web.Infrastructure.Http.PerformanceWork.Measure("planning.generate");
         var tasks = await db.OperationalTasks.AsNoTracking().Where(t => codes.Contains(t.TaskCode) && t.Active && !t.Deleted).ToArrayAsync(token);
@@ -53,6 +57,19 @@ internal static class OperationalPlanGenerator
         var taskIds = tasks.Select(t => t.Id).ToArray();
         var existing = await db.OperationalAssignments.AsNoTracking().Where(a => taskIds.Contains(a.TaskId) && a.ReassignedFromId == null)
             .Select(a => new { a.TaskId, a.StartsAt, a.ScheduleKey, a.PersonId }).ToArrayAsync(token);
+        foreach (var move in moves ?? [])
+        {
+            var original = occurrences.SingleOrDefault(o => o.Task.TaskCode == move.TaskCode && o.SourceDay == move.FromDay);
+            if (policy is not { AgendaVersion: >= 2 } || original == null || original.Monthly != null ||
+                original.Task.ScheduleMode != "DIAS_FIJOS" || original.Task.OperationalCriticality != "FLEXIBLE" ||
+                move.FromDay < ledger.Today || move.ToDay <= move.FromDay || move.ToDay < plan.StartsOn || move.ToDay > plan.EndsOn ||
+                WeeklyBoardSnapshot.Monday(move.FromDay) != WeeklyBoardSnapshot.Monday(move.ToDay) ||
+                occurrences.Any(o => o != original && o.Task.Id == original.Task.Id && o.Day == move.ToDay) ||
+                existing.Any(a => a.TaskId == original.Task.Id && (a.ScheduleKey == $"{original.Task.Id:N}:{move.FromDay:yyyyMMdd}:{original.Slot}" ||
+                    WeekContract.LocalToday(a.StartsAt) == move.FromDay || WeekContract.LocalToday(a.StartsAt) == move.ToDay)))
+                throw new DirectionPlanException("PLAN_MOVE_INVALID", 422);
+            occurrences = occurrences.Select(o => o == original ? o with { Day = move.ToDay } : o).ToArray();
+        }
         if (policy != null && !plan.IsWeeklyOperationsPlan)
         {
             // An elapsed critical anchor is a dated notice, never a repetition to move
@@ -97,9 +114,42 @@ internal static class OperationalPlanGenerator
                     var placement = OperationalAgenda.Find(ledger, w.Id, probe, notBefore);
                     var intervals = ledger.Temporal.Day(w.Id, occurrence.Day, ledger.Temporal.UsesCoverageSchedule(probe)).Intervals;
                     var hours = intervals == null ? "Sin configurar" : intervals.Length == 0 ? "Descanso" : string.Join(" · ", intervals.Select(i => $"{i.Entry / 60:00}:{i.Entry % 60:00}–{i.Exit / 60:00}:{i.Exit % 60:00}"));
-                    return new PlanningCandidateConflict(occurrence.Day, probe.StartsAt, w.Name, placement.Eligible ? "PLAN_CAPACITY_EXCEEDED" : placement.Reason, hours, ledger.DayLoad(w.Id, occurrence.Day), ledger.DayCapacity(w.Id, occurrence.Day)) { NominalDueAt = probe.DueAt };
+                    return new PlanningCandidateConflict(occurrence.Day, probe.StartsAt, w.Name, placement.Eligible ? "PLAN_CAPACITY_EXCEEDED" : placement.Reason, hours, ledger.DayLoad(w.Id, occurrence.Day), ledger.DayCapacity(w.Id, occurrence.Day)) { PersonId = w.Id, NominalDueAt = probe.DueAt };
                 }).ToArray();
                 throw new DirectionPlanException("PLAN_NO_AVAILABLE_WORKER", 422) { Data = { [nameof(PlanningAssignmentConflict)] = new PlanningAssignmentConflict(task.TaskCode, task.Name, task.LoadMinutes, rejected) } };
+            }
+        }
+        // These fixed occurrences cannot move to another date or another person.
+        // Their sum is a necessary lower bound, regardless of search order or time slots.
+        // Reject that proven daily excess before exploring equivalent permutations.
+        if (reflow)
+        {
+            var mandatory = occurrences.Where(o => o.Monthly == null && !Distributed(o.Task) &&
+                o.Task.ScheduleMode != "PROGRESO" && o.Day >= ledger.Today && eligibleWorkers[o.Task.Id].Length == 1 &&
+                !reservedKeys.Contains($"{o.Task.Id:N}:{o.Day:yyyyMMdd}:{o.Slot}") &&
+                existing.Count(a => a.ScheduleKey == null && a.TaskId == o.Task.Id && WeekContract.LocalToday(a.StartsAt) == o.Day) <= o.Slot);
+            foreach (var group in mandatory.GroupBy(o => (Person: eligibleWorkers[o.Task.Id][0].Id, o.Day)).OrderBy(g => g.Key.Day))
+            {
+                var demand = group.Sum(o => (decimal)o.Task.LoadMinutes);
+                var capacity = ledger.DayCapacity(group.Key.Person, group.Key.Day);
+                var load = ledger.DayLoad(group.Key.Person, group.Key.Day);
+                if (load + demand <= capacity) continue;
+                var blocked = group.OrderByDescending(o => o.Task.LoadMinutes).ThenBy(o => o.Task.TaskCode).First();
+                var worker = eligibleWorkers[blocked.Task.Id][0];
+                var probe = new OperationalAssignment { TaskId = blocked.Task.Id, TaskCode = blocked.Task.TaskCode, LoadMinutes = blocked.Task.LoadMinutes, ScheduleMode = blocked.Task.ScheduleMode };
+                OperationalAgenda.Capture(probe, policy!, blocked.Task.OperationalCriticality, blocked.Task.StartOn(blocked.Day));
+                var intervals = ledger.Temporal.Day(worker.Id, blocked.Day, ledger.Temporal.UsesCoverageSchedule(probe)).Intervals;
+                var hours = intervals == null ? "Sin configurar" : intervals.Length == 0 ? "Descanso" : string.Join(" · ", intervals.Select(i => $"{i.Entry / 60:00}:{i.Entry % 60:00}–{i.Exit / 60:00}:{i.Exit % 60:00}"));
+                var candidate = new PlanningCandidateConflict(blocked.Day, probe.StartsAt, worker.Name, "PLAN_CAPACITY_EXCEEDED", hours,
+                    load + demand - blocked.Task.LoadMinutes, capacity) { PersonId = worker.Id, NominalDueAt = probe.DueAt };
+                throw new DirectionPlanException("PLAN_NO_AVAILABLE_WORKER", 422) { Data = { [nameof(PlanningAssignmentConflict)] =
+                    new PlanningAssignmentConflict(blocked.Task.TaskCode, blocked.Task.Name, blocked.Task.LoadMinutes, [candidate]) {
+                        Demand = group.Select(o => new PlanningDemandItem(o.Task.TaskCode, o.Task.Name, o.Task.LoadMinutes, o.Day, "NUEVA", o.Task.OperationalCriticality == "FLEXIBLE" && o.Task.ScheduleMode == "DIAS_FIJOS") { SourceDay = o.SourceDay })
+                            .Concat(ledger.Tasks.Where(a => a.PersonId == worker.Id).SelectMany(a => ledger.Footprint(a).Where(f => f.Day == blocked.Day && f.Minutes > 0)
+                                .Select(f => new PlanningDemandItem(a.TaskCode, a.Name, f.Minutes, WeekContract.LocalToday(a.StartsAt), "EXISTENTE", false))))
+                            .Concat(blocked.Day == ledger.Today && ledger.Legacy.GetValueOrDefault(worker.Id) > 0 ? new[] { new PlanningDemandItem("LEGACY", "Carga del flujo anterior", ledger.Legacy[worker.Id], blocked.Day, "EXISTENTE", false) } : [])
+                            .OrderBy(d => d.Origin).ThenBy(d => d.TaskCode).ToArray()
+                    } } };
             }
         }
         bool ForwardPossible(int index)
@@ -112,6 +162,7 @@ internal static class OperationalPlanGenerator
                 if (Distributed(definition) && byTaskWeek.GetValueOrDefault((definition.Id,week)) >= scheduledWeek.GetValueOrDefault((definition.Id,week))) continue;
                 var dates = Distributed(definition) ? CapacityLedger.Days(DateOnly.FromDayNumber(Math.Max(Math.Max(week.DayNumber,plan.StartsOn.DayNumber),ledger.Today.DayNumber)),DateOnly.FromDayNumber(Math.Min(week.AddDays(6).DayNumber,plan.EndsOn.DayNumber))) : [remaining.Day];
                 var possible = false;
+                var rejected = new List<PlanningCandidateConflict>();
                 foreach (var day in dates)
                 {
                     if (Distributed(definition) && (definition.Repetitions != 7 && day.DayOfWeek == DayOfWeek.Sunday || byTaskDay.GetValueOrDefault((definition.Id,day)) >= (definition.Repetitions + (definition.Repetitions == 7 ? 7 : 6) - 1)/(definition.Repetitions == 7 ? 7 : 6))) continue;
@@ -120,13 +171,24 @@ internal static class OperationalPlanGenerator
                     foreach (var candidate in eligibleWorkers[definition.Id])
                     {
                         var slot = OperationalAgenda.Find(ledger,candidate.Id,probe,notBefore);
-                        if (!slot.Eligible) continue;
-                        OperationalAgenda.Apply(probe,slot);
-                        if (ledger.CanAssign(candidate.Id,probe)) { possible=true; break; }
+                        if (slot.Eligible)
+                        {
+                            OperationalAgenda.Apply(probe,slot);
+                            if (ledger.CanAssign(candidate.Id,probe)) { possible=true; break; }
+                        }
+                        var intervals = ledger.Temporal.Day(candidate.Id, day, ledger.Temporal.UsesCoverageSchedule(probe)).Intervals;
+                        var hours = intervals == null ? "Sin configurar" : intervals.Length == 0 ? "Descanso" : string.Join(" · ", intervals.Select(i => $"{i.Entry / 60:00}:{i.Entry % 60:00}–{i.Exit / 60:00}:{i.Exit % 60:00}"));
+                        rejected.Add(new(day, definition.StartOn(day), candidate.Name, slot.Eligible ? "PLAN_CAPACITY_EXCEEDED" : slot.Reason,
+                            hours, ledger.DayLoad(candidate.Id, day), ledger.DayCapacity(candidate.Id, day)) { PersonId = candidate.Id, NominalDueAt = probe.DueAt });
                     }
                     if (possible) break;
                 }
-                if (!possible) return false;
+                if (!possible)
+                {
+                    conflict = new DirectionPlanException("PLAN_NO_AVAILABLE_WORKER", 422);
+                    conflict.Data[nameof(PlanningAssignmentConflict)] = new PlanningAssignmentConflict(definition.TaskCode, definition.Name, definition.LoadMinutes, rejected.ToArray());
+                    return false;
+                }
             }
             return true;
         }
@@ -246,7 +308,7 @@ internal static class OperationalPlanGenerator
                         var intervals = ledger.Temporal.Day(candidate.Id, date, ledger.Temporal.UsesCoverageSchedule(assignment)).Intervals;
                         var hours = intervals == null ? "Sin configurar" : intervals.Length == 0 ? "Descanso" : string.Join(" · ", intervals.Select(i => $"{i.Entry / 60:00}:{i.Entry % 60:00}–{i.Exit / 60:00}:{i.Exit % 60:00}"));
                         var day = date < ledger.Today ? ledger.Today : date;
-                        rejected.Add(new(date, assignment.StartsAt, candidate.Name, reason, hours, ledger.DayLoad(candidate.Id, day), ledger.DayCapacity(candidate.Id, day)) { NominalDueAt = assignment.DueAt });
+                        rejected.Add(new(date, assignment.StartsAt, candidate.Name, reason, hours, ledger.DayLoad(candidate.Id, day), ledger.DayCapacity(candidate.Id, day)) { PersonId = candidate.Id, NominalDueAt = assignment.DueAt });
                     }
                 }
                 var error = new DirectionPlanException("PLAN_NO_AVAILABLE_WORKER", 422);
@@ -292,7 +354,7 @@ internal static class OperationalPlanGenerator
             var slot = Distributed(task) ? Enumerable.Range(0, 101).First(s =>
                 !reservedKeys.Contains($"{task.Id:N}:{selected.Day:yyyyMMdd}:{s}") &&
                 s >= existing.Count(a => a.TaskId == task.Id && a.ScheduleKey == null && WeekContract.LocalToday(a.StartsAt) == selected.Day)) : occurrence.Slot;
-            assignment.ScheduleKey = monthly?.Key(task.Id) ?? $"{task.Id:N}:{selected.Day:yyyyMMdd}:{slot}";
+            assignment.ScheduleKey = monthly?.Key(task.Id) ?? $"{task.Id:N}:{(occurrence.Day != occurrence.SourceDay ? occurrence.SourceDay : selected.Day):yyyyMMdd}:{slot}";
             var reception = !plan.IsWeeklyOperationsPlan && assignment.StartsAt <= now ? now : (DateTimeOffset?)null;
             assignment.PersonId = worker.Id; assignment.PersonName = worker.Name; assignment.AssignedRole = worker.Role;
             assignment.PreviousLoadMinutes = ledger.Tasks.Where(a => a.PersonId == worker.Id).Sum(a => (long)a.RemainingMinutes) + ledger.Legacy.GetValueOrDefault(worker.Id);
@@ -324,7 +386,7 @@ internal static class OperationalPlanGenerator
         foreach (var assignment in assignments.Where(a => a.SchedulingPolicyId != null))
         {
             var others = new CapacityLedger(initialLedger.Workers, initialLedger.Tasks.Concat(assignments.Where(a => a.Id != assignment.Id)).ToArray(), initialLedger.Capacities,
-                initialLedger.Unavailable, initialLedger.Legacy, initialLedger.Today) { Temporal = initialLedger.Temporal, PlannedChanges = initialLedger.PlannedChanges, Override = initialLedger.Override };
+                initialLedger.Unavailable, initialLedger.Legacy, initialLedger.Today) { Temporal = initialLedger.Temporal, ExcludedDemandIds = initialLedger.ExcludedDemandIds, PlannedChanges = initialLedger.PlannedChanges, Override = initialLedger.Override };
             if (!others.CanAssign(assignment.PersonId, assignment, !plan.IsWeeklyOperationsPlan && assignment.StartsAt <= now ? now : null))
                 throw new DirectionPlanException("SCHEDULING_AGENDA_INVALID", 422);
         }

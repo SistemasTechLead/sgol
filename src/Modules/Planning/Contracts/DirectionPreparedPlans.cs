@@ -13,8 +13,12 @@ public sealed record DirectionPlanInput(string Name, string Area, string PeriodT
     int? PeriodNumber, IReadOnlyList<string> TaskCodes,
     IReadOnlyList<PlanCapacityAdjustment>? CapacityAdjustments = null, string? CapacityFingerprint = null,
     bool IsWeeklyOperationsPlan = false, DateTimeOffset? SchedulingNotBefore = null, int SchedulingSearchMultiplier = 1,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] DateOnly? RollingMonthStartsOn = null);
-public sealed record PlanCapacityAdjustment(Guid PersonId, int Percent);
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] DateOnly? RollingMonthStartsOn = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlanOccurrenceMove>? OccurrenceMoves = null);
+public sealed record PlanOccurrenceMove(string TaskCode, DateOnly FromDay, DateOnly ToDay);
+public sealed record PlanCapacityAdjustment(Guid PersonId, int Percent,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] DateOnly? Day = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? DailyMinutes = null);
 public sealed record DirectionPlanTask(string TaskCode, string Name);
 public sealed record MonthlyPlanPending(string ScheduleKey, string TaskCode, string Name, int Year, int Month, int PreferredDay, string Reason);
 public sealed record OperationalAssignmentDetails(Guid Id, string TaskCode, string Name, string Requirement,
@@ -128,10 +132,18 @@ public static class DirectionPlanContract
             input.TaskCodes.Any(string.IsNullOrEmpty) || input.TaskCodes.Distinct(StringComparer.Ordinal).Count() != input.TaskCodes.Count)
             throw new DirectionPlanException("DIRECTION_PLAN_TASK_INVALID", 422);
         if (input.CapacityAdjustments is { } adjustments && (adjustments.Count > 1000 ||
-            adjustments.Any(a => a is null || a.PersonId == Guid.Empty || a.Percent is < 0 or > 100) ||
-            adjustments.Select(a => a.PersonId).Distinct().Count() != adjustments.Count ||
+            adjustments.Any(a => a is null || a.PersonId == Guid.Empty || a.Percent is < 0 or > 100 ||
+                a.Day.HasValue != a.DailyMinutes.HasValue || a.DailyMinutes is < 1 or > 480) ||
+            adjustments.Select(a => (a.PersonId, a.Day)).Distinct().Count() != adjustments.Count ||
             adjustments.Count > 0 && (input.CapacityFingerprint?.Length != 64)))
             throw new DirectionPlanException("PLAN_CAPACITY_INVALID", 422);
+        if (input.OccurrenceMoves is {} moves && (moves.Count > 1000 || moves.Any(m => m == null ||
+            !input.TaskCodes.Contains(m.TaskCode) || m.ToDay <= m.FromDay ||
+            ISOWeek.GetYear(m.FromDay.ToDateTime(TimeOnly.MinValue)) != ISOWeek.GetYear(m.ToDay.ToDateTime(TimeOnly.MinValue)) ||
+            ISOWeek.GetWeekOfYear(m.FromDay.ToDateTime(TimeOnly.MinValue)) != ISOWeek.GetWeekOfYear(m.ToDay.ToDateTime(TimeOnly.MinValue))) ||
+            moves.Select(m => (m.TaskCode, m.FromDay)).Distinct().Count() != moves.Count ||
+            moves.Select(m => (m.TaskCode, m.ToDay)).Distinct().Count() != moves.Count))
+            throw new DirectionPlanException("PLAN_MOVE_INVALID", 422);
         return input with { Name = Text(input.Name), Area = Text(input.Area), TaskCodes = input.TaskCodes.ToArray() };
     }
 

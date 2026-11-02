@@ -1,0 +1,65 @@
+@model Sgol.Web.Pages.Planning.IndexModel
+@using System.Text.Json
+@if (Model.DirectionAssignmentConflict is {} conflict)
+{
+    <dialog id="direction-conflict-review" class="modal" aria-labelledby="direction-conflict-title" aria-describedby="direction-conflict-help">
+        <div class="modal__contenido">
+            <h2 id="direction-conflict-title" class="modal__titulo" tabindex="-1" data-initial-focus>Revisar @conflict.TaskCode</h2>
+            <p><strong>@conflict.Task</strong> · @conflict.LoadMinutes min</p>
+            <p id="direction-conflict-help">Elige una opción para recalcular el plan. Nada se guarda hasta confirmarlo.</p>
+            <ul>@foreach (var candidate in conflict.Candidates) {
+                <li>@candidate.Day.ToString("dd/MM/yyyy") · @candidate.Person · @candidate.Hours:
+                    @(candidate.Reason == "PLAN_CAPACITY_EXCEEDED" ? $"La propuesta lleva {candidate.PendingMinutes:0.#} min de carga antes de agregar esta tarea; capacidad {candidate.CapacityMinutes:0.#} min." : Sgol.Web.Infrastructure.Persistence.Planning.TemporalEligibilityContext.Message(candidate.Reason))
+                </li>
+            }</ul>
+            @if (conflict.Demand.Length > 0)
+            {
+                <details><summary>Ver todas las tareas que componen esta carga (@conflict.Demand.Sum(d => d.Minutes).ToString("0.#") min)</summary>
+                    <div class="tabla-contenedor"><table class="tabla"><caption>Trabajo vigente y trabajo nuevo; no incluye pendientes vencidos</caption>
+                        <thead><tr><th scope="col">Tarea</th><th scope="col">Origen</th><th scope="col">Minutos</th></tr></thead><tbody>
+                        @foreach (var row in conflict.Demand) { <tr><td>@row.TaskCode · @row.Name</td><td>@(row.Origin == "NUEVA" ? "Nueva en este plan" : "Asignación vigente")</td><td>@row.Minutes.ToString("0.#")</td></tr> }
+                        </tbody></table></div>
+                </details>
+            }
+            @if (Model.DirectionMoveOptions.Length > 0)
+            {
+                <h3>Mover una tarea flexible a un día con menos carga</h3>
+                <p>Solo cambia esta ocurrencia. El nuevo día y vencimiento son una excepción explícita para este plan. Se recalculará la agenda completa antes de guardar.</p>
+                @foreach (var group in Model.DirectionMoveOptions.GroupBy(o => new { o.Move.TaskCode, o.Task, o.Minutes }))
+                {
+                    <details><summary>@group.Key.TaskCode · @group.Key.Task · @group.Key.Minutes min</summary>
+                    @foreach (var option in group) {
+                        <section class="panel-seccion">
+                            <p><strong>@option.Move.FromDay.ToString("dd/MM/yyyy") → @option.Move.ToDay.ToString("dd/MM/yyyy")</strong> · Candidato: @option.Person</p>
+                            <p>Mínimo previsto en destino: @option.Forecast.ToString("0.#") + @option.Minutes min de esta tarea / @option.Capacity.ToString("0.#") min de capacidad.</p>
+                            <p>Horario posible: @TimeZoneInfo.ConvertTime(option.StartsAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("HH:mm")–@TimeZoneInfo.ConvertTime(option.DueAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("HH:mm"). El horario definitivo aparecerá al confirmar.</p>
+                            <button type="submit" class="boton boton--primario" form="direction-create-form" name="moveChoice" value="@JsonSerializer.Serialize(option.Move, JsonSerializerOptions.Web)">Mover al @option.Move.ToDay.ToString("dd/MM") y recalcular</button>
+                        </section>
+                    }</details>
+                }
+            }
+            @if (Model.DirectionResolutions.Length > 0)
+            {
+                <h3>Ajustar capacidad en la fecha afectada</h3>
+                <p>Elige esta opción únicamente si la persona dispone de ese tiempo para tareas operativas. El cálculo puede detectar otros conflictos después de este ajuste.</p>
+                @foreach (var option in Model.DirectionResolutions)
+                {
+                    <section class="panel-seccion">
+                        <p><strong>@option.Person · @option.Day.ToString("dd/MM/yyyy")</strong></p>
+                        <p>@(option.FullAvailableDay ? "Dedicar a tareas operativas toda la capacidad permitida por el horario (máximo 8 h)." : "Cubrir la carga de este intento. Otro reparto puede necesitar un ajuste adicional.")</p>
+                        <p>Capacidad: @option.PreviousCapacity.ToString("0.#") → @option.RequiredCapacity.ToString("0.#") min.
+                            Referencia: @option.Adjustment.DailyMinutes min al @option.Adjustment.Percent%.</p>
+                        <p>Se volverán a buscar personas y horarios compatibles, sin omitir tareas. La nueva capacidad también estará disponible para otras asignaciones de esa fecha.</p>
+                        <button type="submit" class="boton boton--primario" form="direction-create-form" name="resolutionAdjustment" value="@JsonSerializer.Serialize(option.Adjustment, JsonSerializerOptions.Web)">@(option.FullAvailableDay ? "Usar capacidad del horario y recalcular" : "Usar esta capacidad y recalcular")</button>
+                    </section>
+                }
+            }
+            else if (Model.DirectionMoveOptions.Length == 0)
+            {
+                <p role="status">No se encontró un aumento de capacidad que cubra esta tarea dentro del horario y los límites permitidos.</p>
+                <p>El reparto ya buscó otras personas y horarios dentro de las reglas actuales. Revisa la cobertura o la especialización indicada; no se omitirá la tarea ni se forzará su asignación.</p>
+            }
+            <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close>Cerrar</button></div>
+        </div>
+    </dialog>
+}

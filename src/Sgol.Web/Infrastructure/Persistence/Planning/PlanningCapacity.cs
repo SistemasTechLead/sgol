@@ -19,9 +19,18 @@ public sealed record PlanDailyLoad(DateOnly Day, long PlanMinutes, decimal Pendi
 public sealed record PlanningSpecialistGap(string Specialization, DirectionPlanTask[] Tasks);
 public sealed record PlanningCandidateConflict(DateOnly Day, DateTimeOffset StartsAt, string Person, string Reason, string Hours, decimal PendingMinutes, decimal CapacityMinutes)
 {
+    public Guid PersonId { get; init; }
     public DateTimeOffset? NominalDueAt { get; init; }
 }
-public sealed record PlanningAssignmentConflict(string TaskCode, string Task, int LoadMinutes, PlanningCandidateConflict[] Candidates);
+public sealed record PlanningDemandItem(string TaskCode, string Name, decimal Minutes, DateOnly Day, string Origin, bool CanMove)
+{
+    public DateOnly SourceDay { get; init; } = Day;
+}
+public sealed record PlanningAssignmentConflict(string TaskCode, string Task, int LoadMinutes, PlanningCandidateConflict[] Candidates)
+{
+    public PlanningDemandItem[] Demand { get; init; } = [];
+}
+public sealed record PlanningExcludedOverdue(string Person, string TaskCode, string Name, int Minutes, DateTimeOffset DueAt);
 public sealed record PlanningCapacityPreview(DateOnly From, DateOnly Through, string Fingerprint, PlanningCapacityRow[] Workers)
 {
     public string[] ExcludedTasks { get; init; } = [];
@@ -31,6 +40,7 @@ public sealed record PlanningCapacityPreview(DateOnly From, DateOnly Through, st
     public string? AgendaFingerprint { get; set; }
     [System.Text.Json.Serialization.JsonIgnore] internal OperationalAssignment[] Assignments { get; set; } = [];
     public bool TemporalPolicyEnabled { get; init; }
+    public PlanningExcludedOverdue[] ExcludedOverdue { get; init; } = [];
 }
 
 // Read the same ledger used by generation and supervision; preparation never writes capacity.
@@ -49,12 +59,12 @@ public static class PlanningCapacity
         using var admission = await Sgol.Web.Infrastructure.Http.PerformanceWork.Planning.EnterAsync(token);
         var range = DirectionPlanContract.Calculate(input, input.IsWeeklyOperationsPlan ? ledger.Today : null);
         var adjusted = new CapacityLedger(ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today)
-            { Temporal = ledger.Temporal, PlannedChanges = Changes(input, preview, ledger) };
+            { Temporal = ledger.Temporal, ExcludedDemandIds = ledger.ExcludedDemandIds, PlannedChanges = Changes(input, preview, ledger) };
         var policy = await OperationalSchedulingPolicyService.CurrentAsync(db, token);
         var evaluatedAt = ledger.Temporal.Now == default ? DateTimeOffset.UtcNow : ledger.Temporal.Now;
         var plan = new DirectionPreparedPlan(Guid.NewGuid(), Sgol.Organization.Contracts.BranchScope.LorettaId, Guid.NewGuid(), evaluatedAt.ToUniversalTime(), input);
         plan.CaptureSchedulingPolicy(policy.Id);
-        var generated = await OperationalPlanGenerator.GenerateAsync(db, plan, input.TaskCodes, evaluatedAt, token, allowReserved: true, preparedLedger: adjusted);
+        var generated = await OperationalPlanGenerator.GenerateAsync(db, plan, input.TaskCodes, evaluatedAt, token, allowReserved: true, preparedLedger: adjusted, moves: input.OccurrenceMoves);
         preview.Assignments = generated;
         preview.MonthlyPending = JsonSerializer.Deserialize<MonthlyPlanPending[]>(plan.MonthlyPendingJson)!;
         preview.TemporalRows = generated.Select(a => {
@@ -64,7 +74,7 @@ public static class PlanningCapacity
             return new TemporalPlanRow(day, a.TaskCode + " · " + a.Name, a.PersonName, "ELIGIBLE", true, hours) {
                 StartsAt = a.StartsAt, NominalStartsAt = a.NominalStartsAt, DueAt = a.DueAt, OperationalCriticality = a.OperationalCriticality, LoadMinutes = a.LoadMinutes };
         }).OrderBy(r => r.Day).ThenBy(r => r.Person).ThenBy(r => r.StartsAt).ToArray();
-        preview.AgendaFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { preview.Fingerprint,
+        preview.AgendaFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { preview.Fingerprint, input.CapacityAdjustments, input.OccurrenceMoves,
             Rows = generated.OrderBy(a => a.ScheduleKey, StringComparer.Ordinal).Select(a => new { a.TaskId, a.PersonId, a.NominalStartsAt, a.StartsAt, a.DueAt, a.ScheduleKey, a.LoadMinutes, a.OperationalCriticality, a.SchedulingPolicyId }), preview.MonthlyPending })));
         var loads = generated.GroupBy(a => WeekContract.LocalToday(a.StartsAt)).ToDictionary(g => g.Key, g => g.Sum(a => (long)a.LoadMinutes));
         var workers = preview.Workers.Select(w => w.PersonId).ToArray();
@@ -78,6 +88,9 @@ public static class PlanningCapacity
         input = DirectionPlanContract.Normalize(input);
         var range = DirectionPlanContract.Calculate(input, input.IsWeeklyOperationsPlan ? WeekContract.LocalToday(now) : null);
         var ledger = await OperationalCapacityService.LedgerAsync(db, now, token);
+        var overdue = ledger.Tasks.Where(a => a.CompletedAt == null && a.DueAt <= now).ToArray();
+        ledger = new CapacityLedger(ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today)
+            { Temporal = ledger.Temporal, ExcludedDemandIds = overdue.Select(a => a.Id).ToHashSet() };
         var from = DateOnly.FromDayNumber(Math.Max(range.StartsOn.DayNumber, ledger.Today.DayNumber));
         var through = DateOnly.FromDayNumber(Math.Max(range.EndsOn.DayNumber, from.DayNumber));
         var tasks = await db.OperationalTasks.AsNoTracking().Where(t => input.TaskCodes.Contains(t.TaskCode) && t.Active && !t.Deleted)
@@ -105,25 +118,35 @@ public static class PlanningCapacity
         var policy = await OperationalSchedulingPolicyService.CurrentAsync(db, token);
         var snapshot = JsonSerializer.SerializeToUtf8Bytes(new { policy, input.SchedulingSearchMultiplier, SearchVersion = OperationalAgendaSearch.Version, SearchBudget = OperationalAgendaSearch.Budget, CandidateBudget = OperationalAgendaSearch.CandidateBudget, input.SchedulingNotBefore, BalancePolicyVersion = OperationalPlanBalancer.PolicyVersion, input.PeriodType, input.Year, input.PeriodNumber, input.TaskCodes, input.IsWeeklyOperationsPlan,
             from, through, selectedDefinitions, tasks, peers, DefaultDailyMinutes = OperationalCapacity.DefaultDailyMinutes, ledger.Today, ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Temporal,
+            ExcludedDemandIds = ledger.ExcludedDemandIds.Order().ToArray(),
             Unavailable = ledger.Unavailable.OrderBy(a => a.Item1).ThenBy(a => a.Item2).Select(a => new { Person = a.Item1, Day = a.Item2 }),
             Legacy = ledger.Legacy.OrderBy(a => a.Key).Select(a => new { Person = a.Key, Minutes = a.Value }) });
         // Actual temporal rows are produced by the shared generator in DailyLoadAsync.
         TemporalPlanRow[] temporalRows = [];
-        return (new PlanningCapacityPreview(from, through, Convert.ToHexString(SHA256.HashData(snapshot)), workers) { ExcludedTasks = selectedDefinitions.Where(t => !t.Active || t.Deleted).Select(t => t.TaskCode + " · " + t.Name).ToArray(), SpecialistGaps = specialistGaps, TemporalRows = temporalRows, TemporalPolicyEnabled = ledger.Temporal.Enabled }, ledger);
+        return (new PlanningCapacityPreview(from, through, Convert.ToHexString(SHA256.HashData(snapshot)), workers) { ExcludedTasks = selectedDefinitions.Where(t => !t.Active || t.Deleted).Select(t => t.TaskCode + " · " + t.Name).ToArray(), SpecialistGaps = specialistGaps, TemporalRows = temporalRows, TemporalPolicyEnabled = ledger.Temporal.Enabled,
+            ExcludedOverdue = overdue.Select(a => new PlanningExcludedOverdue(a.PersonName, a.TaskCode, a.Name, a.RemainingMinutes, a.DueAt)).ToArray() }, ledger);
     }
 
     public static CapacityChange[] Changes(DirectionPlanInput input, PlanningCapacityPreview preview, CapacityLedger ledger) =>
-        (input.CapacityAdjustments ?? []).SelectMany(a => {
+        (input.CapacityAdjustments ?? []).SelectMany<PlanCapacityAdjustment, CapacityChange>(a => {
             var worker = preview.Workers.SingleOrDefault(w => w.PersonId == a.PersonId)
                 ?? throw new DirectionPlanException("PLAN_CAPACITY_INVALID", 422);
+            if (a.Day is {} selectedDay)
+            {
+                if (selectedDay < preview.From || selectedDay > preview.Through || a.DailyMinutes is null or < 1 or > 480)
+                    throw new DirectionPlanException("PLAN_CAPACITY_INVALID", 422);
+                return new[] { new CapacityChange(a.PersonId, selectedDay, selectedDay, a.Percent, a.DailyMinutes.Value,
+                    $"Resolución de capacidad al crear el plan: {input.Name}") };
+            }
             if (a.Percent > worker.Percent) throw new DirectionPlanException("PLAN_CAPACITY_INVALID", 422);
             var changes = new List<CapacityChange>();
             foreach (var day in CapacityLedger.Days(preview.From, preview.Through))
             {
+                if (input.CapacityAdjustments!.Any(other => other.PersonId == a.PersonId && other.Day == day)) continue;
                 var setting = ledger.Setting(a.PersonId, day);
                 var percent = Math.Min(a.Percent, setting?.Percent ?? 100);
                 var minutes = setting?.DailyMinutes ?? OperationalCapacity.DefaultDailyMinutes;
-                if (changes.LastOrDefault() is { } previous && previous.Percent == percent && previous.DailyMinutes == minutes)
+                if (changes.LastOrDefault() is { } previous && previous.Through.DayNumber + 1 == day.DayNumber && previous.Percent == percent && previous.DailyMinutes == minutes)
                     changes[^1] = previous with { Through = day };
                 else changes.Add(new(a.PersonId, day, day, percent, minutes, $"Ajuste al crear el plan: {input.Name}"));
             }

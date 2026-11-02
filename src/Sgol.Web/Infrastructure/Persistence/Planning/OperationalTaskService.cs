@@ -19,7 +19,7 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
         return await db.OperationalTasks.AsNoTracking().Where(t => !t.Deleted).OrderBy(t => t.Name).ToListAsync(token);
     }
 
-    public async Task<(OperationalTask[] Items, int Total, int Page)> PageAsync(Guid actor, string? search, Guid? process, int page, CancellationToken token)
+    public async Task<(OperationalTask[] Items, int Total, int Page)> PageAsync(Guid actor, string? search, Guid? process, int page, CancellationToken token, TaskCatalogFilter? filter = null)
     {
         await TaskCatalogAuthorization.RequireReadAsync(db, actor, clock.UtcNow, token);
         var query = db.OperationalTasks.AsNoTracking().Where(t => !t.Deleted);
@@ -29,6 +29,7 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
             var text = Sgol.Web.Presentation.Search.SearchText.Normalize(search.Trim());
             query = query.Where(t => Sgol.Web.Presentation.Search.SearchText.SqlNormalize(t.Name).Contains(text) || Sgol.Web.Presentation.Search.SearchText.SqlNormalize(t.TaskCode).Contains(text));
         }
+        if (filter != null) query = filter.Apply(query);
         var total = await query.CountAsync(token);
         page = Math.Clamp(page, 1, Math.Max(1, (total + 49) / 50));
         return (await query.OrderBy(t => t.Name).ThenBy(t => t.Id).Skip((page - 1) * 50).Take(50).ToArrayAsync(token), total, page);

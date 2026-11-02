@@ -135,7 +135,7 @@ public static class DirectionPreparedPlanApiEndpoints
     public static DirectionPlanInput Parse(JsonElement body)
     {
         string[] fields = ["name", "area", "periodType", "year", "periodNumber", "taskCodes"];
-        string[] optional = ["capacityAdjustments", "capacityFingerprint", "isWeeklyOperationsPlan", "schedulingNotBefore", "schedulingSearchMultiplier", "rollingMonthStartsOn"];
+        string[] optional = ["capacityAdjustments", "capacityFingerprint", "isWeeklyOperationsPlan", "schedulingNotBefore", "schedulingSearchMultiplier", "rollingMonthStartsOn", "occurrenceMoves"];
         if (body.ValueKind != JsonValueKind.Object) throw new FormatException();
         var props = body.EnumerateObject().ToArray();
         if (props.Select(p => p.Name).Distinct(StringComparer.Ordinal).Count() != props.Length ||
@@ -151,10 +151,23 @@ public static class DirectionPreparedPlanApiEndpoints
         {
             if (adjustmentJson.ValueKind != JsonValueKind.Array || adjustmentJson.GetArrayLength() > 1000) throw new FormatException();
             adjustments = adjustmentJson.EnumerateArray().Select(a => {
-                if (a.ValueKind != JsonValueKind.Object || a.EnumerateObject().Count() != 2 ||
+                if (a.ValueKind != JsonValueKind.Object || a.EnumerateObject().Any(p => p.Name is not ("personId" or "percent" or "day" or "dailyMinutes")) ||
+                    a.EnumerateObject().Select(p => p.Name).Distinct().Count() != a.EnumerateObject().Count() ||
                     !a.TryGetProperty("personId", out var id) || id.ValueKind != JsonValueKind.String || !id.TryGetGuid(out var person) ||
                     !a.TryGetProperty("percent", out var percent) || percent.ValueKind != JsonValueKind.Number || !percent.TryGetInt32(out var value)) throw new FormatException();
-                return new PlanCapacityAdjustment(person, value);
+                DateOnly? day = null;
+                int? minutes = null;
+                if (a.TryGetProperty("day", out var dayJson))
+                {
+                    if (dayJson.ValueKind != JsonValueKind.String || !DateOnly.TryParseExact(dayJson.GetString(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsedDay)) throw new FormatException();
+                    day = parsedDay;
+                }
+                if (a.TryGetProperty("dailyMinutes", out var minutesJson))
+                {
+                    if (minutesJson.ValueKind != JsonValueKind.Number || !minutesJson.TryGetInt32(out var parsedMinutes)) throw new FormatException();
+                    minutes = parsedMinutes;
+                }
+                return new PlanCapacityAdjustment(person, value, day, minutes);
             }).ToArray();
         }
         var fingerprint = body.TryGetProperty("capacityFingerprint", out var fingerprintJson) && fingerprintJson.ValueKind != JsonValueKind.Null
@@ -175,7 +188,21 @@ public static class DirectionPreparedPlanApiEndpoints
             if (rollingJson.ValueKind != JsonValueKind.String || !DateOnly.TryParseExact(rollingJson.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedStart)) throw new FormatException();
             rollingStart = parsedStart;
         }
-        return new(Text("name"), Text("area"), Text("periodType"), year, number, tasks.EnumerateArray().Select(t => t.GetString()!).ToArray(), adjustments, fingerprint, master, notBefore, multiplier, rollingStart);
+        PlanOccurrenceMove[]? moves = null;
+        if (body.TryGetProperty("occurrenceMoves", out var movesJson) && movesJson.ValueKind != JsonValueKind.Null)
+        {
+            if (movesJson.ValueKind != JsonValueKind.Array || movesJson.GetArrayLength() > 1000) throw new FormatException();
+            moves = movesJson.EnumerateArray().Select(m => {
+                if (m.ValueKind != JsonValueKind.Object || m.EnumerateObject().Count() != 3 ||
+                    !m.TryGetProperty("taskCode", out var code) || code.ValueKind != JsonValueKind.String ||
+                    !m.TryGetProperty("fromDay", out var from) || from.ValueKind != JsonValueKind.String ||
+                    !m.TryGetProperty("toDay", out var to) || to.ValueKind != JsonValueKind.String ||
+                    !DateOnly.TryParseExact(from.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fromDay) ||
+                    !DateOnly.TryParseExact(to.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var toDay)) throw new FormatException();
+                return new PlanOccurrenceMove(code.GetString()!, fromDay, toDay);
+            }).ToArray();
+        }
+        return new(Text("name"), Text("area"), Text("periodType"), year, number, tasks.EnumerateArray().Select(t => t.GetString()!).ToArray(), adjustments, fingerprint, master, notBefore, multiplier, rollingStart, moves);
     }
 
     private static bool Query(HttpContext c, string[] allowed) => c.Request.ContentLength is null or 0 && c.Request.Query.All(q => allowed.Contains(q.Key) && q.Value.Count == 1);

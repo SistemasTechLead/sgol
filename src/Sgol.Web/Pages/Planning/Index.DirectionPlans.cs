@@ -55,6 +55,13 @@ public sealed partial class IndexModel
     public string[] DirectionExcludedTasks { get; private set; } = [];
     public PlanningSpecialistGap[] DirectionSpecialistGaps { get; private set; } = [];
     public PlanningAssignmentConflict? DirectionAssignmentConflict { get; private set; }
+    public PlanningCapacityResolution[] DirectionResolutions { get; private set; } = [];
+    public IReadOnlyList<PlanCapacityAdjustment> DirectionDatedAdjustments { get; private set; } = [];
+    public Dictionary<Guid, string> DirectionResolutionNames { get; private set; } = [];
+    public string DirectionMovesJson { get; private set; } = "[]";
+    public IReadOnlyList<PlanOccurrenceMove> DirectionMoves { get; private set; } = [];
+    public PlanningMoveResolution[] DirectionMoveOptions { get; private set; } = [];
+    public PlanningExcludedOverdue[] DirectionExcludedOverdue { get; private set; } = [];
     public static string DirectionHours(decimal minutes)
     {
         var rounded = (long)Math.Ceiling(minutes);
@@ -68,6 +75,7 @@ public sealed partial class IndexModel
 
     private async Task<IActionResult> LoadDirectionPlansAsync(CancellationToken token)
     {
+        var selectedPlanId = Request.Query["planId"].ToString();
         var session = await sessionState.GetAsync(token);
         if (session is null) return Redirect("/acceso");
         CanViewDirectionPlans = (session.RoleCode is CanonicalRole.Direction or CanonicalRole.Administration or CanonicalRole.Subcoordination) && session.Permissions.Contains(WeekAuthorization.View);
@@ -108,7 +116,11 @@ public sealed partial class IndexModel
                         .Where(p => p.IsWeeklyOperationsPlan && p.BranchId == Sgol.Organization.Contracts.BranchScope.LorettaId &&
                             p.Year == int.Parse(DirectionYear) && p.PeriodNumber == int.Parse(DirectionNumber))
                         .Select(p => (Guid?)p.Id).SingleOrDefaultAsync(token);
-                    if (existing is { } masterId) return Redirect($"/planificacion?planId={masterId:D}");
+                    if (existing is { } masterId)
+                    {
+                        selectedPlanId = masterId.ToString("D");
+                        DirectionCreating = false;
+                    }
                     DirectionName = $"Semana {int.Parse(DirectionNumber):00}";
                     DirectionArea = "Plan de Operaciones Semanal";
                     DirectionSelectedCodes = DirectionTaskOptions.Where(t => t.IsWeeklyOperationsTask).Select(t => t.TaskCode).ToArray();
@@ -118,15 +130,15 @@ public sealed partial class IndexModel
                     try { DirectionRange = DirectionPlanContract.Calculate(DirectionPeriodType, year, DirectionPeriodType == "ANUAL" ? null : int.Parse(DirectionNumber, CultureInfo.InvariantCulture), DirectionOperations ? DirectionToday : null); }
                     catch (DirectionPlanException) { }
                 }
-                return Page();
+                if (DirectionCreating) return Page();
             }
             if (DirectionDetail is not null) {
                 if (CanPrepareDirectionPlan) DirectionTaskOptions = await HttpContext.RequestServices.GetRequiredService<Sgol.Configuration.Contracts.IDirectionPlanningCatalogReader>().ReadTaskOptionsAsync(token);
                 return Page();
             }
-            if (Request.Query.ContainsKey("planId"))
+            if (Request.Query.ContainsKey("planId") || selectedPlanId.Length > 0)
             {
-                if (!Guid.TryParseExact(Request.Query["planId"], "D", out var id) || id == Guid.Empty) return BadRequest();
+                if (!Guid.TryParseExact(selectedPlanId, "D", out var id) || id == Guid.Empty) return BadRequest();
                 var read = await apiClient.SendAsync<DirectionPlanDetails>(new(HttpMethod.Get, $"/api/v1/direction-plans/{id:D}", ApiResponseShape.Item), token);
                 if (read.Status == 401) return Redirect("/acceso");
                 if (!read.IsSuccess) SetDirectionError(read); else if (read.Data is { BranchCode: "LOR-001" } detail && detail.PlanId == id) DirectionDetail = detail; else throw new ApiProtocolException();
@@ -166,6 +178,8 @@ public sealed partial class IndexModel
         DirectionSelectedCodes = form["taskCodes"].Select(c => c ?? "").ToArray();
         DirectionCapacityJson = form["capacityAdjustments"].ToString();
         DirectionCapacityFingerprint = form["capacityFingerprint"].ToString();
+        DirectionMovesJson = form["occurrenceMoves"].ToString();
+        DirectionPlanInput? attemptedInput = null;
         try
         {
             if (DirectionFormFields.Any(f => form[f].Count != 1) ||
@@ -175,9 +189,34 @@ public sealed partial class IndexModel
             if (form["searchMultiplier"].Count > 1 || form["searchMultiplier"].Count == 1 && !int.TryParse(form["searchMultiplier"], NumberStyles.None, CultureInfo.InvariantCulture, out _)) throw new DirectionPlanException("DIRECTION_PLAN_REQUEST_INVALID", 400);
             DirectionSearchMultiplier = form["searchMultiplier"].Count == 0 ? 1 : int.Parse(form["searchMultiplier"]!, CultureInfo.InvariantCulture);
             var adjustments = string.IsNullOrEmpty(DirectionCapacityJson) ? [] : JsonSerializer.Deserialize<PlanCapacityAdjustment[]>(DirectionCapacityJson, JsonSerializerOptions.Web);
+            if (adjustments?.Any(a => a is null) == true) throw new DirectionPlanException("PLAN_CAPACITY_INVALID", 422);
+            if (form["resolutionAdjustment"].Count > 1 || form["resolutionAdjustment"].ToString().Length > 4096 || form["removeResolution"].Count > 1) throw new DirectionPlanException("PLAN_CAPACITY_INVALID", 422);
+            if (form["resolutionAdjustment"].Count == 1)
+            {
+                var choice = JsonSerializer.Deserialize<PlanCapacityAdjustment>(form["resolutionAdjustment"].ToString(), JsonSerializerOptions.Web);
+                if (choice?.Day == null || choice.DailyMinutes == null) throw new DirectionPlanException("PLAN_CAPACITY_INVALID", 422);
+                adjustments = (adjustments ?? []).Where(a => a.PersonId != choice.PersonId || a.Day != choice.Day).Append(choice).ToArray();
+            }
+            if (form["removeResolution"].Count == 1)
+                adjustments = (adjustments ?? []).Where(a => $"{a.PersonId:D}/{a.Day:yyyy-MM-dd}" != form["removeResolution"].ToString()).ToArray();
+            DirectionCapacityJson = JsonSerializer.Serialize(adjustments ?? [], JsonSerializerOptions.Web);
+            DirectionDatedAdjustments = (adjustments ?? []).Where(a => a.Day != null).ToArray();
+            if (DirectionMovesJson.Length > 131072 || form["occurrenceMoves"].Count > 1 || form["moveChoice"].Count > 1 || form["removeMove"].Count > 1 || form["moveChoice"].ToString().Length > 4096)
+                throw new DirectionPlanException("PLAN_MOVE_INVALID", 422);
+            var moves = string.IsNullOrWhiteSpace(DirectionMovesJson) ? [] : JsonSerializer.Deserialize<PlanOccurrenceMove[]>(DirectionMovesJson, JsonSerializerOptions.Web) ?? [];
+            if (moves.Any(m => m == null)) throw new DirectionPlanException("PLAN_MOVE_INVALID", 422);
+            if (form["moveChoice"].Count == 1)
+            {
+                var move = JsonSerializer.Deserialize<PlanOccurrenceMove>(form["moveChoice"].ToString(), JsonSerializerOptions.Web)
+                    ?? throw new DirectionPlanException("PLAN_MOVE_INVALID", 422);
+                moves = moves.Where(m => m.TaskCode != move.TaskCode || m.FromDay != move.FromDay).Append(move).ToArray();
+            }
+            if (form["removeMove"].Count == 1) moves = moves.Where(m => $"{m.TaskCode}/{m.FromDay:yyyy-MM-dd}" != form["removeMove"].ToString()).ToArray();
+            DirectionMoves = moves;
+            DirectionMovesJson = JsonSerializer.Serialize(moves, JsonSerializerOptions.Web);
             var input = DirectionPlanContract.Normalize(new(DirectionName, DirectionArea, DirectionPeriodType, year,
                 DirectionPeriodType == "ANUAL" ? null : int.Parse(DirectionNumber, CultureInfo.InvariantCulture), DirectionSelectedCodes,
-                adjustments, DirectionCapacityFingerprint, DirectionOperations, SchedulingSearchMultiplier: DirectionSearchMultiplier));
+                adjustments, DirectionCapacityFingerprint, DirectionOperations, SchedulingSearchMultiplier: DirectionSearchMultiplier, OccurrenceMoves: moves.Length == 0 ? null : moves));
             DirectionRange = DirectionPlanContract.Calculate(input.PeriodType, input.Year, input.PeriodNumber, input.IsWeeklyOperationsPlan ? DirectionToday : null);
             await LoadDirectionPlansAsync(token);
             if (DirectionError is not null) return Page();
@@ -186,9 +225,12 @@ public sealed partial class IndexModel
             var preparationNow = HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow;
             input = input with { SchedulingNotBefore = DirectionOperations
                 ? OperationalSchedule.Instant(WeekContract.LocalToday(preparationNow)) : preparationNow.AddMinutes(1) };
+            attemptedInput = input;
             var capacityDb = HttpContext.RequestServices.GetRequiredService<SgolDbContext>();
             await using var captureTx = await capacityDb.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, token);
             var temporalState = await PlanningCapacity.ReadAsync(HttpContext.RequestServices.GetRequiredService<SgolDbContext>(),input,HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow,token);
+            DirectionResolutionNames = temporalState.Preview.Workers.ToDictionary(w => w.PersonId, w => w.Name);
+            DirectionExcludedOverdue = temporalState.Preview.ExcludedOverdue;
             // Preparation is read-only and always shows a fresh agenda; only confirmation requires the exact fingerprint.
             DirectionTemporalRows=temporalState.Preview.TemporalRows;
             DirectionExcludedTasks = temporalState.Preview.ExcludedTasks;
@@ -223,6 +265,15 @@ public sealed partial class IndexModel
                 HttpContext.RequestServices.GetRequiredService<ILogger<IndexModel>>().LogWarning("Search stopped: {Reason}; occurrences={Occurrences}; budget={Budget}", e.Data["Reason"], e.Data["Occurrences"], e.Data["Budget"]);
             }
             DirectionAssignmentConflict = e.Data[nameof(PlanningAssignmentConflict)] as PlanningAssignmentConflict;
+            if (DirectionAssignmentConflict is {} blocked && attemptedInput is {} attempted)
+            {
+                var diagnosis = await PlanningCapacity.ReadAsync(HttpContext.RequestServices.GetRequiredService<SgolDbContext>(),
+                    attempted, HttpContext.RequestServices.GetRequiredService<IClock>().UtcNow, token);
+                DirectionCapacityFingerprint = diagnosis.Preview.Fingerprint;
+                DirectionResolutions = PlanningConflictResolution.Propose(blocked, diagnosis.Ledger, diagnosis.Preview, attempted);
+                DirectionMoveOptions = await PlanningConflictResolution.ProposeMovesAsync(HttpContext.RequestServices.GetRequiredService<SgolDbContext>(), blocked, diagnosis.Ledger, diagnosis.Preview, attempted, token);
+                DirectionExcludedOverdue = diagnosis.Preview.ExcludedOverdue;
+            }
             if (e.Data["Tasks"] is string missing) DirectionError = new("Falta clasificar la criticidad: " + missing, "", null);
         }
         return DirectionConfirming ? Page() : await LoadDirectionPlansAsync(token);
@@ -251,6 +302,9 @@ public sealed partial class IndexModel
         DirectionYear = input.Year.ToString(CultureInfo.InvariantCulture); DirectionNumber = input.PeriodNumber?.ToString(CultureInfo.InvariantCulture) ?? "";
         DirectionSelectedCodes = input.TaskCodes;
         DirectionCapacityJson = JsonSerializer.Serialize(input.CapacityAdjustments ?? [], JsonSerializerOptions.Web);
+        DirectionDatedAdjustments = (input.CapacityAdjustments ?? []).Where(a => a.Day != null).ToArray();
+        DirectionMoves = input.OccurrenceMoves ?? [];
+        DirectionMovesJson = JsonSerializer.Serialize(DirectionMoves, JsonSerializerOptions.Web);
         DirectionCapacityFingerprint = input.CapacityFingerprint ?? "";
         try
         {
@@ -310,6 +364,7 @@ public sealed partial class IndexModel
             422 when response.ErrorCode == "SCHEDULING_SEARCH_INCONCLUSIVE" => TemporalEligibilityContext.Message(response.ErrorCode),
             422 when response.ErrorCode == "SCHEDULING_CRITICALITY_REQUIRED" => "Falta clasificar la criticidad de tareas del plan nuevo",
             422 when response.ErrorCode == "PLAN_NO_AVAILABLE_WORKER" => "Hay tareas sin personal disponible. Revisa la carga, los roles y los horarios por fecha",
+            422 when response.ErrorCode == "PLAN_MOVE_INVALID" => "No se puede mover esa ocurrencia. Debe ser una tarea flexible nueva, sin otra repetición en el destino y dentro de la misma semana. Vuelve a revisar el plan.",
             422 when response.ErrorCode == "PLAN_DISTINCT_WORKERS_REQUIRED" => "No hay suficientes personas distintas del rol para las repeticiones de la semana",
             422 when response.ErrorCode == "PLAN_OCCURRENCES_RESERVED" => "Estas repeticiones ya pertenecen a otro plan. Abre el plan existente para agregar tareas",
             422 when response.ErrorCode == "PLAN_ENDED" => "Ese periodo ya terminó. De lunes a viernes el plan comienza hoy; sábado y domingo comienza el lunes siguiente.",

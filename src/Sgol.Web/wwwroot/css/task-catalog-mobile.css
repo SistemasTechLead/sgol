@@ -39,3 +39,8 @@
     [data-task-catalog] .mobile-record-title small { font-weight: 400; color: var(--color-texto-secundario); }
 }
 }
+/* Catalogue filters reuse the shared fields and mobile folding behavior. */
+.tasks-search.task-catalog-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); align-items: end; }
+.task-catalog-filters .campo { min-width: 0; margin: 0; }
+.task-catalog-filters .campo__control { width: 100%; min-width: 0; }
+.task-catalog-filters__wide { grid-column: 1 / -1; margin: 0; }

@@ -1,5 +1,26 @@
 @model Sgol.Web.Pages.Planning.IndexModel
 @using Sgol.Web.Pages.Planning
+@if (Model.DirectionExcludedOverdue.Length > 0)
+{
+    <details><summary>Pendientes vencidos que no consumen capacidad de este plan (@Model.DirectionExcludedOverdue.Sum(t => t.Minutes) min)</summary>
+        <p>Conservan sus responsables, fechas y estado pendiente. No se consideran realizados ni se retiran.</p>
+        @foreach (var person in Model.DirectionExcludedOverdue.GroupBy(t => t.Person)) {
+            <details><summary>@person.Key · @person.Sum(t => t.Minutes) min</summary><ul>
+                @foreach (var task in person) { <li>@task.TaskCode · @task.Name · @task.Minutes min · Venció @TimeZoneInfo.ConvertTime(task.DueAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("dd/MM/yyyy HH:mm")</li> }
+            </ul></details>
+        }
+    </details>
+}
+@if (Model.DirectionConfirming && Model.DirectionMoves.Count > 0)
+{
+    <h3>Cambios de fecha que se guardarán</h3><ul>
+    @foreach (var move in Model.DirectionMoves) {
+        <li>@move.TaskCode · @move.FromDay.ToString("dd/MM/yyyy") → @move.ToDay.ToString("dd/MM/yyyy")
+        @foreach (var row in Model.DirectionTemporalRows.Where(r => r.Task.StartsWith(move.TaskCode + " · ") && r.Day == move.ToDay)) {
+            <span> · @row.Person · Inicio @TimeZoneInfo.ConvertTime(row.StartsAt, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("dd/MM HH:mm") · Vencimiento @(row.DueAt is {} due ? TimeZoneInfo.ConvertTime(due, Sgol.Web.Infrastructure.Persistence.Planning.OperationalSchedule.Zone).ToString("dd/MM HH:mm") : "—")</span>
+        }</li>
+    }</ul>
+}
 @if (Model.DirectionExcludedTasks.Length > 0) {
     <p role="status">Se excluyen de esta generación por estar inactivas o eliminadas: @string.Join(", ", Model.DirectionExcludedTasks).</p>
 }
