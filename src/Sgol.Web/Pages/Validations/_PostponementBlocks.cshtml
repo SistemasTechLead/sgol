@@ -1,0 +1,12 @@
+@model Sgol.Web.Infrastructure.Persistence.Planning.CarryoverBlock[]
+<div class="postponement-blocks" role="status" aria-label="Por qué no se puede aprobar">
+    @foreach (var group in Model.GroupBy(b => b.Title)) {
+        <div class="postponement-obstacle">
+            <strong><span class="postponement-obstacle__icon" aria-hidden="true">!</span>@group.Key</strong>
+            <div class="postponement-obstacle__content">
+                @foreach (var detail in group.Select(b => b.Detail).Distinct()) { <p>@detail</p> }
+                @foreach (var action in group.Select(b => b.Action).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct()) { <small>@action</small> }
+            </div>
+        </div>
+    }
+</div>

@@ -36,7 +36,7 @@ public sealed partial class OperationalCarryoverService
 {
     private async Task<bool> PendingPostponement(Guid person, Guid[] ids, CancellationToken ct) =>
         (await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.PersonId == person && r.Kind == "POSPONER" && r.State == "PENDIENTE").ToArrayAsync(ct))
-        .Any(r => r.Items().Any(i => ids.Contains(i.AssignmentId)));
+        .Any(r => r.PendingItems().Any(i => ids.Contains(i.AssignmentId)));
 
     private async Task<Guid[]> ImmediateSupervisors(Guid person, CancellationToken ct)
     {
@@ -69,7 +69,7 @@ public sealed partial class OperationalCarryoverService
         var ids = rows.Select(a => a.Id).ToArray();
         var processes = await db.Set<OperationalSequenceAttempt>().Where(a => a.AssignmentId != null && ids.Contains(a.AssignmentId.Value)).Select(a => a.AssignmentId!.Value).ToArrayAsync(ct);
         var pending = (await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.PersonId == person && r.State == "PENDIENTE").ToArrayAsync(ct))
-            .SelectMany(r => r.Items()).Select(i => i.AssignmentId).ToHashSet();
+            .SelectMany(r => r.PendingItems()).Select(i => i.AssignmentId).ToHashSet();
         return rows.Select(a => new OverdueCarryoverTask(a, pending.Contains(a.Id) ? "Petición pendiente de autorización" :
             processes.Contains(a.Id) ? "Requiere revisar las dependencias del proceso" :
             a.GoalUnits > 0 || a.ScheduleMode == "PROGRESO" ? "Requiere revisar su ventana de progreso" :
@@ -109,8 +109,8 @@ public sealed partial class OperationalCarryoverService
     {
         var source = await OperationalCapacityService.LedgerAsync(db, clock.UtcNow, ct);
         var ledger = new CapacityLedger(source.Workers, source.Tasks.Where(t => !selected.Contains(t.Id) && t.ReviewStatus is not ("REASIGNADA" or "NO_SATISFECHA" or "CONCLUIDA")).ToArray(), source.Capacities, source.Unavailable, source.Legacy, source.Today) { Temporal = source.Temporal };
-        var earlier = await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.PersonId == person && r.BranchId == BranchScope.LorettaId && r.Kind == "POSPONER" && r.State == "APROBADA").OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).ToArrayAsync(ct);
-        var origins = earlier.SelectMany(r => r.Items().Where(i => r.Results().Any(x => x.AssignmentId == i.AssignmentId && x.Kind == "POSPOSICION")))
+        var earlier = await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.PersonId == person && r.BranchId == BranchScope.LorettaId && r.Kind == "POSPONER" && r.State != "RECHAZADA").OrderBy(r => r.SubmittedAt).ThenBy(r => r.Id).ToArrayAsync(ct);
+        var origins = earlier.SelectMany(r => r.Items().Where(i => r.Results().Any(x => x.AssignmentId == i.AssignmentId && (x.Kind == "POSPOSICION" || x.Kind == "REPROGRAMACION"))))
             .GroupBy(i => i.AssignmentId).ToDictionary(g => g.Key, g => g.First().Start);
         var postponedIds = origins.Keys.ToArray();
         DateOnly ReferenceDay(OperationalAssignment a) => WeekContract.LocalToday(origins.GetValueOrDefault(a.Id, a.StartsAt));

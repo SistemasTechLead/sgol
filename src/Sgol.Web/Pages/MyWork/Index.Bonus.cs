@@ -7,21 +7,13 @@ namespace Sgol.Web.Pages.MyWork;
 public sealed partial class IndexModel
 {
     public TaskBonusResult? Bonus { get; private set; }
-    public DateOnly BonusCurrentWeek { get; private set; }
     public string? BonusError { get; private set; }
     private async Task LoadBonusAsync(Guid actor, CancellationToken token)
     {
         var service = HttpContext.RequestServices.GetService<TaskBonusService>();
         if (service == null) return;
-        BonusCurrentWeek = service.CurrentWeek;
-        DateOnly? week = null;
-        if (Request.Query.TryGetValue("BonusWeek", out var query))
-        {
-            if (!DateOnly.TryParseExact(query.ToString(), "yyyy-MM-dd", out var parsed)) { BonusError = "Selecciona una semana válida para consultar el bono."; return; }
-            week = parsed;
-        }
-        try { Bonus = (await service.ReadAsync(actor, week, true, token)).Single(); }
-        catch (DirectionPlanException) { BonusError = "No se pudo consultar esta semana del bono. Revisa el periodo y vuelve a intentarlo."; }
+        try { Bonus = (await service.ReadAsync(actor, null, true, token)).Single(); }
+        catch (DirectionPlanException) { BonusError = "No se pudo consultar el porcentaje actual. Vuelve a intentarlo."; }
     }
     public async Task<IActionResult> OnGetBonusAsync(CancellationToken token)
     {

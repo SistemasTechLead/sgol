@@ -1,7 +1,7 @@
 @model (Guid AssignmentId, Sgol.Web.Infrastructure.Persistence.Planning.OccasionDetails? Occasion)
 @if (Model.Occasion is { } occasion) {
     <section aria-label="Instrucciones y material de esta ocasión" data-occasion-material>
-        <h3>Instrucciones</h3><p class="supervision-text">@occasion.Instructions</p>
+        <h3>Instrucciones</h3><partial name="_Markdown" model="@occasion.Instructions" />
         @if (occasion.Channels.Length > 0) { <p><strong>Dónde publicar:</strong> @occasion.Channels</p> }
         @if (occasion.PublicationText.Length > 0) {
             <label class="campo"><span class="campo__etiqueta">Texto para publicar</span><textarea class="campo__control" readonly data-publication-text rows="5">@occasion.PublicationText</textarea></label>

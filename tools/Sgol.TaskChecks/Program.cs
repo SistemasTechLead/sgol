@@ -35,6 +35,7 @@ if (args.Contains("--performance-media")) { await PerformanceMediaChecks.RunAsyn
 if (args.Contains("--performance-scanner")) { await PerformanceScannerChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-scanner")); await PerformanceScannerChecks.RunHostComparisonAsync(PerformanceLoadChecks.ArtifactDirectory("performance-scanner")); return; }
 if (args.Contains("--checklist-rules")) { ChecklistChecks.Rules(); return; }
 if (args.Contains("--bonus-rules")) { TaskBonusChecks.Rules(); return; }
+if (args.Contains("--my-work-closed")) { MyWorkClosedChecks.Run(); return; }
 if (args.Contains("--carryover-rules")) { CarryoverChecks.Rules(); return; }
 if (args.Contains("--postponement-rules")) { PostponementChecks.Rules(); return; }
 if (args.Contains("--scheduling-rules-only")) { OperationalSchedulingChecks.Rules(); return; }
@@ -58,6 +59,9 @@ var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Cont
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 var bonusBeforeMigration = args.Contains("--bonus-migration") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--process-recurrence-ui")) { await ProcessRecurrenceUi.Run(db); return; }
+if (args.Contains("--process-recurrence-seed")) { await ProcessRecurrenceChecks.Run(db, uiSeed: true); return; }
+if (args.Contains("--process-recurrence")) { await ProcessRecurrenceChecks.Run(db); return; }
 if (args.Contains("--bonus-migration")) {
     if (bonusBeforeMigration != System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync())) throw new Exception("Bonus migration changed operational assignments");
     var assignments = await db.OperationalAssignments.IgnoreQueryFilters().CountAsync();
@@ -74,6 +78,8 @@ if (args.Contains("--task-catalog-filters")) { await TaskCatalogFilterChecks.Run
 if (args.Contains("--performance-browser-workload")) { await PerformanceIntegrityChecks.SeedBrowserWorkloadAsync(db); return; }
 if (args.Contains("--performance-integrity")) { await PerformanceIntegrityChecks.RunAsync(db); return; }
 if (args.Contains("--expired-refresh-current-preview")) { await ExpiredAssignmentRefreshChecks.PreviewCurrentAsync(db); return; }
+if (args.Contains("--calendar-preservation")) { await CalendarPreservationChecks.RunAsync(db); return; }
+if (args.Contains("--carryover-resolution")) { await CarryoverResolutionChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--postponement-current")) { await PostponementChecks.Run(db); return; }
 if (args.Contains("--postponement-inbox-current")) { await PostponementChecks.InboxCurrent(db); return; }
 if (args.Contains("--postponement-ui")) { await PostponementChecks.Ui(db); return; }

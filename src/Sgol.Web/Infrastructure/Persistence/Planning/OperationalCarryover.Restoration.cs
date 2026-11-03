@@ -16,10 +16,10 @@ public sealed partial class OperationalCarryoverService
         if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 4000 || selected.Length == 0 || selected.Distinct().Count() != selected.Length) throw Error("ARRASTRE_DATOS_INVALIDOS", 422);
         await using var tx = await db.Database.BeginTransactionAsync(ct); await OperationalTaskService.LockAsync(db, ct);
         if (await supervision.AuthorizeAsync(actor, ct) != CanonicalRole.Direction) throw Error("ACCESO_DENEGADO", 403);
-        var request = await db.Set<OperationalCarryoverRequest>().AsNoTracking().SingleOrDefaultAsync(r => r.Id == requestId && r.BranchId == BranchScope.LorettaId && r.Kind == "POSPONER" && r.State == "APROBADA", ct)
+        var request = await db.Set<OperationalCarryoverRequest>().AsNoTracking().SingleOrDefaultAsync(r => r.Id == requestId && r.BranchId == BranchScope.LorettaId && r.Kind == "POSPONER" && r.State != "RECHAZADA", ct)
             ?? throw Error("ARRASTRE_CONFLICTO");
         var snapshot = request.Items().Where(i => selected.Contains(i.AssignmentId)).ToArray();
-        if (snapshot.Length != selected.Length || snapshot.Any(i => !request.Results().Any(r => r.AssignmentId == i.AssignmentId && r.Kind == "POSPOSICION"))) throw Error("ARRASTRE_CONFLICTO");
+        if (snapshot.Length != selected.Length || snapshot.Any(i => !request.Results().Any(r => r.AssignmentId == i.AssignmentId && (r.Kind == "POSPOSICION" || r.Kind == "REPROGRAMACION")))) throw Error("ARRASTRE_CONFLICTO");
         var reader = new OperationalCarryoverReader(db);
         var restored = new List<Guid>();
         foreach (var item in snapshot) if (await reader.IsRestoredAsync(requestId, item.AssignmentId)) restored.Add(item.AssignmentId);
@@ -29,8 +29,9 @@ public sealed partial class OperationalCarryoverService
         var changes = new List<(OperationalAssignment Row, OperationalAssignment Before, OperationalAssignment Restored)>();
         foreach (var item in snapshot) {
             await supervision.AuthorizeAssignmentAsync(actor, item.AssignmentId, ct);
+            var resolution = request.Results().Single(r => r.AssignmentId == item.AssignmentId);
             if (!rows.TryGetValue(item.AssignmentId, out var row) || row.CompletedAt != null || row.ReviewedAt != null || row.ReviewStatus != item.ReviewStatus ||
-                row.StartsAt != item.ProposedStart || row.DueAt != item.Proposed || row.Revision != item.Revision + 1) throw Error("ARRASTRE_CONFLICTO");
+                row.StartsAt != (resolution.StartsAt ?? item.ProposedStart) || row.DueAt != resolution.After || row.Revision != (resolution.AssignmentRevision ?? item.Revision + 1)) throw Error("ARRASTRE_CONFLICTO");
             using var structure = JsonDocument.Parse(item.Structure);
             using var original = JsonDocument.Parse(structure.RootElement.GetProperty("Original").GetString()!);
             var prior = PostponementAllocator.Copy(row);

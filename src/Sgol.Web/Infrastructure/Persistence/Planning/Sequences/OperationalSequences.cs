@@ -23,6 +23,7 @@ public sealed class OperationalSequence
 // A published version is immutable. Editing creates another version.
 public sealed class OperationalSequenceVersion
 {
+    public string? StartScheduleJson { get; set; }
     public int? AgendaVersion { get; set; }
     public Guid Id { get; set; }
     public Guid SequenceId { get; set; }
@@ -202,8 +203,9 @@ internal static class OperationalSequenceSchema
 
         var version = model.Entity<OperationalSequenceVersion>();
         version.ToTable("operational_sequence_version", t => t.HasCheckConstraint("CK_sequence_calendar",
-            "\"Number\" > 0 AND \"StartKind\" IN ('SEMESTRAL','OCASIONAL') AND \"FirstMonth\" BETWEEN 1 AND 6 AND \"WindowFromDay\" BETWEEN 1 AND 28 AND \"WindowThroughDay\" BETWEEN \"WindowFromDay\" AND 28 AND \"PreferredWeekDay\" BETWEEN 0 AND 6 AND \"StartHour\" BETWEEN 0 AND 23"));
+            "\"Number\" > 0 AND \"StartKind\" IN ('SEMESTRAL','OCASIONAL','SEMANAL','MENSUAL','TRIMESTRAL','ANUAL') AND \"FirstMonth\" BETWEEN 1 AND 6 AND \"WindowFromDay\" BETWEEN 1 AND 28 AND \"WindowThroughDay\" BETWEEN \"WindowFromDay\" AND 28 AND \"PreferredWeekDay\" BETWEEN 0 AND 6 AND \"StartHour\" BETWEEN 0 AND 23"));
         version.HasKey(x => x.Id); version.HasIndex(x => new { x.SequenceId, x.Number }).IsUnique();
+        version.Property(x => x.StartScheduleJson).HasColumnType("jsonb");
         version.Property(x => x.StartKind).HasMaxLength(16);
         version.Property(x => x.Name).HasMaxLength(120);
         version.Property(x => x.Description).HasMaxLength(4000);

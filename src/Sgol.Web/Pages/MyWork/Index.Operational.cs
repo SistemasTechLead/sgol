@@ -47,13 +47,14 @@ public sealed partial class IndexModel
     public DateOnly OperationalDay => WeekContract.LocalToday(OperationalNow);
     public bool OperationalToday(OperationalAssignmentDetails task) => OperationalWorkPlan.IsForDay(task, OperationalDay);
     public string OperationalColor(OperationalAssignmentDetails task) => task.PendingProcessRunId != null ? "scheduled" : task.ReviewStatus switch {
-        "NO_SATISFECHA" => "urgent", "REASIGNADA" => task.CompletedAt != null && task.CompletionKind == "ENTREGA" ? "delivered" : "scheduled",
+        "NO_SATISFECHA" => "closed", "REASIGNADA" => task.CompletedAt != null && task.CompletionKind == "ENTREGA" ? "delivered" : "scheduled",
         _ => LiveBoardTask.FromAssignment(task).Color(OperationalNow)
     };
     public string OperationalTiming(OperationalAssignmentDetails task) => task.PendingProcessStatus switch {
         "EN_ESPERA" => "En espera de la etapa anterior", "PROGRAMADA" => "Programada", "PENDIENTE_ASIGNACION" => "Pendiente de asignación",
         // Reassignment closes the original assignment; it never schedules it again.
         // A supervision closure without a delivery must not be presented as an entrega.
+        _ when task.ReviewStatus == "NO_SATISFECHA" => "Cerrada · No satisfecha",
         _ when task.ReviewStatus == "REASIGNADA" => task.CompletionKind == "ENTREGA" ? "Entregada" : "Reasignada",
         _ => OperationalColor(task) switch {
         "delivered" => "Entregada", "scheduled" => "Por activar", "active" => "Activa",
@@ -153,6 +154,11 @@ public sealed partial class IndexModel
             await service.DecideAsync(session.UserId, process.Run.Id, attemptId, revision, key,
                 decision, conclusion, differences, document, declared, token, captureSessionId, photoIds, screenshots?.Count > 0 ? screenshots : null, checklistAnswer, itemQuantity, capacityResolution, capacityFingerprint, usePreservedWork);
             TempData["OperationalSuccess"] = decision == "DEVOLUCION" ? "Devolución del proceso guardada." : "Entrega del proceso guardada. Consulta el estado de la siguiente etapa en el proceso.";
+            if (capacityResolution == "LOWEST") {
+                var saved = await service.ReadAsync(session.UserId,process.Run.Id,token);
+                var next = saved.Stages.Single(s=>s.Position==saved.Run.ActivePosition);
+                TempData["OperationalSuccess"] = $"Entrega guardada. Siguiente etapa: {next.ReservedPersonName}, {next.PlannedStartsAt.ToOffset(TimeSpan.FromHours(-6)):dd/MM/yyyy HH:mm}–{next.PlannedDueAt.ToOffset(TimeSpan.FromHours(-6)):HH:mm} (Ciudad de México).";
+            }
             return Redirect(OperationalTaskHref(id));
         } catch (DirectionPlanException e) {
             Response.StatusCode = e.Status; OperationalError = Pages.Tasks.IndexModel.Message(e.Code);

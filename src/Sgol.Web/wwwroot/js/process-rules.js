@@ -1,9 +1,45 @@
 (() => {
     'use strict';
+    document.querySelectorAll('[data-process-error-field]').forEach((message, index) => {
+        const control = Array.from(document.querySelectorAll('[name]')).find(c => c.name === message.dataset.processErrorField);
+        if (!control) return;
+        const detail = message.cloneNode(true);
+        detail.removeAttribute('data-process-error-field');
+        detail.id = `process-field-error-${index}`;
+        detail.className = 'process-stage-error';
+        control.after(detail);
+        control.classList.add('input-validation-error');
+        control.dataset.processServerInvalid = 'true';
+        control.setAttribute('aria-invalid', 'true');
+        control.setAttribute('aria-describedby', `${control.getAttribute('aria-describedby') || ''} ${detail.id}`.trim());
+    });
     document.querySelectorAll('[data-process-rules]').forEach(form => {
         const page = form.closest('.process-page') || document;
         const stages = () => Array.from(form.querySelectorAll('[data-process-stage]'));
         const field = (row, key) => row.querySelector(`[name$=".${key}"]`);
+        const showClientErrors = row => {
+            const invalid = Array.from(row.querySelectorAll('input,select,textarea')).filter(c => !c.disabled && !c.validity.valid);
+            row.querySelectorAll('[aria-invalid="true"]').forEach(c => {
+                if (!invalid.includes(c) && c.dataset.processServerInvalid !== 'true') c.removeAttribute('aria-invalid');
+            });
+            let notice = row.querySelector('[data-process-client-conflict]');
+            if (!notice) {
+                notice = document.createElement('div'); notice.dataset.processClientConflict = '';
+                notice.className = 'process-membership-error'; notice.setAttribute('role', 'status');
+                row.prepend(notice);
+            }
+            notice.replaceChildren();
+            if (invalid.length) {
+                const title = document.createElement('strong'); title.textContent = '⚠ Conflicto'; notice.append(title);
+                for (const control of invalid) {
+                    const text = document.createElement('p');
+                    text.textContent = `${control.closest('label')?.querySelector('.campo__etiqueta')?.textContent || 'Campo'}: ${control.validationMessage}`;
+                    notice.append(text); control.setAttribute('aria-invalid', 'true');
+                }
+            }
+            notice.hidden = !invalid.length;
+            row.classList.toggle('process-stage--conflict', invalid.length > 0 || row.dataset.serverConflict === 'true');
+        };
         const status = form.querySelector('[data-process-order-status]');
         const startKind = form.querySelector('[data-process-start-kind]');
         const calendar = form.querySelector('[data-process-calendar]');
@@ -36,7 +72,9 @@
         };
         const read = () => {
             const value = key => form.elements.namedItem(`Input.${key}`)?.value ?? '';
-            return { Name: value('Name'), Description: value('Description'), StartKind: value('StartKind'),
+            return { Schedule: { Mode: value('Schedule.Mode'), Repetitions: value('Schedule.Repetitions'),
+                WeekDays: Array.from(form.querySelectorAll('[name="ProcessDays"]:checked')).reduce((mask,c) => mask | (1 << Number(c.value)), 0),
+                MonthDays: value('Schedule.MonthDays'), Time: value('Schedule.Time'), WeeklyOperations: form.querySelector('[name="Input.Schedule.WeeklyOperations"][type="checkbox"]')?.checked ?? false }, Name: value('Name'), Description: value('Description'), StartKind: value('StartKind'),
                 FirstMonth: value('FirstMonth'), WindowFromDay: value('WindowFromDay'), WindowThroughDay: value('WindowThroughDay'),
                 PreferredWeekDay: value('PreferredWeekDay'), StartHour: value('StartHour'),
                 Steps: stages().map(row => Object.fromEntries(['TaskId', 'Position', 'Action', 'ReleaseCondition',
@@ -44,6 +82,7 @@
         };
         const canonical = input => JSON.stringify([
             String(input.Name ?? '').trim(), String(input.Description ?? '').trim(), input.StartKind,
+            ...(['SEMANAL', 'MENSUAL', 'TRIMESTRAL', 'ANUAL'].includes(input.StartKind) ? [input.Schedule?.Mode, String(input.Schedule?.Repetitions ?? 1), String(input.Schedule?.WeekDays ?? 0), input.Schedule?.MonthDays ?? '', String(input.Schedule?.Time ?? '').slice(0,5), !!input.Schedule?.WeeklyOperations] : []),
             ...(input.StartKind === 'SEMESTRAL' ? ['FirstMonth', 'WindowFromDay', 'WindowThroughDay', 'PreferredWeekDay', 'StartHour'].map(k => String(input[k] ?? '')) : []),
             (input.Steps || []).map(row => ['TaskId', 'Position', 'Action', 'ReleaseCondition', 'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions', 'OutputItemId', 'OutputTargetTaskId', 'IsFinalAudit'].map(k => String(row[k] ?? '').trim()))
         ]);
@@ -68,7 +107,7 @@
             });
             if (next) next.textContent = dirty ? 'Guarda los cambios antes de publicar. La versión publicada se conserva hasta publicar otro borrador.' : nextText;
             const summary = form.querySelector('[data-process-settings-summary]');
-            if (summary) summary.textContent = `${read().Name} · ${startKind.value === 'SEMESTRAL' ? 'Calendario semestral' : 'Ocasión del proceso'}`;
+            if (summary) summary.textContent = `${read().Name} · ${startKind.selectedOptions[0].textContent}`;
         };
         form.addEventListener('change', event => {
             if (!event.target.matches('[data-output-item]')) return;
@@ -100,7 +139,6 @@
                 target.setCustomValidity(message);
                 const error = row.querySelector('[data-process-stage-error]');
                 if (error) error.textContent = message;
-                if (message && !form.querySelector('dialog[open]')) reveal(target);
                 const badge = row.querySelector('[data-process-position]');
                 if (badge) badge.textContent = `Etapa ${index + 1}`;
                 const summary = row.querySelector('[data-process-stage-summary]');
@@ -108,6 +146,7 @@
                 const up = row.querySelector('[data-process-up]'), down = row.querySelector('[data-process-down]');
                 if (up) up.disabled = index === 0;
                 if (down) down.disabled = index === ordered.length - 1;
+                showClientErrors(row);
             });
         };
         const move = (row, destination) => {
@@ -140,9 +179,23 @@
         };
         const updateCalendar = () => {
             if (!calendar || !startKind) return;
+            const recurring = form.querySelector('[data-process-recurrence]');
+            const isRecurring = ['SEMANAL', 'MENSUAL', 'TRIMESTRAL', 'ANUAL'].includes(startKind.value);
+            if (recurring) {
+                recurring.hidden = !isRecurring;
+                recurring.querySelectorAll('input,select').forEach(c => c.disabled = !isRecurring);
+                const weekly = startKind.value === 'SEMANAL';
+                const mode = form.querySelector('[name="Input.Schedule.Mode"]');
+                mode.querySelector('[value="DIAS_FIJOS"]').disabled = !weekly;
+                if (!weekly && mode.value === 'DIAS_FIJOS') mode.value = 'DISTRIBUIDA';
+                const sections = [['[data-process-days]', weekly && mode.value === 'DIAS_FIJOS'], ['[data-process-month-days]', startKind.value === 'MENSUAL'], ['[data-process-weekly]', weekly], ['[data-process-weekly-help]', weekly]];
+                for (const [selector, visible] of sections) { const el = form.querySelector(selector); el.hidden = !visible; el.querySelectorAll('input').forEach(c => c.disabled = !isRecurring || !visible); }
+                if (!weekly) form.querySelector('[name="Input.Schedule.WeeklyOperations"][type="checkbox"]').checked = false;
+            }
             calendar.hidden = startKind.value !== 'SEMESTRAL';
             calendar.querySelectorAll('input, select, textarea').forEach(control => control.disabled = calendar.hidden);
         };
+        form.querySelector('[name="Input.Schedule.Mode"]')?.addEventListener('change', () => { updateCalendar(); updateDirty(); });
         let dragging = null;
         const clearDrop = () => {
             stages().forEach(row => row.classList.remove('process-drop-before', 'process-drop-after', 'process-dragging'));

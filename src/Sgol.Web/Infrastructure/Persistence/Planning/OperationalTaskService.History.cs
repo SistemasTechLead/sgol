@@ -69,9 +69,10 @@ public sealed partial class OperationalTaskService
             events.Add(new("ACTUALIZACION", change.OccurredAt, change.ActorUserId,
                 "Parámetros actualizados: " + string.Join(", ", after.GetProperty("Fields").EnumerateArray().Select(f => f.GetString())) + " · " + after.GetProperty("Reason").GetString(), null, null));
         }
-        var carryovers = await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.State == "APROBADA").OrderBy(r => r.DecidedAt).ToArrayAsync(token);
+        var carryovers = await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.State != "RECHAZADA").OrderBy(r => r.DecidedAt).ToArrayAsync(token);
         foreach (var request in carryovers.Where(r => r.Items().Any(i => i.AssignmentId == id)))
-            events.Add(new("ARRASTRE", request.DecidedAt, request.DecidedBy, $"{request.CauseDescription} · {request.Minutes} min · {request.DecisionComment} · Solicitud {request.Id}", null, null));
+            foreach (var result in request.Results().Where(r => r.AssignmentId == id))
+                events.Add(new("ARRASTRE", result.At ?? request.DecidedAt, result.Actor ?? request.DecidedBy, $"{OperationalCarryoverService.ResolutionLabel(result.Kind)} · {result.Comment ?? request.DecisionComment} · Solicitud {request.Id}", null, null));
         var retiredEvents = await db.AuditEvents.AsNoTracking().Where(e => e.ResourceId == id && e.Action == "OPERATIONAL_ASSIGNMENT_RETIRED").ToArrayAsync(token);
         foreach (var change in retiredEvents)
             events.Add(new("RETIRO", change.OccurredAt, change.ActorUserId, change.AfterData!.RootElement.GetProperty("Reason").GetString(), null, null));

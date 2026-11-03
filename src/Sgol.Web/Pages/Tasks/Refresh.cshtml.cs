@@ -21,13 +21,14 @@ public sealed class RefreshModel(IRazorSessionState sessions, AssignmentRefreshS
     [BindProperty] public bool RetireInactiveAssignments { get; set; }
     [BindProperty] public bool RetireExcludedAssignments { get; set; }
     [BindProperty] public Guid[] PreserveProcessAssignmentIds { get; set; } = [];
+    [BindProperty] public Guid[] PreserveCalendarAssignmentIds { get; set; } = [];
     [BindProperty] public string Fingerprint { get; set; } = "";
     [BindProperty] public string Reason { get; set; } = "";
     public AssignmentRefreshPreview? Preview { get; private set; }
     public Dictionary<Guid, string> Plans { get; private set; } = [];
     public Dictionary<string, string> DecisionTasks { get; private set; } = [];
     public string? Error { get; private set; }
-    private AssignmentRefreshRequest RequestInput => new(Guid.Empty, Key, NotBefore, null, ReplaceRemainingEstimate, ChangeAuthorizedDeadline, AdoptLegacyCalendar, RetireInactiveAssignments, RetireExcludedAssignments, PreserveProcessAssignmentIds);
+    private AssignmentRefreshRequest RequestInput => new(Guid.Empty, Key, NotBefore, null, ReplaceRemainingEstimate, ChangeAuthorizedDeadline, AdoptLegacyCalendar, RetireInactiveAssignments, RetireExcludedAssignments, PreserveProcessAssignmentIds, PreserveCalendarAssignmentIds);
     private async Task<Guid?> Actor(CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";

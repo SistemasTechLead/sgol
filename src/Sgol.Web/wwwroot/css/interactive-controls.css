@@ -1,0 +1,134 @@
+/* Shared affordance for actions and disclosures. Prose links remain links. */
+.boton.boton--textual, .boton.boton--terciario,
+.task-bonus > .task-bonus__trigger,
+#contenido-principal .task-action-panel__buttons [data-task-toggle],
+#contenido-principal .report-bar-row:not(:disabled),
+#contenido-principal .section-navigation > [data-presentation="destination"]:not([aria-current="page"]),
+#contenido-principal .mobile-fold-toggle,
+#contenido-principal .mobile-record-toggle {
+    background: var(--color-superficie-elevada);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-control, 8px);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-texto-primario) 10%, transparent);
+}
+/* Keep the selected destination's foreground and background as a pair,
+   including the mobile navigation rules that otherwise use neutral text. */
+#contenido-principal .section-navigation > [data-presentation="destination"][aria-current="page"] {
+    color: var(--color-acento-texto);
+    background: var(--color-acento);
+    border: 1px solid var(--color-acento);
+    border-radius: var(--radio-control, 8px);
+    box-shadow: 0 3px 0 var(--color-acento);
+}
+#contenido-principal .section-navigation > [data-presentation="destination"][aria-current="page"]:hover {
+    background: var(--color-acento-hover);
+    border-color: var(--color-acento-hover);
+}
+#contenido-principal details:not(.my-work-help) { min-width: 0; }
+/* Filter groups use only the space their controls need, not the spare row. */
+#contenido-principal .desktop-filter,
+#contenido-principal .validation-filter-bar > details {
+    flex: 0 0 auto;
+    width: max-content;
+    max-width: min(24rem, 100%);
+}
+#contenido-principal .desktop-filter > :is(.campo, .board-filter, .desktop-filter-field),
+#contenido-principal .validation-filter-bar > details > .campo {
+    width: 18rem;
+    max-width: 100%;
+    min-width: 0;
+    flex: none;
+}
+#contenido-principal :is(.desktop-filter, .validation-filter-bar > details) > :is(.campo, .board-filter, .desktop-filter-field):has(input[type="date"]) { width: 14rem; }
+#contenido-principal :is(.desktop-filter, .validation-filter-bar > details) > :is(.campo, .board-filter, .desktop-filter-field):has(input[type="number"]) { width: 12rem; }
+#contenido-principal :is(.desktop-filter, .validation-filter-bar > details) :is(input:not([type="checkbox"]):not([type="radio"]), select) {
+    width: 100%; min-width: 0; max-width: 100%;
+}
+#contenido-principal :is(.desktop-filter-bar, .desktop-filter-group, .validation-filter-bar) {
+    justify-content: flex-start;
+}
+#contenido-principal :is(.desktop-filter-bar, .validation-filter-bar) > .boton {
+    flex: 0 0 auto; margin-inline: 0;
+}
+#contenido-principal details:not(.my-work-help) > summary {
+    display: flex;
+    /* Expanded content may fill the row; its trigger keeps its own text width. */
+    width: max-content;
+    max-width: 100%;
+    justify-self: start;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-control, 8px);
+    background: var(--color-superficie-elevada);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-texto-primario) 10%, transparent);
+    cursor: pointer;
+    list-style: none;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+#contenido-principal details:not(.my-work-help) > summary::-webkit-details-marker { display: none; }
+#contenido-principal details:not(.my-work-help) > summary::marker { content: ''; }
+#contenido-principal details:not(.my-work-help) > summary::after,
+#contenido-principal .mobile-fold-toggle:not(.mobile-info-toggle)::after,
+#contenido-principal .mobile-record-toggle::after {
+    content: '';
+    display: block;
+    flex: 0 0 9px;
+    width: 9px;
+    height: 9px;
+    margin: -4px 3px 0 4px;
+    border: solid currentColor;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    align-self: center;
+}
+#contenido-principal details[open]:not(.my-work-help) > summary::after,
+#contenido-principal .mobile-fold-toggle[aria-expanded="true"]:not(.mobile-info-toggle)::after,
+#contenido-principal .mobile-record-toggle[aria-expanded="true"]::after {
+    transform: rotate(225deg);
+    margin-block-start: 4px;
+}
+#contenido-principal .mobile-fold-toggle {
+    width: max-content; max-width: 100%; flex: 0 1 auto; justify-self: start;
+    justify-content: flex-start; align-items: center; gap: 10px;
+}
+#contenido-principal .mobile-record-toggle { padding: 8px 12px; gap: 6px; text-decoration: none; }
+#contenido-principal .mobile-record-toggle::before { content: 'Más datos'; }
+#contenido-principal .mobile-record-toggle[aria-expanded="true"]::before { content: 'Menos datos'; }
+/* Reserve both labels so "Ver/Ocultar carga" does not resize the trigger. */
+#contenido-principal .capacity-panel__hint { display: inline-grid; }
+#contenido-principal .capacity-panel__hint > span { display: block; grid-area: 1 / 1; }
+#contenido-principal .capacity-panel__hint::after { content: none; }
+#contenido-principal .capacity-panel__hide,
+#contenido-principal .capacity-panel[open] .capacity-panel__show { visibility: hidden; }
+#contenido-principal .capacity-panel[open] .capacity-panel__hide { visibility: visible; }
+.boton.boton--textual:hover:not(:disabled), .boton.boton--terciario:hover:not(:disabled),
+.task-bonus > .task-bonus__trigger:hover,
+#contenido-principal .report-bar-row:not(:disabled):hover,
+#contenido-principal details:not(.my-work-help) > summary:hover,
+#contenido-principal .mobile-fold-toggle:hover,
+#contenido-principal .mobile-record-toggle:hover {
+    background: color-mix(in srgb, var(--color-superficie-elevada) 88%, var(--color-texto-primario));
+}
+.carryover-guidance { margin-block: 16px; color: var(--color-texto-secundario); }
+.carryover-guidance p { margin-block: 8px; }
+#carryovers .carryover-request {
+    display: grid; gap: 16px; min-width: 0; margin-block: 20px; padding: 16px;
+    border: 1px solid var(--color-borde); border-radius: var(--radio-tarjeta);
+    background: var(--color-superficie);
+}
+#carryovers .carryover-request > .panel-seccion { margin: 0; padding: 0; border: 0; box-shadow: none; }
+#carryovers .carryover-form { display: grid; gap: 8px; margin: 0; min-width: 0; }
+#carryovers .carryover-form textarea { width: 100%; min-height: 88px; max-width: 100%; }
+.carryover-request__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+.carryover-history__heading { display: grid; gap: 4px; min-width: 0; }
+.carryover-history__heading small { color: var(--color-texto-secundario); }
+.carryover-history__heading .badge { justify-self: start; }
+#contenido-principal .report-bar-row:not(:disabled) { padding: 10px 12px; margin-block: 4px; }
+@media print {
+    #contenido-principal details:not(.my-work-help) > summary { box-shadow: none; }
+}

@@ -25,7 +25,7 @@
     <partial name="_ValidationCards" model="Model" />
 } else {
 <partial name="_Capacity" model="Model" />
-@if (Model.PendingAuthorizedCarryoverCount > 0) { <partial name="_Carryovers" model="Model" /> }
+<partial name="_Carryovers" model="Model" />
 @foreach (var group in Model.Sections) {
     <section class="panel-seccion supervision-section" id="@group.Key" aria-labelledby="title-@group.Key">
         <header class="panel-seccion__cabecera"><h2 id="title-@group.Key">@group.Title <span class="badge badge--neutro">@group.Total</span></h2></header>
@@ -63,7 +63,7 @@
     <dialog class="supervision-dialog" data-supervision-detail aria-labelledby="supervision-task-title">
         @if (Model.Error is not null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
         <header class="supervision-dialog__header"><h2 id="supervision-task-title">@a.Name</h2><button class="boton boton--secundario" type="button" data-dialog-close title="Cerrar"><partial name="_Icon" model='@("close")' /><span class="solo-lectores">Cerrar</span></button></header>
-        @if (!string.IsNullOrWhiteSpace(a.Description)) { <section aria-label="Descripción de la tarea"><h3>Descripción</h3><p class="supervision-text">@a.Description</p></section> }
+        @if (!string.IsNullOrWhiteSpace(a.Description)) { <section aria-label="Descripción de la tarea"><h3>Descripción</h3><partial name="_Markdown" model="@a.Description" /></section> }
         <p>@a.PersonName · @SessionPresentation.RoleName(selected.Role) · @selected.PlanName</p><partial name="_OccasionMaterial" model="@((a.Id, Model.Occasion))" />
         <p><span class="badge badge--neutro">@Model.Status(a)</span></p>
         @if (Model.CorrectionConflicts.TryGetValue(a.Id, out var conflict)) { <p class="alerta alerta--peligro">@Sgol.Web.Pages.Validations.IndexModel.Message(conflict)</p> }

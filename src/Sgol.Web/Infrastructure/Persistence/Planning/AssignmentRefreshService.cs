@@ -10,7 +10,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed record AssignmentRefreshRequest(Guid TaskId, Guid Key, DateTimeOffset NotBefore,
     Guid? PersonId = null, bool ReplaceRemainingEstimate = false, bool ChangeAuthorizedDeadline = false, bool AdoptLegacyCalendar = false, bool RetireInactiveAssignments = false, bool RetireExcludedAssignments = false,
-    Guid[]? PreserveProcessAssignmentIds = null);
+    Guid[]? PreserveProcessAssignmentIds = null, Guid[]? PreserveCalendarAssignmentIds = null);
 public sealed record AssignmentRefreshDifference(OperationalAssignment? Before, OperationalAssignment? After,
     string[] Fields, bool ProcessStage = false, bool Retire = false)
 {
@@ -22,13 +22,17 @@ public sealed record AssignmentRefreshDecision(string Code, string Title, string
 {
     public Guid? AssignmentId { get; init; }
     public string? Problem { get; init; }
+    public string? Cause { get; init; }
+    public string? Context { get; init; }
 }
+public sealed record AssignmentRefreshIssue(string Code, string Detail, string? TaskCode, string? TaskName, string? Context);
 public sealed record AssignmentRefreshPreview(AssignmentRefreshRequest Request, string TaskName, string Fingerprint,
     AssignmentRefreshDifference[] Differences, string[] Conflicts, int Excluded)
 {
     public AssignmentRefreshDecision[] Decisions { get; init; } = [];
     public string[] DecisionConflicts { get; init; } = [];
     public string[] Notices { get; init; } = [];
+    public AssignmentRefreshIssue[] Issues { get; init; } = [];
     public bool CanApply => Conflicts.Length == 0 && Differences.Length > 0;
 }
 
@@ -99,6 +103,13 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         var attempts = await db.Set<OperationalSequenceAttempt>().AsNoTracking().Where(a => stageIds.Contains(a.StageId)).OrderBy(a => a.Id).ToArrayAsync(ct);
         var linked = attempts.Where(a => a.AssignmentId != null).ToDictionary(a => a.AssignmentId!.Value);
         var conflicts = new List<string>();
+        var issues = new List<AssignmentRefreshIssue>();
+        static string Context(OperationalAssignment a) => $"{a.PersonName} · {TimeZoneInfo.ConvertTime(a.StartsAt, OperationalSchedule.Zone):dd/MM/yyyy HH:mm}";
+        void Block(string code, string detail, OperationalAssignment? row = null, OperationalTask? task = null)
+        {
+            conflicts.Add(detail);
+            issues.Add(new(code, detail, row?.TaskCode ?? task?.TaskCode, row?.Name ?? task?.Name, row == null ? null : Context(row)));
+        }
         var processDecisions = new List<AssignmentRefreshDecision>();
         var processNames = await db.Set<OperationalSequence>().AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var decisionConflicts = new List<string>();
@@ -178,7 +189,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
                 var accepted = request.PreserveProcessAssignmentIds?.Contains(a.Id) == true;
                 processDecisions.Add(new("process:" + a.Id, title,
                     "Esta asignación conservará su proceso anterior. El proceso nuevo se usará en las nuevas ejecuciones que se generen con esa configuración. Los demás cambios de la tarea se actualizarán con las reglas habituales y pueden ajustar su agenda.",
-                    [task.TaskCode], accepted) { AssignmentId = a.Id, Problem = problem });
+                    [task.TaskCode], accepted) { AssignmentId = a.Id, Problem = problem, Cause = "La tarea cambió de proceso.", Context = Context(a) });
                 if (!accepted)
                 {
                     var message = problem + " Marca «" + title + "» y pulsa Revisar cambios para continuar.";
@@ -188,20 +199,20 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
                 if (fields.Where(f => f != "Calendario anterior sin verificar").All(AssignmentDefinition.IsMetadataField))
                     fields = fields.Where(f => f != "Calendario anterior sin verificar").ToArray();
             }
-            if (task.SpecializationId != null && specialty == null) { conflicts.Add(task.TaskCode + ": la especialización requerida está inactiva."); continue; }
+            if (task.SpecializationId != null && specialty == null) { Block("specialty", task.TaskCode + ": la especialización requerida está inactiva.", a); continue; }
             if (process && task.ScheduleMode == "PROGRESO")
-            { conflicts.Add($"{task.TaskCode} · {task.Name}, asignada a {a.PersonName} el {TimeZoneInfo.ConvertTime(a.StartsAt, OperationalSchedule.Zone):dd/MM/yyyy HH:mm}: la tarea ahora usa PROGRESO, incompatible con una etapa del proceso existente. Conserva una modalidad compatible o resuelve la estructura desde el editor del proceso."); continue; }
+            { Block("process-mode", $"{task.TaskCode} · {task.Name}, asignada a {a.PersonName} el {TimeZoneInfo.ConvertTime(a.StartsAt, OperationalSchedule.Zone):dd/MM/yyyy HH:mm}: la tarea ahora usa PROGRESO, incompatible con una etapa del proceso existente. Conserva una modalidad compatible o resuelve la estructura desde el editor del proceso.", a); continue; }
             if (fields.Contains("Calendario anterior sin verificar"))
             {
                 Decision("calendar", "Usar el calendario actual de las tareas", "Las asignaciones antiguas no tienen un calendario verificable. Esta opción permite usar los días y horarios configurados hoy.", request.AdoptLegacyCalendar, task.TaskCode);
                 fields = fields.Concat(new[] { "Recurrencia", "Hora de activación" }).Distinct().ToArray();
             }
             if (process && !runs.Single(r => r.Id == stageRows[a.Id].RunId).UsesTaskEvidence && task.Requirement != "DOCUMENTO")
-            { conflicts.Add(a.TaskCode + ": este proceso usa circulación de documentos PDF. Cambiar el tipo de evidencia requiere preparar una versión y resolver su flujo documental."); continue; }
+            { Block("process-evidence", a.TaskCode + ": este proceso usa circulación de documentos PDF. Cambiar el tipo de evidencia requiere preparar una versión y resolver su flujo documental.", a); continue; }
             var next = AssignmentDefinition.Copy(a);
             if (preserveProcess) AssignmentDefinition.PreserveProcess(next, task);
             if (a.ProgressUnits > 0 && (task.ScheduleMode != "PROGRESO" || task.ProgressUnit != a.ProgressUnit))
-            { conflicts.Add($"{a.PersonName}: hay {a.ProgressUnits} {a.ProgressUnit}. Cambiar unidad o abandonar PROGRESO requiere una conversión documentada; conserva la unidad y modalidad para actualizar este pendiente."); continue; }
+            { Block("progress-unit", $"{a.PersonName}: hay {a.ProgressUnits} {a.ProgressUnit}. Cambiar unidad o abandonar PROGRESO requiere una conversión documentada; conserva la unidad y modalidad para actualizar este pendiente.", a); continue; }
             if (a.TransferRemainingMinutes != null && fields.Any(f => f is "Carga" or "Meta o unidad"))
             {
                 Decision("remaining", "Recalcular el tiempo pendiente", "Sustituye la estimación manual anterior por el tiempo calculado con la nueva carga y la meta. El avance registrado se conserva.", request.ReplaceRemainingEstimate, task.TaskCode);
@@ -216,7 +227,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             if (request.PersonId is {} recipient)
             {
                 var worker = source.Workers.SingleOrDefault(w => w.Id == recipient && w.EligibleFor(task.AssignedRole, task.SpecializationId));
-                if (worker == null) { conflicts.Add("El responsable seleccionado no cumple el rol o especialización vigente."); continue; }
+                if (worker == null) { Block("worker", "El responsable seleccionado no cumple el rol o especialización vigente.", a); continue; }
                 next.PersonId = worker.Id; next.PersonName = worker.Name; next.AssignedRole = worker.Role;
             }
             diffs.Add(new(a, next, fields, process));
@@ -233,7 +244,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             if (from > plan.EndsOn) continue; // Old obligations survive as overdue work.
             var expected = task.PeriodType == "OCASIONAL" ? new List<DateOnly>() : OperationalSchedule.Dates(plan.StartsOn, plan.EndsOn, task).ToList();
             if (MonthlyTaskCalendar.UsesCalendar(task) && MonthlyTaskCalendar.Occurrences(task, from, plan.EndsOn).Any(o => o.ValidDate == null))
-                conflicts.Add(task.TaskCode + ": el nuevo calendario contiene una fecha inexistente. Corrige sus días del mes antes de retirar o agregar ocurrencias.");
+                Block("invalid-date", task.TaskCode + ": el nuevo calendario contiene una fecha inexistente. Corrige sus días del mes antes de retirar o agregar ocurrencias.", null, task);
             var protectedRows = all.Where(a => a.PlanId == plan.Id && a.TaskId == task.Id && !AssignmentDefinition.Pending(a) && a.ReviewStatus != "REASIGNADA").ToArray();
             foreach (var closed in protectedRows)
             {
@@ -269,9 +280,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             {
                 if (expected.Count == 0)
                 {
-                    if (diff.Before!.ProgressUnits > 0 || diff.Before.TransferRemainingMinutes != null || diff.Before.ReassignedFromId != null)
-                        conflicts.Add($"{diff.Before.TaskCode} · {diff.Before.PersonName}: sobra una ocurrencia con actividad; no puede retirarse automáticamente.");
-                    else { diffs.Remove(diff); diffs.Add(diff with { After = null, Fields = ["Retirar ocurrencia sin actividad"] }); }
+                    diffs.Remove(diff); diffs.Add(diff with { After = null, Fields = ["Retirar ocurrencia sin actividad"] });
                     continue;
                 }
                 var day = expected[0]; expected.RemoveAt(0);
@@ -317,9 +326,39 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             if (diff.Fields.Contains("Conservar proceso anterior")) AssignmentDefinition.PreserveProcess(preserved, definitions[before.TaskId]);
             diffs[i] = diff with { After = preserved, PreservesExpiredAgenda = true };
         }
-        foreach (var diff in diffs.Where(d => d.After == null))
-            if (evidence.Any(p => p.AssignmentId == diff.Before!.Id) || attachments.Any(p => p.AssignmentId == diff.Before!.Id) || progress.Any(p => p.AssignmentId == diff.Before!.Id) || childLinks.Contains(diff.Before!.Id) || transfers.Any(t => t.AssignmentId == diff.Before!.Id) || captureSessions.Any(t => t.AssignmentId == diff.Before!.Id) || carryovers.Any(r => r.Items().Any(i => i.AssignmentId == diff.Before!.Id)))
-                conflicts.Add($"{diff.Before!.TaskCode}: la ocurrencia a retirar tiene evidencia, avance o un reemplazo.");
+        foreach (var diff in diffs.Where(d => d.After == null).ToArray())
+        {
+            var row = diff.Before!;
+            var causes = new List<string>();
+            if (evidence.Any(p => p.AssignmentId == row.Id)) causes.Add("fotografías");
+            if (attachments.Any(p => p.AssignmentId == row.Id)) causes.Add("archivos adjuntos");
+            if (row.ProgressUnits > 0 || progress.Any(p => p.AssignmentId == row.Id)) causes.Add("avance registrado");
+            if (row.TransferRemainingMinutes != null || transfers.Any(t => t.AssignmentId == row.Id)) causes.Add("transferencia o estimación pendiente");
+            if (row.ReassignedFromId != null) causes.Add("una corrección o reasignación de otra entrega");
+            if (childLinks.Contains(row.Id)) causes.Add("un reemplazo vinculado");
+            if (captureSessions.Any(t => t.AssignmentId == row.Id)) causes.Add("una sesión de captura (no implica archivos cargados)");
+            if (OperationalChecklist.Checked(row.ChecklistDraftJson).Length > 0) causes.Add("puntos de checklist marcados");
+            if (row.Comment != null || row.Conclusion != null) causes.Add("texto registrado");
+            var requests = carryovers.Where(r => r.Items().Any(i => i.AssignmentId == row.Id)).ToArray();
+            if (requests.Any(r => r.PendingItems().Any(i => i.AssignmentId == row.Id))) causes.Add("una solicitud de arrastre o posposición pendiente");
+            if (requests.Any(r => r.Recognizes(row.Id))) causes.Add("un arrastre o posposición aprobado");
+            if (causes.Count == 0) continue;
+            var plan = plans.Single(p => p.Id == row.PlanId);
+            var problem = $"{row.TaskCode} · {row.Name}. Asignada a {row.PersonName}, del {TimeZoneInfo.ConvertTime(row.StartsAt, OperationalSchedule.Zone):dd/MM/yyyy HH:mm} al {TimeZoneInfo.ConvertTime(row.DueAt, OperationalSchedule.Zone):dd/MM/yyyy HH:mm}, en el plan «{plan.Name}». " +
+                $"El calendario actual quitaría esta ocurrencia, pero tiene {string.Join(", ", causes)}.";
+            const string title = "Conservar este pendiente y actualizar las demás asignaciones";
+            var accepted = request.PreserveCalendarAssignmentIds?.Contains(row.Id) == true;
+            processDecisions.Add(new("calendar-preserve:" + row.Id, title,
+                "Mantiene toda esta asignación sin cambios: responsable, horario, carga, configuración, avances, archivos y solicitudes. El calendario nuevo se usará para las nuevas asignaciones. Esta excepción se autoriza solo para esta actualización.",
+                [row.TaskCode], accepted) { AssignmentId = row.Id, Problem = problem, Cause = "El calendario la quitaría, pero tiene " + string.Join(", ", causes.Select(c => c.Replace("una sesión de captura (no implica archivos cargados)", "una captura iniciada").Replace("una solicitud de arrastre o posposición pendiente", "una solicitud pendiente").Replace("un arrastre o posposición aprobado", "un plazo autorizado"))) + ".", Context = Context(row) });
+            if (!accepted)
+            {
+                var message = problem + " Marca «" + title + "» y pulsa Revisar cambios para continuar.";
+                conflicts.Add(message); decisionConflicts.Add(message);
+            }
+            // Keep the reservation in the ledger and affectedIds to prevent neighbour reflow.
+            diffs.Remove(diff);
+        }
 
         // Only scheduling changes release neighbouring pending reservations. Metadata-only updates stay put.
         var scheduled = diffs.Where(d => !d.Retire && !d.KeepsAgenda && d.After != null && (d.Before == null || d.Fields.Any(f => f is "Carga" or "Criticidad" or "Elegibilidad" or "Recurrencia" or "Modalidad" or "Hora de activación" or "Meta o unidad" or "Participación en planes") || d.Before.PersonId != d.After.PersonId)).ToList();
@@ -346,11 +385,11 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         }
         foreach (var diff in scheduled.Where(d => d.After!.SchedulingPolicyId == null))
         {
-            if (!source.Temporal.Enabled) { conflicts.Add(diff.After!.TaskCode + ": configura los horarios antes de adoptar una agenda con carga y cierre calculados."); continue; }
+            if (!source.Temporal.Enabled) { Block("schedule", diff.After!.TaskCode + ": configura los horarios antes de adoptar una agenda con carga y cierre calculados.", diff.After); continue; }
             var row = diff.After!;
             row.SchedulingPolicyId = currentPolicy.Id; row.ClosureMarginPercent = currentPolicy.MarginPercent;
             row.NominalStartsAt ??= row.StartsAt;
-            if (!OperationalAgenda.IsDefined(row.OperationalCriticality)) conflicts.Add(row.TaskCode + ": selecciona una criticidad operativa.");
+            if (!OperationalAgenda.IsDefined(row.OperationalCriticality)) Block("priority", row.TaskCode + ": selecciona una criticidad operativa.", row);
         }
         var released = scheduled.Where(d => d.Before != null).Select(d => d.Before!.Id).Concat(diffs.Where(d => d.After == null || d.Retire).Select(d => d.Before!.Id)).ToHashSet();
         // Active process reservations can have the stage ID in the ledger as well as the assignment ID.
@@ -360,7 +399,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         var schedulingRows = scheduled.OrderBy(d => d.ProcessStage ? 0 : 1)
             .ThenBy(d => d.ProcessStage ? stageRows[d.Before!.Id].Position : OperationalAgenda.Priority(d.After!.OperationalCriticality))
             .ThenBy(d => d.After!.StartsAt).ThenBy(d => d.After!.Id).ToArray();
-        if (schedulingRows.Length > 500) conflicts.Add("La propuesta supera 500 bloques de agenda. Reduce el alcance operativo antes de volver a calcular.");
+        if (schedulingRows.Length > 500) Block("size", "La propuesta supera 500 bloques de agenda. Reduce el alcance operativo antes de volver a calcular.", null);
         var contributions = all.Where(a => a.CompletedAt != null && a.ReviewStatus != "REASIGNADA")
             .GroupBy(a => (a.TaskId, a.PersonId, Week: WeeklyBoardSnapshot.Monday(WeekContract.LocalToday(a.StartsAt))))
             .ToDictionary(g => g.Key, g => g.Count());
@@ -471,27 +510,27 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
                 if (!Search(ledger, 0)) {
                     var row = blocked?.Before ?? blocked?.After;
                     var detail = row == null ? "" : $" Conflicto en {row.TaskCode}, {row.PersonName}, {TimeZoneInfo.ConvertTime(row.StartsAt, OperationalSchedule.Zone):dd/MM/yyyy HH:mm}.";
-                    conflicts.Add("No hay una agenda compatible con turnos, capacidad, criticidad y responsables elegibles." + detail +
-                        " Las vencidas de días anteriores solo conservan su agenda si no tienen avance ni evidencia y cambian únicamente datos de la tarea o carga. Revisa ese pendiente y las ventanas disponibles.");
+                    Block("capacity", "No hay una agenda compatible con turnos, capacidad, criticidad y responsables elegibles." + detail +
+                        " Las vencidas de días anteriores solo conservan su agenda si no tienen avance ni evidencia y cambian únicamente datos de la tarea o carga. Revisa ese pendiente y las ventanas disponibles.", row);
                 }
             }
-            catch (DirectionPlanException e) when (e.Code == "SCHEDULING_SEARCH_INCONCLUSIVE") { conflicts.Add("La búsqueda alcanzó su límite. No se puede asegurar que la agenda sea imposible; reduce los conflictos y vuelve a calcular."); }
+            catch (DirectionPlanException e) when (e.Code == "SCHEDULING_SEARCH_INCONCLUSIVE") { Block("search", "La búsqueda alcanzó su límite. No se puede asegurar que la agenda sea imposible; reduce los conflictos y vuelve a calcular.", null); }
         }
         foreach (var diff in diffs.Where(d => !d.Retire && !d.KeepsAgenda && d.Before != null && d.After != null))
         {
             var touched = carryovers.Where(r => r.Items().Any(i => i.AssignmentId == diff.Before!.Id)).ToArray();
-            if (touched.Any(r => r.State == "PENDIENTE")) conflicts.Add($"{diff.Before!.TaskCode}: resuelve la solicitud de arrastre pendiente antes de actualizar esta asignación.");
-            if (touched.Any(r => r.State == "APROBADA") && diff.Before!.DueAt != diff.After!.DueAt)
+            if (touched.Any(r => r.PendingItems().Any(i => i.AssignmentId == diff.Before!.Id))) Block("carryover", $"{diff.Before!.TaskCode}: resuelve la solicitud de arrastre pendiente antes de actualizar esta asignación.", diff.Before);
+            if (touched.Any(r => r.Recognizes(diff.Before!.Id)) && diff.Before!.DueAt != diff.After!.DueAt)
                 Decision("deadline", "Permitir cambiar plazos con arrastre aprobado", "Usa las nuevas fechas que aparecen en esta revisión. El plazo original y la autorización de arrastre se conservan en el historial.", request.ChangeAuthorizedDeadline, diff.Before.TaskCode);
             if (diff.ProcessStage && stageRows.TryGetValue(diff.Before!.Id, out var stage))
             {
-                if (stage.FixedDueAt is {} fixedDue && diff.After!.DueAt > fixedDue) conflicts.Add($"Etapa {stage.Position}: el nuevo cierre supera el plazo fijo del proceso.");
+                if (stage.FixedDueAt is {} fixedDue && diff.After!.DueAt > fixedDue) Block("deadline", $"Etapa {stage.Position}: el nuevo cierre supera el plazo fijo del proceso.", diff.Before);
                 var previous = stages.LastOrDefault(s => s.RunId == stage.RunId && s.Position < stage.Position);
                 var previousAfter = diffs.FirstOrDefault(d => d.ProcessStage && stageRows[d.Before!.Id].Id == previous?.Id)?.After;
                 if (previous != null && diff.After!.StartsAt < (previousAfter?.DueAt ?? previous.EffectiveDueAt ?? previous.PlannedDueAt) && previous.Status is not ("CONCLUIDA"))
-                    conflicts.Add($"Etapa {stage.Position}: el inicio propuesto rompe la dependencia anterior.");
+                    Block("dependency", $"Etapa {stage.Position}: el inicio propuesto rompe la dependencia anterior.", diff.Before);
                 if (stages.Any(s => s.RunId == stage.RunId && s.Position > stage.Position && s.OperationalCriticality == "CRITICA" && s.NominalStartsAt < diff.After!.DueAt))
-                    conflicts.Add($"Etapa {stage.Position}: el nuevo cierre invade una etapa crítica posterior.");
+                    Block("critical-stage", $"Etapa {stage.Position}: el nuevo cierre invade una etapa crítica posterior.", diff.Before);
             }
         }
         // Neighbours that did not actually move need no write or revision bump.
@@ -499,11 +538,11 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             d.Before.SchedulingPolicyId == d.After.SchedulingPolicyId && d.Before.ClosureMarginPercent == d.After.ClosureMarginPercent && d.Before.NominalStartsAt == d.After.NominalStartsAt);
         var fingerprint = Hash(new { request, Selected = selected.Keys.Order(), currentPolicy, definitions = definitions.Values, plans, all, runs, stages, attempts, carryovers,
             source.Workers, source.Tasks, source.Capacities, Temporal = TemporalState(source.Temporal), Unavailable = source.Unavailable.OrderBy(x => x.Item1).ThenBy(x => x.Item2), Legacy = source.Legacy.OrderBy(x => x.Key), evidence, attachments, progress, childLinks, transfers, captureSessions,
-            diffs, conflicts, processDecisions, Algorithm = 3 });
+            diffs, conflicts, processDecisions, Algorithm = 4 });
         return new(request, request.TaskId == Guid.Empty ? "Todas las tareas con asignaciones pendientes desactualizadas" : selected[request.TaskId].Name, fingerprint, diffs.ToArray(), conflicts.Distinct().ToArray(), all.Count(a => selected.ContainsKey(a.TaskId) && !AssignmentDefinition.Pending(a)))
         {
             Decisions = processDecisions.Concat(decisions.Select(d => new AssignmentRefreshDecision(d.Key,d.Value.Title,d.Value.Help,d.Value.Tasks.Order().ToArray(),d.Value.Accepted))).ToArray(),
-            DecisionConflicts = decisionConflicts.Distinct().ToArray(), Notices = notices
+            DecisionConflicts = decisionConflicts.Distinct().ToArray(), Notices = notices, Issues = issues.Distinct().ToArray()
         };
     }
 

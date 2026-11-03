@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Markdig" />
+    <Compile Include="../../src/Sgol.Web/Presentation/Components/MarkdownContent.cs" Link="MarkdownContent.cs" />
+  </ItemGroup>
+</Project>

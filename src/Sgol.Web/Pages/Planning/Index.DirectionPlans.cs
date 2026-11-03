@@ -83,8 +83,9 @@ public sealed partial class IndexModel
         CanManageClosing = CanManageClosingRole(session.RoleCode) && session.Permissions.Contains(WeekAuthorization.View);
         CanPrepareWeeklyOperationsPlan = CanPreparePlan(session.RoleCode, true) && session.Permissions.Contains(WeekAuthorization.View);
         if (!CanViewDirectionPlans) { Response.StatusCode = 403; DirectionError = new("No tienes permiso para consultar estos planes", "", null); return Page(); }
+        var routingDb = HttpContext.RequestServices.GetRequiredService<SgolDbContext>();
         if(Guid.TryParse(Request.Query["planId"],out var processPlanId) && await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
-            HttpContext.RequestServices.GetRequiredService<Sgol.Web.Infrastructure.Persistence.SgolDbContext>().Set<Sgol.Web.Infrastructure.Persistence.Planning.PreparedProcessStart>().Where(s=>s.PlanId==processPlanId),token))
+            HttpContext.RequestServices.GetRequiredService<Sgol.Web.Infrastructure.Persistence.SgolDbContext>().Set<Sgol.Web.Infrastructure.Persistence.Planning.PreparedProcessStart>().Where(s=>s.PlanId==processPlanId && !routingDb.DirectionPreparedPlans.Any(p => p.Id == s.PlanId && p.IsWeeklyOperationsPlan)),token))
             return Redirect($"/planificacion/procesos?planId={processPlanId:D}");
         try
         {
@@ -94,9 +95,9 @@ public sealed partial class IndexModel
                 string[] allowed = ["mode", "planId", "directionCursor", "closingFrom"];
                 if (Request.Query.Any(q => !allowed.Contains(q.Key) || q.Value.Count != 1)) { Response.StatusCode = 400; DirectionError = new("Revisa el nombre, el área y el periodo del plan", "", null); return Page(); }
                 DirectionOperations = Request.Query["mode"] == "operations";
-                DirectionCreating = Request.Query["mode"] == "create" || DirectionOperations;
+                DirectionCreating = Request.Query["mode"] == "create" || DirectionOperations && !Request.Query.ContainsKey("planId");
                 if (DirectionCreating && !(DirectionOperations ? CanPrepareWeeklyOperationsPlan : CanPrepareDirectionPlan)) return StatusCode(403);
-                if (Request.Query.ContainsKey("mode") && !DirectionCreating) { Response.StatusCode = 400; DirectionError = new("Revisa el nombre, el área y el periodo del plan", "", null); return Page(); }
+                if (Request.Query.ContainsKey("mode") && !DirectionCreating && !DirectionOperations) { Response.StatusCode = 400; DirectionError = new("Revisa el nombre, el área y el periodo del plan", "", null); return Page(); }
                 if (DirectionCreating && Request.Query.ContainsKey("planId")) return BadRequest();
             }
             if (DirectionCreating)
@@ -141,7 +142,7 @@ public sealed partial class IndexModel
                 if (!Guid.TryParseExact(selectedPlanId, "D", out var id) || id == Guid.Empty) return BadRequest();
                 var read = await apiClient.SendAsync<DirectionPlanDetails>(new(HttpMethod.Get, $"/api/v1/direction-plans/{id:D}", ApiResponseShape.Item), token);
                 if (read.Status == 401) return Redirect("/acceso");
-                if (!read.IsSuccess) SetDirectionError(read); else if (read.Data is { BranchCode: "LOR-001" } detail && detail.PlanId == id) DirectionDetail = detail; else throw new ApiProtocolException();
+                if (!read.IsSuccess) SetDirectionError(read); else if (read.Data is { BranchCode: "LOR-001" } detail && detail.PlanId == id) { if (DirectionOperations && !detail.IsWeeklyOperationsPlan) return BadRequest(); DirectionDetail = detail; } else throw new ApiProtocolException();
                 if (CanPrepareDirectionPlan && DirectionDetail is not null) DirectionTaskOptions = await HttpContext.RequestServices.GetRequiredService<Sgol.Configuration.Contracts.IDirectionPlanningCatalogReader>().ReadTaskOptionsAsync(token);
             }
             else
@@ -274,6 +275,9 @@ public sealed partial class IndexModel
                 DirectionMoveOptions = await PlanningConflictResolution.ProposeMovesAsync(HttpContext.RequestServices.GetRequiredService<SgolDbContext>(), blocked, diagnosis.Ledger, diagnosis.Preview, attempted, token);
                 DirectionExcludedOverdue = diagnosis.Preview.ExcludedOverdue;
             }
+            if (e.Code == "PLAN_OCCURRENCES_RESERVED" && e.Data["ProcessName"] is string processName && e.Data["ProcessDay"] is DateOnly processDay)
+                DirectionError = new($"{processName} ya tiene un inicio reservado el {processDay:dd/MM/yyyy}.", "Abre su plan existente. No se puede reservar dos veces la misma fecha del proceso.", null);
+            if (e.Data["StageName"] is string stageName) DirectionError = new("No se pudo programar la etapa: " + stageName, ProcessesModel.PlanError(e), null);
             if (e.Data["Tasks"] is string missing) DirectionError = new("Falta clasificar la criticidad: " + missing, "", null);
         }
         return DirectionConfirming ? Page() : await LoadDirectionPlansAsync(token);
@@ -315,7 +319,7 @@ public sealed partial class IndexModel
             if (!saved.IsSuccess) { SetDirectionError(saved); if (saved.Status == 403) return Page(); DirectionCreating = true; }
             else if (saved.Data is { } result && result.Plan.PlanId != Guid.Empty && result.Plan.BranchCode == "LOR-001" && result.Result is "CREATED" or "RECOVERED")
             {
-                return Redirect($"/planificacion?planId={result.Plan.PlanId:D}");
+                return Redirect($"/planificacion?planId={result.Plan.PlanId:D}" + (input.IsWeeklyOperationsPlan ? "&mode=operations" : ""));
             }
             else throw new ApiProtocolException();
         }

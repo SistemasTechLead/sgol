@@ -20,6 +20,10 @@ public static class OperationalSequenceRules
     public static IEnumerable<DateOnly> Dates(DateOnly from, DateOnly through, OperationalSequenceVersion version)
     {
         if (version.StartKind == "OCASIONAL") yield break;
+        if (ProcessStartSchedule.Recurring(version.StartKind)) {
+            foreach (var day in OperationalSchedule.Dates(from, through, ProcessStartSchedule.Read(version.StartScheduleJson).Calendar(version.StartKind))) yield return day;
+            yield break;
+        }
         if (version.StartKind != "SEMESTRAL" || version.FirstMonth is < 1 or > 6 ||
             version.WindowFromDay is < 1 or > 28 || version.WindowThroughDay < version.WindowFromDay ||
             version.WindowThroughDay > 28 || version.PreferredWeekDay is < 0 or > 6 || from > through)

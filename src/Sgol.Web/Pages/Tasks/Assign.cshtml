@@ -6,7 +6,7 @@
     <header class="panel-seccion__cabecera"><h1 id="occasion-title">Asignar tarea ocasional</h1></header>
     <partial name="_SectionNavigation" model='@("tasks")' />
     <p>@Model.TaskDefinition?.Name · @IndexModel.Label(Model.TaskDefinition?.Requirement ?? "NINGUNO") · @Model.TaskDefinition?.LoadMinutes min por persona</p>
-    @if (!string.IsNullOrWhiteSpace(Model.TaskDefinition?.Description)) { <h2>Descripción de la tarea</h2><p class="supervision-text">@Model.TaskDefinition.Description</p> }
+    @if (!string.IsNullOrWhiteSpace(Model.TaskDefinition?.Description)) { <h2>Descripción de la tarea</h2><partial name="_Markdown" model="@Model.TaskDefinition.Description" /> }
     <p>Cada persona seleccionada recibe su propia tarea y entrega su evidencia.</p>
     @if (Model.IsScopedAssignment) { <p>Puedes asignarte la tarea o elegir personas de Asesor Externo, Subcoordinación y Piso de Ventas. La revisión sigue los permisos de Supervisión; no puedes revisar tu propia entrega.</p> }
     else { <p>El reparto automático asigna una sola tarea a la persona habilitada del rol @IndexModel.RoleLabel(Model.TaskDefinition?.AssignedRole) con menor ocupación. Las correcciones y reasignaciones se realizan desde Supervisión.</p> }

@@ -9,7 +9,7 @@
         root.querySelectorAll('[data-work-task]').forEach(row => {
             if (row.dataset.taskStatus === 'reserved') { row.dataset.priority = 3; return; }
             if (row.dataset.taskStatus === 'rejected' || row.dataset.taskStatus === 'reassigned') {
-                row.dataset.priority = row.dataset.taskStatus === 'rejected' ? 0 : row.classList.contains('my-work-color--delivered') ? 4 : 3;
+                row.dataset.priority = row.dataset.taskStatus === 'rejected' ? 5 : row.classList.contains('my-work-color--delivered') ? 4 : 3;
                 return;
             }
             const remaining = Number(row.dataset.due) - now;

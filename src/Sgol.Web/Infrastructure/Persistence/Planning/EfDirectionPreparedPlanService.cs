@@ -13,7 +13,8 @@ using Sgol.Web.Infrastructure.Persistence.Idempotency;
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, AuditTransaction audit,
-    IClock clock, IUuidGenerator ids, IDirectionPlanningCatalogReader catalog) : IDirectionPreparedPlanService
+    IClock clock, IUuidGenerator ids, IDirectionPlanningCatalogReader catalog,
+    Sgol.Evidence.Contracts.IFileTechnicalValidator? processValidator = null, Sgol.Evidence.Contracts.IFileMalwareScanner? processScanner = null) : IDirectionPreparedPlanService
 {
     private const string Operation = "DIRECTION_PLAN_CREATE";
     private const string Resource = "DIRECTION_PREPARED_PLAN";
@@ -119,6 +120,7 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                     return Event(actor, key, correlation, saved.Plan.PlanId, "DIRECTION_PLAN_RECOVERED", "RECOVERED", at);
                 }
 
+                await db.Database.CurrentTransaction!.CreateSavepointAsync("plan_generation", ct);
                 try
                 {
                     if (validation is not null) throw validation;
@@ -187,16 +189,30 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                             Action = "PLAN_OCCURRENCE_MOVED", Outcome = "SUCCESS", CorrelationId = correlation,
                             AfterData = JsonSerializer.SerializeToDocument(new { plan.Id, move, moved.PersonId, moved.StartsAt, moved.DueAt, Reason = "Excepción de fecha flexible elegida al preparar el plan" }) });
                     }
+                    if (preparation.ProcessStarts.Length > 0)
+                    {
+                        foreach (var start in preparation.ProcessStarts) { start.PlanId = plan.Id; start.Status = "ACTIVADO"; db.Add(start); }
+                        await db.SaveChangesAsync(ct);
+                        var engine = new OperationalProcessService(db, this, clock,
+                            processValidator ?? throw new InvalidOperationException("Process validator unavailable"),
+                            processScanner ?? throw new InvalidOperationException("Process scanner unavailable"));
+                        foreach (var start in preparation.ProcessStarts)
+                            await engine.StartAsync(actor, start.ProcessId, start.Id, start.StartsAt,
+                                JsonSerializer.Deserialize<Dictionary<int, Guid>>(start.Participants)!, ct, plan.Id, start.VersionId, start.StartKey);
+                    }
                     var tasks = activeCodes.Select((code, index) => new DirectionPreparedPlanItem(plan.Id, code, options[code].Name, index)).ToArray();
                     db.DirectionPreparedPlanItems.AddRange(tasks);
                     saved = new("CREATED", plan.Details(tasks.Select(t => new DirectionPlanTask(t.TaskCode, t.Name)).ToArray()) with {
                         Assignments = assignments.Select(a => a.Details()).ToArray()
                     });
+                    if (preparation.ProcessStarts.Length > 0) { await db.SaveChangesAsync(ct); saved = new("CREATED", (await DetailsAsync([plan], ct))[0]); }
                     db.IdempotencyRecords.Add(IdempotencyProtocol.Completed(scope, key, hash, Resource, plan.Id, 201, saved, at, DateTimeOffset.MaxValue));
                     return Event(actor, key, correlation, plan.Id, "DIRECTION_PLAN_CREATED", "CREATED", at, saved.Plan);
                 }
                 catch (DirectionPlanException e)
                 {
+                    await db.Database.CurrentTransaction!.RollbackToSavepointAsync("plan_generation", ct);
+                    db.ChangeTracker.Clear();
                     rejection = e;
                     db.IdempotencyRecords.Add(IdempotencyProtocol.Completed(scope, key, hash, Resource, BranchScope.LorettaId,
                         e.Status, new Rejection(e.Code), at, DateTimeOffset.MaxValue));
@@ -250,8 +266,13 @@ public sealed partial class EfDirectionPreparedPlanService(SgolDbContext db, Aud
                 a.MinimumPhotos, a.MaximumPhotos, a.MaximumPhotoBytes, a.OccasionId, a.Description,
                 a.TemporalPolicyJson, a.TemporalDecisionJson, a.OperationalCriticality, a.NominalStartsAt, a.SchedulingPolicyId,
                 a.TransferRemainingMinutes, a.TransferProgressUnits, a.ChecklistJson, a.ChecklistDraftJson) }).ToArrayAsync(token);
+        var runs = await db.Set<OperationalSequenceRun>().AsNoTracking().Where(r => planIds.Contains(r.PlanId)).OrderBy(r => r.PlannedStartsAt).ToArrayAsync(token);
+        var runIds = runs.Select(r => r.Id).ToArray();
+        var stages = await db.Set<OperationalSequenceStage>().AsNoTracking().Where(s => runIds.Contains(s.RunId)).OrderBy(s => s.Position).ToArrayAsync(token);
         return plans.Select(p => p.Details(items.Where(i => i.PlanId == p.Id).Select(i => new DirectionPlanTask(i.TaskCode, i.Name)).ToArray()) with {
-            Assignments = assignments.Where(a => a.PlanId == p.Id).Select(a => a.Detail).ToArray()
+            Assignments = assignments.Where(a => a.PlanId == p.Id).Select(a => a.Detail).ToArray(),
+            Processes = runs.Where(r => r.PlanId == p.Id).Select(r => new DirectionPlanProcess(r.Id, r.Name, r.PlannedStartsAt, r.Status,
+                stages.Where(s => s.RunId == r.Id).Select(s => new DirectionPlanProcessStage(s.Position, s.Name, s.ReservedPersonName ?? "Sin responsable", s.PlannedStartsAt, s.PlannedDueAt, s.Status)).ToArray())).ToArray()
         }).ToArray();
     }
 

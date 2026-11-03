@@ -146,6 +146,7 @@
         const policy = document.querySelector('.people-page > p[role="status"]');
         foldGroup([policy, counts], 'Resumen de usuarios', 'people-summary', counts);
         document.querySelectorAll('.encabezado-pagina__descripcion').forEach(p => {
+            if (document.body.matches('[data-desktop-workspace="true"]')) return;
             const heading = p.parentElement, title = heading.querySelector(':scope > h1');
             if (!title || p.dataset.mobileHelp || p.closest('.my-work-heading')) return;
             p.dataset.mobileHelp = 'true'; heading.classList.add('mobile-heading');
@@ -155,7 +156,7 @@
             title.after(button); help(button, p);
         });
         const workHelp = document.querySelector('.my-work-help');
-        if (workHelp && !workHelp.dataset.mobileHelp) {
+        if (workHelp && !workHelp.dataset.mobileHelp && !document.body.matches('[data-desktop-workspace="true"]')) {
             workHelp.dataset.mobileHelp = 'true';
             help(workHelp.querySelector('summary'), workHelp.querySelector('.my-work-help__content'), workHelp);
         }

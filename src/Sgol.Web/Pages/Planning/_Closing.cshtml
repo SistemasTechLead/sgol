@@ -8,7 +8,7 @@
         <p>Horario operativo para terminar: hasta las 21:00; domingo hasta las 15:00. Las asignaciones ya creadas conservan sus fechas y responsables.</p>
         @if(TempData["ClosingSaved"] is string message) { <p class="alerta alerta--exito" role="status">@message</p> }
         @if(Model.ClosingError != null) { <p class="alerta alerta--error" role="alert" tabindex="-1" data-dialog-error>@Model.ClosingError</p> }
-        <form method="get"><label class="campo"><span class="campo__etiqueta">Ver siete días desde</span><input class="campo__control" type="date" name="closingFrom" value="@Model.ClosingFrom.ToString("yyyy-MM-dd")" required /></label><button class="boton boton--secundario">Consultar cobertura</button></form>
+        <form method="get" data-desktop-filters><label class="campo"><span class="campo__etiqueta">Ver siete días desde</span><input class="campo__control" type="date" name="closingFrom" value="@Model.ClosingFrom.ToString("yyyy-MM-dd")" required /></label><button class="boton boton--secundario">Consultar cobertura</button></form>
         <div class="tabla-contenedor"><table class="tabla"><caption>Personas disponibles para cerrar</caption><thead><tr><th scope="col">Día</th><th scope="col">Responsable</th><th scope="col">Horario resultante</th><th scope="col">Elegir cobertura</th></tr></thead><tbody>
         @foreach(var row in Model.ClosingRows) {
             var selected=row.Candidates.FirstOrDefault(c=>c.PersonId==row.PersonId);

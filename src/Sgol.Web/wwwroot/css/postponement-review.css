@@ -1,0 +1,86 @@
+#carryovers .postponement-request { margin-block: 12px; }
+.postponement-item { padding: 12px; border-bottom: 1px solid var(--color-borde); min-width: 0; overflow-wrap: anywhere; }
+.postponement-item .postponement-heading { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; align-items: start; gap: 8px; }
+.postponement-item h3 { margin: 0; font-size: 1rem; }
+.postponement-item p { margin: 6px 0; }
+.postponement-explanation { white-space: pre-wrap; }
+.postponement-meta, .postponement-item small { color: var(--color-texto-secundario); }
+.postponement-block { border-left: 3px solid var(--color-acento); padding-left: 10px; margin-block: 8px; }
+.postponement-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 8px; }
+.postponement-actions .boton { min-height: 44px; }
+.postponement-editor { display: grid; gap: 8px; max-width: 48rem; margin-block: 12px; padding: 12px; background: var(--color-superficie-elevada); border: 1px solid var(--color-borde); border-radius: 8px; }
+.postponement-editor[hidden], .postponement-editor [hidden] { display: none; }
+.postponement-editor label { display: grid; gap: 4px; min-width: 0; }
+.postponement-editor input, .postponement-editor select, #carryovers .postponement-editor textarea { box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--color-borde); background: var(--color-superficie); color: var(--color-texto); border-radius: 4px; font: inherit; }
+#carryovers .postponement-editor textarea { min-height: 60px; resize: vertical; }
+.postponement-preview { border-left: 3px solid var(--color-acento); padding-left: 12px; }
+.postponement-item > details { margin-block: 8px 0; }
+.postponement-item:focus { outline: 2px solid var(--color-acento); outline-offset: 3px; }
+.postponement-review-scope { position: relative; min-width: 0; }
+.postponement-heading > .postponement-selection { display: flex; align-items: flex-start; justify-content: center; width: 44px; height: 44px; padding-top: 2px; box-sizing: border-box; margin: 0; cursor: pointer; }
+.postponement-selection .task-selection { margin: 0; flex-shrink: 0; }
+.postponement-item { cursor: pointer; scroll-margin-bottom: calc(var(--postponement-toolbar-height, 180px) + 24px); }
+.postponement-item--selected { background: var(--color-info-fondo); box-shadow: inset 3px 0 var(--color-acento); padding-inline: 12px; }
+.postponement-editor, .postponement-item details { cursor: auto; }
+.postponement-editor { scroll-margin-bottom: calc(var(--postponement-toolbar-height, 180px) + 24px); }
+.postponement-toolbar { margin: 12px 0; }
+.postponement-title-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.postponement-title-line h3, .postponement-title-line label, .postponement-person { line-height: 1.5; margin: 0; }
+.postponement-title-line label { cursor: pointer; font-weight: 600; }
+.postponement-person { font-size: .875rem; color: var(--color-texto-secundario); }
+.postponement-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: .75rem; line-height: 1.5; }
+.postponement-summary { display: grid; grid-template-columns: minmax(0,1fr) minmax(290px,.9fr); gap: 12px 24px; margin: 8px 0 8px 52px; }
+.postponement-caption, .postponement-schedule dt { display: block; font-size: .75rem; color: var(--color-texto-secundario); font-weight: 500; margin: 0 0 4px; }
+.postponement-reason .postponement-explanation { margin: 0; }
+.postponement-schedule { display: grid; grid-template-columns: minmax(0,1fr) 20px minmax(0,1fr); align-items: center; gap: 8px; margin: 0; }
+.postponement-schedule > dl { min-width: 0; margin: 0; }
+.postponement-schedule dd { display: grid; margin: 0; gap: 2px; font-size: .875rem; }
+.postponement-schedule time { font-weight: 600; }
+.postponement-arrow { font-size: 1.25rem; color: var(--color-texto-secundario); }
+.postponement-proposed { padding-left: 12px; border-left: 2px solid var(--color-acento); }
+.postponement-blocks { margin: 8px 0 8px 52px; }
+.postponement-diagnostics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: 12px; margin: 8px 0 8px 52px; }
+.postponement-diagnostics > .postponement-blocks { margin: 0; min-width: 0; }
+.postponement-diagnostics:has(> .postponement-blocks + .postponement-blocks) .postponement-obstacle { grid-template-columns: minmax(0,1fr); gap: 4px; }
+.postponement-obstacle { display: grid; grid-template-columns: minmax(140px,auto) minmax(0,1fr); gap: 8px 16px; padding: 8px 12px; background: var(--color-superficie-elevada); border-left: 3px solid var(--color-acento); }
+.postponement-obstacle + .postponement-obstacle { margin-top: 6px; }
+.postponement-obstacle > strong { display: flex; gap: 8px; align-items: baseline; font-size: .875rem; }
+.postponement-obstacle__icon { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1px solid currentColor; border-radius: 50%; flex-shrink: 0; }
+.postponement-obstacle__content p { margin: 0; font-size: .875rem; }
+.postponement-obstacle__content small { display: block; margin-top: 2px; }
+.postponement-item > details, .postponement-note { margin-left: 52px; }
+.postponement-preview .postponement-blocks { margin-left: 0; }
+.postponement-item .postponement-editor { max-width: none; margin-left: 52px; gap: 12px; }
+.postponement-editor-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+.postponement-editor-heading > label { flex: 1; max-width: 28rem; }
+.postponement-editor-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 20px; }
+.postponement-editor-fields:has(> [hidden]):not(:has(> :not([hidden]))) { display: none; }
+.postponement-editor-fields small { display: block; margin-top: 4px; font-size: .75rem; }
+.postponement-editor .postponement-note { margin-left: 0; }
+.postponement-result-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 20px; margin-block: 8px; }
+.postponement-result-grid dl { margin: 0; }
+.postponement-result-grid dt { color: var(--color-texto-secundario); font-size: .75rem; }
+.postponement-result-grid dd { margin: 4px 0 0; font-weight: 600; }
+.postponement-result-grid small { display: block; font-weight: 400; }
+.postponement-preview > button { display: block; margin-top: 12px; }
+.postponement-editor .postponement-actions { margin: 0; }
+@media (max-width: 48rem) {
+    .postponement-editor-heading { align-items: stretch; flex-direction: column; }
+    .postponement-editor-heading > label { max-width: none; }
+    .postponement-editor-heading > button { align-self: flex-end; }
+    .postponement-editor-fields, .postponement-result-grid { grid-template-columns: minmax(0,1fr); }
+    .postponement-item .postponement-editor { margin-left: 0; }
+}
+@media (max-width: 64rem) { .postponement-summary { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 40rem) {
+    .postponement-item { padding: 12px 0; }
+    .postponement-item--selected { padding-inline: 8px; }
+    .postponement-item .postponement-heading { grid-template-columns: 44px minmax(0,1fr); }
+    .postponement-state { grid-column: 2; justify-self: start; }
+    .postponement-summary, .postponement-blocks, .postponement-diagnostics, .postponement-item > details, .postponement-note { margin-left: 0; }
+    .postponement-obstacle { grid-template-columns: minmax(0,1fr); gap: 4px; }
+    .postponement-schedule { gap: 4px; grid-template-columns: minmax(0,1fr) 16px minmax(0,1fr); }
+    .postponement-proposed { padding-left: 8px; }
+}
+@media print { .postponement-toolbar, .postponement-selection input { display: none; } }
+@media (max-width: 48rem) { .postponement-actions .boton { max-width: 100%; white-space: normal; } .postponement-editor { padding: 8px; } }

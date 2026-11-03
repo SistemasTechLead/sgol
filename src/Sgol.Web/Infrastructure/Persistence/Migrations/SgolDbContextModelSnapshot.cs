@@ -4395,7 +4395,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_carryover_interval", "\"Minutes\" > 0 AND ((\"Kind\" = 'INCIDENTE' AND \"IncidentEnd\" = \"IncidentStart\" + \"Minutes\" * interval '1 minute' AND \"From\" IS NULL AND \"Through\" IS NULL) OR (\"Kind\" = 'POSPONER' AND \"From\" IS NOT NULL AND \"Through\" IS NOT NULL AND \"Through\" BETWEEN \"From\" AND \"From\" + 6))");
 
-                            t.HasCheckConstraint("CK_carryover_state", "\"Revision\" > 0 AND ((\"State\" = 'PENDIENTE' AND \"DecidedBy\" IS NULL AND \"DecidedAt\" IS NULL) OR (\"State\" IN ('APROBADA','RECHAZADA') AND \"DecidedBy\" IS NOT NULL AND \"DecidedAt\" IS NOT NULL AND length(\"DecisionComment\") > 0))");
+                            t.HasCheckConstraint("CK_carryover_state", "\"Revision\" > 0 AND ((\"State\" = 'PENDIENTE' AND \"DecidedBy\" IS NULL AND \"DecidedAt\" IS NULL) OR (\"State\" IN ('APROBADA','RECHAZADA','RESUELTA') AND \"DecidedBy\" IS NOT NULL AND \"DecidedAt\" IS NOT NULL AND length(\"DecisionComment\") > 0))");
                         });
                 });
 
@@ -5349,6 +5349,8 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<bool>("StartHourConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("StartScheduleJson").HasColumnType("jsonb");
+
                     b.Property<string>("StartKind")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -5375,7 +5377,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.ToTable("operational_sequence_version", null, t =>
                         {
-                            t.HasCheckConstraint("CK_sequence_calendar", "\"Number\" > 0 AND \"StartKind\" IN ('SEMESTRAL','OCASIONAL') AND \"FirstMonth\" BETWEEN 1 AND 6 AND \"WindowFromDay\" BETWEEN 1 AND 28 AND \"WindowThroughDay\" BETWEEN \"WindowFromDay\" AND 28 AND \"PreferredWeekDay\" BETWEEN 0 AND 6 AND \"StartHour\" BETWEEN 0 AND 23");
+                            t.HasCheckConstraint("CK_sequence_calendar", "\"Number\" > 0 AND \"StartKind\" IN ('SEMESTRAL','OCASIONAL','SEMANAL','MENSUAL','TRIMESTRAL','ANUAL') AND \"FirstMonth\" BETWEEN 1 AND 6 AND \"WindowFromDay\" BETWEEN 1 AND 28 AND \"WindowThroughDay\" BETWEEN \"WindowFromDay\" AND 28 AND \"PreferredWeekDay\" BETWEEN 0 AND 6 AND \"StartHour\" BETWEEN 0 AND 23");
                         });
                 });
 

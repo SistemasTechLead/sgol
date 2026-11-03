@@ -8,7 +8,7 @@
     <header class="encabezado-pagina encabezado-pagina--catalogo">
         <div class="encabezado-pagina__contenido">
             <h1 id="process-title" class="encabezado-pagina__titulo">Procesos de trabajo</h1>
-            <p class="encabezado-pagina__descripcion">Organiza las tareas por etapas y consulta las reglas de inicio y los plazos de cada proceso.</p>
+            <p class="encabezado-pagina__descripcion" data-desktop-redundant>Organiza las tareas por etapas y consulta las reglas de inicio y los plazos de cada proceso.</p>
         </div>
         <partial name="_SectionNavigation" model='@("tasks")' />
         <div class="encabezado-pagina__acciones">
@@ -18,7 +18,22 @@
             }
         </div>
     </header>
-    @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+    @if (Model.Error != null)
+    {
+        <div class="alerta alerta--peligro" role="alert"><p>@Model.Error</p>
+        @foreach (var conflict in Model.FieldConflicts)
+        {
+            <p data-process-error-field="@conflict.Field">@conflict.Message</p>
+        }
+        @if (Model.TaskConflicts.Length > 0)
+        {
+            <ul>@foreach (var conflict in Model.TaskConflicts)
+            {
+                <li><strong>@conflict.TaskCode · @conflict.TaskName:</strong> @conflict.Reason</li>
+            }</ul>
+        }
+        </div>
+    }
     @if (Model.BlockingPlanId is { } blockingPlanId) { <a class="boton boton--secundario" href="/planificacion/procesos?planId=@blockingPlanId">Revisar plan con reservas</a> }
     @if (Model.Notice != null) { <p role="status">@Model.Notice</p> }
     @if (Model.Creating)
@@ -57,10 +72,20 @@
                 </div>
                 <form id="process-editor" method="post" asp-page-handler="Save" class="process-editor" data-process-rules data-process-saved="@Model.SavedInputJson" data-process-errors="@(Model.Error != null ? "true" : "false")" data-process-has-draft="@(editor.Draft != null ? "true" : "false")">
                     <input type="hidden" asp-for="Input.Id" /><input type="hidden" asp-for="Input.Revision" />
-                    <details class="panel-seccion process-settings"><summary><strong>Proceso e inicio</strong><span data-process-settings-summary>@Model.Input.Name · @(Model.Input.StartKind == "SEMESTRAL" ? "Calendario semestral" : "Ocasión del proceso")</span><span>Editar configuración</span></summary><div class="process-settings-body">
+                    <details class="panel-seccion process-settings"><summary><strong>Proceso e inicio</strong><span data-process-settings-summary>@Model.Input.Name · @(Model.Input.StartKind == "SEMESTRAL" ? "Calendario semestral" : IndexModel.Label(Model.Input.StartKind))</span><span>Editar configuración</span></summary><div class="process-settings-body">
                         <label class="campo"><span class="campo__etiqueta">Nombre</span><input class="campo__control" asp-for="Input.Name" maxlength="120" required /></label>
                         <label class="campo"><span class="campo__etiqueta">Descripción</span><textarea class="campo__control" asp-for="Input.Description" maxlength="4000"></textarea></label>
-                        <label class="campo"><span class="campo__etiqueta">Inicio</span><select class="campo__control" asp-for="Input.StartKind" data-process-start-kind aria-controls="process-calendar"><option value="OCASIONAL">Ocasión del proceso</option><option value="SEMESTRAL">Calendario semestral</option></select></label>
+                        <label class="campo"><span class="campo__etiqueta">Inicio</span><select class="campo__control" asp-for="Input.StartKind" data-process-start-kind aria-controls="process-calendar"><option value="OCASIONAL">Ocasión del proceso</option><option value="SEMESTRAL">Calendario semestral</option><option value="SEMANAL">Semanal</option><option value="MENSUAL">Mensual</option><option value="TRIMESTRAL">Trimestral</option><option value="ANUAL">Anual</option></select></label>
+                        <div data-process-recurrence hidden="@(!ProcessStartSchedule.Recurring(Model.Input.StartKind))">
+                            <p>El calendario programa el inicio de la primera tarea. Las siguientes conservan su carga, responsable y condición de entrega o aprobación. Cada repetición crea una ejecución independiente.</p>
+                            <label class="campo"><span class="campo__etiqueta">Calendario de inicio</span><select class="campo__control" asp-for="Input.Schedule.Mode"><option value="DISTRIBUIDA">Repeticiones distribuidas en el periodo</option><option value="DIAS_FIJOS">Días fijos de la semana</option></select></label>
+                            <label class="campo"><span class="campo__etiqueta">Repeticiones por periodo</span><input class="campo__control" asp-for="Input.Schedule.Repetitions" type="number" min="1" max="100" /><small>Hasta 7 semanales, 28 mensuales, 90 trimestrales o 100 anuales. Los días fijos o fechas del mes determinan su propio número de repeticiones.</small></label>
+                            <fieldset data-process-days><legend>Días de inicio</legend>@foreach (var d in new[] { 1, 2, 3, 4, 5, 6, 0 }) { <label><input type="checkbox" name="ProcessDays" value="@d" checked="@((Model.Input.Schedule.WeekDays & (1 << d)) != 0)" />@(new[] { "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" }[d])</label> }</fieldset>
+                            <label class="campo" data-process-month-days><span class="campo__etiqueta">Días del mes (opcional)</span><input class="campo__control" asp-for="Input.Schedule.MonthDays" maxlength="83" placeholder="8,22" /><small>Las fechas inexistentes no generan un inicio en ese mes.</small></label>
+                            <label class="campo"><span class="campo__etiqueta">Hora de inicio de la primera tarea · Ciudad de México</span><input class="campo__control" asp-for="Input.Schedule.Time" type="time" step="60" /></label>
+                            <label data-process-weekly><input asp-for="Input.Schedule.WeeklyOperations" /><span>Agregar al plan de operaciones semanal</span></label>
+                            <p data-process-weekly-help>Al confirmar el plan semanal se crea la ejecución y se reserva capacidad para todas sus etapas. Sin marcar esta opción, se programa desde Planificación de procesos.</p>
+                        </div>
                         <div id="process-calendar" data-process-calendar hidden="@(Model.Input.StartKind != "SEMESTRAL")">
                         <label class="campo"><span class="campo__etiqueta">Primer mes (el segundo será seis meses después)</span><input class="campo__control" asp-for="Input.FirstMonth" disabled="@(Model.Input.StartKind != "SEMESTRAL")" type="number" min="1" max="6" /></label>
                         <label class="campo"><span class="campo__etiqueta">Ventana · desde el día</span><input class="campo__control" asp-for="Input.WindowFromDay" disabled="@(Model.Input.StartKind != "SEMESTRAL")" type="number" min="1" max="28" /></label>
@@ -77,7 +102,14 @@
                         @for (var i=0; i<Model.Input.Steps.Count; i++)
                         {
                             var step = Model.Input.Steps[i]; var task=editor.Tasks.SingleOrDefault(t=>t.Id==step.TaskId);
-                            <article class="process-stage" data-process-stage data-process-load-minutes="@(task?.LoadMinutes ?? 0)">
+                            var conflicts = Model.TaskConflicts.Where(c => c.TaskId == step.TaskId).ToArray();
+                            <article class="process-stage @(conflicts.Length > 0 ? "process-stage--conflict" : "")" data-process-stage data-server-conflict="@(conflicts.Length > 0 ? "true" : "false")" data-process-load-minutes="@(task?.LoadMinutes ?? 0)">
+                                @if (conflicts.Length > 0)
+                                {
+                                    <div class="process-membership-error"><strong><span aria-hidden="true">⚠</span> Conflicto</strong>
+                                    @foreach (var conflict in conflicts) { <p>@conflict.Reason</p> }
+                                    </div>
+                                }
                                 <div class="process-stage-heading"><button type="button" class="boton boton--secundario process-drag-handle" draggable="true" data-process-drag aria-label="Arrastrar @(task?.Name)">⠿</button><div class="process-stage-title"><strong>@(task?.Name ?? "Tarea no disponible")</strong><small>@task?.TaskCode · <span data-process-stage-summary></span></small></div><div class="process-stage-tools"><button type="button" class="boton boton--secundario" data-process-up>Anterior</button><button type="button" class="boton boton--secundario" data-process-down>Siguiente</button></div><span class="process-position" data-process-position>Etapa @step.Position</span></div>
                                 <button type="button" class="boton boton--secundario process-edit-button" data-process-edit aria-label="Editar detalles de @(task?.Name)">Editar detalles</button>
                                 <dialog class="process-stage-dialog" data-process-stage-dialog aria-label="Editar @(task?.Name)"><div class="process-section-heading"><h3>@(task?.Name ?? "Tarea no disponible")</h3><button type="button" class="boton boton--secundario" data-process-edit-close>Listo</button></div>
@@ -146,13 +178,13 @@
             }
             else
             {
-                <ol>@foreach(var step in editor.Steps) { <li>@(editor.Tasks.SingleOrDefault(t=>t.Id==step.TaskId)?.Name ?? "Tarea de versión histórica") · @(editor.Configuration?.AgendaVersion == null ? $"{step.DeadlineHours} h" : "Cierre por carga y margen capturado") · @step.Instructions</li> }</ol>
+                <ol>@foreach(var step in editor.Steps) { <li>@(editor.Tasks.SingleOrDefault(t=>t.Id==step.TaskId)?.Name ?? "Tarea de versión histórica") · @(editor.Configuration?.AgendaVersion == null ? $"{step.DeadlineHours} h" : "Cierre por carga y margen capturado") <partial name="_Markdown" model="@step.Instructions" /></li> }</ol>
             }
         }
     }
     else
     {
-        <div class="process-list">@foreach(var process in Model.Processes) { <section class="panel-seccion"><h2><a href="/tareas/procesos?id=@process.Id">@process.Name</a></h2><p>@process.Description</p><p>@(process.IsGeneral ? "Tareas independientes" : process.PublishedVersionId==null ? "Borrador sin publicar" : process.Enabled ? "Activa para nuevos inicios" : "Publicada sin nuevos inicios")</p></section> }</div>
+        <div class="process-list">@foreach(var process in Model.Processes) { <section class="panel-seccion"><h2><a href="/tareas/procesos?id=@process.Id">@process.Name</a></h2><partial name="_Markdown" model="@process.Description" /><p>@(process.IsGeneral ? "Tareas independientes" : process.PublishedVersionId==null ? "Borrador sin publicar" : process.Enabled ? "Activa para nuevos inicios" : "Publicada sin nuevos inicios")</p></section> }</div>
     }
 </section>
 @section Scripts {

@@ -22,7 +22,7 @@ const assert = require('assert/strict');
         await Promise.all([worker.waitForNavigation(), worker.locator('[data-assigned-task-submit] button[type="submit"]').click()]);
         assert.equal(await worker.locator('[data-bonus-score]').textContent(), score);
         assert.equal(await worker.locator('.task-bonus--animate').count(), 0, 'delivery with unchanged score does not animate');
-        assert((await worker.locator('#plan-tasks').innerText()).includes('calificación del bono sin cambios'));
+        assert(!(await worker.locator('#plan-tasks').innerText()).includes('calificación del bono sin cambios'), 'unchanged delivery does not show routine bonus notice');
         await supervisor.bringToFront();
         await supervisor.waitForFunction(({ id, old }) => document.querySelector(`[data-bonus-person="${id}"] [data-task-bonus]`).dataset.version !== old,
             { id: fixture.person, old: oldVersion }, { timeout: 9000 });

@@ -26,10 +26,12 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
     public async Task<Guid> StartAsync(Guid actor, Guid processId, Guid key, DateTimeOffset starts,
         IReadOnlyDictionary<int, Guid> people, CancellationToken token, Guid? preparedPlanId=null, Guid? capturedVersionId=null, string? capturedStartKey=null)
     {
-        await direction.AuthorizeAsync(actor, token);
+        var weekly = preparedPlanId is {} weeklyPlan && await db.DirectionPreparedPlans.AnyAsync(p => p.Id == weeklyPlan && p.IsWeeklyOperationsPlan, token);
+        async Task AuthorizeStart() { if (weekly) await direction.AuthorizeWeeklyOperationsAsync(actor, token); else await direction.AuthorizeAsync(actor, token); }
+        await AuthorizeStart();
         if (key == Guid.Empty || starts.Offset != TimeSpan.Zero || people.Count == 0) throw Error("PROCESS_INVALID");
         await using var tx = db.Database.CurrentTransaction==null ? await db.Database.BeginTransactionAsync(token) : null;
-        await OperationalTaskService.LockAsync(db, token); await direction.AuthorizeAsync(actor, token);
+        await OperationalTaskService.LockAsync(db, token); await AuthorizeStart();
         var root = await db.Set<OperationalSequence>().SingleOrDefaultAsync(p => p.Id == processId && !p.IsGeneral && p.DeletedAt == null && p.Enabled, token) ?? throw Error("PROCESS_OPERATION_NOT_READY",409);
         var startKey = capturedStartKey ?? $"O:{processId:N}:{key:N}";
         var existing = await db.Set<OperationalSequenceRun>().SingleOrDefaultAsync(r => r.StartKey == startKey, token);
@@ -54,6 +56,8 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
             UsesTaskEvidence = tasks.Any(t => t.Requirement != "DOCUMENTO"),
             Name = version.Name, StartKey = startKey, PlannedStartsAt = starts, CreatedAt = clock.UtcNow, CreatedBy = actor }; db.Add(run);
         var ledger = await OperationalCapacityService.LedgerAsync(db, clock.UtcNow, token);
+        if (weekly) ledger = new CapacityLedger(ledger.Workers, ledger.Tasks, ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) {
+            Temporal = ledger.Temporal, ExcludedDemandIds = ledger.Tasks.Where(a => a.CompletedAt == null && a.DueAt <= clock.UtcNow).Select(a => a.Id).ToHashSet() };
         var planned = starts;
         var links = new List<(OperationalSequenceStage Stage, Guid Attempt, OperationalSequenceEvent? Start)>();
         for (var i=0; i<steps.Length; i++)
@@ -86,7 +90,7 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
             }
             var reservation=Reservation(stage,plan.Id);
             if((schedulingPolicy != null || preparedPlanId==null || !ledger.Temporal.Enabled) && !ledger.CanAssign(person,reservation)) throw Error("PLAN_NO_AVAILABLE_WORKER");
-            ledger = new(ledger.Workers,ledger.Tasks.Append(reservation).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal = ledger.Temporal };
+            ledger = ledger.WithAdded(reservation);
             var attempt = NewAttempt(stage,run,1,null,clock.UtcNow);
             db.Add(stage); db.Add(attempt); if(preparedPlanId==null) db.Add(new DirectionPreparedPlanItem(plan.Id,task.TaskCode,task.Name,i));
             planned=stage.PlannedDueAt;
@@ -160,7 +164,10 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
                 conclusion=conclusion.Trim(),differences=differences?.Trim(),declared,evidenceHash }) :
                 JsonSerializer.SerializeToUtf8Bytes(new { actor,attemptId,decision,conclusion=conclusion.Trim(),differences=differences?.Trim(),declared,FileHash=prepared==null ? null : Convert.ToHexStringLower(SHA256.HashData(prepared.Content)) });
         var requestHash=Convert.ToHexStringLower(SHA256.HashData(requestBytes));
-        await using var tx=await db.Database.BeginTransactionAsync(token); await OperationalTaskService.LockAsync(db,token);
+        await using var tx=await db.Database.BeginTransactionAsync(token);
+        try
+        {
+        await OperationalTaskService.LockAsync(db,token);
         var person=await Person(actor,token); await RequireAccess(actor,runId,token);
         var run=await db.Set<OperationalSequenceRun>().SingleAsync(r=>r.Id==runId,token);
         var eventKey=$"decision:{key:N}";
@@ -285,6 +292,15 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
             Action="PROCESS_DECISION",ResourceType="OPERATIONAL_PROCESS",ResourceId=runId,BranchId=BranchScope.LorettaId,
             CorrelationId=key,RequestId=key.ToString("N"),Outcome="SUCCESS",AfterData=JsonSerializer.SerializeToDocument(new { RequestHash=requestHash,attemptId,decision }) });
         await db.SaveChangesAsync(token); await tx.CommitAsync(token);
+        }
+        catch
+        {
+            // A rollback does not reset EF's accepted revisions or pending entities.
+            // The error page also reads the bonus using this scoped context, which can save.
+            await tx.RollbackAsync(CancellationToken.None);
+            db.ChangeTracker.Clear();
+            throw;
+        }
     }
 
     public async Task TickAsync(CancellationToken token)

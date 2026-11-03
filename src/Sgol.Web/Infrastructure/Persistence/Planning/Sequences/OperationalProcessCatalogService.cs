@@ -14,6 +14,7 @@ public sealed class ProcessDraftInput
     public long Revision { get; set; }
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
+    public ProcessStartSchedule Schedule { get; set; } = new();
     public string StartKind { get; set; } = "OCASIONAL";
     public int FirstMonth { get; set; } = 2;
     public int WindowFromDay { get; set; } = 20;
@@ -96,7 +97,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         await OperationalTaskService.LockAsync(db, token); await direction.AuthorizeAsync(actor, token);
         var root = await RequireRoot(input.Id, input.Revision, token);
         var members = await db.OperationalTasks.Where(t => t.ProcessId == root.Id && !t.Deleted).ToArrayAsync(token);
-        if (input.Steps.Any(s => members.All(t => t.Id != s.TaskId))) throw Error("PROCESS_MEMBERSHIP_INVALID");
+        if (input.Steps.Any(s => members.All(t => t.Id != s.TaskId))) throw LocatedError("PROCESS_MEMBERSHIP_INVALID", input.Steps.Where(s => members.All(t => t.Id != s.TaskId)).Select(s => s.TaskId));
         var draft = await EnsureDraft(root, actor, token);
         var previousTaskIds = await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).Select(s => s.TaskId).ToArrayAsync(token);
         // A task just created in this process may still be waiting in the picker.
@@ -114,6 +115,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).ExecuteDeleteAsync(token);
         DetachDraftSteps(draft.Id);
         draft.Name = input.Name.Trim(); draft.Description = input.Description.Trim();
+        draft.StartScheduleJson = input.Schedule.Capture(input.StartKind);
         draft.StartKind = input.StartKind; draft.FirstMonth = input.FirstMonth; draft.WindowFromDay = input.WindowFromDay;
         draft.WindowThroughDay = input.WindowThroughDay; draft.PreferredWeekDay = input.PreferredWeekDay;
         draft.StartHour = input.StartHour ?? 0; draft.StartHourConfirmed = input.StartHour != null; draft.Revision++;
@@ -130,15 +132,15 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         await OperationalTaskService.LockAsync(db, token); await direction.AuthorizeAsync(actor, token);
         var root = await RequireRoot(id, revision, token);
         var task = await db.OperationalTasks.SingleOrDefaultAsync(t => t.Id == taskId && !t.Deleted, token) ?? throw Error("TASK_NOT_FOUND", 404);
-        if (task.Revision != taskRevision) throw Error("TASK_CONFLICT", 409);
-        if (task.ProcessId != OperationalSequence.GeneralId && task.ProcessId != id) throw Error("PROCESS_TRANSFER_REQUIRES_PUBLICATION", 409);
+        if (task.Revision != taskRevision) throw LocatedError("TASK_CONFLICT", [taskId], status: 409);
+        if (task.ProcessId != OperationalSequence.GeneralId && task.ProcessId != id) throw LocatedError("PROCESS_TRANSFER_REQUIRES_PUBLICATION", [taskId], status: 409);
         var draft = await EnsureDraft(root, actor, token);
         if (await db.Set<OperationalSequenceStep>().AnyAsync(s => s.VersionId == draft.Id && s.TaskId == taskId, token)) { await tx.CommitAsync(token); return; }
         var previous = await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id)
             .OrderByDescending(s => s.Position).FirstOrDefaultAsync(token);
         var position = (previous?.Position ?? 0) + 1;
         if (position > 32) throw Error("PROCESS_INVALID");
-        if (task.IsWeeklyOperationsTask && id != OperationalSequence.GeneralId) throw Error("WEEKLY_OPERATIONS_TASK_INVALID", 422);
+        if (task.IsWeeklyOperationsTask && id != OperationalSequence.GeneralId) throw LocatedError("WEEKLY_OPERATIONS_TASK_INVALID", [taskId]);
         // Move the default acceptance to the new final stage, preserving custom actions.
         if (previous?.Action == "AUTORIZAR") previous.Action = "ENTREGAR";
         // Preserve the known membership before changing the catalogue, including legacy assignments.
@@ -165,19 +167,20 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         var draft = await db.Set<OperationalSequenceVersion>().SingleOrDefaultAsync(v => v.SequenceId == id && v.PublishedAt == null, token) ?? throw Error("PROCESS_DRAFT_REQUIRED");
         var steps = await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == draft.Id).OrderBy(s => s.Position).ToArrayAsync(token);
         var members = await db.OperationalTasks.Where(t => t.ProcessId == id && !t.Deleted).ToArrayAsync(token);
+        await RequireValidMembership(id, steps, members, token);
         await ValidateItems(steps, draft.Id, token);
-        ValidateRules(new() { StartKind = draft.StartKind, FirstMonth = draft.FirstMonth, WindowFromDay = draft.WindowFromDay,
+        ValidateRules(new() { Schedule = ProcessStartSchedule.Read(draft.StartScheduleJson), StartKind = draft.StartKind, FirstMonth = draft.FirstMonth, WindowFromDay = draft.WindowFromDay,
             WindowThroughDay = draft.WindowThroughDay, PreferredWeekDay = draft.PreferredWeekDay,
             StartHour = draft.StartHourConfirmed ? draft.StartHour : null, Steps = steps.ToList() }, true);
-        if (!steps.Select(s => s.TaskId).Order().SequenceEqual(members.Select(t => t.Id).Order()) || members.Any(t => !t.Active)) throw Error("PROCESS_MEMBERSHIP_INVALID");
         if (members.Any(t => t.Requirement != "DOCUMENTO") && steps.Any(s => s.Action == "SELLAR"))
-            throw Error("PROCESS_SEAL_REQUIRES_DOCUMENT_FLOW");
+            throw LocatedError("PROCESS_SEAL_REQUIRES_DOCUMENT_FLOW", steps.Where(s => s.Action == "SELLAR").Select(s => s.TaskId).Concat(members.Where(t => t.Requirement != "DOCUMENTO").Select(t => t.Id)));
         var specialties = await db.Set<Sgol.Web.Infrastructure.Persistence.Organization.Specialization>().Where(s => s.Active).Select(s => s.Id).ToArrayAsync(token);
-        if (members.Any(t => t.SpecializationId != null && !specialties.Contains(t.SpecializationId.Value))) throw Error("TASK_SPECIALIZATION_INVALID");
-        foreach (var s in steps) { var task = members.Single(t => t.Id == s.TaskId); task.Validate();
-            if (task.ScheduleMode == "PROGRESO") throw Error("PROCESS_PROGRESS_SCHEDULING_UNSUPPORTED");
-            if (!OperationalAgenda.IsDefined(task.OperationalCriticality)) throw Error("SCHEDULING_CRITICALITY_REQUIRED");
-            if (s.Position > 1 && task.OperationalCriticality == "CRITICA" && s.MinimumStartOffsetHours == null) throw Error("PROCESS_CRITICAL_ANCHOR_REQUIRED");
+        if (members.Any(t => t.SpecializationId != null && !specialties.Contains(t.SpecializationId.Value))) throw LocatedError("TASK_SPECIALIZATION_INVALID", members.Where(t => t.SpecializationId != null && !specialties.Contains(t.SpecializationId.Value)).Select(t => t.Id));
+        foreach (var s in steps) { var task = members.Single(t => t.Id == s.TaskId);
+            try { task.Validate(); } catch (DirectionPlanException e) { e.Data["ProcessIssues"] = new[] { new ProcessValidationIssue(task.Id, "", "") }; throw; }
+            if (task.ScheduleMode == "PROGRESO") throw LocatedError("PROCESS_PROGRESS_SCHEDULING_UNSUPPORTED", [task.Id], "");
+            if (!OperationalAgenda.IsDefined(task.OperationalCriticality)) throw LocatedError("SCHEDULING_CRITICALITY_REQUIRED", [task.Id], "");
+            if (s.Position > 1 && task.OperationalCriticality == "CRITICA" && s.MinimumStartOffsetHours == null) throw LocatedError("PROCESS_CRITICAL_ANCHOR_REQUIRED", [task.Id], "MinimumStartOffsetHours");
             s.TaskSnapshot = JsonSerializer.Serialize(task); }
         draft.AgendaVersion = 1;
         // Save snapshots while the version is still mutable, then freeze it atomically.
@@ -197,8 +200,9 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         if (enabled && (!configuration.GetValue<bool>("Processes:OperationsEnabled") || root.PublishedVersionId == null)) throw Error("PROCESS_OPERATION_NOT_READY", 409);
         if (enabled)
         {
-            var ids = await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == root.PublishedVersionId).Select(s => s.TaskId).ToArrayAsync(token);
-            if (ids.Length == 0 || await db.OperationalTasks.AnyAsync(t => ids.Contains(t.Id) && (t.ProcessId != id || !t.Active || t.Deleted), token)) throw Error("PROCESS_MEMBERSHIP_INVALID");
+            var publishedSteps = await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == root.PublishedVersionId).ToArrayAsync(token);
+            if (publishedSteps.Length == 0) throw Error("PROCESS_MEMBERSHIP_INVALID");
+            await RequireValidMembership(id, publishedSteps, [], token);
         }
         root.Enabled = enabled; root.Revision++; Audit(actor, enabled ? "PROCESS_ACTIVATED" : "PROCESS_DEACTIVATED", id);
         await db.SaveChangesAsync(token); await tx.CommitAsync(token);
@@ -214,7 +218,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         var committed = root.PublishedVersionId == null ? [] : await db.Set<OperationalSequenceStep>().Where(s => s.VersionId == root.PublishedVersionId).Select(s => s.TaskId).ToArrayAsync(token);
         var restored = await db.OperationalTasks.Where(t => committed.Contains(t.Id) && t.ProcessId != id).ToArrayAsync(token);
         if (restored.Any(t => t.ProcessId != OperationalSequence.GeneralId || t.Deleted || !t.Active))
-            throw Error("PROCESS_RESTORE_MEMBERSHIP_CONFLICT", 409);
+            throw LocatedError("PROCESS_RESTORE_MEMBERSHIP_CONFLICT", restored.Where(t => t.ProcessId != OperationalSequence.GeneralId || t.Deleted || !t.Active).Select(t => t.Id), status: 409);
         foreach (var task in restored) { await PreservePendingDefinition(task, token); task.ProcessId = id; task.Revision++; }
         var returned = await db.OperationalTasks.Where(t => t.ProcessId == id && !committed.Contains(t.Id)).ToArrayAsync(token);
         foreach (var task in returned) await ReturnToGeneral(task, token);
@@ -252,7 +256,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         draft = new() { Id = Guid.CreateVersion7(), SequenceId = root.Id,
             Number = (await db.Set<OperationalSequenceVersion>().Where(v => v.SequenceId == root.Id).MaxAsync(v => (int?)v.Number, token) ?? 0) + 1,
             Name = root.Name, Description = root.Description, CreatedAt = clock.UtcNow, CreatedBy = actor,
-            StartKind = published?.StartKind ?? "OCASIONAL", FirstMonth = published?.FirstMonth ?? 2,
+            StartScheduleJson = published?.StartScheduleJson, StartKind = published?.StartKind ?? "OCASIONAL", FirstMonth = published?.FirstMonth ?? 2,
             WindowFromDay = published?.WindowFromDay ?? 20, WindowThroughDay = published?.WindowThroughDay ?? 25,
             PreferredWeekDay = published?.PreferredWeekDay ?? 1, StartHour = published?.StartHour ?? 0,
             StartHourConfirmed = published?.StartHourConfirmed ?? false };
@@ -276,12 +280,22 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
 
     private static void ValidateIdentity(string name, string description)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 120 || name.Any(char.IsControl) || description == null || description.Trim().Length > 4000) throw Error("PROCESS_INVALID");
+        var issues = new List<ProcessValidationIssue>();
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 120 || name.Any(char.IsControl)) issues.Add(new(null, "Name", "Escribe un nombre de 1 a 120 caracteres, sin caracteres de control."));
+        if (description == null || description.Trim().Length > 4000) issues.Add(new(null, "Description", "La descripción admite hasta 4000 caracteres."));
+        if (issues.Count == 0) return;
+        var error = Error("PROCESS_INVALID"); error.Data["ProcessIssues"] = issues.ToArray(); throw error;
     }
 
     private static void ValidateRules(ProcessDraftInput input, bool publish)
     {
-        if (input.StartKind is not ("OCASIONAL" or "SEMESTRAL") || input.FirstMonth is < 1 or > 6 || input.WindowFromDay is < 1 or > 28 ||
+        try { ValidateRulesCore(input, publish); }
+        catch (DirectionPlanException e) { e.Data["ProcessIssues"] = DiagnoseRules(input, publish); throw; }
+    }
+    private static void ValidateRulesCore(ProcessDraftInput input, bool publish)
+    {
+        input.Schedule.Capture(input.StartKind);
+        if (input.StartKind is not ("OCASIONAL" or "SEMESTRAL" or "SEMANAL" or "MENSUAL" or "TRIMESTRAL" or "ANUAL") || input.FirstMonth is < 1 or > 6 || input.WindowFromDay is < 1 or > 28 ||
             input.WindowThroughDay < input.WindowFromDay || input.WindowThroughDay > 28 || input.PreferredWeekDay is < 0 or > 6 || input.StartHour is < 0 or > 23 ||
             input.Steps.Count > 32 || publish && (input.Steps.Count == 0 || input.StartKind == "SEMESTRAL" && input.StartHour == null) ||
             input.Steps.Select(s => s.TaskId).Distinct().Count() != input.Steps.Count ||
@@ -318,7 +332,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         var previous = await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s => s.VersionId == version).ToArrayAsync(ct);
         foreach (var s in selected)
             if (!items.Any(i => i.Id == s.OutputItemId && (i.Active || previous.Any(p => p.TaskId == s.TaskId && p.OutputItemId == i.Id))))
-                throw Error("PROCESS_ITEM_RETIRED");
+                throw LocatedError("PROCESS_ITEM_RETIRED", [s.TaskId], "OutputItemId");
     }
 
     private void Audit(Guid actor, string action, Guid id, object? data = null) => db.AuditEvents.Add(new AuditEvent {

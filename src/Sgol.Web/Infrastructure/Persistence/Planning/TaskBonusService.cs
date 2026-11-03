@@ -109,7 +109,7 @@ public sealed class TaskBonusService(SgolDbContext db, IClock clock, Operational
         if (people.All(closed.ContainsKey)) return people.Select(p => JsonSerializer.Deserialize<TaskBonusResult>(closed[p].ResultJson)!).ToArray();
         var facts = await db.Set<TaskBonusFact>().AsNoTracking().OrderBy(f => f.RecordedAt).ThenBy(f => f.Revision).ToArrayAsync(token);
         var transfers = await db.Set<OperationalTransfer>().AsNoTracking().OrderBy(t => t.At).ToArrayAsync(token);
-        var carryovers = await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.State == "APROBADA")
+        var carryovers = await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.State != "RECHAZADA")
             .OrderBy(r => r.DecidedAt).ToArrayAsync(token);
         var exclusions = await db.Set<TaskBonusExclusion>().AsNoTracking().Where(e => e.Week == week && e.At < period.ReviewCutoffAt && e.At <= now).ToArrayAsync(token);
         var obligations = Materialize(facts, transfers, carryovers, cutoff, period.ReviewCutoffAt);
@@ -175,7 +175,7 @@ public sealed class TaskBonusService(SgolDbContext db, IClock clock, Operational
             var receipt = transfers.Where(t => t.AssignmentId == original.Id).OrderBy(t => t.At).FirstOrDefault();
             if (receipt != null && byAssignment[original.Id][0].Kind == "BASELINE")
                 original = TaskBonusAssignmentSnapshot.From(JsonSerializer.Deserialize<OperationalAssignment>(receipt.SnapshotJson)!) with { ProcessStageId = original.ProcessStageId };
-            var carried = carryovers.SelectMany(r => r.Items()).FirstOrDefault(i => i.AssignmentId == original.Id);
+            var carried = carryovers.SelectMany(r => r.Items().Where(i => r.Recognizes(i.AssignmentId))).FirstOrDefault(i => i.AssignmentId == original.Id);
             if (carried != null && byAssignment[original.Id][0].Kind == "BASELINE") original = original with { StartsAt = carried.Start, DueAt = carried.Due };
             var day = EvaluationDay(original);
             if (day < TaskBonusCalculator.FirstWeek) continue;

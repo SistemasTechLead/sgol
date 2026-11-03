@@ -7,13 +7,13 @@
     <header class="encabezado-pagina encabezado-pagina--catalogo">
         <div class="encabezado-pagina__contenido">
             <h1 id="my-processes-title" class="encabezado-pagina__titulo">Procesos de trabajo</h1>
-            <p class="encabezado-pagina__descripcion">Consulta tus procesos asignados, revisa sus etapas y registra las entregas que te corresponden.</p>
+            <p class="encabezado-pagina__descripcion" data-desktop-redundant>Consulta tus procesos asignados, revisa sus etapas y registra las entregas que te corresponden.</p>
         </div>
         <partial name="_SectionNavigation" model='@("my-work")' />
     </header>
 @if(Request.Query["notice"]=="returned-count") { <p role="status">Conteo devuelto para corrección. Se conserva el historial y la estimación de las etapas pendientes.</p> }
 @if(Request.Query["notice"]=="saved") { <p role="status">Acción del proceso guardada. Consulta el estado de la siguiente etapa.</p> }
-@if(Model.Error!=null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+@if(Model.Error!=null) { <p class="alerta alerta--peligro" role="alert" data-process-error>@Model.Error</p> }
 @if(Model.View is not { } view)
 {
     <div class="process-list">@foreach(var run in Model.Runs) { <section class="panel-seccion"><h2><a href="/mi-trabajo/procesos?id=@run.Id">@run.Name</a></h2><p>@run.Status · Ronda @run.Round</p></section> }</div>

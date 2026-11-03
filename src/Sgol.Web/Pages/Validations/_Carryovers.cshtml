@@ -1,8 +1,24 @@
 @model Sgol.Web.Pages.Validations.IndexModel
+<link rel="stylesheet" href="~/css/task-actions.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/postponement-review.css" asp-append-version="true" />
+<script src="~/js/postponement-review.js" asp-append-version="true" defer></script>
 <section class="panel-seccion" id="carryovers" aria-labelledby="carryovers-title"><h2 id="carryovers-title">Peticiones de arrastre <span class="badge badge--neutro">@Model.PendingAuthorizedCarryoverCount</span></h2>
 @if(Model.PendingAuthorizedCarryoverCount == 0) { <p>No hay peticiones de arrastre pendientes.</p> }
+@if(Model.PendingAuthorizedCarryoverCount > 0) {
+    <aside class="carryover-guidance" aria-label="Criterios de aprobación">
+        @if(Model.Carryovers.Any(r => r.State == "PENDIENTE" && r.Kind == "POSPONER")) {
+            <p id="postponement-selection-help">Selecciona una tarea y elige la acción en la barra del apartado. Cada tarea se resuelve por separado.</p>
+        }
+        @if(Model.Carryovers.Any(r => r.State == "PENDIENTE" && r.Kind != "POSPONER")) {
+            <p><strong>Incidentes:</strong> aprobar aplica todo el alcance. Las entregas y decisiones de calidad conservan sus fechas y estado. La excepción fuera de turno solo ajusta el vencimiento.</p>
+        }
+    </aside>
+}
 @if (Model.CarryoverPage is {} pagination) { <partial name="_ListPage" model="pagination" /> }
+<div class="postponement-review-scope">
 @foreach(var request in Model.Carryovers.Where(r => r.State == "PENDIENTE")) {
+    @if (request.Kind == "POSPONER") { <partial name="_PostponementRequest" model="@((Model, request))" /> continue; }
+    <article class="carryover-request" aria-label="Petición de @request.Items().FirstOrDefault()?.PersonName">
     <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" />
     <details><summary>Situación actual y efecto al aprobar</summary>
         @foreach(var item in request.Items()) {
@@ -16,11 +32,25 @@
     </details>
     <form method="post" action="@Model.CarryoverDecisionHref" asp-antiforgery="true" class="carryover-form">
         <input name="requestId" value="@request.Id" type="hidden" /><input name="requestRevision" value="@request.Revision" type="hidden" />
-        <label for="comment-@request.Id">Comentario de decisión para la solicitud @request.Id</label><textarea id="comment-@request.Id" name="decisionComment" required maxlength="4000"></textarea>
-        <p>@(request.Kind == "POSPONER" ? "Aprobar reserva los horarios propuestos para las pendientes. Si cambió la carga, el horario o alguna fecha propuesta ya pasó, se bloqueará la aprobación. Las entregadas conservarán sus fechas y decisión." : "Aprobar aplica todo el alcance. Las entregas y decisiones de calidad conservan sus fechas y estado. La excepción fuera de turno solo ajusta el vencimiento.")</p>
+        <label for="comment-@request.Id">Comentario de decisión</label><textarea id="comment-@request.Id" name="decisionComment" required maxlength="4000"></textarea>
+        <div class="carryover-request__actions">
         <button name="approve" value="true" class="boton boton--primario">Aprobar arrastre</button><button name="approve" value="false" class="boton boton--secundario">Rechazar</button>
+        </div>
     </form>
+    </article>
 }
-<details open="@(Model.Request.Query.ContainsKey("CarryoverHistoryPage"))"><summary>Historial de aprobadas y rechazadas</summary>@if (Model.CarryoverHistoryPage is {} historyPage) { <partial name="_ListPage" model="historyPage" /> }@foreach(var request in Model.Carryovers.Where(r => r.State != "PENDIENTE")) { <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" /> }</details>
+@if (Model.Carryovers.Any(r => r.Kind == "POSPONER" && r.PendingItems().Length > 0)) {
+    <aside class="task-action-panel postponement-toolbar" aria-label="Acciones de posposición" data-postponement-toolbar>
+        <div class="task-action-panel__selection" role="status" aria-live="polite"><strong data-postponement-selection>Ninguna tarea seleccionada</strong><small>Selecciona una tarea para habilitar sus acciones.</small></div>
+        <div class="task-action-panel__buttons">
+            <button type="button" class="boton boton--primario" data-item-action="APPROVE" disabled>Aprobar propuesta</button>
+            <button type="button" class="boton boton--secundario" data-item-action="REASSIGN" disabled>Reasignar</button>
+            <button type="button" class="boton boton--secundario" data-item-action="RESCHEDULE" disabled>Cambiar propuesta</button>
+            <button type="button" class="boton boton--secundario" data-item-action="REJECT" disabled>Rechazar</button>
+        </div>
+    </aside>
+}
+</div>
+<details open="@(Model.Request.Query.ContainsKey("CarryoverHistoryPage"))"><summary>Historial de decisiones</summary>@if (Model.CarryoverHistoryPage is {} historyPage) { <partial name="_ListPage" model="historyPage" /> }@foreach(var request in Model.Carryovers.Where(r => r.State != "PENDIENTE")) { <partial name="~/Pages/Shared/_CarryoverHistory.cshtml" model="request" /> }</details>
 </section>
 

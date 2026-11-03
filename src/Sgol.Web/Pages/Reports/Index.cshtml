@@ -12,7 +12,7 @@
 }
 <link rel="stylesheet" href="~/css/reports.css" asp-append-version="true" />
 <header class="encabezado-pagina report-heading">
-    <div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Reportes</h1><p class="encabezado-pagina__descripcion">Entiende la operación, encuentra pendientes y comparte los resultados.</p></div>
+    <div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Reportes</h1><p class="encabezado-pagina__descripcion" data-desktop-redundant>Entiende la operación, encuentra pendientes y comparte los resultados.</p></div>
     <div class="report-actions"><button type="button" class="boton boton--secundario" data-report-save>@(Model.EditingName != null ? "Guardar cambios en plantilla" : "Guardar como plantilla")</button><button type="button" class="boton boton--primario" data-report-export disabled="@(Model.Error != null)"><partial name="_Icon" model='@("report")' />Exportar a PDF</button></div>
 </header>
 @if (Model.Success != null) { <p class="report-message" role="status">@Model.Success</p> }

@@ -321,3 +321,24 @@ No se aplicaron a `sgol_local`. Antes de activar esta versión, respaldar y veri
 3. `20261102214845_AddTaskBonusAvailabilityHistory`: historial económico de disponibilidad.
 
 El worker cierra periodos vencidos; no borra ni reinicia simulaciones. Una instalación inicial posterior al primer corte que no pueda acreditar el historial produce incidencia, no un porcentaje inventado. El watcher externo queda activo por decisión expresa del usuario; esa recarga automática no sustituye aplicar y verificar las migraciones en el destino autorizado.
+
+## 12. Ajuste del detalle del velocímetro — 2 de noviembre de 2026
+
+Petición posterior del usuario: abrir «Ver más información» en una ventana emergente sin desplazar el contenido y eliminar «Actualizado, sin cambios». Sustituye la composición desplegable elegida previamente, también en móvil.
+
+Cambio de interfaz: `_TaskBonusGauge.cshtml` usa el diálogo modal nativo y los controles/estilos compartidos de SGOL. Se conserva el mismo contenido, permisos y cálculo; cierre con botón o Escape, foco inicial en Cerrar y retorno al disparador. El refresco sin cambio y la entrega que conserva la calificación permanecen silenciosos; se mantienen los avisos de cambio real, error y pérdida de sesión.
+
+Entorno: base nueva `sgol_task_checks_bonus_dialog_v2_20261102`, PostgreSQL local puerto 5440; host de prueba HTTPS 7296 con páginas y servicios reales. Sin escrituras de prueba en `sgol_local`. Evidencia privada en `.local/bonus-dialog-20261102` y logs `.local/bonus-dialog-*.log`.
+
+| Escenario | Resultado y evidencia |
+|---|---|
+| Compilación | Aprobado, cero errores y advertencias (`bonus-dialog-build.log`). |
+| HTTP y formularios reales del fixture | Aprobado, 23 comprobaciones (`bonus-dialog-host-v2.log`). |
+| Entrega sin cambio de calificación | Aprobado en Chromium/Edge y WebKit: sin aviso rutinario ni animación; Supervisión actualiza y conserva el borrador (`browser-flow-results.json`). |
+| Diálogo en las tres pantallas, tamaños y temas, teclado y altura de barras | Aprobado: 98 casos en Chromium/Edge y WebKit, tres temas y anchos 320/375/768/1280/1920 (`browser-results.json`). Se comprueba que abrir el diálogo conserva la posición y altura del contenido, además del cierre con Escape/botón y retorno de foco. |
+| Pantalla corta 320 × 568 | Aprobado en ambos motores: ventana dentro del viewport, desplazamiento interno, cierre accesible y retorno de foco (`bonus-dialog-short.log`). |
+| Dispositivo físico y lector de pantalla | No ejecutado. |
+
+Fallos encontrados y corregidos: el fixture del Tablero comprobaba una barra diaria después de adelantar el reloj fuera de su día; se fija el reloj al día de sus asignaciones antes de esa comprobación. La primera ejecución de teclado detectó que Tab abandonaba el diálogo; se añadió contención del foco. WebKit detectó además un salto de línea de las etiquetas al redimensionar y un retorno de foco ausente en los diálogos reemplazados por el refresco del Tablero: se estabilizó el ancho del bloque de valores y se delegó el evento de cierre para incluir los nuevos nodos. Los intentos fallidos y el diagnóstico se guardan en logs locales.
+
+Verificación local final: `/health/ready` responde ready en 7241; los assets servidos contienen el diálogo, cierre delegado y eliminación del aviso rutinario. El watcher autorizado recargó el checkout. Sin migraciones nuevas, commit ni push para este ajuste.

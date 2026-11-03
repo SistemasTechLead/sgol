@@ -26,19 +26,28 @@
             @if (preview.Decisions.Length > 0)
             {
                 <h2>1. Resuelve los casos pendientes</h2>
-                <p>Marca las opciones que autorizas y pulsa <strong>Revisar cambios</strong>. Debajo verás el resultado antes de guardar.</p>
+                <p>Elige la solución de cada caso y pulsa <strong>Revisar cambios</strong>.</p>
                 @foreach (var decision in preview.Decisions)
                 {
-                    var field = decision.AssignmentId != null ? nameof(Model.PreserveProcessAssignmentIds) : RefreshModel.DecisionField(decision.Code);
+                    var field = decision.Code.StartsWith("calendar-preserve:") ? nameof(Model.PreserveCalendarAssignmentIds) : decision.AssignmentId != null ? nameof(Model.PreserveProcessAssignmentIds) : RefreshModel.DecisionField(decision.Code);
                     var value = decision.AssignmentId?.ToString() ?? "true";
-                    <div class="assignment-refresh__case">
-                    @if (decision.Problem != null) { <p class="assignment-refresh__problem" id="refresh-problem-@decision.AssignmentId">@decision.Problem</p> }
-                    <label class="assignment-refresh__choice @(decision.Accepted ? "assignment-refresh__choice--accepted" : "")">
-                        <input type="checkbox" name="@field" value="@value" checked="@decision.Accepted" aria-describedby="@(decision.Problem != null ? $"refresh-problem-{decision.AssignmentId}" : null)" />
-                        <span><strong>@decision.Title</strong><span>@decision.Help</span><small data-refresh-choice-status>@(decision.Accepted ? "Incluido en esta revisión" : "Marca esta opción para continuar")</small>
-                        <span class="assignment-refresh__affected">@string.Join(" · ", decision.TaskCodes.Select(c => $"{c}: {Model.DecisionTasks.GetValueOrDefault(c, c)}"))</span></span>
-                    </label>
-                    </div>
+                    var text = RefreshCaseText.Decision(decision);
+                    var caseId = "refresh-case-" + decision.Code.Replace(":", "-");
+                    <article class="assignment-refresh__case" aria-labelledby="@(caseId + "-title")">
+                        <ul class="assignment-refresh__case-tasks" id="@(caseId + "-title")">
+                        @foreach (var code in decision.TaskCodes) { <li><strong>@code</strong> <span>@Model.DecisionTasks.GetValueOrDefault(code, code)</span></li> }
+                        </ul>
+                        @if (decision.Context != null) { <p class="assignment-refresh__context">@decision.Context</p> }
+                        <p id="@(caseId + "-cause")"><span class="assignment-refresh__caption">Motivo</span> @text.Cause</p>
+                        <label class="assignment-refresh__choice @(decision.Accepted ? "assignment-refresh__choice--accepted" : "")">
+                            <input type="checkbox" name="@field" value="@value" checked="@decision.Accepted" aria-describedby="@(caseId + "-cause") @(caseId + "-effect")" />
+                            <span><strong>@text.Action</strong><span id="@(caseId + "-effect")">@text.Effect</span><small data-refresh-choice-status>@(decision.Accepted ? "Incluido en la revisión" : "Sin seleccionar")</small></span>
+                        </label>
+                        <details class="assignment-refresh__details"><summary>Ver detalles</summary>
+                            @if (decision.Problem != null) { <p>@decision.Problem</p> }
+                            <p>@decision.Help</p>
+                        </details>
+                    </article>
                 }
                 @if (pendingDecisions > 0) { <p class="assignment-refresh__pending" role="status">@(pendingDecisions == 1 ? "Falta 1 opción por autorizar para poder continuar." : $"Faltan {pendingDecisions} opciones por autorizar para poder continuar.")</p> }
             }
@@ -47,7 +56,25 @@
         </form>
         @if (otherConflicts.Length > 0)
         {
-            <section class="assignment-refresh__issues" role="alert"><h2>Estos casos necesitan una corrección</h2><ul>@foreach (var conflict in otherConflicts) { <li>@conflict</li> }</ul><p>Corrige los casos indicados y vuelve a revisar. Todavía no se ha guardado ningún cambio.</p><a href="/tareas">Editar tareas</a></section>
+            <section class="assignment-refresh__blocked" aria-labelledby="refresh-blocked-title">
+                <h2 id="refresh-blocked-title">Casos que debes resolver antes de continuar</h2>
+                @foreach (var issue in preview.Issues)
+                {
+                    var text = RefreshCaseText.Issue(issue);
+                    <article class="assignment-refresh__case assignment-refresh__case--blocked">
+                        <h3>@(issue.TaskCode ?? "Actualización general") @issue.TaskName</h3>
+                        @if (issue.Context != null) { <p class="assignment-refresh__context">@issue.Context</p> }
+                        <p><span class="assignment-refresh__caption">Motivo</span> @text.Cause</p>
+                        <p><span class="assignment-refresh__caption">Solución</span> @text.Action</p>
+                        @if (text.Url != null) { <a href="@text.Url" class="assignment-refresh__case-link">@(text.Url == "/tareas/procesos" ? "Ir a Procesos" : text.Url == "/planificacion" ? "Ir a Planificación" : "Ir a Tareas")</a> }
+                        <details class="assignment-refresh__details"><summary>Ver detalles</summary><p>@issue.Detail</p></details>
+                    </article>
+                }
+                @foreach (var conflict in otherConflicts.Except(preview.Issues.Select(i => i.Detail)))
+                {
+                    <article class="assignment-refresh__case"><h3>Actualización general</h3><p>@conflict</p><p><span class="assignment-refresh__caption">Solución</span> Revisa el caso indicado y vuelve a calcular.</p></article>
+                }
+            </section>
         }
         @foreach (var notice in preview.Notices) { <p class="assignment-refresh__notice">@notice</p> }
         @if (preview.Differences.Length > 0)
@@ -87,12 +114,13 @@
                 <input type="hidden" asp-for="Key" /><input type="hidden" asp-for="NotBefore" /><input type="hidden" asp-for="Fingerprint" />
                 <input type="hidden" asp-for="ReplaceRemainingEstimate" /><input type="hidden" asp-for="ChangeAuthorizedDeadline" /><input type="hidden" asp-for="AdoptLegacyCalendar" /><input type="hidden" asp-for="RetireInactiveAssignments" /><input type="hidden" asp-for="RetireExcludedAssignments" />
                 @foreach (var id in Model.PreserveProcessAssignmentIds) { <input type="hidden" name="PreserveProcessAssignmentIds" value="@id" /> }
+                @foreach (var id in Model.PreserveCalendarAssignmentIds) { <input type="hidden" name="PreserveCalendarAssignmentIds" value="@id" /> }
                 <label class="campo"><span class="campo__etiqueta">Motivo para el historial</span><textarea class="campo__control" asp-for="Reason" maxlength="1000" required rows="2" placeholder="Por ejemplo: Actualizar requisitos y retirar tareas que ya no se realizan"></textarea></label>
                 <p>Se guardarán todos los cambios mostrados arriba.</p>
                 <button class="boton boton--primario" type="submit">@(retired == 0 ? "Confirmar cambios" : updated == 0 ? "Confirmar retiros" : "Confirmar cambios y retiros")</button>
             </form>
         }
-        else if (preview.Differences.Length == 0 && preview.Conflicts.Length == 0) { <p>No hay pendientes que necesiten cambios.</p> }
+        else if (preview.Differences.Length == 0 && preview.Conflicts.Length == 0) { <p>No hay cambios para aplicar en esta revisión. Los pendientes que elegiste conservar siguen sin cambios.</p> }
     }
 </section>
 <script src="~/js/assignment-refresh.js" asp-append-version="true" defer></script>

@@ -25,7 +25,7 @@ const assert = require('assert/strict');
         await Promise.all([page.waitForNavigation(), page.locator('[data-assigned-task-submit] button[type="submit"]').click()]);
         const after = Number(await page.locator('[data-task-bonus]').getAttribute('data-score'));
         assert(after > before && after === 100, 'real correction restores the actual score');
-        assert((await page.locator('#plan-tasks').innerText()).includes('Bono actualizado: calificación'));
+        assert((await page.locator('#plan-tasks').innerText()).includes('Porcentaje actualizado:'));
         // The operational return remains at the task; animation waits for the gauge to enter view.
         const dialog = page.locator('dialog[open]');
         if (await dialog.count()) await page.keyboard.press('Escape');

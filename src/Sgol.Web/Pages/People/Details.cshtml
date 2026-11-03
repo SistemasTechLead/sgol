@@ -3,6 +3,7 @@
 @inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
 @{
     ViewData["Title"] = "Historial laboral";
+    ViewData["ScreenTitle"] = Model.IsConflict ? "Conflicto de versión" : Model.Person?.DisplayName ?? "Persona no disponible";
 }
 <section class="persona-detalle" aria-labelledby="detalle-persona-titulo">
     @if (Model.Error is not null)

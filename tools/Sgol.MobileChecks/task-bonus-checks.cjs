@@ -6,6 +6,7 @@ const assert = require('assert/strict');
     const fixture = JSON.parse(fs.readFileSync(`${dir}/fixture.json`, 'utf8'));
     const results = [];
     for (const [engine, type] of [['chromium', chromium], ['webkit', webkit]]) {
+        if (process.env.BONUS_BROWSER && process.env.BONUS_BROWSER !== engine) continue;
         const browser = await type.launch(engine === 'chromium' ? { channel: 'msedge' } : {});
         const context = await browser.newContext({ ignoreHTTPSErrors: true });
         const page = await context.newPage();
@@ -15,6 +16,7 @@ const assert = require('assert/strict');
             assert.equal((await page.goto(fixture.origin + path, { waitUntil: 'domcontentloaded' })).status(), 200);
             const gauge = page.locator(`[data-task-bonus][data-person="${fixture.person}"]`);
             await gauge.waitFor();
+            await page.evaluate(() => document.fonts.ready);
             for (const theme of ['light', 'dark', 'special']) {
                 await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
                 for (const width of [320, 375, 768, 1280, 1920]) {
@@ -35,16 +37,33 @@ const assert = require('assert/strict');
                     await gauge.scrollIntoViewIfNeeded();
                     const box = await gauge.boundingBox(); assert(box && box.width > 0 && box.x >= 0 && box.x + box.width <= width + 1, `${engine} ${path} ${theme} ${width}: gauge fits viewport ${JSON.stringify(box)}`);
                     if (path === '/mi-trabajo' && width >= 1280) {
-                        const title = await page.locator('h1').boundingBox();
-                        assert(Math.abs(box.y - title.y) < 24 && box.x > title.x, 'desktop gauge occupies the top right beside the heading');
+
+                        assert(box.height <= 60, 'current gauge remains a single compact row');
                     }
-                    const summary = gauge.locator(':scope > summary');
+                    const summary = gauge.locator(':scope > .task-bonus__trigger');
+                    const dialog = gauge.locator('dialog');
+                    const layoutBefore = await gauge.evaluate(g => ({ height: g.parentElement.getBoundingClientRect().height, top: g.getBoundingClientRect().top + scrollY }));
                     await summary.focus(); await page.keyboard.press('Enter');
-                    assert.equal(await gauge.getAttribute('open'), '');
+                    assert.equal(await dialog.getAttribute('open'), '');
+                    assert(await dialog.evaluate(d => d.matches(':modal')), 'native modal is in top layer');
+                    const layoutAfter = await gauge.evaluate(g => ({ height: g.parentElement.getBoundingClientRect().height, top: g.getBoundingClientRect().top + scrollY }));
+                    assert.deepEqual(layoutAfter, layoutBefore, `${engine} ${path} ${theme} ${width}: opening explanation does not shift page content`);
+                    const dialogBox = await dialog.boundingBox();
+                    assert(dialogBox.x >= 0 && dialogBox.x + dialogBox.width <= width + 1 && dialogBox.height <= 900, 'dialog fits viewport');
+                    assert(await dialog.locator('[data-dialog-close]').evaluate(e => e === document.activeElement), 'initial focus on close');
+                    await page.keyboard.press('Tab');
+                    assert(await dialog.evaluate(d => d.contains(document.activeElement)), 'keyboard focus remains in modal');
                     await expectVisible(gauge.locator('.task-bonus__explanation'));
                     assert((await gauge.innerText()).includes('12:00'));
                     await page.keyboard.press('Escape');
-                    assert.equal(await gauge.getAttribute('open'), null);
+                    assert.equal(await dialog.getAttribute('open'), null);
+                    await page.waitForFunction(id => document.getElementById(id)?.querySelector('.task-bonus__trigger') === document.activeElement, await gauge.getAttribute('id'), { timeout: 2000 });
+                    assert(await summary.evaluate(e => e === document.activeElement), 'Escape restores trigger focus');
+                    await summary.click();
+                    if (theme === 'light' && [375, 1280].includes(width)) await page.screenshot({ path: `${dir}/${engine}-${path.split('/').pop()}-dialog-${width}.png` });
+                    await dialog.locator('[data-dialog-close]').click();
+                    assert.equal(await dialog.getAttribute('open'), null);
+                    await page.waitForFunction(id => document.getElementById(id)?.querySelector('.task-bonus__trigger') === document.activeElement, await gauge.getAttribute('id'), { timeout: 2000 });
                     assert(await summary.evaluate(e => e === document.activeElement), `${engine} ${path} ${theme} ${width}: Escape restores focus`);
                     if (path === '/tablero') {
                         const sizes = await gauge.evaluate(g => {
@@ -61,12 +80,15 @@ const assert = require('assert/strict');
         }
         await page.setViewportSize({ width: 1280, height: 900 });
         await page.goto(`${fixture.origin}/mi-trabajo`);
-        await page.locator('#my-bonus-week').selectOption('2026-10-26');
-        await Promise.all([page.waitForURL('**BonusWeek=2026-10-26'), page.locator('.bonus-week button').click()]);
-        assert((await page.locator('[data-task-bonus]').innerText()).includes('Evaluación aún no vigente'));
-        assert.equal(await page.locator('[role="meter"]').count(), 0);
+        await page.goto(fixture.origin + '/mi-trabajo?BonusWeek=2026-10-26');
+        assert.equal(await page.locator('#my-bonus-week').count(), 0);
+        assert.equal(await page.locator('[data-task-bonus]').getAttribute('data-week'), fixture.week);
+        assert.equal(await page.locator('.task-bonus__trigger [data-bonus-retained]').count(), 0);
+        assert(!(await page.locator('.task-bonus__trigger').innerText()).includes('Calif.'));
         await page.goto(`${fixture.origin}/mi-trabajo`);
-        const before = await page.locator('[data-bonus-score]').textContent();
+        await page.waitForTimeout(5500);
+        assert.equal(await page.locator('[data-bonus-status]').textContent(), '', 'unchanged refresh remains silent');
+        const before = await page.locator('.task-bonus__trigger [data-bonus-score]').textContent();
         await page.request.post(`${fixture.origin}/__test/clock/3/10`);
         await page.waitForFunction(before => document.querySelector('[data-bonus-score]').textContent !== before, before, { timeout: 9000 });
         results.push({ engine, scenario: 'clock transition received within 9s including rendering', status: 'approved' });

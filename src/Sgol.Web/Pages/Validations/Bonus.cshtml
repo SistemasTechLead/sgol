@@ -3,11 +3,11 @@
 @{ ViewData["Title"] = "Porcentaje para el bono"; }
 <section class="bonus-supervision" data-bonus-feed="@Url.Page("/Validations/Bonus", "Snapshot", new { Week = Model.SelectedWeek.ToString("yyyy-MM-dd") })">
     <header class="encabezado-pagina"><h1>Porcentaje para el bono</h1><partial name="_SectionNavigation" model='@("supervision")' /></header>
-    <form method="get" class="bonus-week"><label for="bonus-week">Semana evaluada</label><select id="bonus-week" name="Week" class="campo__control">
+    <form method="get" class="bonus-week"><div class="desktop-filter-field"><label for="bonus-week">Semana evaluada</label><select id="bonus-week" name="Week" class="campo__control">
         <option value="@Model.CurrentWeek.ToString("yyyy-MM-dd")" selected="@(Model.SelectedWeek == Model.CurrentWeek)">Actual · @Model.CurrentWeek.ToString("dd/MM")–@Model.CurrentWeek.AddDays(6).ToString("dd/MM")</option>
         <option value="@Model.CurrentWeek.AddDays(-7).ToString("yyyy-MM-dd")" selected="@(Model.SelectedWeek == Model.CurrentWeek.AddDays(-7))">Anterior · @Model.CurrentWeek.AddDays(-7).ToString("dd/MM")–@Model.CurrentWeek.AddDays(-1).ToString("dd/MM")</option>
         @if (Model.SelectedWeek < Model.CurrentWeek.AddDays(-7)) { <option selected value="@Model.SelectedWeek.ToString("yyyy-MM-dd")">@Model.SelectedWeek.ToString("dd/MM/yyyy")–@Model.SelectedWeek.AddDays(6).ToString("dd/MM/yyyy")</option> }
-    </select><button class="boton boton--secundario" type="submit">Ver semana</button></form>
+    </select></div><button class="boton boton--secundario" type="submit">Ver semana</button></form>
     @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
     <p data-bonus-status role="status" aria-live="polite"></p>
     @if (Model.Results.Length == 0) { <p>No hay colaboradores con una evaluación completa dentro de tus permisos.</p> }

@@ -77,6 +77,7 @@ public static class ProcessEditorChecks
         builder.Services.AddScoped<AuditTransaction>(); builder.Services.AddScoped<IDirectionPreparedPlanService, EfDirectionPreparedPlanService>();
         builder.Services.AddScoped<IDirectionPlanningCatalogReader, DirectionPlanningCatalogReader>();
         builder.Services.AddScoped<OperationalTaskService>(); builder.Services.AddScoped<OperationalProcessCatalogService>();
+        builder.Services.AddScoped<OperationalSupervisionService>(); builder.Services.AddScoped<TaskBonusService>();
         builder.Services.AddScoped<OperationalCarryoverReader>();
         builder.Services.AddScoped<AssignmentRefreshService>();
         builder.Services.AddScoped<OperationalSchedulingPolicyService>();
@@ -153,9 +154,11 @@ public static class ProcessEditorChecks
         db.ChangeTracker.Clear();
         Check(await db.Set<OperationalSequenceStep>().CountAsync(s=>s.VersionId==version.Id&&s.Instructions=="")==7,"All seven blank instructions persist as empty text");
         page=await client.GetStringAsync(location);
+        await ProcessMembershipChecks.RunAsync(db, client, id, Hidden(page,"__RequestVerificationToken"), Hidden(page,"Input.Revision"));
         var published=await client.PostAsync("/tareas/procesos?handler=Publish",new FormUrlEncodedContent(new Dictionary<string,string>{["__RequestVerificationToken"]=Hidden(page,"__RequestVerificationToken"),["Input.Id"]=id.ToString(),["Input.Revision"]=Hidden(page,"Input.Revision")}));
         Check(published.StatusCode==HttpStatusCode.Redirect,"Seven-stage draft with delivery, review and acceptance publishes over HTTP");
         Check(!await db.OperationalAssignments.AnyAsync(),"Draft save and publication create no assignments");
+        if (Environment.GetEnvironmentVariable("SGOL_MEMBERSHIP_ONLY") == "1") { await app.StopAsync(); return; }
         await MixedEvidence(db, actor, person, id, clock, builder.Configuration, client, Hidden(page,"__RequestVerificationToken"));
         await IndependentChecklist(db,actor,person,clock,client);
         await ProcessCatalogDeletionChecks.RunAsync(db, actor, person, clock, value => clock.UtcNow = value, client, builder.Configuration, new Scanner());

@@ -1485,6 +1485,7 @@ body{background:var(--color-superficie-elevada)}
 .my-work-plan__header p { margin: 0; }
 .my-work-task > td:first-child { border-left: 4px solid var(--work-accent); padding: var(--espacio-8) var(--espacio-12); }
 .my-work-task > td { background: var(--work-bg); }
+.my-work-color--closed,
 .my-work-color--scheduled { --work-accent: var(--color-texto-secundario); --work-bg: color-mix(in srgb, var(--color-texto-secundario) 9%, var(--color-superficie)); }
 .my-work-color--active { --work-accent: var(--color-exito); --work-bg: var(--color-exito-fondo); }
 .my-work-color--warning { --work-accent: var(--color-advertencia); --work-bg: var(--color-advertencia-fondo); }
@@ -1649,6 +1650,7 @@ progress.task-progress__track::-moz-progress-bar { background: var(--task-progre
 :root[data-theme="special"] .barra-lateral,
 :root[data-theme="special"] .navegacion-movil { background: var(--color-marca-crema); }
 /* Las tareas programadas también conservan el gris y fondo del modo claro. */
+:root[data-theme="special"] .my-work-color--closed,
 :root[data-theme="special"] .my-work-color--scheduled {
     --work-accent: #6B6055;
     --work-bg: color-mix(in srgb, #6B6055 9%, #FFFFFF);

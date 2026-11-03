@@ -69,8 +69,10 @@ public sealed partial class OperationalProcessService
             return error;
         }
         if (!string.IsNullOrEmpty(resolution) && expectedFingerprint != fingerprint) throw Conflict("La agenda cambió desde el aviso o falta su revisión. Revisa las opciones y confirma de nuevo.");
-        await EnableActive(run, ct);
-        if (next.Status != "PENDIENTE_ASIGNACION" && next.Status != "FUERA_DE_PLAZO") return;
+        if (resolution != "LOWEST") {
+            await EnableActive(run, ct);
+            if (next.Status != "PENDIENTE_ASIGNACION" && next.Status != "FUERA_DE_PLAZO") return;
+        }
         if (resolution == "PENDING") return;
         if (resolution is "LOWEST" or "FORCE") {
             if (!ProcessItemRules.CanResolve(source.Role)) throw Error("ACCESO_DENEGADO", 403);
@@ -80,19 +82,44 @@ public sealed partial class OperationalProcessService
             var removed = downstream.Where(s => s.OperationalCriticality != "CRITICA").Select(s => s.Id).Append(next.Id).ToHashSet();
             ledger = new(ledger.Workers, ledger.Tasks.Where(t => !removed.Contains(t.Id)).ToArray(), ledger.Capacities, ledger.Unavailable, ledger.Legacy, ledger.Today) { Temporal = ledger.Temporal };
             if (resolution == "LOWEST") {
-                var day = WeekContract.LocalToday(next.NominalStartsAt ?? next.PlannedStartsAt);
-                foreach (var candidate in ledger.Workers.Where(w => w.EligibleFor(next.Role, next.SpecializationId))
-                    .OrderBy(w => ledger.Occupancy(w.Id, day, day)).ThenBy(w => ledger.Load(w.Id, day, day)).ThenBy(w => w.Code, StringComparer.Ordinal)) {
-                    var previous = next.ReservedPersonId; var previousName = next.ReservedPersonName;
-                    next.ReservedPersonId = candidate.Id; next.ReservedPersonName = candidate.Name;
-                    await EnableActive(run, ct);
-                    if (next.Status is "DISPONIBLE" or "PROGRAMADA") {
-                        db.Add(Event(run,next,await db.Set<OperationalSequenceAttempt>().SingleAsync(a=>a.Id==next.CurrentAttemptId,ct),"ASIGNACION",$"item-lowest:{sourceAttempt.Id:N}",actor,clock.UtcNow,null,$"Persona compatible de menor carga: {candidate.Name}; origen {source.TaskCode}."));
-                        return;
+                var earliest = new[] { clock.UtcNow, next.DependencySatisfiedAt!.Value, next.MinimumStartsAt ?? clock.UtcNow, next.NominalStartsAt ?? clock.UtcNow }.Max();
+                var firstDay = WeekContract.LocalToday(clock.UtcNow);
+                var options = new List<(CapacityWorker Worker, OperationalAssignment Task)>();
+                for (var offset = 0; offset < 7; offset++) {
+                    var day = firstDay.AddDays(offset);
+                    var searchStart = new[] { earliest, OperationalSchedule.Instant(day) }.Max();
+                    if (WeekContract.LocalToday(searchStart) != day) continue;
+                    foreach (var candidate in ledger.Workers.Where(w => w.EligibleFor(next.Role, next.SpecializationId))) {
+                        var proposed = Reservation(next, run.PlanId);
+                        proposed.PersonId = candidate.Id; proposed.PersonName = candidate.Name; proposed.AssignedRole = candidate.Role;
+                        if (next.OperationalCriticality == "CRITICA") {
+                            if (next.NominalStartsAt < searchStart || WeekContract.LocalToday(next.NominalStartsAt!.Value) != day) continue;
+                        } else proposed.NominalStartsAt = searchStart;
+                        proposed.StartsAt = proposed.NominalStartsAt ?? searchStart;
+                        proposed.DueAt = proposed.StartsAt.AddMinutes(OperationalAgenda.Duration(next.LoadMinutes,next.ClosureMarginPercent??0));
+                        var placed = OperationalAgenda.Find(ledger,candidate.Id,proposed,searchStart);
+                        if (!placed.Eligible || next.FixedDueAt is {} limit && placed.DueAt > limit ||
+                            downstream.Any(s=>s.Position>next.Position && s.OperationalCriticality=="CRITICA" && placed.DueAt>s.NominalStartsAt)) continue;
+                        OperationalAgenda.Apply(proposed,placed);
+                        if (candidate.EmploymentEnd < proposed.DueAt || candidate.RoleEnd < proposed.DueAt) continue;
+                        if (ledger.CanAssign(candidate.Id,proposed,clock.UtcNow)) options.Add((candidate,proposed));
                     }
-                    next.ReservedPersonId = previous; next.ReservedPersonName = previousName;
+                    if (options.Count > 0) break;
                 }
-                throw Conflict("No hay una persona compatible con un hueco y capacidad normales. Guarda pendiente o revisa la excepción permitida.",false);
+                var selected = options.OrderBy(o=>o.Task.StartsAt)
+                    .ThenBy(o=>ledger.Occupancy(o.Worker.Id,WeekContract.LocalToday(o.Task.StartsAt),WeekContract.LocalToday(o.Task.StartsAt)))
+                    .ThenBy(o=>o.Worker.Code,StringComparer.Ordinal).FirstOrDefault();
+                if (selected.Worker == null) throw Conflict("No hay una persona compatible con un bloque completo y capacidad normal durante los próximos 7 días. Guarda pendiente para revisar la planificación.",false);
+                var previous = next.ReservedPersonName;
+                next.ReservedPersonId=selected.Worker.Id; next.ReservedPersonName=selected.Worker.Name;
+                if (next.OperationalCriticality != "CRITICA") next.NominalStartsAt=selected.Task.NominalStartsAt;
+                next.PlannedStartsAt=selected.Task.StartsAt; next.PlannedDueAt=selected.Task.DueAt;
+                next.Status="EN_ESPERA"; next.Revision++;
+                await EnableActive(run,ct);
+                if (next.Status is not ("DISPONIBLE" or "PROGRAMADA")) throw Conflict(next.BlockReason ?? "La agenda cambió; revisa la propuesta.");
+                db.Add(Event(run,next,await db.Set<OperationalSequenceAttempt>().SingleAsync(a=>a.Id==next.CurrentAttemptId,ct),"ASIGNACION",$"item-lowest:{sourceAttempt.Id:N}",actor,clock.UtcNow,null,
+                    $"Primer hueco compatible en 7 días: {selected.Worker.Name}, {next.PlannedStartsAt.ToOffset(TimeSpan.FromHours(-6)):dd/MM/yyyy HH:mm}–{next.PlannedDueAt.ToOffset(TimeSpan.FromHours(-6)):HH:mm}. Reserva anterior: {previous}; origen {source.TaskCode}."));
+                return;
             }
             var assignment = Reservation(next, run.PlanId);
             var start = new[] { clock.UtcNow, next.DependencySatisfiedAt!.Value, next.MinimumStartsAt ?? clock.UtcNow }.Max();
@@ -125,7 +152,7 @@ public sealed partial class OperationalProcessService
     private static DirectionPlanException ItemConflict(OperationalSequenceStage stage, string reason)
     {
         var e = Error("PROCESS_ITEM_CAPACITY", 409);
-        e.Data["ItemConflict"] = $"{stage.ReservedPersonName} · {stage.TaskCode} · {stage.Name}: {stage.CalculatedLoadMinutes ?? stage.LoadMinutes} min. {reason}";
+        e.Data["ItemConflict"] = $"Reserva actual: {stage.ReservedPersonName} · {stage.TaskCode} · {stage.Name}. Carga siguiente: {stage.CalculatedLoadMinutes ?? stage.LoadMinutes} min; bloque con margen: {OperationalAgenda.Duration(stage.LoadMinutes,stage.ClosureMarginPercent??0)} min. {reason}";
         return e;
     }
 

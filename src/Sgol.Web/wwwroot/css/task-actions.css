@@ -25,3 +25,18 @@
 .tasks-header-actions > .section-navigation { margin-bottom: 0; flex: 1 1 auto; }
 .tasks-global-refresh { margin: 0; margin-inline-start: auto; }
 .tasks-global-refresh button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Compact catalog: keep full text and 44px disclosure targets. */
+.task-catalog-table__name { display: flex; align-items: center; gap: var(--espacio-8); }
+.task-catalog-table__name .task-selection { flex: 0 0 20px; margin: 0; }
+.task-catalog-table__name strong { min-width: 0; overflow-wrap: anywhere; }
+.task-catalog-table__meta { display: flex; align-items: center; flex-wrap: wrap; column-gap: var(--espacio-12); }
+.task-catalog-table__note { display: block; color: var(--color-texto-secundario); }
+.task-catalog-table__meta > details { min-width: 0; max-width: 100%; }
+.task-catalog-table__meta > details[open] { flex-basis: 100%; }
+@container sgol-viewport (min-width: 48.01rem) {
+    .task-catalog-table > thead > tr > th,
+    .task-catalog-table > tbody > tr > td { padding: var(--espacio-8) var(--espacio-12); }
+    .task-catalog-table__identity { min-width: 16rem; }
+    .task-catalog-table > tbody > tr > td:nth-last-child(-n+3) { white-space: nowrap; }
+}

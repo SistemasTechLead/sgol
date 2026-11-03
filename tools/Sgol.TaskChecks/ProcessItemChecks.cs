@@ -195,6 +195,9 @@ public static class ProcessItemChecks
         var serial=0;
         async Task<Guid> NewRun() {
             var day=originalDay.AddDays(++serial);
+            // The preceding diagnostics deliberately leave a rest-day exception.
+            while (await db.Set<PersonalScheduleException>().AnyAsync(e=>e.PersonId==person && e.Day==day && e.IntervalsJson=="[]"))
+                day=originalDay.AddDays(++serial);
             setClock(OperationalSchedule.Instant(day,12));
             var cap=await db.OperationalCapacities.SingleAsync(c=>c.PersonId==person); cap.DailyMinutes=480;await db.SaveChangesAsync();db.ChangeTracker.Clear();
             var input=new ProcessPlanInput { Name="Items exception HTTP",ProcessId=root.Id,Mode="OCASION",OccasionTime=new(12,0),From=day,Through=day,People=Enumerable.Range(1,4).ToDictionary(i=>i,i=>person) };
@@ -222,9 +225,16 @@ public static class ProcessItemChecks
         Check((await Post(run,"1",csrf:false)).StatusCode==HttpStatusCode.BadRequest,"Real POST requires CSRF");
         var capacity=await db.OperationalCapacities.SingleAsync(c=>c.PersonId==person);capacity.DailyMinutes=4;await db.SaveChangesAsync();db.ChangeTracker.Clear();
         setClock(clock.UtcNow.AddMinutes(50));
+        if (Environment.GetEnvironmentVariable("SGOL_PROCESS_RETRY_BROWSER") is { Length: > 0 } browserScript)
+            await ProcessRetryBrowserChecks.Run(db,run,browserScript);
+        var assignmentsBeforeConflict = JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a=>a.Id).ToArrayAsync());
+        var bonusFactsBeforeConflict = await db.Set<TaskBonusFact>().CountAsync();
         var conflict=await Post(run,"20",main:true);var conflictHtml=await conflict.Content.ReadAsStringAsync();
         Check(conflict.StatusCode==HttpStatusCode.Conflict && conflictHtml.Contains("CapacityResolution") && conflictHtml.Contains("FORCE") && conflictHtml.Contains("PENDING"),"Main My work handler renders capacity options before commit");
         Check(before==JsonSerializer.Serialize(await db.Set<OperationalSequenceAttempt>().AsNoTracking().Where(a=>a.RunId==run).OrderBy(a=>a.Id).ToArrayAsync()),"Capacity preview rolls back delivery and count atomically");
+        Check(assignmentsBeforeConflict == JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a=>a.Id).ToArrayAsync()) &&
+            bonusFactsBeforeConflict == await db.Set<TaskBonusFact>().CountAsync(),
+            "Rendering the bonus after a rejected process delivery preserves assignments and economic history");
         var token=Hidden(conflictHtml,"CapacityFingerprint");Check(token.Length==64,"Capacity proposal revision included in real form");
         var stale=await Post(run,"20","FORCE","stale",main:true);Check(stale.StatusCode==HttpStatusCode.Conflict,"Stale or manipulated proposal cannot force");
         var forced=await Post(run,"20","FORCE",token,main:true);
@@ -307,6 +317,34 @@ public static class ProcessItemChecks
         var returnResponses=await Task.WhenAll(client.PostAsync("/mi-trabajo/procesos?handler=ReturnPendingCount",Form(returnHtml,new(returnFields))),client.PostAsync("/mi-trabajo/procesos?handler=ReturnPendingCount",Form(returnHtml,new(returnFields))));db.ChangeTracker.Clear();
         view=await engine.ReadAsync(actor,run,default);
         Check(returnResponses.All(r=>r.StatusCode==HttpStatusCode.Redirect)&&view.Run.ActivePosition==1&&view.Run.Round==beforeReturnRound+1,"Direction returns another person's pending count through concurrent real HTTP requests exactly once");
+        run=await NewRun();
+        var searchOrigin=await Source(run);
+        setClock(searchOrigin.Stage.PlannedStartsAt);
+        await engine.TickAsync(default);db.ChangeTracker.Clear();searchOrigin=await Source(run);
+        Check(searchOrigin.Attempt.AssignmentId!=null,"Delayed search fixture activates its actual reserved first-stage slot");
+        var previousTargetSchedule=await db.Set<PersonalScheduleVersion>().SingleAsync(s=>s.PersonId==target && !s.Superseded);
+        previousTargetSchedule.Superseded=true;
+        await db.SaveChangesAsync();
+        db.Add(new PersonalScheduleVersion { Id=Guid.CreateVersion7(),PersonId=target,Revision=2,From=originalDay,ChangedBy=actor,ChangedAt=clock.UtcNow,IntentKey=Guid.CreateVersion7(),RequestHash=new string('0',64),
+            DaysJson=JsonSerializer.Serialize(Enumerable.Range(0,7).ToDictionary(d=>d,d=>new[]{new WorkInterval(480,1140)})) });
+        await db.SaveChangesAsync();db.ChangeTracker.Clear();
+        setClock(clock.UtcNow.AddDays(3).AddHours(6));
+        var searchDay=WeekContract.LocalToday(clock.UtcNow);
+        conflict=await Post(run,"20",main:true);conflictHtml=await conflict.Content.ReadAsStringAsync();
+        Check(conflict.StatusCode==HttpStatusCode.Conflict,"Late delivery exposes the obsolete reserved day instead of silently completing");
+        token=Hidden(conflictHtml,"CapacityFingerprint");
+        var searchKey=Guid.CreateVersion7();
+        var searched=await Post(run,"20","LOWEST",token,main:true,requestKey:searchKey);
+        Check(searched.StatusCode==HttpStatusCode.Redirect,"Seven-day search accepts a full future shift for delayed delivery");
+        view=await engine.ReadAsync(actor,run,default);
+        Check(view.Stages[1].ReservedPersonId==target && view.Stages[1].PlannedStartsAt==OperationalSchedule.Instant(searchDay.AddDays(1),8) && view.Stages[1].Status=="PROGRAMADA",
+            "Earliest compatible start wins over the original assignee, without splitting or exceeding the shift");
+        Check(view.Attempts.Single(a=>a.Id==searchOrigin.Attempt.Id).ItemQuantity==20 && view.Stages[1].LoadMinutes==80,
+            "Future reservation preserves delivered count and full calculated load");
+        await engine.DecideAsync(actor,run,searchOrigin.Attempt.Id,searchOrigin.Attempt.Revision,searchKey,"ENTREGA","Entrega HTTP ítems",null,null,true,default,itemQuantity:20,capacityResolution:"LOWEST",capacityFingerprint:token);
+        db.ChangeTracker.Clear();
+        Check(await db.Set<OperationalSequenceEvent>().CountAsync(e=>e.RunId==run && e.EventKey.StartsWith("item-lowest:"))==1,
+            "Search delivery replay creates one reservation event");
         Console.WriteLine("ITEMS_CAPACITY_HTTP_PASS");
     }
     private static FormUrlEncodedContent Form(string html,Dictionary<string,string> fields) { fields["__RequestVerificationToken"]=WebUtility.HtmlDecode(Regex.Match(html,"name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]*)\"").Groups[1].Value);return new(fields); }

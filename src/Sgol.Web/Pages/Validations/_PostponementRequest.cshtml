@@ -1,0 +1,103 @@
+@model (Sgol.Web.Pages.Validations.IndexModel Page, Sgol.Web.Infrastructure.Persistence.Planning.OperationalCarryoverRequest Request)
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@using Sgol.Web.Infrastructure.Persistence.Reporting
+@{
+    var page = Model.Page; var request = Model.Request;
+    var culture = System.Globalization.CultureInfo.GetCultureInfo("es-MX");
+    string Date(DateTimeOffset? value) => value == null ? "Sin fecha" : TimeZoneInfo.ConvertTime(value.Value, OperationalSchedule.Zone).ToString("dd MMM yyyy", culture);
+    string Hour(DateTimeOffset? value) => value == null ? "—" : TimeZoneInfo.ConvertTime(value.Value, OperationalSchedule.Zone).ToString("HH:mm", culture);
+}
+<article class="postponement-request" aria-label="Petición de @request.Items().FirstOrDefault()?.PersonName">
+    @foreach (var item in request.PendingItems()) {
+        var current = page.CarryoverCurrent.GetValueOrDefault(item.AssignmentId);
+        var diagnostic = page.CarryoverDiagnostics.GetValueOrDefault(item.AssignmentId);
+        var active = page.ItemDecision.AssignmentId == item.AssignmentId;
+        var form = active ? page.ItemDecision : new Sgol.Web.Pages.Validations.CarryoverItemForm { RequestId = request.Id, AssignmentId = item.AssignmentId, Revision = current?.Revision ?? item.Revision };
+        var preview = active ? page.ItemPreview : null;
+        var key = "postpone-" + item.AssignmentId;
+        var recipients = page.CarryoverRecipients.GetValueOrDefault(item.AssignmentId) ?? [];
+        var canReassign = current != null && current.CompletedAt == null && recipients.Length > 0;
+        var requestedDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(item.ProposedStart ?? item.Proposed, OperationalSchedule.Zone).DateTime);
+        <section class="postponement-item" id="@key" tabindex="-1" aria-labelledby="@(key)-title" data-item-approve="@((current != null && diagnostic?.Conflicts.Length == 0).ToString().ToLowerInvariant())" data-item-reassign="@(canReassign.ToString().ToLowerInvariant())" data-item-move="@((current != null && current.CompletedAt == null).ToString().ToLowerInvariant())" data-item-delivered="@((current?.CompletedAt != null).ToString().ToLowerInvariant())">
+            <header class="postponement-heading">
+                <label class="postponement-selection" for="@(key)-select"><input id="@(key)-select" class="task-selection" type="radio" name="selected-postponement" value="@item.AssignmentId" checked="@active" disabled="@(current == null)" aria-labelledby="@(key)-title" aria-describedby="postponement-selection-help" /><span class="solo-lectores">Seleccionar tarea</span></label>
+                <div class="postponement-identity">
+                    <div class="postponement-title-line"><h3 id="@(key)-title"><label for="@(key)-select">@(current?.Name ?? item.Task)</label></h3><span class="postponement-person" data-item-person>@(current?.PersonName ?? item.PersonName)</span></div>
+                    <div class="postponement-meta"><span>@(current?.TaskCode)</span><span class="postponement-specialty">@(current?.SpecializationId != null ? current.SpecializationName ?? "Especialidad sin nombre registrado" : "Sin especialidad")</span><span>@item.WorkMinutes min de trabajo</span></div>
+                </div>
+                <span class="badge badge--neutro postponement-state">@(current?.CompletedAt != null ? "Ya entregada" : diagnostic?.Conflicts.Length > 0 ? "Requiere ajuste" : "Lista para aprobar")</span>
+            </header>
+            <div class="postponement-summary">
+                <div class="postponement-reason"><span class="postponement-caption">Motivo de la petición</span>
+                    @if (request.Explanation.Length > 240) { <p class="postponement-explanation">@request.Explanation[..240]…</p><details><summary>Leer completo</summary><p>@request.Explanation</p></details> }
+                    else { <p class="postponement-explanation">@request.Explanation</p> }
+                </div>
+                <div class="postponement-schedule" role="group" aria-label="Cambio solicitado">
+                    <dl><dt>Cierre actual</dt><dd><time>@Date(current?.DueAt ?? item.Due)</time><span>@Hour(current?.DueAt ?? item.Due)</span></dd></dl>
+                    <span class="postponement-arrow" aria-hidden="true">→</span>
+                    <dl class="postponement-proposed"><dt>Horario solicitado</dt><dd><time>@Date(item.ProposedStart ?? item.Proposed)</time><span>@Hour(item.ProposedStart)–@Hour(item.Proposed)</span>@if (Date(item.ProposedStart ?? item.Proposed) != Date(item.Proposed)) { <small>Termina @Date(item.Proposed)</small> }</dd></dl>
+                </div>
+            </div>
+            @if (diagnostic?.Blocks.Length > 0 || (current != null && current.CompletedAt == null && recipients.Length == 0)) {
+            <div class="postponement-diagnostics">
+            @if (diagnostic?.Blocks.Length > 0) { <partial name="_PostponementBlocks" model="diagnostic.Blocks" /> }
+            @if (current != null && current.CompletedAt == null && recipients.Length == 0) {
+                <div class="postponement-blocks" role="status" aria-label="Por qué no se puede reasignar" id="@(key)-reassign-block">
+                    <div class="postponement-obstacle">
+                        <strong><span class="postponement-obstacle__icon" aria-hidden="true">!</span>Sin personas para reasignar</strong>
+                        <div class="postponement-obstacle__content">
+                            <p>@(current.SpecializationId != null ? $"No hay otra persona activa elegible con la especialidad {current.SpecializationName ?? "requerida"} dentro de tu alcance de supervisión." : "No hay otra persona activa elegible con el mismo rol de la tarea dentro de tu alcance de supervisión.")</p>
+                            <small>Revisa @(current.SpecializationId != null ? "la especialidad registrada" : "el rol registrado") y el alcance de supervisión. Puedes cambiar la propuesta conservando al responsable.</small>
+                        </div>
+                    </div>
+                </div>
+            }
+            </div>
+            }
+            @if (current?.CompletedAt != null) { <p class="postponement-note">Conserva fechas, responsable y decisión. Puedes cerrar la petición sin cambios.</p> }
+            @if (!string.IsNullOrWhiteSpace(item.Warning)) { <p class="postponement-note">@item.Warning</p> }
+            <form method="post" action="@(page.ItemDecisionHref)#@key" asp-antiforgery="true" class="postponement-editor" data-item-editor hidden="@(!active)">
+                <input type="hidden" name="ItemDecision.RequestId" value="@request.Id" />
+                <input type="hidden" name="ItemDecision.AssignmentId" value="@item.AssignmentId" />
+                <input type="hidden" name="ItemDecision.Revision" value="@(current?.Revision ?? item.Revision)" />
+                <input type="hidden" name="ItemDecision.Intent" value="@form.Intent" />
+                <div class="postponement-editor-heading"><label>Resolver petición<select name="ItemDecision.Action" data-item-mode>
+                    <option value="APPROVE" selected="@(form.Action == "APPROVE")">@(current?.CompletedAt != null ? "Cerrar sin cambios" : "Aprobar propuesta")</option>
+                    <option value="REASSIGN" selected="@(form.Action == "REASSIGN")" disabled="@(!canReassign)">Reasignar</option>
+                    <option value="RESCHEDULE" selected="@(form.Action == "RESCHEDULE")">Cambiar propuesta</option>
+                    <option value="REJECT" selected="@(form.Action == "REJECT")">Rechazar</option>
+                </select></label><button type="button" class="boton boton--secundario" data-item-close>Cerrar editor</button></div>
+                <div class="postponement-editor-fields">
+                <div data-item-recipient hidden="@(form.Action != "REASSIGN")"><label>Nuevo responsable<select name="ItemDecision.Recipient" aria-describedby="@(key)-eligibility"><option value="">Selecciona una persona</option>@foreach (var recipient in page.CarryoverRecipients.GetValueOrDefault(item.AssignmentId) ?? []) { <option value="@recipient.Id" selected="@(form.Recipient == recipient.Id)">@recipient.Name · @Sgol.Web.Presentation.Navigation.SessionPresentation.RoleName(recipient.Role)</option> }</select></label><small id="@(key)-eligibility">@(current?.SpecializationId != null ? "Requiere la especialidad de la tarea; el rol puede ser distinto. Excluye personas a prueba." : "Requiere el mismo rol de la tarea; un rol superior no lo sustituye automáticamente.") Solo aparecen personas activas dentro de tu alcance de supervisión.</small>@if (!(page.CarryoverRecipients.GetValueOrDefault(item.AssignmentId)?.Any() ?? false)) { <p class="postponement-note">No hay otra persona elegible. Revisa la especialidad o el rol registrado y tu alcance de supervisión; también puedes cambiar el día.</p> }</div>
+                <div data-item-day hidden="@(form.Action is not ("REASSIGN" or "RESCHEDULE"))">
+                    <label>Buscar horario<select data-item-day-mode data-requested-day="@requestedDay.ToString("yyyy-MM-dd")"><option value="same" selected="@(form.Day == null || form.Day == requestedDay)">Un espacio libre en el día solicitado</option><option value="other" selected="@(form.Day != null && form.Day != requestedDay)">Elegir otro día</option></select></label>
+                    <label data-item-date-label>Día de trabajo<input type="date" name="ItemDecision.Day" value="@((form.Day ?? requestedDay).ToString("yyyy-MM-dd"))" min="@request.From?.ToString("yyyy-MM-dd")" max="@request.Through?.ToString("yyyy-MM-dd")" /></label><small>Del @request.From?.ToString("dd/MM/yyyy") al @request.Through?.ToString("dd/MM/yyyy"). Busca un tramo completo libre; conserva responsable y avances al cambiar la propuesta.</small></div>
+                </div>
+                <label>Motivo de tu decisión<textarea name="ItemDecision.Comment" required maxlength="4000" rows="2" placeholder="Explica el ajuste o la decisión para quien solicitó el arrastre">@form.Comment</textarea></label>
+                @if (preview != null) {
+                    <div data-item-preview class="postponement-preview" role="status">
+                    @if (preview.Conflicts.Length > 0) { <partial name="_PostponementBlocks" model="preview.Blocks" /> }
+                    else if (preview.Proposed is {} proposed) {
+                        <span class="postponement-caption">Resultado al confirmar</span>
+                        <div class="postponement-result-grid">
+                            <dl><dt>Responsable</dt><dd>@proposed.PersonName</dd></dl>
+                            <dl><dt>Horario</dt><dd>@Date(proposed.StartsAt)<small>@Hour(proposed.StartsAt)–@Hour(proposed.DueAt)@(Date(proposed.StartsAt) != Date(proposed.DueAt) ? " · " + Date(proposed.DueAt) : "")</small></dd></dl>
+                            <dl><dt>Carga en destino</dt><dd>@preview.LoadBefore → @preview.LoadAfter min<small>De @preview.Capacity min · incluye previsión</small></dd></dl>
+                            <dl><dt>Carga en origen</dt><dd>@preview.OriginBefore → @preview.OriginAfter min</dd></dl>
+                        </div>
+                        <small>Conserva avances, evidencia y autoría.</small>
+                    } else { <p>@(form.Action == "REJECT" ? "Se rechazará esta petición para la tarea. La obligación conserva sus fechas y responsable." : "Ya entregada: se cerrará esta petición sin cambiar fechas ni decisión de calidad.")</p> }
+                    @if (preview.Conflicts.Length == 0) {
+                        <input type="hidden" name="ItemFingerprint" value="@(page.ItemFingerprint)" />
+                        <button name="confirm" value="true" class="boton boton--primario">@(form.Action switch { "REASSIGN" => "Confirmar reasignación", "RESCHEDULE" => "Confirmar nueva propuesta", "REJECT" => "Confirmar rechazo", _ => "Confirmar aprobación" })</button>
+                    }
+                    </div>
+                }
+                <div class="postponement-actions"><button name="confirm" value="false" class="boton boton--secundario">Revisar resultado</button></div>
+            </form>
+            <details><summary>Ver detalles</summary><p>Solicitud @request.Id · @ReportCatalog.Time(request.SubmittedAt)</p><p>Cierre al enviar: @ReportCatalog.Time(item.Due). Ventana: @request.From?.ToString("dd/MM/yyyy") – @request.Through?.ToString("dd/MM/yyyy").</p><p>Causa registrada: @request.CauseDescription</p><p>Cálculo al enviar: @item.LoadSummary</p></details>
+        </section>
+    }
+    @if (request.Results().Length > 0) { <details><summary>@request.Results().Length tareas ya resueltas</summary>@foreach (var result in request.Results()) { <p>@request.Items().First(i => i.AssignmentId == result.AssignmentId).Task · @OperationalCarryoverService.ResolutionLabel(result.Kind) · @result.Comment</p> }</details> }
+</article>
+

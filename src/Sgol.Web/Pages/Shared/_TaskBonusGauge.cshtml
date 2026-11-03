@@ -6,8 +6,8 @@
     var key = $"bonus-{r.PersonId:N}-{r.Period.StartsOn:yyyyMMdd}";
     var score = r.ScorePercent?.ToString(CultureInfo.InvariantCulture);
 }
-<details class="task-bonus @(Model.Compact ? "task-bonus--compact" : "")" data-task-bonus data-person="@r.PersonId" data-week="@r.Period.StartsOn.ToString("yyyy-MM-dd")" data-score="@score" data-version="@r.ResultVersion" id="@key">
-    <summary aria-label="Bono de tareas de @r.PersonName: calificación @Model.Score; bono conservado @(r.BonusPercent?.ToString() ?? "sin resultado"). Ver periodo y explicación">
+<div class="task-bonus @(Model.Compact ? "task-bonus--compact" : "")" data-task-bonus data-person="@r.PersonId" data-week="@r.Period.StartsOn.ToString("yyyy-MM-dd")" data-score="@score" data-version="@r.ResultVersion" id="@key">
+    <button type="button" class="task-bonus__trigger" data-dialog-open aria-haspopup="dialog" aria-controls="@(key)-dialog" aria-label="Porcentaje semanal de @r.PersonName: @Model.Score. Ver información">
         <svg class="task-bonus__gauge" viewBox="0 0 64 38" aria-hidden="true" focusable="false">
             <path class="task-bonus__track" d="M6 32 A26 26 0 0 1 58 32" pathLength="100" />
             <path class="task-bonus__band task-bonus__band--low" d="M6 32 A26 26 0 0 1 58 32" pathLength="100" stroke-dasharray="85 100" />
@@ -16,21 +16,59 @@
             <g class="task-bonus__needle" style="transform:rotate(@(((r.ScorePercent ?? 0) * 1.8m).ToString(CultureInfo.InvariantCulture))deg)" visibility="@(r.ScorePercent.HasValue ? "visible" : "hidden")"><path d="M32 32 L9 32" /><circle cx="32" cy="32" r="2.5" /></g>
         </svg>
         <span class="task-bonus__values">
-            <span class="task-bonus__score" role="@(r.ScorePercent.HasValue ? "meter" : null)" aria-label="Calificación semanal" aria-valuemin="@(r.ScorePercent.HasValue ? "0" : null)" aria-valuemax="@(r.ScorePercent.HasValue ? "100" : null)" aria-valuenow="@score"><span class="task-bonus__label">Calif.</span> <strong data-bonus-score>@Model.Score@(r.ScorePercent.HasValue ? "%" : "")</strong></span>
-            <span class="task-bonus__retained">Bono <strong data-bonus-retained>@(r.BonusPercent.HasValue ? r.BonusPercent + "%" : "—")</strong></span>
-            @if (!Model.Compact) { <small class="task-bonus__period">@r.Period.StartsOn.ToString("d MMM", CultureInfo.GetCultureInfo("es-MX"))–@r.Period.EndsOn.ToString("d MMM", CultureInfo.GetCultureInfo("es-MX")) · <span data-bonus-state>@Model.State</span></small> }
+            <span class="task-bonus__score" role="@(r.ScorePercent.HasValue ? "meter" : null)" aria-label="Calificación semanal" aria-valuemin="@(r.ScorePercent.HasValue ? "0" : null)" aria-valuemax="@(r.ScorePercent.HasValue ? "100" : null)" aria-valuenow="@score"><strong data-bonus-score>@Model.Score@(r.ScorePercent.HasValue ? "%" : "")</strong></span>
         </span>
         <span class="task-bonus__info" aria-hidden="true"><partial name="_Icon" model='@("info")' /></span>
-    </summary>
-    <div class="task-bonus__explanation">
-        <strong>Bono de tareas</strong>
-        <p>Calificación semanal, no avance de tareas ni bono total. Componente de tareas conservado: <span data-bonus-retained>@(r.BonusPercent.HasValue ? r.BonusPercent + "%" : "sin resultado calculable")</span>.</p>
-        <p>Evalúa del @r.Period.StartsOn.ToString("dd/MM/yyyy") al @r.Period.EndsOn.ToString("dd/MM/yyyy"). Cierre: lunes @r.Period.StartsOn.AddDays(7).ToString("dd/MM/yyyy") a las 12:00, America/Mexico_City. Sábado de referencia: @r.Period.PaymentReferenceDate.ToString("dd/MM/yyyy").</p>
-        @if (r.Period.StartsOn == TaskBonusCalculator.FirstWeek) { <p>No corresponde al sábado 7 de noviembre.</p> }
-        <p><span data-bonus-base>@r.EvaluablePoints</span> puntos evaluables; <span data-bonus-deducted>@r.DeductedPoints</span> descontados.</p>
-        <p>95–100% conserva 100%; 85–menos de 95% conserva 50%; menos de 85% conserva 0%. Se compara sin redondear.</p>
-        <p>Flexible: 1 punto; Importante: 5; Crítica: 10. La Flexible enviada al día siguiente pierde la mitad. El domingo termina la ejecución; corregir el lunes no recupera puntos.</p>
-        <p data-bonus-incidences>@string.Join(" ", r.Incidences)</p>
+    </button>
+    <dialog id="@(key)-dialog" class="modal task-bonus__dialog" aria-labelledby="@(key)-title">
+    <div class="modal__contenido task-bonus__explanation">
+        <header class="task-bonus__dialog-header">
+        <h2 id="@(key)-title" class="modal__titulo">Porcentaje semanal · @r.PersonName</h2>
+        <div class="modal__acciones"><button type="button" class="boton boton--secundario" data-dialog-close data-initial-focus>Cerrar</button></div>
+        </header>
+        <section class="task-bonus__section" aria-labelledby="@(key)-result">
+            <h3 id="@(key)-result">Resultado actual</h3>
+            <dl class="task-bonus__facts">
+                <div><dt>Calificación</dt><dd data-bonus-summary>@Model.Score@(r.ScorePercent.HasValue ? "%" : "")</dd></div>
+                <div><dt>Bono de tareas conservado</dt><dd data-bonus-retained>@(r.BonusPercent.HasValue ? r.BonusPercent + "%" : "Sin resultado calculable")</dd></div>
+                <div><dt>Estado</dt><dd data-bonus-state>@Model.State</dd></div>
+            </dl>
+            <p>Este porcentaje evalúa tareas; no representa su avance ni el bono total.</p>
+            <p data-bonus-incidences hidden="@(!r.Incidences.Any())">@string.Join(" ", r.Incidences)</p>
+        </section>
+        <section class="task-bonus__section" aria-labelledby="@(key)-calculation">
+            <h3 id="@(key)-calculation">Cómo se calcula</h3>
+            <p>(Puntos evaluables − puntos descontados) ÷ puntos evaluables × 100.</p>
+            <dl class="task-bonus__facts">
+                <div><dt>Puntos evaluables</dt><dd data-bonus-base>@r.EvaluablePoints</dd></div>
+                <div><dt>Puntos descontados</dt><dd data-bonus-deducted>@r.DeductedPoints</dd></div>
+            </dl>
+            <ul class="task-bonus__rules">
+                <li><strong>95–100 %:</strong> conserva el 100 % del bono de tareas.</li>
+                <li><strong>85–menos de 95 %:</strong> conserva el 50 %.</li>
+                <li><strong>Menos de 85 %:</strong> conserva el 0 %.</li>
+            </ul>
+            <p>Los límites se comparan sin redondear.</p>
+        </section>
+        <section class="task-bonus__section" aria-labelledby="@(key)-dates">
+            <h3 id="@(key)-dates">Periodo y cierre</h3>
+            <dl class="task-bonus__facts">
+                <div><dt>Evaluación</dt><dd data-bonus-period>@r.Period.StartsOn.ToString("dd/MM/yyyy")–@r.Period.EndsOn.ToString("dd/MM/yyyy")</dd></div>
+                <div><dt>Cierre</dt><dd data-bonus-cutoff>Lunes @r.Period.StartsOn.AddDays(7).ToString("dd/MM/yyyy"), 12:00</dd></div>
+                <div><dt>Sábado de referencia</dt><dd data-bonus-payment>@r.Period.PaymentReferenceDate.ToString("dd/MM/yyyy")</dd></div>
+            </dl>
+            <p>Horario de Ciudad de México.</p>
+            <p data-bonus-first-week hidden="@(r.Period.StartsOn != TaskBonusCalculator.FirstWeek)">No corresponde al sábado 7 de noviembre.</p>
+        </section>
+        <section class="task-bonus__section" aria-labelledby="@(key)-rules">
+            <h3 id="@(key)-rules">Puntos y entregas</h3>
+            <ul class="task-bonus__rules">
+                <li>Flexible: <strong>1 punto</strong>; Importante: <strong>5</strong>; Crítica: <strong>10</strong>.</li>
+                <li>Una Flexible enviada al día siguiente pierde la mitad.</li>
+                <li>La ejecución termina el domingo. Corregir el lunes no recupera puntos.</li>
+            </ul>
+        </section>
         <small>Calculado <time data-bonus-at datetime="@r.CalculatedAt.ToString("O")">@TimeZoneInfo.ConvertTime(r.CalculatedAt, OperationalSchedule.Zone).ToString("dd/MM HH:mm:ss")</time></small>
     </div>
-</details>
+    </dialog>
+</div>

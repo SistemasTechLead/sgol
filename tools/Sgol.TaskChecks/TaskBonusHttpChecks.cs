@@ -121,6 +121,7 @@ internal static partial class TaskBonusChecks
             await LifecycleChecks(db,clock);
             await CoverageChecks(db,clock);
         }
+        clock.UtcNow=At(2,10); // Board shows daily bars: test on the fixture assignment day.
         html=await client.GetStringAsync("/tablero");Check(html.Contains("data-task-bonus"),"B29: tablero personal integra medidor autorizado");
         handler.CookieContainer.Add(client.BaseAddress!,new Cookie("bonus-role","screen"));html=await client.GetStringAsync("/tablero");
         Check(!html.Contains("data-task-bonus") && !html.Contains("data-bonus-score") && !html.Contains("task-bonus.js"),"B29: HTML quiosco no recibe datos ni controlador de bono");

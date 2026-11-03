@@ -12,7 +12,7 @@
     <p>La propuesta también puede retrasar importantes y flexibles futuras del destinatario para recibir una tarea prioritaria. Todos los cambios se muestran juntos antes de confirmar; no se mueven tareas activadas del destinatario sin selección ni se renuevan vencimientos.</p>
     <p><small>Base inicial: @(Sgol.Web.Infrastructure.Persistence.Planning.OperationalCapacity.DefaultDailyMinutes) minutos diarios para tareas operativas, editable. Los días registrados como no disponibles aportan 0 minutos; configura los descansos para reflejar la jornada real.</small></p>
     @if (Model.CapacitySuccess is not null) { <p role="status" class="alerta alerta--info">@Model.CapacitySuccess</p> }
-    <form method="get" class="planificacion__formulario">
+    <form method="get" data-desktop-filters class="planificacion__formulario">
         <label class="campo"><span class="campo__etiqueta">Desde</span><input class="campo__control" type="date" name="CapacityFrom" value="@Model.CapacityFrom?.ToString("yyyy-MM-dd")" required /></label>
         <label class="campo"><span class="campo__etiqueta">Hasta</span><input class="campo__control" type="date" name="CapacityThrough" value="@Model.CapacityThrough?.ToString("yyyy-MM-dd")" required /></label>
         <button class="boton boton--secundario" type="submit">Consultar carga</button>

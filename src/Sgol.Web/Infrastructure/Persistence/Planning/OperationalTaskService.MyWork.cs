@@ -36,7 +36,7 @@ public sealed partial class OperationalTaskService
             effective = effective.Where(x => SearchText.SqlNormalize(x.Assignment.Name).Contains(text) ||
                 SearchText.SqlNormalize(x.Assignment.TaskCode).Contains(text) || SearchText.SqlNormalize(x.Plan.Name).Contains(text));
         }
-        var keys = effective.Select(x => x.Assignment).Select(a => new { a.Id, a.DueAt, Priority = a.ReviewStatus == "NO_SATISFECHA" ? 0 : a.ReviewStatus == "REASIGNADA" ? (a.CompletedAt != null && a.CompletionKind == "ENTREGA" ? 4 : 3) : a.CompletedAt != null ? 4 : a.StartsAt > now ? 3 :
+        var keys = effective.Select(x => x.Assignment).Select(a => new { a.Id, a.DueAt, Priority = a.ReviewStatus == "NO_SATISFECHA" ? 5 : a.ReviewStatus == "REASIGNADA" ? (a.CompletedAt != null && a.CompletionKind == "ENTREGA" ? 4 : 3) : a.CompletedAt != null ? 4 : a.StartsAt > now ? 3 :
             a.DueAt <= now || (a.DueAt - now).TotalSeconds <= (a.DueAt - a.StartsAt).TotalSeconds * .1 ? 0 :
             (a.DueAt - now).TotalSeconds <= (a.DueAt - a.StartsAt).TotalSeconds * .3 ? 2 : 1 })
             .Concat(pending.Select(x => new { x.Stage.Id, DueAt = x.Stage.PlannedDueAt, Priority = 3 }));

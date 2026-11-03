@@ -10,7 +10,7 @@
 @if (Model.Success != null) { <p class="alerta alerta--exito" role="status">@Model.Success</p> }
 @if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
 <section class="panel-seccion">
-    <form method="get" class="planificacion__formulario">
+    <form method="get" data-desktop-filters class="planificacion__formulario">
         <label class="campo"><span class="campo__etiqueta">Fecha</span><input class="campo__control" type="date" asp-for="Day" required /></label>
         <label class="campo"><span class="campo__etiqueta">Consultar</span><select class="campo__control" asp-for="Range"><option value="day">Día</option><option value="week">Semana de la fecha seleccionada</option></select></label>
         <button class="boton boton--primario" type="submit">Consultar carga</button>

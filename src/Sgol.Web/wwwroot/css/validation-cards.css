@@ -1,7 +1,7 @@
 .validation-panel { container-type: inline-size; }
 .validation-panel .panel-seccion__cabecera p { margin-bottom: 0; }
 .validation-section-title { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 24px; }
-.validation-section-title h3 { margin: 0; }
+.validation-section-title h2 { margin: 0; font-size: 14px; }
 .validation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); align-items: start; gap: 20px; padding: 0 24px 24px; }
 .validation-card { min-width: 0; overflow-wrap: anywhere; border: 1px solid var(--color-borde); border-top: 3px solid var(--color-borde); border-radius: 20px; background: var(--color-superficie); box-shadow: var(--sombra-media); overflow: hidden; }
 .validation-card--selected { border-color: var(--color-acento); box-shadow: 0 0 0 1px var(--color-acento), var(--sombra-media); }
@@ -37,3 +37,16 @@
 [data-review-negative]:not([hidden]), [data-correction-schedule]:not([hidden]), [data-correction-reschedule] { display:grid; gap:var(--espacio-16); }
 [data-correction-preview] { margin:var(--espacio-16); overflow-wrap:anywhere; }
 [data-correction-schedule][hidden], [data-correction-dates][hidden] { display:none; }
+
+.validation-filter-bar.supervision-filters { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 12px 24px; margin: 0; border-bottom: 1px solid var(--color-borde); }
+.validation-filter-bar > .supervision-custom { min-width: 0; max-width: 100%; padding: 0; }
+.validation-filter-bar summary { min-height: 44px; padding: 10px 12px; box-sizing: border-box; border-radius: 8px; background: var(--color-superficie-elevada); overflow-wrap: anywhere; }
+.validation-filter-bar summary:focus-visible { outline: 2px solid var(--color-acento); outline-offset: 2px; }
+.validation-filter-bar details[open] { flex-basis: 240px; flex-grow: 1; }
+.validation-filter-bar .alerta { flex-basis: 100%; }
+.validation-section-title { gap: 8px; padding-top: 12px; padding-bottom: 12px; }
+.validation-pages { padding: 0 24px 12px; }
+@container (max-width: 580px) {
+    .validation-filter-bar.supervision-filters { padding: 12px; }
+    .validation-filter-bar > details[open] { flex-basis: 100%; }
+}

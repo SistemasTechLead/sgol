@@ -160,7 +160,7 @@ public sealed partial class OperationalTaskService(SgolDbContext db, IDirectionP
             var text = Sgol.Web.Presentation.Search.SearchText.Normalize(search.Trim());
             query = query.Where(x => Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Assignment.Name).Contains(text) || Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Assignment.TaskCode).Contains(text) || Sgol.Web.Presentation.Search.SearchText.SqlNormalize(x.Plan.Name).Contains(text));
         }
-        if (now is {} at) query = query.OrderBy(x => x.Assignment.ReviewStatus == "NO_SATISFECHA" ? 0 : x.Assignment.ReviewStatus == "REASIGNADA" ? (x.Assignment.CompletedAt != null && x.Assignment.CompletionKind == "ENTREGA" ? 4 : 3) : x.Assignment.CompletedAt != null ? 4 : x.Assignment.StartsAt > at ? 3 :
+        if (now is {} at) query = query.OrderBy(x => x.Assignment.ReviewStatus == "NO_SATISFECHA" ? 5 : x.Assignment.ReviewStatus == "REASIGNADA" ? (x.Assignment.CompletedAt != null && x.Assignment.CompletionKind == "ENTREGA" ? 4 : 3) : x.Assignment.CompletedAt != null ? 4 : x.Assignment.StartsAt > at ? 3 :
             x.Assignment.DueAt <= at || (x.Assignment.DueAt - at).TotalSeconds <= (x.Assignment.DueAt - x.Assignment.StartsAt).TotalSeconds * .1 ? 0 :
             (x.Assignment.DueAt - at).TotalSeconds <= (x.Assignment.DueAt - x.Assignment.StartsAt).TotalSeconds * .3 ? 2 : 1).ThenBy(x => x.Assignment.DueAt).ThenBy(x => x.Assignment.Id);
         else query = query.OrderBy(x => x.Assignment.CompletedAt != null).ThenBy(x => x.Assignment.DueAt).ThenBy(x => x.Assignment.Id);

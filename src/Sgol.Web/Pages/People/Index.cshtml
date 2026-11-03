@@ -5,7 +5,7 @@
 @{ ViewData["Title"] = "Personas y accesos"; }
 <section class="people-page" aria-labelledby="people-title">
     <header class="encabezado-pagina encabezado-pagina--catalogo">
-        <div class="encabezado-pagina__contenido"><h1 id="people-title" class="encabezado-pagina__titulo">Personas y accesos</h1><p class="encabezado-pagina__descripcion">Gestiona los perfiles, roles y acceso de tu equipo.</p></div>
+        <div class="encabezado-pagina__contenido"><h1 id="people-title" class="encabezado-pagina__titulo">Personas y accesos</h1><p class="encabezado-pagina__descripcion" data-desktop-redundant>Gestiona los perfiles, roles y acceso de tu equipo.</p></div>
         <partial name="_SectionNavigation" model='@("people")' />
     </header>
     <p role="status">Asignación por horario: @(Model.TemporalPolicyEnabled ? "activa para nuevas asignaciones" : "pendiente de activación; los horarios se pueden configurar y revisar").</p>

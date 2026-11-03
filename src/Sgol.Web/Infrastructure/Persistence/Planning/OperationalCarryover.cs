@@ -38,7 +38,20 @@ public sealed record CarryoverItem(Guid AssignmentId, Guid PersonId, Guid PlanId
 public sealed record CarryoverPreview(Guid PersonId, DateTimeOffset End, int Minutes, string Cause,
     string Explanation, CarryoverItem[] Items, string[] Conflicts, string Fingerprint);
 public sealed record CarryoverResult(Guid AssignmentId, DateTimeOffset Before, DateTimeOffset After,
-    DateTimeOffset RecognizedDue, DateTimeOffset? CompletedAt, string Kind);
+    DateTimeOffset RecognizedDue, DateTimeOffset? CompletedAt, string Kind)
+{
+    public Guid? Intent { get; init; }
+    public Guid? Actor { get; init; }
+    public DateTimeOffset? At { get; init; }
+    public string? Comment { get; init; }
+    public string? Action { get; init; }
+    public string? CommandHash { get; init; }
+    public DateTimeOffset? StartsAt { get; init; }
+    public Guid? PersonId { get; init; }
+    public string? PersonName { get; init; }
+    public Guid? TransferId { get; init; }
+    public long? AssignmentRevision { get; init; }
+}
 public sealed class OperationalCarryoverRequest
 {
     public string Kind { get; set; } = "INCIDENTE";
@@ -69,6 +82,8 @@ public sealed class OperationalCarryoverRequest
     public string ResultsJson { get; set; } = "[]";
     public CarryoverItem[] Items() => JsonSerializer.Deserialize<CarryoverItem[]>(SnapshotJson)!;
     public CarryoverResult[] Results() => JsonSerializer.Deserialize<CarryoverResult[]>(ResultsJson)!;
+    public CarryoverItem[] PendingItems() => State != "PENDIENTE" ? [] : Items().Where(i => !Results().Any(r => r.AssignmentId == i.AssignmentId)).ToArray();
+    public bool Recognizes(Guid id) => Results().Any(r => r.AssignmentId == id && r.Kind is "POSPOSICION" or "REPROGRAMACION" or "AJUSTE" or "RECONOCIMIENTO");
 }
 
 // The calculator consumes a single day's pending ordinary tasks. Closed and long-window work cannot bridge chains.
@@ -218,6 +233,8 @@ public sealed partial class OperationalCarryoverService(SgolDbContext db, IClock
             throw Error("ARRASTRE_CONFLICTO");
         }
         if (r.Revision != revision) throw Error("ARRASTRE_CONFLICTO");
+        // Legacy integral decisions may not overwrite individual resolutions.
+        if (r.Kind == "POSPONER" && r.Results().Length > 0) throw Error("ARRASTRE_CONFLICTO");
         var results = new List<CarryoverResult>();
         if (r.Kind == "POSPONER") {
             await RequireImmediateSupervisor(actor, r.PersonId, ct);

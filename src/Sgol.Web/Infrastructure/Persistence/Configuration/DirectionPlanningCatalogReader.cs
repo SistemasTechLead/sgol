@@ -6,9 +6,13 @@ namespace Sgol.Web.Infrastructure.Persistence.Configuration;
 
 public sealed class DirectionPlanningCatalogReader(SgolDbContext db) : IDirectionPlanningCatalogReader
 {
-    public async Task<IReadOnlyList<DirectionPlanningTaskOption>> ReadTaskOptionsAsync(CancellationToken token = default) =>
+    public async Task<IReadOnlyList<DirectionPlanningTaskOption>> ReadTaskOptionsAsync(CancellationToken token = default) {
+        var ordinary =
         await db.OperationalTasks.AsNoTracking().Where(t => t.ProcessId == OperationalSequence.GeneralId && t.Active && !t.Deleted && t.PeriodType != "OCASIONAL").OrderBy(t => t.Name)
             .Select(t => new DirectionPlanningTaskOption(t.TaskCode, t.Name, t.PeriodType, t.AssignedRole, t.IsWeeklyOperationsTask)).ToArrayAsync(token);
+        var processes = await WeeklyProcessPlanning.ReadAsync(db, token);
+        return ordinary.Concat(processes.Select(p => new DirectionPlanningTaskOption(p.Code, "Proceso · " + p.Version.Name, "SEMANAL", p.Tasks[0].AssignedRole, true, true))).ToArray();
+    }
     public async Task<IReadOnlyList<DirectionPlanningTaskOption>> ReadPredefinedTasksAsync(string periodType, CancellationToken token = default) =>
         await db.OperationalTasks.AsNoTracking().Where(t => t.ProcessId == OperationalSequence.GeneralId && t.Active && !t.Deleted && t.PeriodType != "OCASIONAL" && t.PeriodType == periodType).OrderBy(t => t.Name)
             .Select(t => new DirectionPlanningTaskOption(t.TaskCode, t.Name, t.PeriodType, t.AssignedRole)).ToArrayAsync(token);

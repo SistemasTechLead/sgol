@@ -147,6 +147,7 @@
             ]));
             const openBonus = [...root.querySelectorAll('[data-task-bonus][open]')].map(g => g.id);
             const focusedBonus = document.activeElement?.closest('[data-task-bonus]')?.id;
+            root.dispatchEvent(new Event('sgol:before-board-refresh', { bubbles: true }));
             root.replaceChildren(template.content);
             animateProgress(previousProgress);
             synchronize(); colors();
@@ -154,6 +155,7 @@
             if (focused) root.querySelector(`#${focused}`).focus({ preventScroll: true });
             openBonus.forEach(id => { const gauge = document.getElementById(id); if (gauge) gauge.open = true; });
             if (focusedBonus) document.getElementById(focusedBonus)?.querySelector('summary')?.focus({ preventScroll: true });
+            root.dispatchEvent(new Event('sgol:board-refreshed', { bubbles: true }));
             notice.hidden = true;
             retryAfter = 0;
             const actualPlan = root.querySelector('[data-plan]').dataset.plan;

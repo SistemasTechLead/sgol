@@ -140,6 +140,7 @@ document.getElementById("session-error")?.focus();
         if (uploading || !returning && camera && !reusing() && !retaining() && (!camera.valid() || camera.photos.some(p => !p.clean))) {
             event.preventDefault(); camera?.error('Toma y sube todas las fotografías antes de enviar la tarea.'); return;
         }
+        if (form.dataset.processSubmitReady === 'true') return;
         form.setAttribute('aria-busy', 'true');
         if (event.submitter?.name) {
             const choice = document.createElement('input');

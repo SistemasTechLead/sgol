@@ -74,13 +74,13 @@ public sealed class OperationalCarryoverReader(SgolDbContext db)
         {
             token.ThrowIfCancellationRequested();
             var matching = entries.GetValueOrDefault(id) ?? [];
-            var approved = matching.Where(x => x.Request.State == "APROBADA" && !(reversed.GetValueOrDefault(id)?.Contains(x.Request.Id) ?? false) && !x.Results.Any(r => r.Kind == "ENTREGADA_SIN_CAMBIOS")).ToArray();
+            var approved = matching.Where(x => x.Request.Recognizes(id) && !(reversed.GetValueOrDefault(id)?.Contains(x.Request.Id) ?? false) && !x.Results.Any(r => r.Kind == "ENTREGADA_SIN_CAMBIOS")).ToArray();
             var results = approved.SelectMany(x => x.Results).ToArray();
             var updated = refreshes.GetValueOrDefault(id) ?? [];
             DateTimeOffset? reference = approved.Length > 0 ? approved[0].Item.Due : null;
             if (updated.Length > 0 && (reference == null || updated[0] < reference)) reference = updated[0];
             output[id] = new(reference, results.Length > 0 ? results.Max(r => r.RecognizedDue) : null,
-                approved.Length, matching.Any(x => x.Request.State == "PENDIENTE"), string.Join(", ", approved.Select(x => x.Request.Id)), updated.Length);
+                approved.Length, matching.Any(x => x.Request.PendingItems().Any(i => i.AssignmentId == id)), string.Join(", ", approved.Select(x => x.Request.Id)), updated.Length);
         }
         return output;
     }

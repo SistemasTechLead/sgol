@@ -42,7 +42,12 @@ public sealed record DirectionPlanDetails(Guid PlanId, string BranchCode, string
     int StartIsoYear, int StartIsoWeek, int EndIsoYear, int EndIsoWeek, string Status,
     DateTimeOffset CreatedAt, IReadOnlyList<DirectionPlanTask> Tasks,
     IReadOnlyList<OperationalAssignmentDetails>? Assignments = null, bool IsWeeklyOperationsPlan = false,
-    IReadOnlyList<MonthlyPlanPending>? MonthlyPending = null);
+    IReadOnlyList<MonthlyPlanPending>? MonthlyPending = null)
+{
+    public IReadOnlyList<DirectionPlanProcess> Processes { get; init; } = [];
+}
+public sealed record DirectionPlanProcess(Guid RunId, string Name, DateTimeOffset StartsAt, string Status, IReadOnlyList<DirectionPlanProcessStage> Stages);
+public sealed record DirectionPlanProcessStage(int Position, string Name, string Person, DateTimeOffset StartsAt, DateTimeOffset DueAt, string Status);
 public sealed record DirectionPlanSaved(string Result, DirectionPlanDetails Plan);
 public sealed record DirectionPlanCursor(Guid Actor, string Role, int Limit, DateTimeOffset CreatedAt, Guid PlanId);
 public sealed record DirectionPlanPage(IReadOnlyList<DirectionPlanDetails> Plans, DirectionPlanCursor? NextCursor);

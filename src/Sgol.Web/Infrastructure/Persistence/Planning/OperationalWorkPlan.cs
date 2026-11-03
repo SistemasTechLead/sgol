@@ -15,7 +15,7 @@ public sealed record OperationalWorkPlan(Guid? Id, string Name, string PeriodTyp
     {
         if (task.PendingProcessRunId != null) return 3;
         return task.ReviewStatus switch {
-            "NO_SATISFECHA" => 0,
+            "NO_SATISFECHA" => 5,
             "REASIGNADA" => task.CompletedAt != null && task.CompletionKind == "ENTREGA" ? 4 : 3,
             _ => LiveBoardTask.FromAssignment(task).Priority(now)
         };
@@ -59,7 +59,8 @@ public sealed record OperationalWorkPlan(Guid? Id, string Name, string PeriodTyp
     };
 
     private static int StatusOrder(OperationalAssignmentDetails task) => task.ReviewStatus switch {
-        "CONCLUIDA" or "NO_SATISFECHA" or "REASIGNADA" => 2,
+        "NO_SATISFECHA" => 3,
+        "CONCLUIDA" or "REASIGNADA" => 2,
         _ => task.CompletedAt is null ? 0 : 1
     };
 }

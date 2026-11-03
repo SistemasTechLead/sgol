@@ -33,6 +33,7 @@
         }
         document.querySelectorAll("[data-report-column]").forEach(input => input.checked = (value.columns ?? "").split(",").includes(input.value));
         dates();
+        form.dispatchEvent(new Event('sgol:filters-updated'));
     }
     function template() { return templatePicker.selectedOptions[0]; }
     function selectedConfig() {

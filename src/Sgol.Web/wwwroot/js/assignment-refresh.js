@@ -8,7 +8,7 @@
         const choice = event.target.closest('label');
         choice?.classList.toggle('assignment-refresh__choice--accepted', event.target.checked);
         const status = choice?.querySelector('[data-refresh-choice-status]');
-        if (status) status.textContent = event.target.checked ? 'Seleccionado; pulsa Revisar cambios' : 'Marca esta opción para continuar';
+        if (status) status.textContent = event.target.checked ? 'Seleccionado; revisa los cambios' : 'Sin seleccionar';
         options.querySelector('[data-refresh-dirty]').hidden = false;
         if (apply) apply.querySelector('button[type="submit"]').disabled = true;
     });

@@ -6,7 +6,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed partial class ProcessPlanningService
 {
-    private static Dictionary<int, Guid> ResolvePeople(ProcessPlanInput input, Guid version,
+    internal static Dictionary<int, Guid> ResolvePeople(ProcessPlanInput input, Guid version,
         OperationalSequenceStep[] steps, OperationalTask[] tasks, DateTimeOffset[] starts,
         CapacityLedger ledger, OperationalSchedulingPolicy? policy, DateTimeOffset now, CancellationToken token)
     {

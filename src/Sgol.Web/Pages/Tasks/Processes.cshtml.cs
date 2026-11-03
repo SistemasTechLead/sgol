@@ -11,6 +11,7 @@ namespace Sgol.Web.Pages.Tasks;
 public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProcessCatalogService processes, OperationalTaskService tasks) : PageModel
 {
     [BindProperty] public ProcessDraftInput Input { get; set; } = new();
+    [BindProperty] public int[] ProcessDays { get; set; } = [];
     [BindProperty] public Guid CreateKey { get; set; } = Guid.CreateVersion7();
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     public OperationalSequence[] Processes { get; private set; } = [];
@@ -20,6 +21,8 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     public bool CanManage { get; private set; }
     public bool Creating { get; private set; }
     public string? Error { get; private set; }
+    public ProcessMembershipConflict[] TaskConflicts { get; private set; } = [];
+    public List<(string Field, string Message)> FieldConflicts { get; } = [];
     public string? Notice { get; private set; }
     public Guid? BlockingPlanId { get; private set; }
     public string SavedInputJson { get; private set; } = "{}";
@@ -40,12 +43,12 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
         {
             var v = Editor.Configuration;
             Input = new() { Id = Editor.Process.Id, Revision = Editor.Process.Revision, Name = Editor.Process.Name,
-                Description = Editor.Process.Description, StartKind = v?.StartKind ?? "OCASIONAL", FirstMonth = v?.FirstMonth ?? 2,
+                Schedule = ProcessStartSchedule.Read(v?.StartScheduleJson), Description = Editor.Process.Description, StartKind = v?.StartKind ?? "OCASIONAL", FirstMonth = v?.FirstMonth ?? 2,
                 WindowFromDay = v?.WindowFromDay ?? 20, WindowThroughDay = v?.WindowThroughDay ?? 25,
                 PreferredWeekDay = v?.PreferredWeekDay ?? 1, StartHour = v?.StartHourConfirmed == true ? v.StartHour : null, Steps = Editor.Steps.ToList() };
         }
         SavedInputJson = System.Text.Json.JsonSerializer.Serialize(new {
-            Input.Name, Input.Description, Input.StartKind, Input.FirstMonth, Input.WindowFromDay,
+            Input.Schedule, Input.Name, Input.Description, Input.StartKind, Input.FirstMonth, Input.WindowFromDay,
             Input.WindowThroughDay, Input.PreferredWeekDay, Input.StartHour,
             Steps = Input.Steps.Select(s => new { s.TaskId, s.Position, s.Action, s.ReleaseCondition,
                 s.MinimumStartOffsetHours, s.ReturnToPosition, s.Instructions, s.OutputItemId, s.OutputTargetTaskId, s.IsFinalAudit })
@@ -65,9 +68,13 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     {
         var actor = await Actor(token, true); if (actor == null) return StatusCode(403);
         try { var id = await processes.CreateAsync(actor.Value, CreateKey, Input.Name, Input.Description, token); return RedirectToPage(new { id }); }
-        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = IndexModel.Message(e.Code); Creating = true; await Load(actor.Value, null, token); return Page(); }
+        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = IndexModel.Message(e.Code); Creating = true; await Load(actor.Value, null, token); ApplyIssues(e, true); return Page(); }
     }
-    public Task<IActionResult> OnPostSaveAsync(CancellationToken token) => Write(token, () => processes.SaveAsync(UserId, Input, token), "saved", true);
+    public Task<IActionResult> OnPostSaveAsync(CancellationToken token) {
+        if (ProcessDays.Any(d => d < 0 || d > 6)) return Task.FromResult<IActionResult>(BadRequest());
+        Input.Schedule.WeekDays = ProcessDays.Aggregate(0, (mask, day) => mask | (1 << day));
+        return Write(token, () => processes.SaveAsync(UserId, Input, token), "saved", true);
+    }
     public Task<IActionResult> OnPostAddAsync(Guid taskId, long taskRevision, CancellationToken token) => Write(token, () => processes.AddTaskAsync(UserId, Input.Id, Input.Revision, taskId, taskRevision, token));
     public Task<IActionResult> OnPostPublishAsync(CancellationToken token) => Write(token, () => processes.PublishAsync(UserId, Input.Id, Input.Revision, token), "published");
     public Task<IActionResult> OnPostEnableAsync(bool enabled, CancellationToken token) => Write(token, () => processes.SetEnabledAsync(UserId, Input.Id, Input.Revision, enabled, token), enabled ? "enabled" : "disabled");
@@ -85,34 +92,46 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
             await action(); return notice == "deleted" ? RedirectToPage(new { notice }) : RedirectToPage(new { id = Input.Id, notice }); }
         catch (DirectionPlanException e) {
             Response.StatusCode = e.Status; Error = IndexModel.Message(e.Code);
+            if (e.Data["TaskConflicts"] is ProcessMembershipConflict[] conflicts)
+            {
+                TaskConflicts = conflicts;
+                Error = "No se pudo completar la operación. Revisa los conflictos indicados; no se aplicó ningún cambio.";
+            }
             if (e.Code == "PROCESS_PREPARED_PLANS_EXIST" && e.Data["PlanId"] is Guid planId)
             {
                 BlockingPlanId = planId;
                 Error = $"El plan «{e.Data["PlanName"]}» reserva carga de este proceso. Revisa y elimina ese plan en Planificación antes de quitar tareas o eliminar el proceso. No se aplicó ningún cambio.";
             }
             await Load(actor.Value, e.Code == "PROCESS_NOT_FOUND" ? null : Input.Id, token, preserveInput);
-            if (e.Code == "PROCESS_RULES_INVALID")
-            {
-                var details = ModelState.Where(pair => pair.Value?.Errors.Count > 0)
-                    .Select(pair => {
-                        var stage = System.Text.RegularExpressions.Regex.Match(pair.Key, @"Steps\[(\d+)\]");
-                        var location = stage.Success && int.TryParse(stage.Groups[1].Value, out var index) && index < Input.Steps.Count
-                            ? $"Etapa {Input.Steps[index].Position}" : "Proceso";
-                        var field = pair.Key.Split('.').Last() switch {
-                            "Position" => "la posición", "ReturnToPosition" => "la posición de devolución",
-                            "MinimumStartOffsetHours" => "las horas de inicio mínimo", "StartHour" => "la hora de inicio",
-                            "FirstMonth" => "el primer mes", "WindowFromDay" or "WindowThroughDay" => "los días de la ventana",
-                            "PreferredWeekDay" => "el día preferido", "Action" => "la acción",
-                            "ReleaseCondition" => "la condición de entrada", "Name" => "el nombre", _ => "los valores capturados" };
-                        return $"{location}: revisa {field}.";
-                    });
-                var rules = Input.Steps.OrderBy(s => s.Position).ToArray();
-                var entries = rules.Where(s => s.Position == 1 ? s.ReleaseCondition != "INICIO" :
-                    s.ReleaseCondition != (rules.FirstOrDefault(p => p.Position == s.Position - 1)?.Action == "ENTREGAR" ? "ENTREGA" : "APROBACION"))
-                    .Select(s => $"Etapa {s.Position} ({Editor?.Tasks.FirstOrDefault(t => t.Id == s.TaskId)?.Name}): revisa la condición de entrada según la acción de la etapa anterior.");
-                Error += " " + string.Join(" ", details.Concat(entries));
-            }
+            ApplyIssues(e, preserveInput);
             return Page();
         }
     }
+    private void ApplyIssues(DirectionPlanException error, bool includeBindingErrors)
+    {
+        var issues = (error.Data["ProcessIssues"] as ProcessValidationIssue[] ?? []).ToList();
+        foreach (var pair in ModelState.Where(p => includeBindingErrors && p.Value?.Errors.Count > 0).ToArray())
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(pair.Key, @"Steps\[(\d+)\]");
+            Guid? id = match.Success && int.TryParse(match.Groups[1].Value, out var index) && index < Input.Steps.Count ? Input.Steps[index].TaskId : null;
+            issues.Add(new(id, pair.Key.Split('.').Last(), "El valor capturado no es válido. Revisa el formato y los límites del campo."));
+        }
+        foreach (var issue in issues.Distinct())
+        {
+            var message = string.IsNullOrEmpty(issue.Message) ? IndexModel.Message(error.Code) : issue.Message;
+            if (issue.TaskId is { } id)
+            {
+                var task = Editor?.Tasks.FirstOrDefault(t => t.Id == id) ?? Candidates.FirstOrDefault(t => t.Id == id);
+                TaskConflicts = [.. TaskConflicts, new(id, task?.Name ?? "Tarea no disponible en este borrador", task?.TaskCode ?? id.ToString(), message)];
+            }
+            if (issue.Field.Length > 0)
+            {
+                var index = issue.TaskId == null ? -1 : Input.Steps.FindIndex(s => s.TaskId == issue.TaskId);
+                if (issue.TaskId == null || index >= 0)
+                    FieldConflicts.Add((index < 0 ? $"Input.{issue.Field}" : $"Input.Steps[{index}].{issue.Field}", message));
+            }
+        }
+        TaskConflicts = TaskConflicts.Distinct().ToArray();
+    }
+
 }

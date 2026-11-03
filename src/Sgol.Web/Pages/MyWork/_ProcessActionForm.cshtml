@@ -9,7 +9,7 @@
     var rule = view.Rules.Single(s => s.Position == active.Position);
     var attempt = view.Attempts.SingleOrDefault(a => a.Id == active.CurrentAttemptId);
 }
-        <p>@rule.Instructions</p>
+        <partial name="_Markdown" model="@rule.Instructions" />
         @if (active.LoadSourceAttemptId is {} loadSource) {
             var producer = view.Attempts.Single(a => a.Id == loadSource);
             var sourceStage = view.Stages.Single(s => s.Id == producer.StageId);
@@ -60,7 +60,8 @@
             }
             else
             {
-            <form method="post" enctype="multipart/form-data" asp-page-handler="@Model.Handler" asp-antiforgery="false" data-assigned-task-submit>
+            <form method="post" enctype="multipart/form-data" asp-page-handler="@Model.Handler" asp-antiforgery="false" data-assigned-task-submit data-process-delivery>
+                <p class="alerta alerta--peligro" role="alert" tabindex="-1" data-process-submit-status hidden></p>
                 <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />@if (Model.AssignmentId is { } assignmentId) { <input type="hidden" name="id" value="@assignmentId" /> }<input type="hidden" name="RunId" value="@view.Run.Id" /><input type="hidden" name="AttemptId" value="@attempt.Id" /><input type="hidden" name="Revision" value="@attempt.Revision" /><input type="hidden" name="Key" value="@(Model.Key ?? Guid.CreateVersion7())" />
                 @if (!view.Run.UsesTaskEvidence) { <label class="campo"><span class="campo__etiqueta">PDF @(rule.Action=="SELLAR" ? "con el sello registrado (requerido)" : rule.Action=="ENTREGAR" ? "de entrega (requerido)" : "corregido, solo si cambió la hoja")</span><input class="campo__control" name="Document" type="file" accept="application/pdf" /></label> }
                 else if (active.Requirement == "CHECKLIST") { <partial name="_ChecklistEvidence" model="@(new Sgol.Web.Presentation.Components.ChecklistEvidenceModel(active.ChecklistJson, Model.ChecklistDraftJson, attempt.AssignmentId!.Value))" /> }
@@ -85,11 +86,14 @@
                 @if (active.OutputItemRateId != null) {
                     <label class="campo"><span class="campo__etiqueta">Cantidad de @active.OutputItemName</span><input class="campo__control" name="ItemQuantity" type="number" min="0" max="2147483647" step="1" value="@Model.ItemQuantity" required data-item-quantity data-item-minutes="@active.OutputItemMinutes" /></label>
                     <p data-item-formula aria-live="polite">La cantidad × @active.OutputItemMinutes min sustituye la estimación siguiente. Cero salta a auditoría final.</p>
+                    <div data-process-resolution>
                     @if (Model.ItemConflict != null) {
                         <input type="hidden" name="CapacityFingerprint" value="@Model.CapacityFingerprint" /><div class="alerta alerta--peligro" role="alert" tabindex="-1" data-item-conflict><div class="alerta__contenido"><p>@Model.ItemConflict</p><p>La entrega aún no se guardó. Selecciona una opción y confirma de nuevo.</p>
-                        <label class="campo"><span class="campo__etiqueta">Resolver la siguiente tarea</span><select class="campo__control" name="CapacityResolution" required><option value="">Selecciona una opción</option><option value="PENDING">Guardar entrega y dejar siguiente etapa pendiente</option>@if(Sgol.Web.Infrastructure.Persistence.Planning.ProcessItemRules.CanResolve(active.Role)) { @if(Model.CanSearch) { <option value="LOWEST">Buscar persona compatible de menor carga</option> } @if(Model.CanForce) { <option value="FORCE">Asignar de todos modos: sobrecarga, solapamiento y descanso dentro del turno</option> } }</select></label>
+                        <label class="campo"><span class="campo__etiqueta">Resolver la siguiente tarea</span><select class="campo__control" name="CapacityResolution" required><option value="">Selecciona una opción</option><option value="PENDING">Guardar entrega y dejar siguiente etapa pendiente</option>@if(Sgol.Web.Infrastructure.Persistence.Planning.ProcessItemRules.CanResolve(active.Role)) { @if(Model.CanSearch) { <option value="LOWEST">Buscar primer hueco compatible en los próximos 7 días</option> } @if(Model.CanForce) { <option value="FORCE">Asignar de todos modos: sobrecarga, solapamiento y descanso dentro del turno</option> } }</select></label>
+                        <p>La búsqueda prioriza la fecha y hora más tempranas; a igual hora, la menor carga. Puede conservar a la persona reservada si tiene el primer hueco completo.</p>
                         <p>Forzar registra el intervalo y descanso utilizado como excepción de esta asignación. No amplía el turno ni permite ausencias.</p></div></div>
                     }
+                    </div>
                 }
                 <label><input type="checkbox" name="Declared" value="true" checked="@Model.Declared" required /> @(view.Run.UsesTaskEvidence ? "Confirmo la entrega, revisión o devolución de esta tarea." : active.Position==1 ? "Declaro que registré todo el inventario o completé la búsqueda solicitada." : "Revisé el documento recibido y sus diferencias.")</label>
                 <label class="campo"><span class="campo__etiqueta">Conclusión o motivo de devolución</span><textarea class="campo__control" name="conclusion" maxlength="4000" required>@Model.Conclusion</textarea></label>

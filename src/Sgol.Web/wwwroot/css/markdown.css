@@ -1,0 +1,12 @@
+.markdown-content { min-width: 0; max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+.markdown-content > :first-child { margin-top: 0; }
+.markdown-content > :last-child { margin-bottom: 0; }
+.markdown-content p, .markdown-content ul, .markdown-content ol, .markdown-content blockquote, .markdown-content pre { margin-block: var(--espacio-12); }
+.markdown-content ul, .markdown-content ol { padding-inline-start: var(--espacio-24); }
+.markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 { font: inherit; font-weight: 600; margin-block: var(--espacio-16) var(--espacio-8); }
+.markdown-content a { text-decoration: underline; overflow-wrap: anywhere; }
+.markdown-content blockquote { margin-inline: 0; padding-inline-start: var(--espacio-16); border-inline-start: 3px solid currentColor; }
+.markdown-content pre { max-width: 100%; overflow-x: auto; padding: var(--espacio-12); }
+.markdown-content pre code { white-space: pre; overflow-wrap: normal; }
+.markdown-content table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.markdown-content th, .markdown-content td { padding: var(--espacio-8); border: 1px solid currentColor; }

@@ -7,12 +7,17 @@
     <header class="encabezado-pagina planificacion__navigation-header">
         <div class="encabezado-pagina__contenido">
             <h1 id="direction-planning-title" class="encabezado-pagina__titulo">Planificación</h1>
-            <p class="encabezado-pagina__descripcion">Crea y consulta los planes de trabajo de tu equipo.</p>
+            <p class="encabezado-pagina__descripcion" data-desktop-redundant>Crea y consulta los planes de trabajo de tu equipo.</p>
         </div>
         @if (Model.CanViewDirectionPlans)
         {
-            <partial name="_SectionNavigation" model='@("planning")' />
-            @if (Model.CanManageClosing) { <div class="encabezado-pagina__acciones"><button class="boton boton--secundario closing-planning-open" type="button" data-dialog-open aria-haspopup="dialog" aria-controls="closing-planning-dialog">Cobertura de cierre</button></div> }
+            <div class="planning-navigation-actions">
+                <partial name="_SectionNavigation" model='@("planning")' />
+                @if (Model.CanManageClosing)
+                {
+                    <button class="boton boton--secundario closing-planning-open" type="button" data-dialog-open aria-haspopup="dialog" aria-controls="closing-planning-dialog"><partial name="_Icon" model='@("clock")' /><span>Cobertura de cierre</span></button>
+                }
+            </div>
         }
     </header>
     @if (Model.DirectionError is not null) { <div id="direction-plan-error" tabindex="-1"><partial name="_ProblemAlert" model="Model.DirectionError" /></div> }
@@ -28,7 +33,7 @@
                     <button class="boton boton--primario" type="submit" form="direction-create-form" data-progress-label="Guardando plan…">Guardar plan</button>
                 </div>
             </header>
-            @if (Model.DirectionOperations) { <p>Un maestro por semana. El domingo se prepara la semana que inicia el lunes; su ejecución abarca de lunes a domingo. Las tareas marcadas se cargan automáticamente. Revisa las incidencias y guarda para asignar las cargas.</p> }
+            @if (Model.DirectionOperations) { <p>Un maestro por semana. El domingo se prepara la semana que inicia el lunes; su ejecución abarca de lunes a domingo. Las tareas y los procesos marcados se cargan automáticamente. Revisa las incidencias y guarda para asignar las cargas.</p> }
             else { <p>Este recorrido usa tareas independientes de General. <a href="/planificacion/procesos">Seleccionar un proceso y cargar sus etapas predefinidas</a>.</p> }
             <form id="direction-create-form" method="post" asp-page-handler="PrepareDirectionPlan" asp-antiforgery="false" data-direction-create data-operations="@(Model.DirectionOperations ? "true" : "false")" data-operational-today="@Model.DirectionToday.ToString("yyyy-MM-dd")" data-progress-form>
                 <input type="hidden" name="isWeeklyOperationsPlan" value="@(Model.DirectionOperations ? "true" : "false")" />
@@ -48,7 +53,7 @@
                 <button class="boton boton--secundario" type="button" data-direction-predefined hidden="@Model.DirectionOperations">Cargar Tareas Predefinidas</button>
                 <p role="status" aria-live="polite" data-predefined-status></p>
                 <ul id="direction-task-results" class="direction-plan__options" aria-label="Resultados de tareas" hidden>
-                    @foreach (var task in Model.DirectionTaskOptions)
+                    @foreach (var task in Model.DirectionTaskOptions.Where(t => Model.DirectionOperations || !t.IsProcess))
                     {
                         <li data-task-option data-code="@task.TaskCode" data-name="@task.Name" data-period="@task.PeriodType"><button class="boton boton--secundario" type="button" data-direction-add disabled="@Model.DirectionSelectedCodes.Contains(task.TaskCode)"><span>@task.TaskCode · @task.Name · @Sgol.Web.Pages.Tasks.IndexModel.RoleLabel(task.AssignedRole)</span><span data-added-label>@(Model.DirectionSelectedCodes.Contains(task.TaskCode) ? "Agregada" : "")</span></button></li>
                     }
@@ -56,7 +61,7 @@
                 <p class="estado-vacio" role="status" data-search-empty hidden>No se encontraron tareas con esa descripción</p>
                 <partial name="_WeeklyRepair" model="Model" />
             <h3>Tareas del plan</h3>
-                @if (Model.DirectionOperations) { <p>Para cambiar esta lista, marca o desmarca «Es parte del plan de operaciones semanal» en el catálogo de Tareas y vuelve a abrir este plan.</p> }
+                @if (Model.DirectionOperations) { <p>Para cambiar esta lista, usa «Es parte del plan de operaciones semanal» en Tareas o «Agregar al plan de operaciones semanal» en el inicio del proceso. Publica y activa los cambios del proceso y vuelve a abrir este plan.</p> }
                 else { <p>Elige las tareas necesarias para este plan. Su periodo no las agrega automáticamente; las repeticiones y asignaciones se generan al confirmar el guardado.</p> }
                 <p class="estado-vacio" role="status" data-selection-empty hidden="@(Model.DirectionSelectedCodes.Count > 0)">Aún no has agregado tareas al plan</p>
                 <div class="tabla-contenedor"><table class="tabla" aria-label="Tareas seleccionadas"><thead class="tabla__encabezado"><tr><th scope="col">Tarea</th><th scope="col">Descripción</th><th scope="col">Acción</th></tr></thead><tbody data-direction-selected>
@@ -142,7 +147,7 @@
         <section class="panel-seccion planificacion__seccion" aria-labelledby="direction-detail-title">
             <header class="panel-seccion__cabecera planning-progress-header"><h2 id="direction-detail-title">@detail.Name</h2>
                 <div class="planning-detail-actions">
-                <partial name="_TaskProgress" model="@(TaskProgressViewModel.FromAssignments(detail.Assignments ?? [], "Progreso del plan"))" />
+                @if (detail.Processes.Count == 0 || detail.Assignments?.Count > 0) { <partial name="_TaskProgress" model="@(TaskProgressViewModel.FromAssignments(detail.Assignments ?? [], detail.Processes.Count > 0 ? "Progreso de tareas habilitadas" : "Progreso del plan"))" /> }
             @if (Model.CanPrepareDirectionPlan) {
             <form method="post" asp-page-handler="PrepareDirectionPlanDeletion" asp-antiforgery="false" data-progress-form>
                 <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
@@ -158,6 +163,15 @@
             <p>@detail.StartsOn.ToString("dd/MM/yyyy") — @detail.EndsOn.ToString("dd/MM/yyyy")</p>
             <p>@IndexModel.DirectionIsoLabel(detail.StartsOn) — @IndexModel.DirectionIsoLabel(detail.EndsOn)</p>
             <span class="badge badge--neutro"><span aria-hidden="true">✓</span>@(detail.Status == "ASIGNADO" ? "Asignado" : "Borrador")</span>
+            @if (detail.Processes.Count > 0) {
+                <h3>Procesos del plan</h3>
+                @foreach (var process in detail.Processes) {
+                    <details><summary>@process.Name · @Sgol.Web.Presentation.MyWork.MyWorkPresentation.Time(process.StartsAt)</summary>
+                    <p>Las etapas siguientes reservan capacidad y esperan su condición de entrega o aprobación.</p>
+                    <ol>@foreach (var stage in process.Stages) { <li><strong>@stage.Name</strong> · @stage.Person · @Sgol.Web.Presentation.MyWork.MyWorkPresentation.Time(stage.StartsAt) — @Sgol.Web.Presentation.MyWork.MyWorkPresentation.Time(stage.DueAt) · @(stage.Status == "EN_ESPERA" ? "Espera la etapa anterior" : stage.Status == "PROGRAMADA" ? "Programada" : stage.Status == "DISPONIBLE" ? "Disponible" : stage.Status)</li> }</ol>
+                    </details>
+                }
+            }
             <h3>Tareas del plan</h3>
             @if (detail.MonthlyPending is { Count: > 0 }) {
                 <p role="status"><strong>Ocurrencias sin asignación (@detail.MonthlyPending.Count)</strong></p>
@@ -167,7 +181,7 @@
                 <details><summary>Agregar tareas durante la semana</summary>
                     <form method="post" asp-page-handler="AddDirectionTasks" asp-antiforgery="false">
                         <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="planId" value="@detail.PlanId" />
-                        <label class="campo"><span class="campo__etiqueta">Tarea del catálogo</span><select class="campo__control" name="taskCodes" required>@foreach (var option in Model.DirectionTaskOptions.Where(t => !detail.IsWeeklyOperationsPlan || t.IsWeeklyOperationsTask)) { <option value="@option.TaskCode">@option.Name · @Sgol.Web.Pages.Tasks.IndexModel.RoleLabel(option.AssignedRole)</option> }</select></label>
+                        <label class="campo"><span class="campo__etiqueta">Tarea del catálogo</span><select class="campo__control" name="taskCodes" required>@foreach (var option in Model.DirectionTaskOptions.Where(t => !t.IsProcess && (!detail.IsWeeklyOperationsPlan || t.IsWeeklyOperationsTask))) { <option value="@option.TaskCode">@option.Name · @Sgol.Web.Pages.Tasks.IndexModel.RoleLabel(option.AssignedRole)</option> }</select></label>
                         <p>Se incorporan las repeticiones de su calendario dentro de este plan. Las ya asignadas no se duplican; las fechas pasadas conservan su vencimiento.</p>
                         <button class="boton boton--primario" type="submit">Agregar y asignar</button>
                     </form>
