@@ -1,6 +1,22 @@
 (() => {
     const form = document.querySelector('[data-incidence-form]');
     if (!form) return;
+    form.querySelectorAll('.incidence-task--decision').forEach(task => {
+        const action = task.querySelector('select[name$=".Action"]');
+        const options = task.querySelector('[data-incidence-transfer]');
+        if (!action || !options) return;
+        const update = () => {
+            const transfer = action.value === 'TRANSFER';
+            options.hidden = !transfer;
+            options.disabled = !transfer;
+            if (!transfer) {
+                options.querySelectorAll('select').forEach(select => { select.value = ''; });
+                options.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+            }
+        };
+        action.addEventListener('change', update);
+        update();
+    });
     form.addEventListener('submit', () => {
         form.setAttribute('aria-busy', 'true');
         form.querySelector('[data-incidence-loading]').hidden = false;

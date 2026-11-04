@@ -14,6 +14,9 @@
 .incidence-task summary { cursor: pointer; padding-block: 10px; min-height: 44px; color: var(--color-texto-secundario); }
 .incidence-task details p { margin-block: 6px; }
 .incidence-task--decision .campo { margin-top: 6px; }
+.incidence-transfer { min-width: 0; margin: 6px 0 0; padding: 12px; border: 1px solid var(--color-borde); border-radius: 8px; }
+.incidence-transfer > * + * { margin-top: 8px; }
+.incidence-transfer[hidden] { display: none; }
 .incidence-search__filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 12px; }
 .incidence-search__filters .campo { flex: 1 1 12rem; }
 .incidence-search__filters .campo:has(input[type="search"]) { flex-grow: 2; }

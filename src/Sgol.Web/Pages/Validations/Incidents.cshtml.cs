@@ -76,6 +76,11 @@ public sealed class IncidentsModel(IRazorSessionState sessions, OperationalIncid
             if (!ModelState.IsValid) throw new DirectionPlanException("Revisa persona, fecha y los datos del formulario.", 422);
             if (!CanConfirm) return StatusCode(403);
             if (!apply) NotBefore = Day == Today ? clock.UtcNow.AddMinutes(2) : OperationalSchedule.Instant(Day!.Value);
+            foreach (var decision in Decisions.Where(d => d.Action != "TRANSFER"))
+            {
+                decision.RecipientId = null;
+                decision.AuthorizeOverload = false;
+            }
             var request = new IncidenceRequest(PersonId, Day!.Value, Key, Reason, NotBefore,
                 Decisions.Where(d => !string.IsNullOrEmpty(d.Action)).Select(d => new IncidenceDecision(d.AssignmentId, d.Action, d.RecipientId, d.AuthorizeOverload)).ToArray(), Reflow);
             if (apply)

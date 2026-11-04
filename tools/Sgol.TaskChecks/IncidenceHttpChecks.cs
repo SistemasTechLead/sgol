@@ -109,6 +109,12 @@ internal static partial class IncidenceChecks
         var recipientSelect = Regex.Match(invalidHtml, "<select[^>]*name=\"Decisions\\[0\\]\\.RecipientId\"[^>]*>(.*?)</select>", RegexOptions.Singleline).Groups[1].Value;
         Check(response.IsSuccessStatusCode && invalidHtml.Contains("Su rol es Subcoordinación") && !invalidHtml.Contains("data-incidence-confirm"), "HTTP old incompatible selection gives precise cause and cannot confirm");
         Check(recipientSelect.Contains(conflictFixture.OtherPerson.ToString()) && !recipientSelect.Contains(supervisorPerson.ToString()) && invalidHtml.Contains("La selección anterior dejó de ser válida"), "HTTP excludes incompatible option and explains discarded selection");
+        invalidRecipientForm["Decisions[0].Action"] = "RETIRE";
+        response = await client.PostAsync("/supervision/incidencias?handler=Preview", new FormUrlEncodedContent(invalidRecipientForm));
+        var retirementHtml = await response.Content.ReadAsStringAsync();
+        Check(response.IsSuccessStatusCode && retirementHtml.Contains("data-incidence-confirm") &&
+            Field(retirementHtml, "Decisions[keep0].RecipientId") == "" && Field(retirementHtml, "Decisions[keep0].AuthorizeOverload") == "false",
+            "HTTP retirement discards forged recipient and overload before review");
         handler.CookieContainer.Add(client.BaseAddress, new Cookie("incidence-role", "worker"));
         Check((await client.GetAsync("/supervision/incidencias")).StatusCode == HttpStatusCode.Forbidden, "worker cannot browse supervision");
         handler.CookieContainer.Add(client.BaseAddress, new Cookie("incidence-role", "supervisor"));

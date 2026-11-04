@@ -314,3 +314,19 @@ Corrección mixta: cada caso devuelve IDs de destinatarias que cumplen rol/espec
 Evidencias privadas: `.local/incidence-recipients-final-host.log`, `.local/incidence-recipients-final-browser.log`, `.local/incidence-ui/`, `.local/incidence-diagnosis-20261104/`. Sin fallos de validación pendientes en esta matriz; pruebas físicas y autenticación compartida no repetidas. La publicación y la reconciliación documental se completan después de verificar el artefacto.
 
 Publicación del ajuste completada: `3e3bb74` subido antes de reemplazar Web por `.local/runtime/incidencias-recipients-20261104/Sgol.Web.dll` (proceso 14692/lanzador 40992), con proxy 20652 conservado. Release y salud live/ready/acceso local/LAN aprobados (200, TLS normal). Sin migraciones, sin registrar ausencia ni confirmar asignaciones compartidas. Reconciliadas referencias de Supervisión, pantallas, instalación y base documental y su copia versionada, tras comprobar el artefacto.
+
+## 18. Opciones dependientes de Transferir (04/11/2026)
+
+Cambio mixto de formulario: destinataria, ayuda y sobrecarga se agrupan en Opciones de transferencia y solo aparecen al seleccionar TRANSFER. Al retirar o quitar la decisión, se ocultan, deshabilitan y limpian; volver a transferir empieza sin destinataria explícita ni sobrecarga. El fieldset deshabilitado evita el envío y el recorrido de teclado de esos campos. El servidor normaliza las decisiones que no transfieren, descartando destinataria/sobrecarga antes de construir la petición y su huella. Los cambios ya revisados mantienen sus campos ocultos para la confirmación atómica.
+
+| Escenario | Entorno/prueba | Estado |
+|---|---|---|
+| Sin decisión y Retirar ocultan campos; Transferir los muestra | Razor real aislado, Playwright | Aprobado |
+| Transferir → elegir persona/sobrecarga → Retirar → Transferir | Limpieza, FormData sin campos deshabilitados y teclado fuera del fieldset | Aprobado |
+| POST de retiro con destinataria/sobrecarga manipuladas | Formulario HTTP real con CSRF; propuesta canónica sin destinataria/sobrecarga | Aprobado |
+| Regresión de servicio/formularios | Base nueva `sgol_task_checks_incidence_options_20261104`, 71 comprobaciones | Aprobado |
+| Navegador | 20 escenarios, Chromium/WebKit, 320/768/1440, tres temas; conflicto móvil inspeccionado | Aprobado |
+| Build Debug | Herramientas y Web, sin errores/avisos | Aprobado |
+| Dispositivos físicos y sesión compartida autenticada | No repetidos; sesiones sintéticas solo en base aislada | No ejecutado |
+
+Evidencia privada: `.local/incidence-options-host.log`, `.local/incidence-options-browser.log`, `.local/incidence-ui/`. Sin fallos pendientes. No se registró ausencia ni se aplicaron reasignaciones compartidas. No hay migraciones. La referencia de la bóveda se reconciliará con la publicación efectiva.
