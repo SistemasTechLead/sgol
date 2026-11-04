@@ -381,3 +381,5 @@ Corrección de interfaz/contrato: `Incidents.cshtml` serializa el campo oculto c
 | Dispositivo físico y autenticación compartida | Navegadores automatizados con sesión sintética en base aislada | No ejecutado |
 
 La regresión mantenible se añadió a `IncidenceHttpChecks.cs`. Evidencias privadas en `.local/`; sin migraciones. Referencias de bóveda pendientes de reconciliar al verificar la publicación efectiva.
+
+Publicado commit 6519aa2 desde .local/runtime/incidencias-precision-20261104/Sgol.Web.dll, Web 9200/lanzador 27752. Proxy 20652 conservado. Live/ready internos y acceso LAN: 200, TLS normal. Bóveda y copia versionada reconciliadas tras verificar publicación; sin migraciones ni confirmación de ausencia compartida.
