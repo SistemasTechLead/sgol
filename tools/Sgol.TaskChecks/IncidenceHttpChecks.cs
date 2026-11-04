@@ -98,6 +98,26 @@ internal static partial class IncidenceChecks
         Check(html.Contains("Ausencia confirmada"), "receipt renders after redirect");
         response = await client.PostAsync("/supervision/incidencias?handler=Apply", new FormUrlEncodedContent(form));
         Check(response.StatusCode == HttpStatusCode.Redirect, "HTTP duplicate submission replays");
+        // A real clock has fractional seconds; the hidden field must round-trip all
+        // ticks used to fingerprint the reviewed request, independently of culture.
+        var preciseFixture = await QaFixtures.CreateAsync(db);
+        await Row(db,preciseFixture,clock,clock.UtcNow.AddHours(1));
+        await Row(db,preciseFixture,clock,clock.UtcNow.AddHours(-1));
+        clock.UtcNow = clock.UtcNow.AddTicks(1234567);
+        var preciseForm = new Dictionary<string,string> {
+            ["Day"]="2026-11-04", ["PersonId"]=preciseFixture.Person.ToString(), ["Key"]=Guid.NewGuid().ToString(),
+            ["Reason"]="Confirmación con precisión real del reloj", ["Reflow"]="true",
+            ["__RequestVerificationToken"]=Field(html,"__RequestVerificationToken") };
+        response = await client.PostAsync("/supervision/incidencias?handler=Preview",new FormUrlEncodedContent(preciseForm));
+        var preciseHtml = await response.Content.ReadAsStringAsync();
+        Check(response.IsSuccessStatusCode && preciseHtml.Contains("data-incidence-confirm"),"HTTP fractional-clock preview is confirmable");
+        preciseForm["NotBefore"]=Field(preciseHtml,"NotBefore"); preciseForm["Fingerprint"]=Field(preciseHtml,"Fingerprint");
+        Check(DateTimeOffset.TryParse(preciseForm["NotBefore"],System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.None,out var roundTripped) && roundTripped==clock.UtcNow.AddMinutes(2),"HTTP hidden time preserves exact fractional seconds");
+        clock.UtcNow = clock.UtcNow.AddSeconds(15);
+        response = await client.PostAsync("/supervision/incidencias?handler=Apply",new FormUrlEncodedContent(preciseForm));
+        Check(response.StatusCode==HttpStatusCode.Redirect,"HTTP fractional-clock preview confirms after normal review delay");
+        response = await client.PostAsync("/supervision/incidencias?handler=Apply",new FormUrlEncodedContent(preciseForm));
+        Check(response.StatusCode==HttpStatusCode.Redirect,"HTTP precise-time confirmation replays idempotently");
         var invalidRecipientForm = new Dictionary<string, string> {
             ["Day"] = "2026-11-04", ["PersonId"] = conflictFixture.Person.ToString(), ["Key"] = Guid.NewGuid().ToString(),
             ["Reason"] = "Destinataria incompatible enviada desde formulario antiguo", ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken"),

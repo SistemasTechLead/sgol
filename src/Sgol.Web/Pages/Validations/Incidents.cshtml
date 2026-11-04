@@ -23,7 +23,7 @@
 @if (Model.CanConfirm && Model.Receipt == null && Model.Day >= Model.Today) {
     <section class="panel-seccion incidence-register" aria-labelledby="incidence-register-title"><h2 id="incidence-register-title">Registrar ausencia</h2>
     <form method="post" asp-page-handler="Preview" class="incidence-form" data-incidence-form>
-        <label class="campo"><span class="campo__etiqueta">Fecha de ausencia</span><input class="campo__control" type="date" asp-for="Day" min="@Model.Today.ToString("yyyy-MM-dd")" required /></label><input type="hidden" asp-for="Key" /><input type="hidden" asp-for="NotBefore" /><input type="hidden" asp-for="Fingerprint" />
+        <label class="campo"><span class="campo__etiqueta">Fecha de ausencia</span><input class="campo__control" type="date" asp-for="Day" min="@Model.Today.ToString("yyyy-MM-dd")" required /></label><input type="hidden" asp-for="Key" /><input type="hidden" asp-for="NotBefore" asp-format="{0:O}" /><input type="hidden" asp-for="Fingerprint" />
         <label class="campo"><span class="campo__etiqueta">Colaboradora ausente</span><select class="campo__control" asp-for="PersonId" required><option value="">Selecciona una persona</option>@foreach (var p in Model.People.Where(p => !Model.History.Any(i => i.PersonId == p.Id))) { <option value="@p.Id">@p.Name</option> }</select></label>
         <label class="campo incidence-form__reason"><span class="campo__etiqueta">Motivo</span><textarea class="campo__control" asp-for="Reason" minlength="5" maxlength="1000" required rows="2"></textarea></label>
         <label><input asp-for="Reflow" /> Revisar también el reacomodo de tareas futuras sin actividad dentro del mismo día</label>

@@ -363,3 +363,21 @@ Correcciones:
 Evidencias privadas: `.local/incidence-search-final-host.log`, `.local/incidence-search-final-browser.log`, `.local/incidence-diagnosis-20261104/` y `.local/incidence-ui/`. No hay migraciones. El resultado de la copia no reemplaza la revisión del estado actual compartido: tareas que vencieron después se clasifican de nuevo. Las pruebas usan sesiones sintéticas aisladas; no se repitió autenticación compartida ni dispositivo físico.
 
 Publicado `b27752c` desde `.local/runtime/incidencias-search-20261104/Sgol.Web.dll`, proceso 11944/lanzador 21772. Proxy 20652 conservado. Release, live/ready internos y acceso LAN aprobados (200, TLS normal). Referencias reconciliadas tras comprobar el proceso, sin migraciones ni confirmaciones operativas compartidas.
+
+## 20. Precisión temporal en la confirmación del formulario (04/11/2026)
+
+La captura reportó un rechazo por cambio de propuesta al confirmar. Se identificó y reprodujo una causa del formulario real: `NotBefore` se calculaba con fracciones de segundo, pero el campo oculto Razor lo renderizaba con formato localizado sin fracciones. El servidor recibía otra intención y rechazaba correctamente su huella, aunque la usuaria no hubiese editado nada. Las comprobaciones anteriores usaban relojes con segundos enteros y no detectaban este defecto.
+
+Corrección de interfaz/contrato: `Incidents.cshtml` serializa el campo oculto con formato round-trip `O`, conservando zona y siete decimales. No se debilitan la huella, concurrencia, límites temporales, permisos ni atomicidad; no hay cambios de esquema. Las propuestas ya abiertas deben revisarse otra vez.
+
+| Escenario y resultado esperado | Prueba / entorno | Estado |
+|---|---|---|
+| Reproducción con reloj fraccionario: conservar instante exacto | Formulario Razor real, base `sgol_task_checks_incidence_precision_before_20261104`; envió `04/11/2026 04:02:00 p. m. +00:00` perdiendo `.1234567`; log privado `incidence-precision-before.log` | Fallido antes de corregir; defecto reproducido |
+| Revisión de hoy con transferencia, retiro y reacomodo; confirmar 15 segundos después sin cambio real | Formulario HTTP real y base nueva `sgol_task_checks_incidence_precision_final_20261104`; comparación exacta del campo, confirmación y reintento | Aprobado |
+| Permisos, vencimiento real, concurrencia, atomicidad, bono, procesos y reintentos | 89 comprobaciones de incidencias/HTTP, `.local/incidence-precision-final.log` | Aprobado |
+| Flujo real y presentación, ahora con reloj fraccionario | 20 escenarios Chromium/WebKit, 320/768/1440, claro/oscuro/especial, foco y teclado; `.local/incidence-precision-browser.log` | Aprobado |
+| Compilación Debug y publicación Release | Debug sin errores ni avisos; `.local/incidence-precision-publish.log` | Aprobado |
+| Confirmación de ausencia en simulación compartida | Reservada a la usuaria; no se realizó escritura operativa | No ejecutado |
+| Dispositivo físico y autenticación compartida | Navegadores automatizados con sesión sintética en base aislada | No ejecutado |
+
+La regresión mantenible se añadió a `IncidenceHttpChecks.cs`. Evidencias privadas en `.local/`; sin migraciones. Referencias de bóveda pendientes de reconciliar al verificar la publicación efectiva.
