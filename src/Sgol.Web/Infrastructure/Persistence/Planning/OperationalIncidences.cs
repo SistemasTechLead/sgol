@@ -62,7 +62,10 @@ public static class OperationalIncidencePersistence
 public sealed record IncidenceDecision(Guid AssignmentId, string Action, Guid? RecipientId = null, bool AuthorizeOverload = false);
 public sealed record IncidenceRequest(Guid PersonId, DateOnly Day, Guid Key, string Reason,
     DateTimeOffset NotBefore, IncidenceDecision[] Decisions, bool Reflow = false);
-public sealed record IncidenceCase(Guid EntityId, string Task, string Cause, string Effect, string[] Options, string[] Details);
+public sealed record IncidenceCase(Guid EntityId, string Task, string Cause, string Effect, string[] Options, string[] Details)
+{
+    public Guid[] EligibleRecipientIds { get; init; } = [];
+}
 public sealed record IncidenceChange(OperationalAssignment Before, OperationalAssignment? After, string Action,
     Guid? ObligationId, DateOnly EvaluationDay, Guid? StageId = null, bool OverloadAuthorized = false)
 {

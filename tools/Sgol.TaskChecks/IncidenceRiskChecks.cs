@@ -30,6 +30,7 @@ internal static partial class IncidenceChecks
         var request = new IncidenceRequest(f.Person, new(2026, 11, 4), Guid.NewGuid(), "Sobrecarga explícita de prueba", clock.UtcNow.AddMinutes(2), [new(a.Id, "TRANSFER", f.OtherPerson)]);
         var p = await svc.PreviewAsync(f.Director, request, default);
         Check(!p.CanApply, "capacity shortage requires explicit exception");
+        Check(p.Cases.Single(c => c.EntityId == a.Id).EligibleRecipientIds.Contains(f.OtherPerson) && p.Cases.Single(c => c.EntityId == a.Id).Cause.Contains("capacidad restante"), "eligible recipient with capacity shortage stays selectable with specific explanation");
         request = request with { Decisions = [new(a.Id, "TRANSFER", f.OtherPerson, true)] };
         p = await svc.PreviewAsync(f.Director, request, default);
         Check(p.CanApply && p.Changes.Single().OverloadAuthorized && p.Changes.Single().ExcessMinutes >= 30, "local overload exposes excess without reducing effort");
@@ -41,11 +42,27 @@ internal static partial class IncidenceChecks
         db.Add(new AvailabilityDayVersion(Guid.CreateVersion7(), absentRecipient.OtherPerson, BranchScope.LorettaId, request.Day, false, absentRecipient.Director)); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         svc = new(db, clock, CorrectionSchedulingChecks.Service(db, clock));
         var invalid = request with { PersonId = absentRecipient.Person, Key = Guid.NewGuid(), Decisions = [new(blocked.Id, "TRANSFER", absentRecipient.OtherPerson, true)] };
-        Check(!(await svc.PreviewAsync(absentRecipient.Director, invalid, default)).CanApply, "overload never waives recipient absence");
+        var absencePreview = await svc.PreviewAsync(absentRecipient.Director, invalid, default);
+        Check(!absencePreview.CanApply, "overload never waives recipient absence");
+        Check(!absencePreview.Cases.Single(c => c.EntityId == blocked.Id).EligibleRecipientIds.Contains(absentRecipient.OtherPerson), "absent recipient is not selectable");
         var outside = await QaFixtures.CreateAsync(db);
         var longTask = await Row(db,outside,clock,clock.UtcNow.AddHours(1),30);
         var outsideRequest = request with { PersonId=outside.Person, Key=Guid.NewGuid(), NotBefore=OperationalSchedule.Instant(request.Day,22).AddMinutes(55), Decisions=[new(longTask.Id,"TRANSFER",outside.OtherPerson,true)] };
-        Check(!(await svc.PreviewAsync(outside.Director,outsideRequest,default)).CanApply,"overload never waives shift end or required duration");
+        var outsidePreview = await svc.PreviewAsync(outside.Director,outsideRequest,default);
+        Check(!outsidePreview.CanApply,"overload never waives shift end or required duration");
+        Check(!outsidePreview.Cases.Single(c => c.EntityId == longTask.Id).EligibleRecipientIds.Contains(outside.OtherPerson), "recipient without full shift window is not selectable");
+
+        var wrongRole = await QaFixtures.CreateAsync(db);
+        var roleTask = await Row(db, wrongRole, clock, clock.UtcNow.AddHours(1));
+        var role = await db.RoleAssignmentVersions.SingleAsync(r => r.UserId == wrongRole.Other && r.Status == RoleAssignmentStatus.Active);
+        db.Entry(role).Property(r => r.RoleCode).CurrentValue = CanonicalRole.Subcoordination;
+        await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        var roleRequest = request with { PersonId = wrongRole.Person, Key = Guid.NewGuid(), Decisions = [new(roleTask.Id, "TRANSFER", wrongRole.OtherPerson, true)] };
+        var rolePreview = await svc.PreviewAsync(wrongRole.Director, roleRequest, default);
+        var roleCase = rolePreview.Cases.Single(c => c.EntityId == roleTask.Id);
+        Check(!rolePreview.CanApply && !roleCase.EligibleRecipientIds.Contains(wrongRole.OtherPerson) && roleCase.Cause.Contains("Subcoordinación") && roleCase.Cause.Contains("Piso de ventas"), "wrong role excluded with precise cause even with overload");
+        await Reject(async () => await svc.ApplyAsync(wrongRole.Director, roleRequest, rolePreview.Fingerprint, default), "forged ineligible recipient cannot be confirmed");
+        Check(!await db.Set<OperationalIncidence>().AnyAsync(i => i.PersonId == wrongRole.Person), "rejected recipient leaves no absence");
 
         var baseLedger = await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,default);
         var consumed = new OperationalAssignment {Id=Guid.NewGuid(),PersonId=outside.OtherPerson,LoadMinutes=120,StartsAt=clock.UtcNow.AddHours(-1),DueAt=clock.UtcNow,CompletedAt=clock.UtcNow};

@@ -41,7 +41,8 @@
             @for (var i = 0; i < preview.Cases.Length; i++) {
                 var item = preview.Cases[i];
                 var previous = Model.Decisions.SingleOrDefault(d => d.AssignmentId == item.EntityId);
-                var canTransfer = item.Options.Any(o => o.StartsWith("Elegir") || o.StartsWith("Transferir") || o.StartsWith("Reasignar") || o.Contains("reasignación"));
+                var invalidRecipient = previous?.RecipientId is {} priorRecipient && !item.EligibleRecipientIds.Contains(priorRecipient);
+                var canTransfer = item.EligibleRecipientIds.Length > 0 && item.Options.Any(o => o.StartsWith("Elegir") || o.StartsWith("Transferir") || o.StartsWith("Reasignar") || o.Contains("reasignación"));
                 var canRetire = item.Options.Any(o => o.StartsWith("Retirar"));
                 <article class="incidence-task incidence-task--decision"><h5>@item.Task</h5><p><strong>Causa:</strong> @item.Cause</p><p><strong>Efecto:</strong> @item.Effect</p>
                     <details><summary>Ver detalles</summary>@foreach (var detail in item.Details) { <p>@detail</p> }<p>Registro: @item.EntityId</p></details>
@@ -50,7 +51,9 @@
                         <input type="hidden" name="Decisions[@i].AssignmentId" value="@item.EntityId" />
                         <label class="campo"><span class="campo__etiqueta">Decisión para @item.Task</span><select class="campo__control" name="Decisions[@i].Action"><option value="">Selecciona una opción</option>@if (canTransfer) { <option value="TRANSFER" selected="@(previous?.Action == "TRANSFER")">Transferir conservando lo realizado</option> }@if (canRetire) { <option value="RETIRE" selected="@(previous?.Action == "RETIRE")">Retirar por ausencia conservando historial</option> }</select></label>
                         @if (canTransfer) {
-                            <label class="campo"><span class="campo__etiqueta">Destinataria, si transfieres</span><select class="campo__control" name="Decisions[@i].RecipientId"><option value="">Reparto automático</option>@foreach (var p in Model.People.Where(p => p.Id != Model.PersonId)) { <option value="@p.Id" selected="@(previous?.RecipientId == p.Id)">@p.Name</option> }</select></label>
+                            <label class="campo"><span class="campo__etiqueta">Destinataria, si transfieres</span><select class="campo__control" name="Decisions[@i].RecipientId"><option value="">Reparto automático</option>@foreach (var p in Model.People.Where(p => item.EligibleRecipientIds.Contains(p.Id))) { <option value="@p.Id" selected="@(previous?.RecipientId == p.Id)">@p.Name</option> }</select></label>
+                            @if (invalidRecipient) { <p>La selección anterior dejó de ser válida. Elige una destinataria disponible o revisa una propuesta con reparto automático.</p> }
+                            <p>Solo se muestran personas que cumplen rol, especialidad y disponibilidad de horario. Revisa los cambios para comprobar capacidad, empalmes y dependencias del conjunto.</p>
                             <label><input type="checkbox" name="Decisions[@i].AuthorizeOverload" value="true" checked="@(previous?.AuthorizeOverload == true)" /> Autorizar sobrecarga y empalmes para esta tarea y destinataria, dentro del turno</label>
                         }
                     } else { @foreach (var option in item.Options) { <p>@option</p> } <a href="/validaciones">Ir a Supervisión</a> }

@@ -98,6 +98,17 @@ internal static partial class IncidenceChecks
         Check(html.Contains("Ausencia confirmada"), "receipt renders after redirect");
         response = await client.PostAsync("/supervision/incidencias?handler=Apply", new FormUrlEncodedContent(form));
         Check(response.StatusCode == HttpStatusCode.Redirect, "HTTP duplicate submission replays");
+        var invalidRecipientForm = new Dictionary<string, string> {
+            ["Day"] = "2026-11-04", ["PersonId"] = conflictFixture.Person.ToString(), ["Key"] = Guid.NewGuid().ToString(),
+            ["Reason"] = "Destinataria incompatible enviada desde formulario antiguo", ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken"),
+            ["Decisions.Index"] = "0", ["Decisions[0].AssignmentId"] = protectedRow.Id.ToString(), ["Decisions[0].Action"] = "TRANSFER",
+            ["Decisions[0].RecipientId"] = supervisorPerson.ToString(), ["Decisions[0].AuthorizeOverload"] = "true"
+        };
+        response = await client.PostAsync("/supervision/incidencias?handler=Preview", new FormUrlEncodedContent(invalidRecipientForm));
+        var invalidHtml = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        var recipientSelect = Regex.Match(invalidHtml, "<select[^>]*name=\"Decisions\\[0\\]\\.RecipientId\"[^>]*>(.*?)</select>", RegexOptions.Singleline).Groups[1].Value;
+        Check(response.IsSuccessStatusCode && invalidHtml.Contains("Su rol es Subcoordinación") && !invalidHtml.Contains("data-incidence-confirm"), "HTTP old incompatible selection gives precise cause and cannot confirm");
+        Check(recipientSelect.Contains(conflictFixture.OtherPerson.ToString()) && !recipientSelect.Contains(supervisorPerson.ToString()) && invalidHtml.Contains("La selección anterior dejó de ser válida"), "HTTP excludes incompatible option and explains discarded selection");
         handler.CookieContainer.Add(client.BaseAddress, new Cookie("incidence-role", "worker"));
         Check((await client.GetAsync("/supervision/incidencias")).StatusCode == HttpStatusCode.Forbidden, "worker cannot browse supervision");
         handler.CookieContainer.Add(client.BaseAddress, new Cookie("incidence-role", "supervisor"));
@@ -107,7 +118,7 @@ internal static partial class IncidenceChecks
         form["__RequestVerificationToken"] = Field(html,"__RequestVerificationToken");
         Check((await client.PostAsync("/supervision/incidencias?handler=Apply",new FormUrlEncodedContent(form))).StatusCode==HttpStatusCode.Forbidden,"supervisor crafted confirmation rejected by server");
         var output = Path.GetFullPath(".local/incidence-ui"); Directory.CreateDirectory(output);
-        await File.WriteAllTextAsync(Path.Combine(output, "fixture.json"), JsonSerializer.Serialize(new { origin = "https://localhost:7297", person = fixture.Person, day = "2026-11-04", conflictPerson=conflictFixture.Person, conflictRecipient=conflictFixture.OtherPerson }));
+        await File.WriteAllTextAsync(Path.Combine(output, "fixture.json"), JsonSerializer.Serialize(new { origin = "https://localhost:7297", person = fixture.Person, day = "2026-11-04", conflictPerson=conflictFixture.Person, conflictRecipient=conflictFixture.OtherPerson, ineligibleRecipient=supervisorPerson }));
         Console.WriteLine("INCIDENCE_UI_READY " + output);
         await app.WaitForShutdownAsync();
     }

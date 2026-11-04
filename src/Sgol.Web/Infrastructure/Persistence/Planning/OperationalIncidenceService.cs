@@ -7,6 +7,7 @@ using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 using Sgol.Web.Infrastructure.Persistence.Auditing;
+using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
@@ -102,13 +103,43 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
         var evidence = await db.OperationalPhotographs.AsNoTracking().OrderBy(p => p.Id).Select(p => new { p.Id, p.AssignmentId, p.AttachedAt }).ToArrayAsync(ct);
         var attachments = await db.OperationalAttachments.AsNoTracking().OrderBy(p => p.AssignmentId).Select(p => new { p.AssignmentId, p.CreatedAt }).ToArrayAsync(ct);
         var cases = new List<IncidenceCase>(); var changes = new List<IncidenceChange>();
-        void Block(OperationalAssignment a, string cause, string effect, string[] options, params string[] details) =>
-            cases.Add(new(a.Id, a.Name, cause, effect, options, details));
-        var temporal = JsonSerializer.SerializeToNode(source.Temporal)!; temporal.AsObject().Remove("Now");
-        var fingerprint = Hash(new { request, all, stages, attempts, prepared, preparedSteps, carryovers, facts, transfers, priorDecisions, availability, closures, evidence, attachments,
-            source.Workers, source.Capacities, source.Legacy, Temporal = temporal, Algorithm = 1 });
         var absent = source.Unavailable.Append((person.Id, request.Day)).ToHashSet();
         CapacityLedger State(IEnumerable<OperationalAssignment> rows) => new(source.Workers, rows.ToArray(), source.Capacities, absent, source.Legacy, source.Today) { Temporal = source.Temporal };
+        var eligibilityLedger = State([]);
+        var recipientReasons = new Dictionary<(Guid Assignment, Guid Person), string?>();
+        string? RecipientReason(OperationalAssignment a, CapacityWorker worker)
+        {
+            var key = (a.Id, worker.Id);
+            if (recipientReasons.TryGetValue(key, out var cached)) return cached;
+            string? reason = null;
+            if (worker.Id == person.Id || absent.Contains((worker.Id, request.Day))) reason = "Tiene ausencia registrada para esta fecha.";
+            else if (a.SpecializationId == null && worker.Role != a.AssignedRole)
+                reason = $"Su rol es {SessionPresentation.RoleName(worker.Role) ?? worker.Role}; la tarea requiere {SessionPresentation.RoleName(a.AssignedRole ?? "") ?? a.AssignedRole}.";
+            else if (!worker.Qualified(a.SpecializationId))
+                reason = worker.IsOnTrial ? "Está en periodo de prueba y la tarea requiere especialidad." : $"No tiene la especialidad requerida: {a.SpecializationName ?? "especialidad de la tarea"}.";
+            else
+            {
+                var projected = Copy(a); projected.PersonId = worker.Id;
+                if (projected.GoalUnits > 0) projected.StartsAt = request.NotBefore;
+                var slot = OperationalAgenda.Find(eligibilityLedger, worker.Id, projected, request.NotBefore);
+                if (!slot.Eligible) reason = TemporalEligibilityContext.Message(slot.Reason);
+                else
+                {
+                    OperationalAgenda.Apply(projected, slot);
+                    var time = eligibilityLedger.CheckTime(worker.Id, projected);
+                    if (!time.Eligible) reason = TemporalEligibilityContext.Message(time.Reason);
+                }
+            }
+            recipientReasons[key] = reason;
+            return reason;
+        }
+        void Block(OperationalAssignment a, string cause, string effect, string[] options, params string[] details) =>
+            cases.Add(new(a.Id, a.Name, cause, effect, options, details) {
+                EligibleRecipientIds = people.Where(w => RecipientReason(a, w) == null).Select(w => w.Id).ToArray()
+            });
+        var temporal = JsonSerializer.SerializeToNode(source.Temporal)!; temporal.AsObject().Remove("Now");
+        var fingerprint = Hash(new { request, all, stages, attempts, prepared, preparedSteps, carryovers, facts, transfers, priorDecisions, availability, closures, evidence, attachments,
+            source.Workers, source.Capacities, source.Legacy, Temporal = temporal, Algorithm = 2 });
         var selected = all.Where(a => a.PersonId == person.Id &&
             (WeekContract.LocalToday(a.StartsAt) == request.Day || source.Footprint(a).Any(f => f.Day == request.Day) ||
              WeekContract.LocalToday(a.DueAt.AddTicks(-1)) == request.Day)).ToArray();
@@ -244,8 +275,8 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             if (index == jobs.Count) return DependenciesFit();
             if (++nodes > 20000) { exhausted = true; return false; }
             var job = jobs[index]; var a = job.Row; var decision = request.Decisions.SingleOrDefault(d => d.AssignmentId == a.Id);
-            var candidates = people.Where(w => w.Id != person.Id && (!neighbourIds.Contains(a.Id) || w.Id == a.PersonId) && w.EligibleFor(a.AssignedRole, a.SpecializationId) &&
-                (decision?.RecipientId == null || w.Id == decision.RecipientId) && !absent.Contains((w.Id, request.Day)))
+            var candidates = people.Where(w => (!neighbourIds.Contains(a.Id) || w.Id == a.PersonId) && RecipientReason(a, w) == null &&
+                (decision?.RecipientId == null || w.Id == decision.RecipientId))
                 .OrderBy(w => RemainingCapacity(ledger, w.Id, request.Day, earliest) is var capacity && capacity > 0 ?
                     (Pending(ledger, w.Id, request.Day) + a.RemainingMinutes) / capacity : decimal.MaxValue).ThenBy(w => w.Code, StringComparer.Ordinal);
             foreach (var worker in candidates)
@@ -300,9 +331,21 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
         if (!Search(state, 0))
         {
             placed.Clear();
-            foreach (var job in jobs.Where(j => !neighbourIds.Contains(j.Row.Id))) Block(job.Row, exhausted ? "La búsqueda agotó 20,000 pasos; no demuestra falta de espacio." : "No se encontró un reparto conjunto compatible con capacidad, turno y elegibilidad.",
+            foreach (var job in jobs.Where(j => !neighbourIds.Contains(j.Row.Id)))
+            {
+                var decision = request.Decisions.SingleOrDefault(d => d.AssignmentId == job.Row.Id);
+                var recipient = people.SingleOrDefault(w => w.Id == decision?.RecipientId);
+                var cause = exhausted ? "La búsqueda agotó 20,000 pasos; no demuestra falta de espacio." : "Esta tarea forma parte de un reparto conjunto pendiente de resolver. Revisa las restricciones de las destinatarias y las demás tareas.";
+                if (decision?.RecipientId != null && recipient == null) cause = "La destinataria seleccionada ya no está dentro del alcance disponible. Elige otra persona.";
+                else if (recipient != null && RecipientReason(job.Row, recipient) is {} reason) cause = $"{recipient.Name}: {reason}";
+                else if (recipient != null && job.Row.GoalUnits == 0 && job.Day == request.Day && decision?.AuthorizeOverload != true &&
+                    Pending(state, recipient.Id, request.Day) + job.Row.RemainingMinutes > RemainingCapacity(state, recipient.Id, request.Day, earliest))
+                    cause = $"{recipient.Name}: la carga pendiente ({Pending(state, recipient.Id, request.Day):0.#} min) más esta tarea ({job.Row.RemainingMinutes} min) supera la capacidad restante ({RemainingCapacity(state, recipient.Id, request.Day, earliest):0.#} min). Revisa la carga o autoriza explícitamente la sobrecarga.";
+                else if (!people.Any(w => RecipientReason(job.Row, w) == null)) cause = "No hay destinatarias que cumplan rol, especialidad, disponibilidad y horario para esta tarea. Revisa los detalles.";
+                Block(job.Row, cause,
                 "No se guardará ningún reparto parcial ni se reducirán los minutos necesarios.", job.Day > request.Day ? ["Elegir destinataria y volver a calcular", "Revisar capacidad en Supervisión"] : ["Elegir destinataria y volver a calcular", "Retirar por ausencia"],
-                people.Where(w => w.Id != person.Id).Select(w => $"{w.Name}: " + (!w.EligibleFor(job.Row.AssignedRole, job.Row.SpecializationId) ? "no cumple rol/especialidad o condición de prueba" : absent.Contains((w.Id, request.Day)) ? "ausencia registrada" : $"capacidad restante {RemainingCapacity(state, w.Id, request.Day, earliest):0.#} min; carga pendiente {Pending(state, w.Id, request.Day):0.#} min; requiere turno y dependencias compatibles")).ToArray());
+                people.Where(w => w.Id != person.Id).Select(w => $"{w.Name}: " + (RecipientReason(job.Row, w) ?? $"capacidad restante {RemainingCapacity(state, w.Id, request.Day, earliest):0.#} min; carga pendiente {Pending(state, w.Id, request.Day):0.#} min; la revisión conjunta comprueba huecos, dependencias y capacidad")).ToArray());
+            }
         }
         changes.AddRange(placed);
         foreach (var preparedStart in prepared)

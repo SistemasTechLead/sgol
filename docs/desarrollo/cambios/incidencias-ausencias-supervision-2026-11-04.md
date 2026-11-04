@@ -290,3 +290,25 @@ Fuentes: `Pages/Validations/Incidents.cshtml`, `wwwroot/css/incidences.css`; reg
 Evidencia privada: `.local/incidence-layout-host.log`, `.local/incidence-layout-browser.log`, `.local/incidence-layout-extra.log` y `.local/incidence-ui/`. Sesiones sintéticas en host aislado; no acreditan autenticación compartida. Primer intento de navegador falló por falta de NODE_PATH; corregido con runtime existente. La primera aserción auxiliar de teclado supuso un único Tab en fecha: falló por sus segmentos nativos; corregida para recorrerlos, sin cambios en producto. No quedan fallos de estas pruebas pendientes. Publicación y reconciliación de bóveda se registran después de verificar el host.
 
 Publicación completada: commit `b11d617` subido antes de sustituir únicamente Web. Release en `.local/runtime/incidencias-layout-20261104/Sgol.Web.dll`, proceso 37192/lanzador 2356; proxy 20652 conservado. Live/ready internos y acceso LAN devuelven 200 con TLS normal. Sin migraciones ni escrituras operativas compartidas; artefacto anterior conservado. Reconciliadas las notas existentes de pantallas, instalación y base documental tras verificar el host; copia versionada comparada antes de actualizar. La autenticación del host compartido no se ensayó.
+
+## 17. Destinatarias incompatibles y diagnóstico reproducido (04/11/2026)
+
+Se reprodujeron las decisiones solicitadas en una copia aislada de la simulación (`sgol_task_checks_incidence_diagnosis_20261104`), mediante el servicio real y sin ejecutar Apply. La reproducción fijada a las 12:24 identificó incompatibilidad Subcoordinación/Piso de ventas para dos destinatarias solicitadas y falta de capacidad para otras tres transferencias: 250 min pendientes frente a 235 min de presupuesto restante (240 menos 5 consumidos). El retiro explícito no bloqueaba. La cobertura de cierre estaba correctamente seleccionada; no era la causa. La reproducción posterior a las 12:30 rechazó además la transferencia ya vencida. Activar reacomodo o probar sobrecarga hipotética no elimina una incompatibilidad de rol. Detalles particulares, IDs y copia permanecen privados en `.local/incidence-diagnosis-20261104/`; no se trasladan a la bóveda.
+
+Defecto confirmado: la vista ofrecía a todas las personas del alcance, mientras la búsqueda del servidor exigía elegibilidad. El fallo conjunto repetía una causa genérica para todos los trabajos.
+
+Corrección mixta: cada caso devuelve IDs de destinatarias que cumplen rol/especialidad, disponibilidad y un intervalo de horario suficiente sin considerar la ocupación dispensable. La búsqueda y el selector comparten ese filtro. Se conservan elegibles sin capacidad para permitir sobrecarga explícita; huecos, dependencias y el reparto completo se verifican al revisar. Se explica por persona el rol incompatible, la ausencia o el presupuesto insuficiente. La selección anterior incompatible se descarta con aviso y exige nueva revisión; no se confirma silenciosamente. No se amplían roles, no se autorizan excepciones automáticamente, no cambia el esquema. El algoritmo de huella pasa a versión 2 para invalidar propuestas anteriores.
+
+| Escenario | Esperado y prueba | Entorno | Estado |
+|---|---|---|---|
+| Reproducción original | El servicio identifica incompatibilidad de rol y falta de capacidad, manteniendo asignaciones | Copia aislada, reloj 12:24 y hora posterior real | Aprobado; fallo operativo reproducido |
+| Alternativas hipotéticas | Sobrecarga/reacomodo no dispensan rol; ninguna escritura | Misma copia, solo Preview | Aprobado |
+| Destinatarias inválidas | Ausente, rol incompatible y turno insuficiente excluidos; envío manipulado rechazado sin ausencia parcial | Base sintética nueva `sgol_task_checks_incidence_recipients_final_20261104` | Aprobado |
+| Capacidad insuficiente | Destinataria elegible permanece disponible con causa numérica; sobrecarga explícita sigue funcionando | Servicio, HTTP y navegador reales aislados | Aprobado |
+| Formulario anterior | Selección incompatible recibe causa precisa, desaparece de opciones, muestra aviso y no puede confirmar | POST real con CSRF | Aprobado |
+| Regresión completa de Incidencias | Atomicidad, permisos, reintentos, procesos, bono y vencimiento conservados; 70 comprobaciones de servicio/HTTP | Base aislada | Aprobado |
+| Interfaz | Selector filtrado y flujo completo; Chromium/WebKit, 320/768/1440, light/dark/special, teclado; 20 escenarios | Razor real con sesión sintética; captura de conflicto móvil inspeccionada | Aprobado |
+| Compilación | Debug herramientas sin errores ni avisos | Checkout | Aprobado |
+| Operación compartida | Registrar ausencia o transferir las seis tareas | No se ejecuta en esta corrección | No ejecutado, fuera de la reproducción autorizada |
+
+Evidencias privadas: `.local/incidence-recipients-final-host.log`, `.local/incidence-recipients-final-browser.log`, `.local/incidence-ui/`, `.local/incidence-diagnosis-20261104/`. Sin fallos de validación pendientes en esta matriz; pruebas físicas y autenticación compartida no repetidas. La publicación y la reconciliación documental se completan después de verificar el artefacto.
