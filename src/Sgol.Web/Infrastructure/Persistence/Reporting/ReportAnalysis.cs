@@ -4,6 +4,14 @@ namespace Sgol.Web.Infrastructure.Persistence.Reporting;
 
 public static class ReportAnalysis
 {
+    public static ReportChart PeopleChart(IEnumerable<ReportRow> rows, string? status) => new(
+        (status switch { "VENCIDA" => "Vencidas", "CONCLUIDA" => "Concluidas", "PENDIENTE_REVISION" => "Por revisar",
+            "NO_SATISFECHA" => "No satisfechas", "REASIGNADA" => "Intentos reasignados", "PROGRAMADA" => "Programadas",
+            "ASIGNADA" => "Asignadas", _ => "Tareas" }) + " por persona", "asignaciones", ReportCatalog.Tone(status ?? ""),
+        rows.Where(r => status == "REASIGNADA" || r.Status != "REASIGNADA").GroupBy(r => r.PersonId)
+            .Select(g => new ReportPoint(g.First().Person, g.Count(), $"{g.Count()} asignaciones"))
+            .OrderByDescending(p => p.Value).ThenBy(p => p.Label).ToArray());
+
     public static (DateOnly From, DateOnly To) Range(ReportFilter f, DateOnly today)
     {
         if (!ReportCatalog.Definitions.Any(d => d.Id == f.Kind) ||

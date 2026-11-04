@@ -5,11 +5,13 @@
 @using Sgol.Web.Infrastructure.Persistence.Planning
 @{ ViewData["Title"] = "Carga y reasignación"; }
 <link rel="stylesheet" href="~/css/supervision-workload.css" asp-append-version="true" />
-<header class="encabezado-pagina"><div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Carga y reasignación</h1><p>Transfiere una tarea pendiente a otro colaborador, conservando lo realizado.</p></div></header>
+<header class="encabezado-pagina"><div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Carga y reasignación</h1><p>Ajusta la capacidad de cada persona, revisa la redistribución o transfiere una tarea pendiente conservando lo realizado.</p></div></header>
 <partial name="_SectionNavigation" model='@("supervision")' />
 @if (Model.Success != null) { <p class="alerta alerta--exito" role="status">@Model.Success</p> }
-@if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
+@if (Model.Error != null) { <p class="alerta alerta--peligro" role="alert" tabindex="-1" data-capacity-error>@Model.Error</p> }
+<partial name="_Capacity" model="Model" />
 <section class="panel-seccion">
+    <h2>Carga actual y reasignación de tareas</h2>
     <form method="get" data-desktop-filters class="planificacion__formulario">
         <label class="campo"><span class="campo__etiqueta">Fecha</span><input class="campo__control" type="date" asp-for="Day" required /></label>
         <label class="campo"><span class="campo__etiqueta">Consultar</span><select class="campo__control" asp-for="Range"><option value="day">Día</option><option value="week">Semana de la fecha seleccionada</option></select></label>
@@ -75,3 +77,5 @@
         @if (Model.History.Count > 0) { <details><summary>Historial de la tarea</summary><ol>@foreach (var e in Model.History) { <li>@(e.At is {} at ? MyWorkPresentation.Time(at) : "Sin fecha") · @e.ActorName · @e.Comment</li> }</ol></details> }
     </section>
 }
+
+@section Scripts { <script src="~/js/capacity.js" asp-append-version="true"></script> }

@@ -13,11 +13,13 @@
 <link rel="stylesheet" href="~/css/reports.css" asp-append-version="true" />
 <header class="encabezado-pagina report-heading">
     <div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Reportes</h1><p class="encabezado-pagina__descripcion" data-desktop-redundant>Entiende la operación, encuentra pendientes y comparte los resultados.</p></div>
-    <div class="report-actions"><button type="button" class="boton boton--secundario" data-report-save>@(Model.EditingName != null ? "Guardar cambios en plantilla" : "Guardar como plantilla")</button><button type="button" class="boton boton--primario" data-report-export disabled="@(Model.Error != null)"><partial name="_Icon" model='@("report")' />Exportar a PDF</button></div>
+
 </header>
 @if (Model.Success != null) { <p class="report-message" role="status">@Model.Success</p> }
 @if (Model.Error != null) { <p class="report-message report-message--error" role="alert">@Model.Error</p> }
-<section class="panel-seccion report-controls" aria-label="Configuración del reporte">
+<details class="panel-seccion report-controls" data-report-disclosure open="@(Model.Error != null || Model.EditingName != null)">
+    <summary>Filtros y plantillas <span>@Model.Definition.Name</span></summary>
+    <div class="report-controls-body">
     <div class="report-template-picker">
         <label class="campo"><span class="campo__etiqueta">Plantillas predefinidas y personales</span><select class="campo__control" id="report-template"><option value="">Personalizar configuración</option><optgroup label="Predefinidas">@foreach (var definition in ReportCatalog.Definitions) { <option value="preset:@definition.Id" selected="@(Model.AppliedTemplate == "preset:" + definition.Id)" data-configuration="@System.Text.Json.JsonSerializer.Serialize(ReportCatalog.Preset(definition.Id), Sgol.Web.Pages.Reports.IndexModel.JsonOptions)">@definition.Name · semana actual</option> }</optgroup><optgroup label="Mis plantillas">@foreach (var template in Model.Templates) { <option value="@template.Id" selected="@(Model.AppliedTemplate == template.Id.ToString())" data-configuration="@template.Configuration">@template.Name</option> }</optgroup></select></label>
         <button class="boton boton--secundario" type="button" id="report-apply-template">Aplicar plantilla</button>
@@ -55,14 +57,20 @@
         <input asp-for="F.Columns" type="hidden" /><input asp-for="EditingTemplate" type="hidden" /><input asp-for="AppliedTemplate" type="hidden" />
         <div class="report-actions"><button type="submit" class="boton boton--primario"><partial name="_Icon" model='@("filter")' />Generar reporte</button><a href="/reportes" class="boton boton--textual">Restablecer filtros</a><span id="report-dirty" hidden>Hay cambios en los filtros. Genera el reporte para aplicarlos.</span></div>
     </form>
-</section>
+</div>
+</details>
 @if (Model.Error == null) {
     <section class="report-result" aria-labelledby="report-title" id="report-result">
         <header class="report-result-heading"><div><span class="report-eyebrow">LORETTA · GESTIÓN OPERATIVA</span><h2 id="report-title">@Model.Definition.Name</h2><p>@Model.Definition.Description</p></div><div class="report-period"><strong>@Model.From.ToString("dd/MM/yyyy") — @Model.Through.ToString("dd/MM/yyyy")</strong><span>Corte: @ReportCatalog.Time(Model.Cutoff) · Ciudad de México</span><span>@Model.Scope</span></div></header>
         <p class="report-filter-summary">@Model.FilterSummary()</p>
-        <div class="report-metrics">@foreach (var metric in Model.Metrics) { <button type="button" class="report-metric report-tone--@metric.Tone" data-report-status="@metric.Status" disabled="@(metric.Status == null)"><span>@metric.Label</span><strong>@metric.Value</strong><small>@metric.Hint</small></button> }</div>
+        <div class="report-metrics">@foreach (var metric in Model.Metrics) { <button type="button" class="report-metric report-tone--@metric.Tone" data-report-status="@metric.Status" aria-pressed="@((metric.Status != null && Model.ChartStatus == metric.Status).ToString().ToLowerInvariant())" disabled="@(metric.Status == null)"><span>@metric.Label</span><strong>@metric.Value</strong><small>@metric.Hint</small></button> }
+            @foreach (var queue in Model.ReviewQueues) {
+                <article class="report-metric report-metric--queue report-tone--warning" title="Solo tareas que puedes supervisar. Las colas pueden coincidir y no se suman; no cambian con los filtros del reporte."><span>@queue.Label</span><strong>@queue.Count</strong><small>Todas las fechas · Cola actual</small><a class="boton boton--secundario" href="@queue.Href" aria-label="Ir a @queue.Label.ToLowerInvariant()">Ir</a></article>
+            }
+        </div>
         @if (Model.Rows.Length == 0) { <div class="report-empty"><partial name="_Icon" model='@("report")' /><h3>No hay tareas para esta consulta</h3><p>Prueba otro periodo o ajusta los filtros. También puedes exportar este resultado.</p></div> }
         else {
+            <div class="report-chart-focus" id="report-charts"><p>Gráficas: <strong>@Model.ChartFocus</strong>@(string.IsNullOrEmpty(Model.ChartGroup) ? "" : " · Grupo seleccionado")</p>@if (Model.ChartStatus != null || !string.IsNullOrEmpty(Model.ChartGroup)) { <button type="button" class="boton boton--textual" data-report-clear-focus>Ver todas</button> }</div>
             <div class="report-charts">@foreach (var chart in Model.Charts) {
                 var max = chart.Unit == "%" ? 100m : Math.Max(1, chart.Points.Select(p => Math.Max(p.Value, p.Capacity ?? 0)).DefaultIfEmpty(1).Max());
                 <section class="panel-seccion report-chart"><header><h3>@chart.Title</h3><span>@chart.Unit</span></header><div class="report-chart-scroll">@foreach (var point in chart.Points) {
@@ -81,6 +89,9 @@
         <p class="report-caption">Estado actual al corte de consulta, incluso para periodos anteriores. Entregar una tarea no equivale a aprobarla. Los minutos representan carga estimada.</p>
     </section>
 }
+<footer class="report-footer" aria-label="Guardar y exportar reporte">
+    <div class="report-actions"><button type="button" class="boton boton--secundario" data-report-save>@(Model.EditingName != null ? "Guardar cambios en plantilla" : "Guardar como plantilla")</button><button type="button" class="boton boton--primario" data-report-export disabled="@(Model.Error != null)"><partial name="_Icon" model='@("report")' />Exportar a PDF</button></div>
+</footer>
 <dialog id="report-save-dialog" class="report-dialog"><form method="post" asp-page-handler="Save" id="report-save-form"><h2 id="report-save-title">Guardar plantilla personal</h2><p>Conserva los filtros y la presentación. Los periodos relativos se actualizan cada vez que la uses.</p><label class="campo"><span class="campo__etiqueta">Nombre de la plantilla</span><input asp-for="TemplateName" class="campo__control" required maxlength="100" /></label><input asp-for="Configuration" type="hidden" /><input asp-for="TemplateId" type="hidden" /><div class="report-actions"><button class="boton boton--primario" type="submit">Guardar plantilla</button><button class="boton boton--textual" type="button" data-report-close>Cancelar</button></div></form></dialog>
 <dialog id="report-delete-dialog" class="report-dialog"><form method="post" asp-page-handler="Delete" id="report-delete-form"><h2>Eliminar plantilla</h2><p id="report-delete-name"></p><p>Podrás crear una nueva configuración cuando quieras.</p><input name="TemplateId" type="hidden" /><div class="report-actions"><button class="boton boton--primario" type="submit">Eliminar</button><button class="boton boton--textual" type="button" data-report-close>Cancelar</button></div></form></dialog>
 <dialog id="report-pdf-dialog" class="report-dialog report-dialog--pdf"><header><h2>Exportar a PDF</h2><button type="button" class="boton boton--textual" data-report-close>Cerrar</button></header><p>El documento incluye el reporte generado y su logo. La búsqueda del detalle no modifica la exportación.</p><div class="report-actions"><label class="campo"><span class="campo__etiqueta">Contenido</span><select id="report-pdf-mode" class="campo__control"><option value="summary">Resumen visual</option><option value="full">Reporte completo con detalle</option></select></label><button class="boton boton--secundario" type="button" id="report-preview">Ver vista previa</button><button class="boton boton--primario" type="button" id="report-download" disabled>Descargar PDF</button></div><p id="report-pdf-status" role="status"></p><iframe id="report-pdf-preview" title="Vista previa del reporte en PDF" hidden></iframe></dialog>

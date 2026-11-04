@@ -23,7 +23,7 @@ public sealed partial class IndexModel
         .ToDictionary(q => q.Key, q => (string?)q.Value.ToString())
         .Append(new KeyValuePair<string, string?>("Validation", validation.ToString())).ToDictionary());
 
-    public async Task<IActionResult> OnPostBatchReviewAsync(string? stage, CancellationToken token)
+    public async Task<IActionResult> OnPostBatchReviewAsync(CancellationToken token)
     {
         Guid? actor = null;
         Validation = true;
@@ -35,9 +35,8 @@ public sealed partial class IndexModel
             var selected = Reviews.Where(r => !string.IsNullOrEmpty(r.Result)).ToArray();
             if (selected.Any(r => r.Result is not ("yes" or "no") || r.Result == "no" &&
                 r.Action is not ("MISMA_PERSONA" or "ROL" or "NO_SATISFECHA"))) throw new DirectionPlanException("REVIEW_INVALID", 422);
-            await ReviewActionAsync(actor.Value, selected.Select(r => new SupervisionReview(r.Id, r.Revision,
-                r.Result == "yes" ? "CONCLUIDA" : r.Action, r.Comment, r.Schedule.Value())).ToArray(), stage == "apply", token);
-            if (stage != "apply") { await LoadAsync(actor.Value, null, token); return Page(); }
+            await supervision.ReviewBatchAsync(actor.Value, selected.Select(r => new SupervisionReview(r.Id, r.Revision,
+                r.Result == "yes" ? "CONCLUIDA" : r.Action, r.Comment, r.Schedule.Value())).ToArray(), token);
             ReviewSuccess = $"Se guardó la revisión de {selected.Length} tareas.";
             return Redirect(ViewHref(true));
         }

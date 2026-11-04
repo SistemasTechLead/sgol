@@ -41,7 +41,7 @@
     window.addEventListener('pageshow', () => {
         submitting = false;
         cards.forEach(card => card.querySelectorAll('input').forEach(control => { control.disabled = false; }));
-        save.textContent = 'Vista previa'; update();
+        save.textContent = 'Validar'; update();
     });
     document.querySelector('[data-validation-section]')?.addEventListener('change', event => {
         if (cards.some(card => card.querySelector('[data-validation-choice]:checked')) && !confirm('Hay revisiones sin guardar. ¿Deseas cambiar de apartado y descartarlas?')) {

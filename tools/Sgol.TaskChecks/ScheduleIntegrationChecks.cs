@@ -55,12 +55,8 @@ internal static class ScheduleIntegrationChecks
         var preserved=await db.OperationalAssignments.AsNoTracking().SingleAsync(x=>x.Id==assignment.Id);
         Check(preserved.TemporalDecisionJson==assignment.TemporalDecisionJson && preserved.Revision==assignment.Revision,"Schedule save preserves existing assignment decision and revision");
         await Reject(() => direction.CreateAsync(actor, Guid.CreateVersion7(), Guid.CreateVersion7(), input with { PeriodNumber = 43, CapacityFingerprint = preview.Preview.AgendaFingerprint }), "PLAN_CAPACITY_STALE");
-        var exception = await scheduleService.ReadExceptionAsync(actor, userA, day.AddDays(7), default);
-        exception.Reason = "Ausencia de prueba aislada";
-        exception.Fingerprint=(await scheduleService.PreviewExceptionAsync(actor,exception,default)).Fingerprint;
-        await scheduleService.SaveExceptionAsync(actor, exception, default); db.ChangeTracker.Clear();
-        await scheduleService.SaveExceptionAsync(actor, exception, default); db.ChangeTracker.Clear();
-        Check(await db.Set<PersonalScheduleException>().CountAsync() == 1, "Exception replay is idempotent");
+        await LegacyScheduleExceptionFixture.RestAsync(db, actor, userA, day.AddDays(7), clock.UtcNow);
+        Check((await TemporalEligibilityContext.LoadAsync(db, clock.UtcNow, default)).Day(a, day.AddDays(7)).Intervals!.Length == 0, "Existing date exception still overrides the weekly schedule");
         var closingDay=day.AddDays(2);
         var closingRows=await scheduleService.ReadClosingAsync(actor,closingDay,default);
         Check(closingRows[0].PersonId==null && closingRows[0].Candidates.Any(c=>c.PersonId==b),"Shared planning starts without Wednesday coverage and offers the 19:00 shift");
@@ -172,9 +168,7 @@ internal static class ScheduleIntegrationChecks
         another.Fingerprint=(await planning.PreviewAsync(actor,another,default)).Fingerprint;
         var pendingPlan=await planning.PrepareAsync(actor,another,default); db.ChangeTracker.Clear();
         var userB=await db.AppUsers.Where(u=>u.PersonId==b).Select(u=>u.Id).SingleAsync();
-        var absence=await scheduleService.ReadExceptionAsync(actor,userB,day,default); absence.Reason="Ausencia posterior a reserva";
-        absence.Fingerprint=(await scheduleService.PreviewExceptionAsync(actor,absence,default)).Fingerprint;
-        await scheduleService.SaveExceptionAsync(actor,absence,default); db.ChangeTracker.Clear();
+        await LegacyScheduleExceptionFixture.RestAsync(db, actor, userB, day, clock.UtcNow);
         // Captured agenda plans revalidate availability atomically at activation.
         // PENDIENTE_ASIGNACION is an older activation path without a captured policy.
         var reservedBefore=JsonSerializer.Serialize(await db.Set<PreparedProcessStart>().AsNoTracking().SingleAsync(s=>s.PlanId==pendingPlan));

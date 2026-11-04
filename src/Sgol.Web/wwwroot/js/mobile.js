@@ -128,7 +128,7 @@
             const range = reportForm.elements.namedItem('F.Range');
             reportLabel = `Filtros · ${kind?.selectedOptions[0]?.textContent || ''} · ${range?.selectedOptions[0]?.textContent || ''}`;
         }
-        fold(controls, reportLabel, 'reports');
+        if (!controls?.matches('[data-report-disclosure]')) fold(controls, reportLabel, 'reports');
         fold(document.querySelector('.report-template-picker'), 'Plantillas', 'report-templates');
         const boardForm = document.querySelector('.board-plan');
         if (boardForm) foldGroup([boardForm, document.querySelector('.board-heading > .board-action'), document.querySelector('.board-context > span')], 'Filtros', 'board-filters', boardForm);
@@ -196,7 +196,8 @@
         const headers = [...head.cells];
         const expandedHeaders = headers.flatMap(h => Array(h.colSpan).fill(h));
         const editable = table.classList.contains('direction-capacity__table');
-        const bodyRows = [...table.tBodies, ...(table.tFoot ? [table.tFoot] : [])].flatMap(b => [...b.rows]);
+        const bodyRows = [...table.tBodies, ...(table.tFoot ? [table.tFoot] : [])].flatMap(b => [...b.rows])
+            .filter(row => !row.classList.contains('task-catalog-description-row'));
         if (!bodyRows.length || table.querySelector('.my-work-task')) return;
         // Unknown merged layouts remain a local scroller, never guessed columns.
         if (!weekly && bodyRows.some(row => [...row.cells].some(c => c.colSpan > 1 || c.rowSpan > 1))) return;
@@ -355,7 +356,7 @@
             initialized = true;
             capacity = document.querySelector('#capacity');
             if (capacity) { capacityHome = document.createComment('capacity desktop position'); capacity.before(capacityHome); }
-            reportSave = document.querySelector('[data-report-save]');
+            reportSave = document.querySelector('[data-report-save]:not(.report-footer [data-report-save])');
             if (reportSave) { reportSaveHome = document.createComment('report save desktop position'); reportSave.before(reportSaveHome); }
             enhance();
             const nav = document.querySelector('.section-navigation[data-section="tasks"]');

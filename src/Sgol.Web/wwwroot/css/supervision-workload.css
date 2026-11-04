@@ -12,3 +12,6 @@ section.workload-preview { display: block; margin-top: 1rem; }
 .workload-transfer-form > p,
 .workload-transfer-form > button { grid-column: 1 / -1; }
 .workload-transfer-form > button { justify-self: start; align-self: start; }
+/* Keep the person's name in the same text flow as the load on narrow screens. */
+#contenido-principal #capacity .capacity-person > summary { display: block; }
+#contenido-principal #capacity .capacity-person > summary::after { display: inline-block; margin-left: .75rem; }

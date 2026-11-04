@@ -24,8 +24,7 @@
 @if (Model.Validation) {
     <partial name="_ValidationCards" model="Model" />
 } else {
-<partial name="_Capacity" model="Model" />
-<partial name="_Carryovers" model="Model" />
+@if (Model.PendingAuthorizedCarryoverCount > 0) { <partial name="_Carryovers" model="Model" /> }
 @foreach (var group in Model.Sections) {
     <section class="panel-seccion supervision-section" id="@group.Key" aria-labelledby="title-@group.Key">
         <header class="panel-seccion__cabecera"><h2 id="title-@group.Key">@group.Title <span class="badge badge--neutro">@group.Total</span></h2></header>
@@ -99,7 +98,7 @@
                     <label class="campo"><span class="campo__etiqueta">Qué hacer con la tarea</span><select class="campo__control" name="action" data-review-action><option value="MISMA_PERSONA">Reasignar a la misma persona</option><option value="ROL" selected="@(Model.AttemptedDecision == "ROL")">@(selected.Assignment.SpecializationId != null ? "Reasignar entre especialistas" : "Reasignar al rol " + SessionPresentation.RoleName(selected.Role))</option><option value="NO_SATISFECHA" selected="@(Model.AttemptedDecision == "NO_SATISFECHA")">Terminar como no satisfecha</option></select></label>
                     <partial name="_ReassignmentSchedule" model="@(new Sgol.Web.Pages.Validations.ReassignmentScheduleModel("Schedule", Model.Schedule, Sgol.Planning.Contracts.WeekContract.LocalToday(Model.Now)))" />
                 </div>
-                @if (Model.AttemptedDecision != "REPROGRAMAR") { <partial name="_ReviewProposal" model="Model" /> }<button class="boton boton--secundario" type="submit" name="stage" value="preview">Vista previa</button>
+                <button class="boton boton--primario" type="submit" data-review-save>Validar</button>
             </form>
         }
         @if (a.ReassignedFromId != null && a.CompletedAt == null) {
@@ -116,6 +115,6 @@
         }
     </dialog>
 }
-@section Scripts { <script src="~/js/correction-schedule.js" asp-append-version="true"></script> <script src="~/js/occasion-material.js" asp-append-version="true"></script><script src="~/js/supervision.js" asp-append-version="true"></script><script src="~/js/validation-cards.js" asp-append-version="true"></script><script src="~/js/capacity.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/correction-schedule.js" asp-append-version="true"></script> <script src="~/js/occasion-material.js" asp-append-version="true"></script><script src="~/js/supervision.js" asp-append-version="true"></script><script src="~/js/validation-cards.js" asp-append-version="true"></script> }
 
 

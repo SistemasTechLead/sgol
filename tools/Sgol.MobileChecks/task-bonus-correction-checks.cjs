@@ -13,8 +13,8 @@ const assert = require('assert/strict');
         await page.locator('[data-supervision-review] [name="result"][value="no"]').check();
         await page.locator('[data-supervision-review] [name="comment"]').fill('Corregir la entrega para comprobar el resultado real');
         await page.locator('[data-supervision-review] [name="action"]').selectOption('MISMA_PERSONA');
-        await Promise.all([page.waitForNavigation(), page.locator('[data-supervision-review] [value="preview"]').click()]);
-        await Promise.all([page.waitForNavigation(), page.locator('[data-correction-apply]').click()]);
+        await Promise.all([page.waitForNavigation(), page.locator('[data-review-save]').click()]);
+
         await page.goto(`${fixture.origin}/mi-trabajo`);
         const before = Number(await page.locator('[data-task-bonus]').getAttribute('data-score'));
         assert(before < 100, 'real return deducts full points');
@@ -32,7 +32,7 @@ const assert = require('assert/strict');
         await page.locator('[data-task-bonus]').scrollIntoViewIfNeeded();
         await page.waitForFunction(() => document.querySelector('[data-task-bonus]').classList.contains('task-bonus--animate'));
         await page.screenshot({ path: `${dir}/${engine}-correction-return.png` });
-        results.push({ engine, before, after, scenario: 'real review preview/apply and corrected delivery animate only real change', status: 'approved' });
+        results.push({ engine, before, after, scenario: 'real direct review and corrected delivery animate only real change', status: 'approved' });
         await context.close(); await browser.close();
     }
     fs.writeFileSync(`${dir}/browser-correction-results.json`, JSON.stringify(results, null, 2));

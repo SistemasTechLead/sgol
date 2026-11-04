@@ -20,6 +20,13 @@
         @foreach (var part in screen.Sections) { <option value="@part.Key" selected="@(part.Key == Model.Section.Key)">@part.Title</option> }
         </select></label></details>
     }
+    @if (key == "pending") {
+        <details class="supervision-custom"><summary>Revisa: @(Sgol.Web.Presentation.Navigation.SessionPresentation.RoleName(screen.Value(key, "reviewer")) ?? "Mi nivel")</summary><label class="campo"><span class="campo__etiqueta">Nivel de revisión</span><select class="campo__control" name="pending.reviewer">
+            <option value="">Mi nivel</option>
+            <option value="SUBCOORDINACION" selected="@(screen.Value(key, "reviewer") == "SUBCOORDINACION")">Subcoordinación</option>
+            <option value="DIRECCION" selected="@(screen.Value(key, "reviewer") == "DIRECCION")">Dirección</option>
+        </select></label></details>
+    }
     <details class="supervision-custom"><summary>Tarea@(screen.Value(key, "search").Length > 0 ? ": " + screen.Value(key, "search") : "")</summary><label class="campo"><span class="campo__etiqueta">Tarea</span><input class="campo__control" name="@(key).search" value="@screen.Value(key, "search")" type="search" /></label></details>
     @foreach (var select in selects) {
         <details class="supervision-custom"><summary>@select.Label@(screen.Value(key, select.Field).Length > 0 ? ": " + select.Options.FirstOrDefault(o => o.Key == screen.Value(key, select.Field)).Value : "")</summary><label class="campo"><span class="campo__etiqueta">@select.Label</span><select class="campo__control" name="@(key).@select.Field">

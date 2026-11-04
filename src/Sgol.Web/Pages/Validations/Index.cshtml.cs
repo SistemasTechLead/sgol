@@ -13,17 +13,10 @@ namespace Sgol.Web.Pages.Validations;
 public sealed record SupervisionSection(string Key, string Title, IReadOnlyList<SupervisedTask> All, IReadOnlyList<SupervisedTask> Items) { public int Total { get; init; } public int Filtered { get; init; } public string? FilterError { get; init; } public string? MoreHref { get; init; } public ListPage? Pagination { get; init; } }
 public sealed record SupervisionFilterModel(IndexModel Page, SupervisionSection Section);
 
-public sealed partial class IndexModel(IRazorSessionState sessions, OperationalSupervisionService supervision, OperationalCapacityService capacity, OperationalTaskService tasks, IClock clock, OperationalCarryoverService carryovers) : PageModel
+public sealed partial class IndexModel(IRazorSessionState sessions, OperationalSupervisionService supervision, OperationalTaskService tasks, IClock clock, OperationalCarryoverService carryovers) : PageModel
 {
-    [BindProperty(SupportsGet = true)] public DateOnly? CapacityFrom { get; set; }
-    [BindProperty(SupportsGet = true)] public DateOnly? CapacityThrough { get; set; }
-    [BindProperty] public CapacityForm Change { get; set; } = new();
-    [BindProperty] public string? Fingerprint { get; set; }
-    public IReadOnlyList<CapacityRow> CapacityRows { get; private set; } = [];
-    public CapacityPreview? CapacityPreview { get; private set; }
     public IReadOnlyList<OperationalProgressEntry> ProgressHistory { get; private set; } = [];
     public IReadOnlyList<OperationalPhotographDetails> Photographs { get; private set; } = [];
-    [TempData] public string? CapacitySuccess { get; set; }
     public IReadOnlyList<SupervisionSection> Sections { get; private set; } = [];
     public SupervisedTask? Selected { get; private set; }
     public OccasionDetails? Occasion { get; private set; }
@@ -67,13 +60,7 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
     {
         CorrectionConflicts = await supervision.CorrectionConflictsAsync(actor, token);
         if (CorrectionConflicts.Count > 0) CorrectionNames = (await supervision.FindManyAsync(actor, CorrectionConflicts.Keys.ToArray(), token)).ToDictionary(t => t.Assignment.Id, t => t.Assignment.Name);
-        var today = WeekContract.LocalToday(Now);
-        CapacityFrom ??= today;
-        CapacityThrough ??= today.AddDays(6 - (((int)today.DayOfWeek + 6) % 7));
-        if (CapacityFrom < today || CapacityThrough < CapacityFrom || CapacityThrough.Value.DayNumber - CapacityFrom.Value.DayNumber > 90)
-            throw new DirectionPlanException("CAPACITY_INVALID", 422);
         await LoadCarryoversAsync(actor, token);
-        CapacityRows = await capacity.RowsAsync(actor, CapacityFrom.Value, CapacityThrough.Value, token);
         if (selected is not null) Selected = await supervision.FindAsync(actor, selected.Value, token)
             ?? throw new DirectionPlanException("TASK_NOT_FOUND", 404);
         if (Selected?.Assignment.GoalUnits > 0) ProgressHistory = await tasks.ProgressHistoryAsync(actor, selected!.Value, token);
@@ -96,7 +83,7 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
         if (Validation)
             CardPhotos = await supervision.PhotoIdsAsync(actor, ValidationSection.Items.Select(t => t.Assignment.Id).ToArray(), token);
     }
-    public async Task<IActionResult> OnPostReviewAsync(Guid id, long revision, string decision, string? comment, string? stage, string? result, string? action, CancellationToken token)
+    public async Task<IActionResult> OnPostReviewAsync(Guid id, long revision, string decision, string? comment, string? result, string? action, CancellationToken token)
     {
         Guid? actor = null;
         try {
@@ -104,9 +91,10 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
             if (result == "yes") decision = "CONCLUIDA";
             else if (result == "no" && action != null) decision = action;
             AttemptedDecision = decision; AttemptedComment = comment;
-            await ReviewActionAsync(actor.Value, [new(id, revision, decision, comment, Schedule.Value())], stage == "apply", token);
-            if (stage == "apply") return Redirect(TaskHref(id));
-            await LoadAsync(actor.Value, id, token); return Page();
+            if (HasReviewBindingErrors()) throw new DirectionPlanException("CORRECTION_RANGE_INVALID", 422);
+            await supervision.ReviewBatchAsync(actor.Value, [new(id, revision, decision, comment, Schedule.Value())], token);
+            ReviewSuccess = "Se guardó la revisión de la tarea.";
+            return Redirect(TaskHref(id));
         } catch (DirectionPlanException e) {
             if (actor is null || e.Status == 403) return StatusCode(e.Status);
             Response.StatusCode = e.Status; Error = Message(e.Code);
@@ -140,48 +128,6 @@ public sealed partial class IndexModel(IRazorSessionState sessions, OperationalS
         "DIRECTION_PLAN_TASK_INVALID" => "Revisa las tareas del plan: alguna está inactiva o ya no está disponible.",
         _ => Pages.Tasks.IndexModel.Message(code)
     };
-    public async Task<IActionResult> OnPostCapacityPreviewAsync(CancellationToken token) => await CapacityActionAsync(false, token);
-    public async Task<IActionResult> OnPostCapacityApplyAsync(CancellationToken token) => await CapacityActionAsync(true, token);
-    private async Task<IActionResult> CapacityActionAsync(bool apply, CancellationToken token)
-    {
-        Guid? actor = null;
-        try {
-            actor = await ActorAsync(token); if (actor is null) return Redirect("/acceso");
-            if (!ModelState.IsValid) throw new DirectionPlanException("CAPACITY_INVALID", 422);
-            var change = Change.Value(); CapacityFrom = change.From; CapacityThrough = change.Through;
-            if (apply) {
-                var result = await capacity.ApplyAsync(actor.Value, change, Fingerprint ?? "", token);
-                CapacitySuccess = $"Capacidad actualizada. Se movieron {result.Moves.Count} tareas ({result.Moves.Sum(m => m.Minutes)} minutos)." +
-                    (result.RemainingExcess > 0 ? $" Quedan {result.RemainingExcess} minutos de exceso que requieren atención." : "");
-                return Redirect(QueryHelpers.AddQueryString("/validaciones", new Dictionary<string, string?> { ["CapacityFrom"] = change.From.ToString("yyyy-MM-dd"), ["CapacityThrough"] = change.Through.ToString("yyyy-MM-dd") }) + "#capacity");
-            }
-            CapacityPreview = await capacity.PreviewAsync(actor.Value, change, token);
-            Change.SchedulingNotBefore = CapacityPreview.Change.SchedulingNotBefore;
-            ModelState.Remove("Change.SchedulingNotBefore");
-            Fingerprint = CapacityPreview.Fingerprint;
-            ModelState.Remove(nameof(Fingerprint));
-            await LoadAsync(actor.Value, null, token); return Page();
-        } catch (DirectionPlanException e) {
-            if (actor is null || e.Status == 403) return StatusCode(e.Status);
-            Response.StatusCode = e.Status; Error = Message(e.Code);
-            CapacityFrom = CapacityThrough = null;
-            await LoadAsync(actor.Value, null, token); return Page();
-        }
-    }
-}
 
-public sealed class CapacityForm
-{
-    public Guid PersonId { get; set; }
-    public DateOnly From { get; set; }
-    public DateOnly Through { get; set; }
-    public int Percent { get; set; } = 100;
-    public int DailyMinutes { get; set; } = OperationalCapacity.DefaultDailyMinutes;
-    public string Reason { get; set; } = "";
-    public bool TransferStarted { get; set; }
-    public Guid[] ActivatedTaskIds { get; set; } = [];
-    public DateTimeOffset? SchedulingNotBefore { get; set; }
-    public CapacityChange Value() => new(PersonId, From, Through, Percent, DailyMinutes, Reason, TransferStarted, ActivatedTaskIds, SchedulingNotBefore);
 }
-
 

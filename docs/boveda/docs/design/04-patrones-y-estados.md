@@ -25,6 +25,8 @@ En Mi trabajo, cada registro muestra una acción según su estado: Registrar ava
 
 Fuentes: [Tareas](../../../../src/Sgol.Web/Pages/Tasks/Index.cshtml), [acciones de catálogo](../../../../src/Sgol.Web/wwwroot/js/task-actions.js), [tabla de Mi trabajo](../../../../src/Sgol.Web/Pages/MyWork/_OperationalTaskTable.cshtml).
 
+Las tarjetas de Validación y la revisión individual de Supervisión guardan mediante Validar en un solo envío, sin propuesta ni confirmación adicional. Las comprobaciones del servidor y la atomicidad del grupo permanecen; un rechazo identifica la tarea y conserva la intención.
+
 ## Preparar y confirmar
 
 Las acciones que necesitan revisar consecuencias presentan una propuesta y una confirmación diferenciadas. La vista previa expone responsables, fechas, carga o registros afectados según el recorrido. Los cambios a la intención pueden invalidar la propuesta antes de confirmar.
@@ -36,7 +38,7 @@ Las acciones que necesitan revisar consecuencias presentan una propuesta y una c
 | Plan de proceso | Fechas y capacidad antes de guardar; activación posterior del plan preparado. |
 | Actualizar Asignaciones | Casos que requieren decisión, cambios agrupados y asignaciones afectadas. |
 | Transferir responsabilidad | Persona, carga, fechas y conservación de lo realizado. |
-| Revisión o corrección | Decisión, motivo y programación aplicable a la corrección. |
+| Reprogramación de corrección en Supervisión | Decisión, motivo y programación aplicable a la corrección. |
 | Posposición por tarea | Aprobar, reasignar, cambiar propuesta o rechazar, con el resultado antes de confirmar. |
 
 La actualización separa los cambios de asignaciones de las decisiones de conservación por confirmar. Puede ofrecer «Confirmar conservación» con cero cambios materiales; una vez guardada la excepción, deja de activar el botón del catálogo hasta el siguiente cambio de definición. Sin cambios ni decisiones pendientes, la página no presenta formularios de revisión o confirmación. La actualización avisa cuántos pendientes vencidos conservados quedan fuera del cálculo de capacidad. Si la búsqueda se interrumpe, el detalle identifica dónde ocurrió, aclara que no prueba falta de espacio y descarta movimientos parciales. Los conflictos de actualización se presentan como tarea, causa y solución, con detalles adicionales desplegables que comparan los valores de la asignación con el catálogo actual. Los conflictos por solicitudes pendientes de arrastre o posposición enlazan a la pantalla principal de Supervisión. En posposiciones, los obstáculos tienen título y explicación contextual; la falta de destinatarios elegibles se explica junto a Reasignar. El selector de día muestra el rango efectivo de cada tarea: un mes desde la solicitud para mensuales y siete días para las demás, respetando límites adicionales. «Ver detalles» conserva la ventana original de la petición. Cuando una tarea ya fue entregada, el editor puede ofrecer cerrar la petición sin cambios.

@@ -15,6 +15,21 @@
         });
     }
     document.querySelectorAll('[data-supervision-review]').forEach(form => {
+        const save = form.querySelector('[data-review-save]');
+        let submitting = false;
+        form.addEventListener('submit', event => {
+            if (submitting) { event.preventDefault(); return; }
+            submitting = true;
+            form.setAttribute('aria-busy', 'true');
+            save.disabled = true;
+            save.textContent = 'Procesando…';
+        });
+        window.addEventListener('pageshow', () => {
+            submitting = false;
+            form.removeAttribute('aria-busy');
+            save.disabled = false;
+            save.textContent = 'Validar';
+        });
         const update = () => {
             const negative = form.querySelector('[name="result"]:checked').value === 'no';
             form.querySelector('[data-review-negative]').hidden = !negative;

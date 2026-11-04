@@ -3,5 +3,5 @@
         const slider = form.querySelector('[data-capacity-slider]');
         slider.addEventListener('input', () => { form.querySelector('[data-capacity-output]').textContent = `${slider.value}%`; });
     });
-    document.querySelector('[data-capacity-preview]')?.focus();
+    document.querySelector('[data-capacity-error], [data-capacity-preview]')?.focus();
 })();

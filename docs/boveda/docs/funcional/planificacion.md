@@ -22,6 +22,8 @@ Las críticas actúan como anclas; importantes y flexibles se colocan según el 
 
 El circuito de caja contiene precedencias explícitas, no relaciones deducidas del nombre. [Horarios y cobertura](horarios-cobertura.md) determinan quién puede recibir trabajo y cuándo.
 
+Los ajustes temporales individuales se consultan, proponen y confirman desde [Carga y reasignación](supervision.md#ajustar-capacidad-y-redistribuir). Cambian la capacidad disponible y pueden redistribuir trabajo elegible; no cambian los minutos configurados en el catálogo ni eliminan trabajo protegido.
+
 ## Conflictos y decisiones
 
 El conflicto identifica tarea, candidatos y causa. Alcanzar un límite de búsqueda es resultado inconcluso, no prueba de imposibilidad. La revisión desde la fila permite elegir ajustes compatibles y recalcular el conjunto.

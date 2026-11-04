@@ -61,6 +61,8 @@ var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Cont
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 var bonusBeforeMigration = args.Contains("--bonus-migration") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--report-overview-http")) { await ReportOverviewHttpChecks.Run(db, args.Contains("--ui")); return; }
+if (args.Contains("--workload-http")) { await WorkloadHttpChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--incidences")) { await IncidenceChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--incidence-audit")) {
     var auditClock = new IncidenceChecks.Clock();

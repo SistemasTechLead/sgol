@@ -37,16 +37,6 @@ public sealed class PersonalScheduleInput
     public List<ScheduleDayInput> Days { get; set; } = Enumerable.Range(0, 7).Select(_ => new ScheduleDayInput()).ToList();
     public string? Fingerprint { get; set; }
 }
-public sealed class ScheduleExceptionInput
-{
-    public string? Fingerprint { get; set; }
-    public Guid UserId { get; set; }
-    public Guid Key { get; set; } = Guid.CreateVersion7();
-    public long Revision { get; set; }
-    public DateOnly Day { get; set; }
-    public ScheduleDayInput Hours { get; set; } = new() { Mode = "REST" };
-    public string Reason { get; set; } = "";
-}
 public sealed record ScheduleImpact(Guid AssignmentId, string Task, DateTimeOffset StartsAt, string Reason);
 public sealed record SchedulePreview(string Fingerprint, ScheduleImpact[] Conflicts);
 public sealed partial class PersonalScheduleService(SgolDbContext db, IDirectionPreparedPlanService direction, IClock clock)
@@ -67,15 +57,6 @@ public sealed partial class PersonalScheduleService(SgolDbContext db, IDirection
             Days = Enumerable.Range(0, 7).Select(d => new ScheduleDayInput { Mode = !days.ContainsKey(d) ? "UNKNOWN" : days[d].Length == 0 ? "REST" : "WORK",
                 Intervals = Enumerable.Range(0, 4).Select(i => days.GetValueOrDefault(d)?.ElementAtOrDefault(i) is { } span
                     ? new ScheduleIntervalInput { Entry = new(span.Entry / 60, span.Entry % 60), Exit = span.Exit == 1440 ? null : new(span.Exit / 60, span.Exit % 60) } : new()).ToList() }).ToList() };
-    }
-    public async Task<ScheduleExceptionInput> ReadExceptionAsync(Guid actor, Guid user, DateOnly day, CancellationToken ct)
-    {
-        var person = await PersonAsync(actor, user, ct);
-        var row = await db.Set<PersonalScheduleException>().AsNoTracking().Where(e => e.PersonId == person && e.Day == day).OrderByDescending(e => e.Revision).FirstOrDefaultAsync(ct);
-        var intervals = row == null ? [] : JsonSerializer.Deserialize<WorkInterval[]>(row.IntervalsJson)!;
-        return new() { UserId = user, Day = day, Revision = row?.Revision ?? 0, Reason = row?.Reason ?? "",
-            Hours = new() { Mode = intervals.Length == 0 ? "REST" : "WORK", Intervals = Enumerable.Range(0, 4).Select(i => intervals.ElementAtOrDefault(i) is { } span
-                ? new ScheduleIntervalInput { Entry = new(span.Entry/60, span.Entry%60), Exit = new(span.Exit/60, span.Exit%60) } : new()).ToList() } };
     }
     private static string DaysJson(PersonalScheduleInput input)
     {
@@ -122,48 +103,6 @@ public sealed partial class PersonalScheduleService(SgolDbContext db, IDirection
             Revision = input.Revision + 1, ChangedAt = clock.UtcNow, ChangedBy = actor, IntentKey = input.Key, RequestHash = hash };
         db.Add(version); Audit(actor, version.Id, input.Key, "PERSONAL_SCHEDULE_SAVED", new { version, preview.Conflicts });
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
-    }
-    public async Task SaveExceptionAsync(Guid actor, ScheduleExceptionInput input, CancellationToken ct)
-    {
-        var spans = input.Hours.Read() ?? throw new DirectionPlanException("SCHEDULE_INTERVAL_INVALID", 422);
-        if (input.Key == Guid.Empty || string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Length > 1000)
-            throw new DirectionPlanException("SCHEDULE_DATE_INVALID", 422);
-        await using var tx = await db.Database.BeginTransactionAsync(ct); await OperationalTaskService.LockAsync(db, ct);
-        var person = await PersonAsync(actor, input.UserId, ct);
-        var hash = Hash(new { input.UserId, input.Day, spans, input.Reason, input.Revision });
-        var replay = await db.Set<PersonalScheduleException>().AsNoTracking().SingleOrDefaultAsync(e => e.IntentKey == input.Key, ct);
-        if (replay != null)
-        {
-            if (replay.ChangedBy != actor || replay.RequestHash != hash) throw new DirectionPlanException("SCHEDULE_STALE", 409);
-            await tx.CommitAsync(ct); return;
-        }
-        var revision = await db.Set<PersonalScheduleException>().Where(e => e.PersonId == person && e.Day == input.Day).Select(e => (long?)e.Revision).MaxAsync(ct) ?? 0;
-        if (input.Day < WeekContract.LocalToday(clock.UtcNow)) throw new DirectionPlanException("SCHEDULE_DATE_INVALID",422);
-        if (revision != input.Revision) throw new DirectionPlanException("SCHEDULE_STALE", 409);
-        var preview=await PreviewExceptionAsync(actor,input,ct);
-        if(input.Fingerprint!=preview.Fingerprint) throw new DirectionPlanException("SCHEDULE_STALE",409);
-        var version = new PersonalScheduleException { Id = Guid.CreateVersion7(), PersonId = person, Day = input.Day, Revision = revision + 1,
-            IntervalsJson = JsonSerializer.Serialize(spans), Reason = input.Reason.Trim(), ChangedAt = clock.UtcNow, ChangedBy = actor, IntentKey = input.Key, RequestHash = hash };
-        db.Add(version); Audit(actor, version.Id, input.Key, "PERSONAL_SCHEDULE_EXCEPTION_SAVED", new { version,preview.Conflicts });
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
-    }
-    public async Task<SchedulePreview> PreviewExceptionAsync(Guid actor,ScheduleExceptionInput input,CancellationToken ct)
-    {
-        if(input.Day<WeekContract.LocalToday(clock.UtcNow) || string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Length>1000) throw new DirectionPlanException("SCHEDULE_DATE_INVALID",422);
-        var person=await PersonAsync(actor,input.UserId,ct);
-        var spans=input.Hours.Read()??throw new DirectionPlanException("SCHEDULE_INTERVAL_INVALID",422);
-        var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,ct);
-        var version=new PersonalScheduleException { Id=input.Key,PersonId=person,Day=input.Day,Revision=input.Revision+1,IntervalsJson=JsonSerializer.Serialize(spans) };
-        var covers=ledger.Temporal.Coverages;
-
-        var context=new TemporalEligibilityContext { Enabled=true,BaseSchedulePolicyIds=ledger.Temporal.BaseSchedulePolicyIds,BaseSchedulesForCapacity=ledger.Temporal.BaseSchedulesForCapacity,StateRevision=ledger.Temporal.StateRevision,Schedules=ledger.Temporal.Schedules,Exceptions=ledger.Temporal.Exceptions.Append(version).ToArray(),
-            Rotations=ledger.Temporal.Rotations,Coverages=covers,ClosingTaskId=ledger.Temporal.ClosingTaskId };
-        var tasks=ledger.Tasks.Where(t=>WeekContract.LocalToday(t.StartsAt)<=input.Day && WeekContract.LocalToday(t.DueAt)>=input.Day && t.PersonId==person).ToArray();
-        var temporalLedger=new CapacityLedger(ledger.Workers,ledger.Tasks,ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal=context };
-        var conflicts=tasks.Select(t=>(Task:t,Decision:temporalLedger.CheckTime(t.PersonId,t))).Where(t=>!t.Decision.Eligible)
-            .Select(t=>new ScheduleImpact(t.Task.Id,t.Task.Name,t.Task.StartsAt,t.Decision.Reason)).ToArray();
-        return new(Hash(new { input.UserId,input.Key,input.Day,input.Revision,input.Reason,spans,
-            ledger.Temporal.Schedules,ledger.Temporal.Exceptions,ledger.Temporal.Rotations,ledger.Temporal.Coverages,tasks,ledger.Temporal.ClosingTaskId,ledger.Temporal.StateRevision,ledger.Temporal.BaseSchedulePolicyIds,ledger.Temporal.BaseSchedulesForCapacity,Absences=ledger.Unavailable.OrderBy(a=>a.Item1).ThenBy(a=>a.Item2) }),conflicts);
     }
     private void Audit(Guid actor, Guid resource, Guid key, string action, object data) => db.AuditEvents.Add(new AuditEvent {
         Id = Guid.CreateVersion7(), ActorUserId = actor, ActorType = "USER", OccurredAt = clock.UtcNow, BranchId = Sgol.Organization.Contracts.BranchScope.LorettaId,

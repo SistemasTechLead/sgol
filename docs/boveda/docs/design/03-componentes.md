@@ -39,13 +39,15 @@ Fuentes: [parciales compartidos](../../../../src/Sgol.Web/Pages/Shared), [compor
 
 Los paneles reúnen cabecera y contenido sobre una superficie con borde. Las tablas usan contenedor desplazable; `_DataTable` proporciona caption, encabezados, acciones, estado vacío, carga y paginación. Las tablas escritas directamente en las pantallas tienen variantes de columnas y densidad.
 
-En móvil, las tablas elegidas por el adaptador conservan sus elementos y asocian las celdas con etiquetas para lectura vertical. Los datos secundarios se pliegan mediante Más datos. Las matrices de calendario y carga tienen adaptación propia. La tabla de tareas reduce el relleno en escritorio y agrupa identidad, código y descripción; la barra contextual responde a la tarea seleccionada.
+En móvil, las tablas elegidas por el adaptador conservan sus elementos y asocian las celdas con etiquetas para lectura vertical. Los datos secundarios se pliegan mediante Más datos. Las matrices de calendario y carga tienen adaptación propia. La tabla de tareas reduce el relleno en escritorio y agrupa identidad, código y control de descripción; la barra contextual responde a la tarea seleccionada. La descripción abierta ocupa una franja de ancho completo bajo la fila en escritorio, con hasta tres columnas de ancho objetivo 22rem y sin recortar contenido. En móvil vuelve al desplegable original en una columna. Sin JavaScript conserva el desplegable dentro de la celda.
 
 La paginación puede ser Anterior/Siguiente, número de página o ampliación de la cantidad visible según la consulta. Validación muestra Anterior/Siguiente cuando existen varias páginas; Supervisión tiene su lógica de carga de más registros. No se impone un único patrón de paginación a todos los módulos.
 
 Fuentes: [_DataTable](../../../../src/Sgol.Web/Pages/Shared/_DataTable.cshtml), [_ListPage](../../../../src/Sgol.Web/Pages/Shared/_ListPage.cshtml), [adaptación móvil](../../../../src/Sgol.Web/wwwroot/js/mobile.js), [barra de tareas](../../../../src/Sgol.Web/wwwroot/css/task-actions.css).
 
 ## Filtros
+
+Cuando el formulario contiene únicamente un campo de búsqueda, el campo y sus acciones aparecen directamente, sin desplegable de filtros en móvil ni en escritorio. Los parámetros ocultos conservan el contexto y no cuentan como filtros adicionales. Esta regla se aplica a Mi trabajo, la búsqueda de ocasionales en Asignar tarea, la búsqueda para añadir tareas a un proceso y el detalle de Reportes. Los formularios con varios filtros y los selectores de fecha, semana o estado conservan su presentación específica.
 
 La barra de filtros de escritorio separa la consulta de la navegación con superficie, borde, rótulo y grupos desplegables. Los campos originales siguen perteneciendo al formulario. El resumen del grupo muestra la etiqueta y, cuando procede, el valor seleccionado. Abrir un grupo no lo expande automáticamente a ocupar el espacio sobrante de la fila.
 

@@ -103,4 +103,18 @@ Check(ReportCatalog.Cell(recognized,"carryoverRefs")=="a,b", "Exports and templa
 Check(carryoverTiming.Label(now.AddHours(2), now.AddHours(1)) == "A tiempo", "Delivery before effective deadline stays on time");
 Check(carryoverTiming.Label(now.AddDays(-2),now.AddHours(2)).Contains("fuera del plazo reconocido"),"Approval does not cover unlimited delay");
 await ReportBindingChecks.RunAsync(Check);
+SupervisedTask QueueTask(string role, Guid? specialization = null, string? status = null, bool delivered = true) => new() {
+    Role = role, PlanName = "QA", Period = "SEMANAL", Assignment = new() {
+        Id = Guid.NewGuid(), SpecializationId = specialization, ReviewStatus = status,
+        CompletedAt = delivered ? now.AddMonths(-1) : null } };
+var floor = QueueTask("PISO_VENTAS");
+var specialized = QueueTask("PISO_VENTAS", Guid.NewGuid());
+var coordinator = QueueTask("SUBCOORDINACION");
+var queueRows = new[] { floor, specialized, coordinator, QueueTask("PISO_VENTAS", status: "CONCLUIDA"),
+    QueueTask("SUBCOORDINACION", status: "NO_SATISFECHA"), QueueTask("PISO_VENTAS", status: "REASIGNADA"),
+    QueueTask("SUBCOORDINACION", delivered: false) }.AsQueryable();
+Check(OperationalSupervisionService.ReviewQueue(queueRows,"SUBCOORDINACION").Select(t=>t.Assignment.Id).ToHashSet().SetEquals([floor.Assignment.Id,specialized.Assignment.Id]), "Subcoordination queue includes historical deliveries and excludes terminal/unsubmitted");
+Check(OperationalSupervisionService.ReviewQueue(queueRows,"DIRECCION").Select(t=>t.Assignment.Id).ToHashSet().SetEquals([coordinator.Assignment.Id,specialized.Assignment.Id]), "Direction queue preserves specialization overlap and excludes ordinary floor tasks");
+Check(!OperationalSupervisionService.ReviewQueue(queueRows,"PISO_VENTAS").Any(), "Non-reviewer role has no queue");
+Check(!OperationalSupervisionService.ReviewQueue(queueRows.Where(t=>t.Assignment.Id==floor.Assignment.Id),"DIRECCION").Any(), "Queue never expands previously authorized scope");
 Console.WriteLine($"{checks} report checks passed.");

@@ -21,7 +21,9 @@ public sealed partial class OperationalSupervisionService
         var role = await AuthorizeAsync(actor, token);
         var now = clock.UtcNow;
         var query = Query(role, actor);
-        if (section == "pending") query = query.Where(t => t.Assignment.CompletedAt != null && (t.Assignment.ReviewStatus == null || t.Assignment.ReviewStatus == "PENDIENTE_REVISION") && (role != CanonicalRole.Direction || t.Role == CanonicalRole.Subcoordination || t.Assignment.SpecializationId != null));
+        var reviewer = filter.GetValueOrDefault("reviewer");
+        if (section == "pending") query = ReviewQueue(query,
+            reviewer is CanonicalRole.Direction or CanonicalRole.Subcoordination ? reviewer : role);
         else query = query.Where(t => t.Role == section);
         var total = await query.CountAsync(token);
         var persons = await query.Select(t => new { t.Assignment.PersonId, t.Assignment.PersonName }).Distinct().ToArrayAsync(token);

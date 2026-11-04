@@ -13,9 +13,7 @@ namespace Sgol.Web.Pages.People;
 public sealed class IndexModel(IRazorSessionState sessions, UserProfileService profiles, SpecializationService specializations, PersonalScheduleService schedules) : PageModel
 {
     [BindProperty] public PersonalScheduleInput Schedule { get; set; } = new();
-    [BindProperty] public ScheduleExceptionInput Exception { get; set; } = new();
     public SchedulePreview? SchedulePreview { get; private set; }
-    public SchedulePreview? ExceptionPreview { get; private set; }
     public bool ShowSchedule => Editing && Input.Id != Guid.Empty;
     public static readonly string[] DayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
@@ -49,7 +47,7 @@ public sealed class IndexModel(IRazorSessionState sessions, UserProfileService p
         IsDirector = session.RoleCode == CanonicalRole.Direction;
         return null;
     }
-    public async Task<IActionResult> OnGetAsync(Guid? edit, bool create, CancellationToken ct, DateOnly? exceptionDay = null)
+    public async Task<IActionResult> OnGetAsync(Guid? edit, bool create, CancellationToken ct)
     {
         var denied = await AuthorizeAsync(ct); if (denied is not null) return denied;
         try
@@ -64,42 +62,38 @@ public sealed class IndexModel(IRazorSessionState sessions, UserProfileService p
                     SpecializationIds = profile.SpecializationIds ?? [], ManageSpecializations = IsDirector };
                 Editing = true;
                 Schedule = await schedules.ReadAsync(CurrentUserId, profile.Id, ct);
-                Exception = await schedules.ReadExceptionAsync(CurrentUserId, profile.Id, exceptionDay ?? Schedule.From, ct);
             }
             else if (create) Editing = true;
             return Page();
         }
         catch (UserProfileException e) { return StatusCode(e.Status); }
     }
+    // Unknown/retired form actions must not fall back to rendering a successful POST.
+    public async Task<IActionResult> OnPostAsync(CancellationToken ct)
+    {
+        var denied = await AuthorizeAsync(ct);
+        return denied ?? NotFound();
+    }
     public Task<IActionResult> OnPostSaveAsync(CancellationToken ct) => MutateAsync("save", ct);
-    public Task<IActionResult> OnPostSchedulePreviewAsync(CancellationToken ct) => ScheduleAsync(false, false, ct);
-    public Task<IActionResult> OnPostScheduleSaveAsync(CancellationToken ct) => ScheduleAsync(true, false, ct);
-    public Task<IActionResult> OnPostScheduleExceptionAsync(CancellationToken ct) => ScheduleAsync(true, true, ct);
-    public Task<IActionResult> OnPostScheduleExceptionPreviewAsync(CancellationToken ct) => ScheduleAsync(false, true, ct);
-    private async Task<IActionResult> ScheduleAsync(bool save, bool exception, CancellationToken ct)
+    public Task<IActionResult> OnPostSchedulePreviewAsync(CancellationToken ct) => ScheduleAsync(false, ct);
+    public Task<IActionResult> OnPostScheduleSaveAsync(CancellationToken ct) => ScheduleAsync(true, ct);
+    private async Task<IActionResult> ScheduleAsync(bool save, CancellationToken ct)
     {
         var denied = await AuthorizeAsync(ct); if (denied != null) return denied;
-        var user = exception ? Exception.UserId : Schedule.UserId;
+        var user = Schedule.UserId;
         var all = await LoadAsync(ct); var profile = all.SingleOrDefault(p => p.Id == user);
         if (profile == null) return NotFound();
         Input = new() { Id = profile.Id, DisplayName = profile.DisplayName, UserName = profile.UserName, RoleCode = profile.RoleCode,
             Revision = profile.Revision, SpecializationIds = profile.SpecializationIds ?? [], IsOnTrial = profile.IsOnTrial };
         Editing = true;
-        if (exception) Schedule=await schedules.ReadAsync(CurrentUserId,user,ct);
-        else Exception=await schedules.ReadExceptionAsync(CurrentUserId,user,(await schedules.ReadAsync(CurrentUserId,user,ct)).From,ct);
         while(Schedule.Days.Count<7) Schedule.Days.Add(new());
-        foreach(var day in Schedule.Days.Append(Exception.Hours)) while(day.Intervals.Count<4) day.Intervals.Add(new());
-        foreach (var key in ModelState.Keys.Where(k => exception ? !k.StartsWith("Exception.", StringComparison.Ordinal) : !k.StartsWith("Schedule.", StringComparison.Ordinal)).ToArray()) ModelState.Remove(key);
+        foreach(var day in Schedule.Days) while(day.Intervals.Count<4) day.Intervals.Add(new());
+        foreach (var key in ModelState.Keys.Where(k => !k.StartsWith("Schedule.", StringComparison.Ordinal)).ToArray()) ModelState.Remove(key);
         try
         {
-            if (!exception && Enumerable.Range(0,7).Any(d => Request.Form[$"Schedule.Days[{d}].Mode"].Count != 1)) throw new DirectionPlanException("SCHEDULE_INTERVAL_INVALID",422);
+            if (Enumerable.Range(0,7).Any(d => Request.Form[$"Schedule.Days[{d}].Mode"].Count != 1)) throw new DirectionPlanException("SCHEDULE_INTERVAL_INVALID",422);
             if (!ModelState.IsValid) throw new DirectionPlanException("SCHEDULE_INTERVAL_INVALID", 422);
-            if (exception) {
-                if(save) await schedules.SaveExceptionAsync(CurrentUserId, Exception, ct);
-                else { ExceptionPreview=await schedules.PreviewExceptionAsync(CurrentUserId,Exception,ct); Exception.Fingerprint=ExceptionPreview.Fingerprint; ModelState.Remove("Exception.Fingerprint"); }
-                Schedule = await schedules.ReadAsync(CurrentUserId, user, ct);
-            }
-            else if (save) await schedules.SaveAsync(CurrentUserId, Schedule, ct);
+            if (save) await schedules.SaveAsync(CurrentUserId, Schedule, ct);
             else { SchedulePreview = await schedules.PreviewAsync(CurrentUserId, Schedule, ct); Schedule.Fingerprint = SchedulePreview.Fingerprint; ModelState.Remove("Schedule.Fingerprint"); }
             if (save) return RedirectToPage(new { edit = user });
         }
@@ -131,7 +125,7 @@ public sealed class IndexModel(IRazorSessionState sessions, UserProfileService p
             if (e.Status == 403) return StatusCode(403);
             Error = e.Message; Editing = action == "save";
             await LoadAsync(ct);
-            if (Input.Id != Guid.Empty) { Schedule=await schedules.ReadAsync(CurrentUserId,Input.Id,ct); Exception=await schedules.ReadExceptionAsync(CurrentUserId,Input.Id,Schedule.From,ct); }
+            if (Input.Id != Guid.Empty) { Schedule=await schedules.ReadAsync(CurrentUserId,Input.Id,ct); }
             Response.StatusCode = e.Status; return Page();
         }
     }

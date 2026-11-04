@@ -44,14 +44,9 @@ internal static class CorrectionHttpChecks
         string Field(string html,string name)=>WebUtility.HtmlDecode(Regex.Match(html,"name=\""+Regex.Escape(name)+"\"[^>]*value=\"([^\"]*)\"").Groups[1].Value);
         var path=$"/validaciones?task={source.Id:D}";
         var html=await client.GetStringAsync(path);var csrf=Field(html,"__RequestVerificationToken");
-        var form=new Dictionary<string,string>{["id"]=source.Id.ToString(),["revision"]="1",["decision"]="MISMA_PERSONA",["result"]="no",["comment"]="Comentario HTTP conservado",["Schedule.Mode"]="CUSTOM",["Schedule.From"]="2026-11-01",["stage"]="preview",["__RequestVerificationToken"]=csrf};
+        var form=new Dictionary<string,string>{["id"]=source.Id.ToString(),["revision"]="1",["decision"]="MISMA_PERSONA",["result"]="no",["comment"]="Comentario HTTP conservado",["Schedule.Mode"]="CUSTOM",["Schedule.From"]="2026-11-01",["__RequestVerificationToken"]=csrf};
         var response=await client.PostAsync("/validaciones?handler=Review",new FormUrlEncodedContent(form));html=await response.Content.ReadAsStringAsync();
-        if (!response.IsSuccessStatusCode) { Console.WriteLine("HTTP preview status " + response.StatusCode); await File.WriteAllTextAsync(".local/correction-20261031/http-failure.html", html); }
-        CorrectionSchedulingChecks.Check(response.IsSuccessStatusCode && html.Contains("data-correction-preview") && html.Contains("Comentario HTTP conservado"),"real individual form renders preview and retains comment");
-        CorrectionSchedulingChecks.Check(!await db.OperationalAssignments.AnyAsync(a=>a.ReassignedFromId==source.Id),"HTTP preview has no persistence");
-        form["PreviewAt"]=Field(html,"PreviewAt");form["ReviewFingerprint"]=Field(html,"ReviewFingerprint");form["stage"]="apply";
-        response=await client.PostAsync("/validaciones?handler=Review",new FormUrlEncodedContent(form));
-        CorrectionSchedulingChecks.Check(response.StatusCode==HttpStatusCode.Redirect,"real individual confirmation persists");
+        CorrectionSchedulingChecks.Check(response.StatusCode==HttpStatusCode.Redirect,"individual validation persists in one POST without preview");
         var correction=await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.ReassignedFromId==source.Id);
         html=WebUtility.HtmlDecode(await client.GetStringAsync($"/mi-trabajo?assignedTask={correction.Id}"));
         CorrectionSchedulingChecks.Check(html.Contains("Comentario HTTP conservado") && html.Contains("Corrección de la entrega"),"real My Work dialog exposes origin and correction comment");
@@ -60,12 +55,24 @@ internal static class CorrectionHttpChecks
         var batchSource=await CorrectionSchedulingChecks.Source(db,fixture,clock);
         html=await client.GetStringAsync("/validaciones?Validation=true");csrf=Field(html,"__RequestVerificationToken");
         var prefix=$"Reviews[{batchSource.Id:N}]";
-        var batch=new Dictionary<string,string>{["Validation"]="true",["Section"]="pending",["Reviews.Index"]=batchSource.Id.ToString("N"),[prefix+".Id"]=batchSource.Id.ToString(),[prefix+".Revision"]="1",[prefix+".Result"]="no",[prefix+".Action"]="MISMA_PERSONA",[prefix+".Comment"]="Grupo HTTP",[prefix+".Schedule.Mode"]="FREE",["stage"]="preview",["__RequestVerificationToken"]=csrf};
+        var batch=new Dictionary<string,string>{["Validation"]="true",["Section"]="pending",["Reviews.Index"]=batchSource.Id.ToString("N"),[prefix+".Id"]=batchSource.Id.ToString(),[prefix+".Revision"]="1",[prefix+".Result"]="no",[prefix+".Action"]="MISMA_PERSONA",[prefix+".Comment"]="Grupo HTTP",[prefix+".Schedule.Mode"]="FREE",["__RequestVerificationToken"]=csrf};
         response=await client.PostAsync("/validaciones?handler=BatchReview",new FormUrlEncodedContent(batch));html=await response.Content.ReadAsStringAsync();
-        CorrectionSchedulingChecks.Check(response.IsSuccessStatusCode && html.Contains("data-correction-preview"),"real indexed group form binds scheduling fields");
-        batch["PreviewAt"]=Field(html,"PreviewAt");batch["ReviewFingerprint"]=Field(html,"ReviewFingerprint");batch["stage"]="apply";
+        CorrectionSchedulingChecks.Check(response.StatusCode==HttpStatusCode.Redirect && await db.OperationalAssignments.AnyAsync(a=>a.ReassignedFromId==batchSource.Id),"single group submission persists without preview or fingerprint");
         response=await client.PostAsync("/validaciones?handler=BatchReview",new FormUrlEncodedContent(batch));
-        CorrectionSchedulingChecks.Check(response.StatusCode==HttpStatusCode.Redirect && await db.OperationalAssignments.AnyAsync(a=>a.ReassignedFromId==batchSource.Id),"real group confirmation persists");
+        CorrectionSchedulingChecks.Check(response.StatusCode==HttpStatusCode.Conflict && await db.OperationalAssignments.CountAsync(a=>a.ReassignedFromId==batchSource.Id)==1,"repeated direct validation conflicts without duplicate");
+        var valid=await CorrectionSchedulingChecks.Source(db,fixture,clock);
+        var invalid=await CorrectionSchedulingChecks.Source(db,fixture,clock);
+        var mixed=new List<KeyValuePair<string,string>> { new("Validation","true"), new("Section","PISO_VENTAS"), new("__RequestVerificationToken",csrf) };
+        foreach(var item in new[]{valid,invalid}) {
+            var key=$"Reviews[{item.Id:N}]";
+            mixed.AddRange(new Dictionary<string,string>{["Reviews.Index"]=item.Id.ToString("N"),[key+".Id"]=item.Id.ToString(),[key+".Revision"]="1",[key+".Result"]="no",[key+".Action"]="NO_SATISFECHA",[key+".Comment"]=item.Id==valid.Id?"Comentario válido":""});
+        }
+        response=await client.PostAsync("/validaciones?handler=BatchReview",new FormUrlEncodedContent(mixed));
+        html=WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        CorrectionSchedulingChecks.Check(response.StatusCode==HttpStatusCode.UnprocessableEntity && html.Contains(invalid.Name) && html.Contains("Comentario válido"),"failed batch identifies task and retains comments");
+        CorrectionSchedulingChecks.Check(await db.OperationalAssignments.AsNoTracking().Where(a=>a.Id==valid.Id || a.Id==invalid.Id).AllAsync(a=>a.ReviewStatus=="PENDIENTE_REVISION"),"failed direct validation rolls back all reviews");
+        var batchNoCsrf=await client.PostAsync("/validaciones?handler=BatchReview",new FormUrlEncodedContent(new Dictionary<string,string>()));
+        CorrectionSchedulingChecks.Check(batchNoCsrf.StatusCode==HttpStatusCode.BadRequest,"direct validation requires antiforgery");
         var noCsrf=await client.PostAsync("/validaciones?handler=Review",new FormUrlEncodedContent(new Dictionary<string,string>{["id"]=source.Id.ToString()}));
         CorrectionSchedulingChecks.Check(noCsrf.StatusCode==HttpStatusCode.BadRequest,"review requires antiforgery");
         var correctionDay=WeekContract.LocalToday(correction.StartsAt);

@@ -1,4 +1,4 @@
-@model Sgol.Web.Pages.Validations.IndexModel
+@model Sgol.Web.Pages.Validations.WorkloadModel
 @using Sgol.Web.Presentation.Navigation
 @using Sgol.Web.Presentation.MyWork
 <details id="capacity" class="panel-seccion supervision-section capacity-panel" aria-labelledby="capacity-title"
@@ -20,21 +20,25 @@
     @if (Model.CapacityRows.Count == 0) { <p>No hay colaboradores activos dentro de tu alcance de supervisión.</p> }
     @foreach (var row in Model.CapacityRows) {
         var percent = row.Available > 0 ? (int)Math.Min(999, Math.Ceiling(row.Load * 100m / row.Available)) : row.Load > 0 ? 100 : 0;
-        <details class="capacity-person">
+        var editing = Model.Adjustment.PersonId == row.PersonId;
+        var percentValue = editing ? Model.Adjustment.Percent : row.Percent;
+        var minutesValue = editing ? Model.Adjustment.DailyMinutes : row.DailyMinutes;
+        <details class="capacity-person" open="@editing">
             <summary><strong>@row.Name</strong> · @SessionPresentation.RoleName(row.Role) · @row.Load min / @row.Available.ToString("0.#") min disponibles · @percent% de ocupación</summary>
             <progress value="@Math.Min(100, percent)" max="100" aria-label="Ocupación de @row.Name"></progress>
             @if (row.Load > row.Available) { <p class="alerta alerta--peligro">La carga supera la capacidad disponible.</p> }
             @if (row.ProtectedLoad > 0) { <p>@row.ProtectedLoad minutos pertenecen a tareas con avances registrados u ocasiones asignadas. Las ocasionales conservan su responsable al ajustar capacidad.</p> }
             <form method="post" asp-page-handler="CapacityPreview" data-capacity-form>
-                <input type="hidden" name="Change.PersonId" value="@row.PersonId" />
-                <input type="hidden" name="Change.From" value="@Model.CapacityFrom?.ToString("yyyy-MM-dd")" />
-                <input type="hidden" name="Change.Through" value="@Model.CapacityThrough?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="Day" value="@Model.Day?.ToString("yyyy-MM-dd")" /><input type="hidden" name="Range" value="@Model.Range" />
+                <input type="hidden" name="Adjustment.PersonId" value="@row.PersonId" />
+                <input type="hidden" name="Adjustment.From" value="@Model.CapacityFrom?.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="Adjustment.Through" value="@Model.CapacityThrough?.ToString("yyyy-MM-dd")" />
                 <p><strong>Ajustar únicamente a @row.Name</strong>. Sus compañeros de @SessionPresentation.RoleName(row.Role) podrán recibir las tareas que excedan esta capacidad.</p>
-                <label class="campo"><span class="campo__etiqueta">Capacidad de @row.Name: <output data-capacity-output>@row.Percent%</output></span><input type="range" name="Change.Percent" min="0" max="100" step="5" value="@row.Percent" data-capacity-slider aria-label="Capacidad disponible para @row.Name" /></label>
-                <label class="campo"><span class="campo__etiqueta">Minutos diarios de referencia al 100%</span><input class="campo__control" type="number" name="Change.DailyMinutes" min="1" max="480" value="@row.DailyMinutes" required /></label>
-                <label class="campo"><span class="campo__etiqueta">Motivo</span><textarea class="campo__control" name="Change.Reason" maxlength="1000" required></textarea></label>
-                <label><input type="checkbox" name="Change.TransferStarted" value="true" /> Permitir transferir tareas con avances, conservando su progreso</label>
-                @if (row.ActivatedTasks.Length > 0) { <fieldset><legend>Activadas no vencidas que confirmas disponibles para mover</legend><p>Selecciona solo las que todavía pueden reprogramarse. Las no seleccionadas conservan su bloque.</p>@foreach(var task in row.ActivatedTasks) { <label><input type="checkbox" name="Change.ActivatedTaskIds" value="@task.Id" /> @task.Name · @MyWorkPresentation.Time(task.StartsAt) — @MyWorkPresentation.Time(task.DueAt)</label> }</fieldset> }
+                <label class="campo"><span class="campo__etiqueta">Capacidad de @row.Name: <output data-capacity-output>@percentValue%</output></span><input type="range" name="Adjustment.Percent" min="0" max="100" step="5" value="@percentValue" data-capacity-slider aria-label="Capacidad disponible para @row.Name" /></label>
+                <label class="campo"><span class="campo__etiqueta">Minutos diarios de referencia al 100%</span><input class="campo__control" type="number" name="Adjustment.DailyMinutes" min="1" max="480" value="@minutesValue" required /></label>
+                <label class="campo"><span class="campo__etiqueta">Motivo</span><textarea class="campo__control" name="Adjustment.Reason" maxlength="1000" required>@(editing ? Model.Adjustment.Reason : "")</textarea></label>
+                <label><input type="checkbox" name="Adjustment.TransferStarted" value="true" checked="@(editing && Model.Adjustment.TransferStarted)" /> Permitir transferir tareas con avances, conservando su progreso</label>
+                @if (row.ActivatedTasks.Length > 0) { <fieldset><legend>Activadas no vencidas que confirmas disponibles para mover</legend><p>Selecciona solo las que todavía pueden reprogramarse. Las no seleccionadas conservan su bloque.</p>@foreach(var task in row.ActivatedTasks) { <label><input type="checkbox" name="Adjustment.ActivatedTaskIds" value="@task.Id" checked="@(editing && Model.Adjustment.ActivatedTaskIds.Contains(task.Id))" /> @task.Name · @MyWorkPresentation.Time(task.StartsAt) — @MyWorkPresentation.Time(task.DueAt)</label> }</fieldset> }
                 <p>La vigencia seleccionada se restaura automáticamente al terminar. Las tareas transferidas permanecen con su nuevo responsable.</p>
                 <button class="boton boton--primario" type="submit">Ver redistribución propuesta</button>
             </form>
@@ -53,13 +57,14 @@
             }
             @foreach(var conflict in preview.Conflicts) { <details><summary>Sin acomodo: @conflict.TaskCode · @conflict.Task (@conflict.LoadMinutes min)</summary><ul>@foreach(var candidate in conflict.Candidates) { <li>@candidate.Person · @candidate.Day.ToString("dd/MM/yyyy") · @candidate.Hours · @Sgol.Web.Infrastructure.Persistence.Planning.TemporalEligibilityContext.Message(candidate.Reason)</li> }</ul></details> }
             <form method="post" asp-page-handler="CapacityApply">
-                <input type="hidden" asp-for="Change.PersonId" /><input type="hidden" asp-for="Change.From" /><input type="hidden" asp-for="Change.Through" />
-                <input type="hidden" asp-for="Change.Percent" /><input type="hidden" asp-for="Change.DailyMinutes" /><input type="hidden" asp-for="Change.Reason" />
-                <input type="hidden" asp-for="Change.SchedulingNotBefore" />
-                @foreach(var selected in preview.Change.ActivatedTaskIds ?? []) { <input type="hidden" name="Change.ActivatedTaskIds" value="@selected" /> }
-                <input type="hidden" asp-for="Change.TransferStarted" /><input type="hidden" asp-for="Fingerprint" />
+                <input type="hidden" name="Day" value="@Model.Day?.ToString("yyyy-MM-dd")" /><input type="hidden" name="Range" value="@Model.Range" />
+                <input type="hidden" asp-for="Adjustment.PersonId" /><input type="hidden" asp-for="Adjustment.From" /><input type="hidden" asp-for="Adjustment.Through" />
+                <input type="hidden" asp-for="Adjustment.Percent" /><input type="hidden" asp-for="Adjustment.DailyMinutes" /><input type="hidden" asp-for="Adjustment.Reason" />
+                <input type="hidden" asp-for="Adjustment.SchedulingNotBefore" asp-format="{0:O}" />
+                @foreach(var selected in preview.Change.ActivatedTaskIds ?? []) { <input type="hidden" name="Adjustment.ActivatedTaskIds" value="@selected" /> }
+                <input type="hidden" asp-for="Adjustment.TransferStarted" /><input type="hidden" asp-for="CapacityFingerprint" />
                 <button class="boton boton--primario" type="submit">Aplicar capacidad y redistribuir</button>
-                <a class="boton boton--secundario" href="/validaciones#capacity">Cancelar</a>
+                <a class="boton boton--secundario" href="/supervision/carga#capacity">Cancelar</a>
             </form>
         </section>
     }

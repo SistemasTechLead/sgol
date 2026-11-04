@@ -3,6 +3,19 @@
     const form = document.querySelector("#report-filters");
     if (!form) return;
     const $ = selector => document.querySelector(selector);
+    const positionKey = "sgol-report-chart-position";
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(positionKey) || "null");
+        sessionStorage.removeItem(positionKey);
+        if (saved?.url === location.href) {
+            const restore = () => requestAnimationFrame(() => {
+                if (saved.selector) $(saved.selector)?.focus({ preventScroll: true });
+                window.scrollTo({ left: saved.x, top: saved.y, behavior: "instant" });
+            });
+            if (document.readyState === "complete") restore();
+            else window.addEventListener("load", restore, { once: true });
+        }
+    } catch { /* Storage is optional; chart navigation remains available. */ }
     const initial = JSON.parse(form.dataset.configuration);
     const templatePicker = $("#report-template");
     const field = key => form.elements.namedItem("F." + key[0].toUpperCase() + key.slice(1));
@@ -81,15 +94,25 @@
         $("#report-delete-dialog").showModal();
     });
     document.querySelectorAll("[data-report-close]").forEach(button => button.addEventListener("click", () => button.closest("dialog").close()));
-    document.querySelectorAll("[data-report-status],[data-report-group]").forEach(button => button.addEventListener("click", () => {
-        if (button.dataset.reportStatus) field("status").value = button.dataset.reportStatus;
-        else if (button.dataset.reportGroup) {
-            const input = field(initial.group);
-            const option = input && [...input.options].find(option => option.value === button.dataset.reportGroup);
-            if (!option) return;
-            input.value = option.value;
+    document.querySelectorAll("[data-report-status],[data-report-group],[data-report-clear-focus]").forEach(button => button.addEventListener("click", () => {
+        const address = new URL(location.href);
+        if (button.hasAttribute("data-report-clear-focus")) {
+            address.searchParams.delete("ChartStatus"); address.searchParams.delete("ChartGroup");
+        } else {
+            const key = button.dataset.reportStatus ? "ChartStatus" : "ChartGroup";
+            const value = button.dataset.reportStatus || button.dataset.reportGroup;
+            if (!value) return;
+            if (address.searchParams.get(key) === value) address.searchParams.delete(key);
+            else address.searchParams.set(key, value);
         }
-        customize(); form.requestSubmit();
+        address.hash = "";
+        try {
+            const selector = button.hasAttribute("data-report-clear-focus") ? null :
+                button.dataset.reportStatus ? `[data-report-status="${CSS.escape(button.dataset.reportStatus)}"]` :
+                `[data-report-group="${CSS.escape(button.dataset.reportGroup)}"]`;
+            sessionStorage.setItem(positionKey, JSON.stringify({ url: address.href, x: scrollX, y: scrollY, selector }));
+        } catch { /* Do not block navigation when browser storage is disabled. */ }
+        location.assign(address);
     }));
     apply(initial); templateActions();
 

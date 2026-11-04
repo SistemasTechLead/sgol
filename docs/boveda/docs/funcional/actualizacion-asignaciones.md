@@ -2,8 +2,8 @@
 categoria: dominio
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
-verificado_en: inspeccion-estatica
+ultima_verificacion: 2026-11-04
+verificado_en: copia-aislada-formulario-real-y-publicacion
 ---
 
 # Actualizar asignaciones existentes
@@ -30,9 +30,25 @@ Entregadas, pendientes de revisión, concluidas, no satisfechas y sustituidas qu
 
 Una vencida independiente de un día anterior sin actividad ni vínculos protegidos puede adoptar determinados datos y carga configurada sin reprogramar el pasado. Conserva carga histórica, fechas, responsable y estado; una corrección nueva usa la carga configurada adoptada.
 
-Si la conciliación pretende retirar una asignación con actividad, captura, texto, checklist o solicitud pendiente, puede elegirse conservar íntegro ese pendiente y actualizar los demás. Conserva reserva, instantánea y solicitud; no queda falsamente sincronizado. La autorización se revisa en cada actualización.
+Si la conciliación pretende retirar una asignación con actividad, captura, texto, checklist o solicitud pendiente, puede elegirse conservar íntegro ese pendiente y actualizar los demás. Conserva reserva, instantánea y solicitud; no queda falsamente sincronizado. Al confirmar, la conservación queda registrada para la versión actual del catálogo. No vuelve a aparecer como diferencia pendiente ni se reacomoda como vecina mientras esa definición no cambie. Cualquier cambio posterior del catálogo, incluida una nueva revisión, vuelve a exigir revisión; no se marca la asignación como sincronizada. La decisión conserva actor, motivo y huella en el historial inmutable, sin modificar la asignación.
 
 Ante cambios de pertenencia a procesos, la opción de conservar asignaciones mantiene compromisos existentes y aplica el proceso a nuevas ejecuciones según el flujo autorizado. No convierte pendientes independientes en etapas ficticias.
+
+La conservación puede confirmarse aunque no haya asignaciones para actualizar o retirar. La vista previa separa las decisiones por confirmar de los cambios materiales. Tras confirmar todas las decisiones y cambios, el botón de actualización del catálogo se deshabilita y la pantalla informa que no quedan acciones pendientes. Seleccionar la casilla y revisar no guarda la excepción; requiere confirmación con motivo.
+
+## Capacidad de las vencidas conservadas
+
+Durante la actualización, los pendientes cuyo plazo ya venció (incluido el instante exacto del cálculo) y que no se reprograman no consumen capacidad de la nueva agenda. Conservan fechas, responsable, avances, archivos, estado pendiente e historial. La exclusión no los entrega, retira ni modifica la carga de las consultas operativas.
+
+Una asignación vencida que entra al reacomodo sí consume capacidad en su nueva ubicación. También siguen contando los compromisos no vencidos y futuros. La vista previa informa cuántos pendientes vencidos quedan fuera del cálculo; la confirmación vuelve a comprobar el conjunto bajo bloqueo y rechaza propuestas obsoletas.
+
+## Detalles de los conflictos
+
+Los casos bloqueados muestran en «Ver detalles» los valores conservados por la asignación y los del catálogo actual. La comparación identifica los cambios pendientes de adopción; no demuestra que un único parámetro sea la causa del bloqueo. Cuando la asignación no tiene cambios propios, el conflicto de capacidad explica que se detectó durante el reacomodo de otras asignaciones. Los calendarios anteriores sin instantánea verificable se identifican como tales.
+
+La búsqueda conserva el límite de 20 000 pasos. Si se interrumpe, identifica la tarea, persona y fecha exploradas como punto de interrupción, sin atribuirles una falta de capacidad no demostrada. Los candidatos fallidos no quedan como movimientos en la propuesta; no se guardan actualizaciones parciales.
+
+Las solicitudes pendientes de arrastre o posposición ofrecen «Ir a Supervisión», hacia la pantalla principal `/validaciones`.
 
 ## Retiro y concurrencia
 
@@ -44,7 +60,7 @@ Relacionados: [Catálogo](catalogo.md), [Planificación](planificacion.md), [Pro
 
 ## Fuentes y alcance
 
-Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Revisión estática; no constituye una nueva prueba funcional, visual o de datos del host.
+Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). El flujo de actualización, confirmación y reintento se comprobó sobre una copia aislada mediante formulario Razor real; los estados de capacidad e historial tienen regresiones de integración. La publicación compartida se contrastó por proceso, listeners y acceso HTTP. No se ejecutó una confirmación autenticada sobre los datos compartidos.
 
 - [AssignmentRefreshService.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/AssignmentRefreshService.cs)
 - [AssignmentDefinition.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/AssignmentDefinition.cs)

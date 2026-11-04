@@ -9,8 +9,8 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Validations;
 
-public sealed class WorkloadModel(IRazorSessionState sessions, OperationalSupervisionService supervision,
-    OperationalTaskService tasks, IClock clock) : PageModel
+public sealed partial class WorkloadModel(IRazorSessionState sessions, OperationalSupervisionService supervision,
+    OperationalTaskService tasks, OperationalCapacityService capacity, IClock clock) : PageModel
 {
     [BindProperty(SupportsGet = true)] public DateOnly? Day { get; set; }
     [BindProperty(SupportsGet = true)] public string Range { get; set; } = "day";
@@ -38,6 +38,7 @@ public sealed class WorkloadModel(IRazorSessionState sessions, OperationalSuperv
     }
     private async Task LoadAsync(Guid actor, Guid? id, bool initialize, CancellationToken token)
     {
+        await LoadCapacityAsync(actor, token);
         Day ??= WeekContract.LocalToday(Now);
         if (Range is not ("day" or "week") || Day.Value.Year is < 2 or > 9998) throw new DirectionPlanException("TRANSFER_RANGE", 422);
         Workload = await supervision.WorkloadAsync(actor, Day.Value, Range == "week", token);
@@ -68,6 +69,7 @@ public sealed class WorkloadModel(IRazorSessionState sessions, OperationalSuperv
         Guid? actor = null;
         try {
             actor = await ActorAsync(token); if (actor == null) return Redirect("/acceso");
+            foreach (var key in ModelState.Keys.Where(k => k == nameof(Adjustment) || k.StartsWith(nameof(Adjustment) + ".")).ToArray()) ModelState.Remove(key);
             if (!ModelState.IsValid) throw new DirectionPlanException("TRANSFER_INVALID", 422);
             var request = Change.Request();
             if (apply) {

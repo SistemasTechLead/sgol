@@ -180,7 +180,27 @@ html = await http.GetStringAsync("/personas-y-accesos");
 Check(html.Contains("navegacion-lateral__item\" href=\"/personas-y-accesos") && html.Contains("Perfiles de usuarios"), "Direction sees sidebar link and page");
 html = await http.GetStringAsync($"/personas-y-accesos?edit={director}");
 Check(html.Contains("Editar mi perfil") && html.Contains("value=\"DIRECCION\""), "Direction own-profile form preserves Direction role");
-Check(html.Contains("Horario laboral") && html.Contains("Excepciones por fecha") && !html.Contains("Cobertura de cierre"), "People keeps schedules and exceptions; shared closing is no longer inside a person");
+Check(html.Contains("Horario laboral") && !html.Contains("Excepciones por fecha") && !html.Contains("Cobertura de cierre"), "People keeps weekly schedules without date exceptions or shared closing");
+// Retired URLs must not create or edit exceptions, including historical records.
+var legacyException = new Sgol.Web.Infrastructure.Persistence.Planning.PersonalScheduleException {
+    Id = Guid.CreateVersion7(), PersonId = await db.AppUsers.Where(u => u.Id == director).Select(u => u.PersonId).SingleAsync(),
+    Day = Sgol.Planning.Contracts.WeekContract.LocalToday(clock.UtcNow), Revision = 1,
+    IntervalsJson = "[]", Reason = "Historical rest", ChangedBy = director, ChangedAt = clock.UtcNow,
+    IntentKey = Guid.CreateVersion7(), RequestHash = "historical-fixture" };
+db.Add(legacyException); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+var legacyBefore = System.Text.Json.JsonSerializer.Serialize(await db.Set<Sgol.Web.Infrastructure.Persistence.Planning.PersonalScheduleException>().AsNoTracking().ToArrayAsync());
+var retiredCsrf = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+foreach (var handler in new[] { "ScheduleExceptionPreview", "ScheduleException" })
+{
+    posted = await http.PostAsync("/personas-y-accesos?handler=" + handler, new FormUrlEncodedContent(new Dictionary<string,string> {
+        ["__RequestVerificationToken"] = retiredCsrf, ["Exception.UserId"] = director.ToString(),
+        ["Exception.Day"] = legacyException.Day.ToString("yyyy-MM-dd"), ["Exception.Revision"] = "1",
+        ["Exception.Key"] = Guid.CreateVersion7().ToString(), ["Exception.Reason"] = "Forged update", ["Exception.Hours.Mode"] = "REST" }));
+    Check((int)posted.StatusCode == 404, "Retired exception handler rejects protected POST: " + handler);
+}
+html = await http.GetStringAsync($"/personas-y-accesos?edit={director}&exceptionDay={legacyException.Day:yyyy-MM-dd}");
+Check(!html.Contains("Exception.") && !html.Contains("exceptionDay") && html.Contains("Horario laboral"), "Legacy query cannot reopen date exception editor");
+Check(legacyBefore == System.Text.Json.JsonSerializer.Serialize(await db.Set<Sgol.Web.Infrastructure.Persistence.Planning.PersonalScheduleException>().AsNoTracking().ToArrayAsync()), "Retired actions preserve all historical exception fields");
 csrf = Regex.Match(html,"name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
 var schedulePost=new Dictionary<string,string> { ["Schedule.UserId"]=director.ToString(),["Schedule.Key"]=Guid.CreateVersion7().ToString(),["Schedule.Revision"]="0",
     ["Schedule.From"]=Sgol.Planning.Contracts.WeekContract.LocalToday(clock.UtcNow).ToString("yyyy-MM-dd"),["__RequestVerificationToken"]=csrf };
@@ -247,6 +267,15 @@ flowResult = await authService.LoginAsync(authInput.UserName, "Changed!123456789
 Check(flowResult.NextStep == AuthenticationNextStep.EnrollMfa && flowResult.Session is null, "Re-enabling MFA restores enrollment flow");
 Check(await authService.ValidateSessionAsync(passwordSession.UserId, passwordSession.SecurityStamp, passwordSession.MfaAuthenticatedAt, passwordSession.AbsoluteExpiresAt, sessionId: passwordSession.SessionId) is null, "Re-enabling MFA rejects unenrolled sessions");
 builder.Configuration["Authentication:RequireMfa"] = "false";
+if (Environment.GetEnvironmentVariable("SGOL_PROFILE_BROWSER_SCRIPT") is { Length: > 0 } browserScript)
+{
+    fixtureSession.Role = CanonicalRole.Direction; fixtureSession.Actor = director;
+    var browserStart = new System.Diagnostics.ProcessStartInfo("node") { UseShellExecute = false };
+    foreach (var arg in new[] { browserScript, new Uri(http.BaseAddress!, $"/personas-y-accesos?edit={director}").ToString(), Path.GetFullPath(".local/remove-person-exceptions/browser") }) browserStart.ArgumentList.Add(arg);
+    using var browser = System.Diagnostics.Process.Start(browserStart)!;
+    await browser.WaitForExitAsync();
+    Check(browser.ExitCode == 0, "Actual People page browser checks");
+}
 await app.StopAsync();
 Console.WriteLine("All user profile checks passed.");
 

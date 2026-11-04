@@ -92,12 +92,7 @@ internal static class CorrectionSchedulingChecks
         Check(outOfRange.Items.Single().Error=="CORRECTION_RANGE_INVALID","today plus eight rejected");
         var boundary=await service.PreviewReviewsAsync(fixture.Director,[custom[0] with {Schedule=new("CUSTOM",new(2026,11,7))}],default);
         Check(boundary.Items.Single().StartsAt is {} boundaryStart && WeekContract.LocalToday(boundaryStart)==new DateOnly(2026,11,7),"today plus seven included");
-        var schedule=new PersonalScheduleService(db,new EfDirectionPreparedPlanService(db,new AuditTransaction(db),clock,new Uuid7Generator(clock),new DirectionPlanningCatalogReader(db)),clock);
-        var change=await schedule.ReadExceptionAsync(fixture.Director,fixture.Worker,new(2026,10,31),default);
-        change.Reason="QA absence";change.Hours=new(){Mode="REST"};
-        var impact=await schedule.PreviewExceptionAsync(fixture.Director,change,default);change.Fingerprint=impact.Fingerprint;
-        Check(impact.Conflicts.Any(c=>c.AssignmentId==correction.Id),"schedule change preview identifies correction");
-        await schedule.SaveExceptionAsync(fixture.Director,change,default);db.ChangeTracker.Clear();
+        await LegacyScheduleExceptionFixture.RestAsync(db, fixture.Director, fixture.Worker, new(2026,10,31), clock.UtcNow);
         Check((await service.CorrectionConflictsAsync(fixture.Director,default)).ContainsKey(correction.Id),"persistent derived conflict after absence/exception");
         Check((await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==correction.Id)).StartsAt==correction.StartsAt,"schedule change never moves correction automatically");
         try { await service.ApplyReviewsAsync(fixture.Director,custom,cp.At,cp.Fingerprint,default);throw new Exception("stale accepted"); }

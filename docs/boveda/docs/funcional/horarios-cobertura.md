@@ -10,7 +10,7 @@ verificado_en: codigo-publicado-y-pruebas-aisladas
 
 ## Disponibilidad efectiva
 
-Horarios personales, excepciones por fecha, ausencias, empleo vigente, rol y especialidades alimentan la elegibilidad. Una persona concreta de una simulación no define una regla del sistema. Capacidad y presencia se vuelven a comprobar al confirmar.
+Horarios personales, excepciones por fecha históricas, ausencias, empleo vigente, rol y especialidades alimentan la elegibilidad. Personas permite editar el horario semanal, pero ya no consultar, crear ni modificar excepciones por fecha. Las ya guardadas conservan su efecto en planificación y bono, sus versiones y su historial; no se convierten automáticamente en incidencias. Las nuevas ausencias completas se registran en Incidencias, que no admite cambios de turno por tramos. Una persona concreta de una simulación no define una regla del sistema. Capacidad y presencia se vuelven a comprobar al confirmar.
 
 La política capturada determina cómo se comprueba el intervalo. Las tareas con planificación automática reservan el tramo completo de carga más margen; las instantáneas antiguas conservan su contrato. La antigua comprobación de presencia solo al activarse no se aplica indiscriminadamente a toda asignación nueva.
 

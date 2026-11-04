@@ -170,10 +170,7 @@ public static class ProcessItemChecks
             var text=WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
             Check(response.StatusCode==HttpStatusCode.UnprocessableEntity && text.Contains(message) && text.Contains("Etapa 1 (Diagnóstico etapa 1) · Process editor test") && text.Contains("Hora evaluada: "+time),"Actual HTTP identifies shift conflict at "+time);
         }
-        var schedule=new PersonalScheduleService(db,direction,clock);
-        var exception=await schedule.ReadExceptionAsync(actor,actor,day,default); exception.Reason="Descanso para regresión aislada";
-        exception.Fingerprint=(await schedule.PreviewExceptionAsync(actor,exception,default)).Fingerprint;
-        await schedule.SaveExceptionAsync(actor,exception,default); db.ChangeTracker.Clear();
+        await LegacyScheduleExceptionFixture.RestAsync(db, actor, actor, day, clock.UtcNow);
         fields["Input.OccasionTime"]="12:00";
         var rest=await client.PostAsync("/planificacion/procesos?handler=Preview",Form(html,fields));
         var restText=WebUtility.HtmlDecode(await rest.Content.ReadAsStringAsync());
