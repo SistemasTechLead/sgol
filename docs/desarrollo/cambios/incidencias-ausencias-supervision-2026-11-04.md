@@ -332,3 +332,32 @@ Cambio mixto de formulario: destinataria, ayuda y sobrecarga se agrupan en Opcio
 Evidencia privada: `.local/incidence-options-host.log`, `.local/incidence-options-browser.log`, `.local/incidence-ui/`. Sin fallos pendientes. No se registró ausencia ni se aplicaron reasignaciones compartidas. No hay migraciones. La referencia de la bóveda se reconciliará con la publicación efectiva.
 
 Publicado `cf93b42` desde `.local/runtime/incidencias-options-20261104/Sgol.Web.dll`, proceso 8972/lanzador 36724; proxy conservado. Release, live/ready internos y acceso LAN aprobados (200, TLS normal). Referencias funcionales, de pantalla e infraestructura reconciliadas después de verificar el proceso y sincronizadas con la copia versionada. Sin migraciones ni operaciones de ausencia/reparto compartidas.
+
+## 19. Sobrecarga automática y búsqueda conjunta (04/11/2026)
+
+Se reprodujo la combinación reportada: Reparto automático + Autorizar sobrecarga por tarea + Reacomodo. La validación agrupaba una destinataria automática (null) con tareas ajenas y devolvía un mensaje falso. Después de admitir esa combinación, la copia reprodujo el segundo fallo: 20,000 pasos agotados al intentar recolocar agendas aunque existía una solución conservándolas.
+
+Correcciones:
+- Sobrecarga autorizada por tarea admite reparto automático; la propuesta identifica destinataria concreta, exceso y empalmes antes de confirmar. No se amplían roles ni se dispensan ausencias, especialidades, turno o dependencias.
+- Reacomodo es permiso para mover cuando hace falta: primero se intenta una solución completa conservando horarios vecinos. Si no existe, se buscan movimientos en las agendas de las destinatarias posibles.
+- La búsqueda comprueba que cada trabajo pendiente tenga al menos una alternativa antes de explorar combinaciones. Conserva el límite de 20,000 pasos por búsqueda y no convierte su agotamiento en prueba de inviabilidad.
+- Las dependencias de planes preparados ajenos al reparto no se usan como motivo para rechazar una incidencia que no los modifica. Los planes afectados siguen comprobándose.
+- Se separan los errores de tarea fuera de persona/fecha, acción inválida y sobrecarga incompatible. Una transferencia vencida ofrece ahora la opción efectiva Retirar por ausencia, en vez de un texto sin control utilizable.
+- La huella usa algoritmo 3 y conserva la intención Reflow incluso cuando no necesita mover vecinas; una propuesta anterior debe revisarse de nuevo.
+
+| Escenario | Entorno y evidencia | Estado |
+|---|---|---|
+| Fallo original con sobrecarga automática | Copia aislada `sgol_task_checks_incidence_diagnosis_20261104`, servicio real: mensaje de tarea ajena reproducido | Aprobado como reproducción del fallo |
+| Límite de pasos | Misma copia y reloj 12:52, después de corregir solo validación: fallo de 20,000 pasos reproducido; `.local/incidence-diagnosis-20261104/search-limit-before.log` | Aprobado como reproducción del fallo |
+| Confirmación corregida e idempotencia | Copia aislada, reloj 12:55, propuesta de 14 disposiciones confirmada y reenviada sin duplicación; `probe.log` | Aprobado |
+| Hoy y fecha futura | Reparto automático + sobrecarga + reacomodo: destinataria concreta, confirmación, replay y vecinas sin cambios | Aprobado |
+| Restricción posterior imposible | Dos tareas con muchos horarios y una destinataria incompatible: poda sin agotar pasos, sin confirmación parcial | Aprobado |
+| Reacomodo necesario | Tarea crítica con hueco ocupado; falla sin reacomodo, mueve una vecina pertinente y confirma con reacomodo | Aprobado |
+| Vencimiento al revisar | La transferencia vencida ofrece Retirar por ausencia | Aprobado |
+| Regresión de servicios/HTTP | Base nueva `sgol_task_checks_incidence_search_final_20261104`, 85 comprobaciones | Aprobado |
+| Formularios y navegador | Flujo real con automático/sobrecarga/reacomodo, revisión y confirmación; 20 escenarios Chromium/WebKit y tamaños/temas | Aprobado |
+| Compilación | Debug Web/herramientas sin errores ni avisos | Aprobado |
+| Primer fixture de reacomodo | Falló al modificar criticidad sin incrementar revisión; corregido el fixture respetando la revisión, sin debilitar validaciones | Fallido inicialmente, aprobado en ejecución final |
+| Simulación compartida | No registrar ausencia ni aplicar reparto operativo | No ejecutado; la confirmación del usuario queda pendiente |
+
+Evidencias privadas: `.local/incidence-search-final-host.log`, `.local/incidence-search-final-browser.log`, `.local/incidence-diagnosis-20261104/` y `.local/incidence-ui/`. No hay migraciones. El resultado de la copia no reemplaza la revisión del estado actual compartido: tareas que vencieron después se clasifican de nuevo. Las pruebas usan sesiones sintéticas aisladas; no se repitió autenticación compartida ni dispositivo físico.

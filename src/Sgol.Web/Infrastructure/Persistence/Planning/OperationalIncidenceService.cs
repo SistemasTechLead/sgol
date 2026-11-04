@@ -66,6 +66,14 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
 
     async Task<IncidencePreview> BuildAsync(Guid actor, IncidenceRequest request, CancellationToken ct)
     {
+        // Reflow is permission to move neighbours when needed, not an obligation to move
+        // everybody's agenda. Prefer a complete solution that preserves existing slots.
+        if (request.Reflow)
+        {
+            var preserved = await BuildAsync(actor, request with { Reflow = false }, ct);
+            if (preserved.CanApply)
+                return preserved with { Request = request, Fingerprint = Hash(new { preserved.Fingerprint, Reflow = true }) };
+        }
         var now = clock.UtcNow; var today = WeekContract.LocalToday(now);
         if (request.Day < today || request.Day > today.AddDays(366) || request.Key == Guid.Empty ||
             string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length is < 5 or > 1000 ||
@@ -139,7 +147,7 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             });
         var temporal = JsonSerializer.SerializeToNode(source.Temporal)!; temporal.AsObject().Remove("Now");
         var fingerprint = Hash(new { request, all, stages, attempts, prepared, preparedSteps, carryovers, facts, transfers, priorDecisions, availability, closures, evidence, attachments,
-            source.Workers, source.Capacities, source.Legacy, Temporal = temporal, Algorithm = 2 });
+            source.Workers, source.Capacities, source.Legacy, Temporal = temporal, Algorithm = 3 });
         var selected = all.Where(a => a.PersonId == person.Id &&
             (WeekContract.LocalToday(a.StartsAt) == request.Day || source.Footprint(a).Any(f => f.Day == request.Day) ||
              WeekContract.LocalToday(a.DueAt.AddTicks(-1)) == request.Day)).ToArray();
@@ -147,8 +155,12 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
         foreach (var reserved in source.Tasks.Where(a => a.PersonId == person.Id && !all.Any(x => x.Id == a.Id) && source.Footprint(a).Any(f => f.Day == request.Day)))
             selected = selected.Append(reserved).ToArray();
         var selectedIds = selected.Select(a => a.Id).ToHashSet();
-        if (request.Decisions.Any(d => !selectedIds.Contains(d.AssignmentId) || d.Action is not ("TRANSFER" or "RETIRE") || d.AuthorizeOverload && (d.Action != "TRANSFER" || d.RecipientId == null)))
-            throw Error("Las decisiones contienen una tarea ajena a esta propuesta. Vuelve a revisar.", 422);
+        if (request.Decisions.Any(d => !selectedIds.Contains(d.AssignmentId)))
+            throw Error("Una tarea de la revisión anterior ya no pertenece a esta persona y fecha. Inicia otra propuesta para revisar su estado actual.", 409);
+        if (request.Decisions.Any(d => d.Action is not ("TRANSFER" or "RETIRE")))
+            throw Error("Selecciona Transferir o Retirar para cada tarea que requiere decisión.", 422);
+        if (request.Decisions.Any(d => d.AuthorizeOverload && d.Action != "TRANSFER"))
+            throw Error("La autorización de sobrecarga solo corresponde a una transferencia.", 422);
         var state = State(source.Tasks.Where(a => !selectedIds.Contains(a.Id)));
         var jobs = new List<(OperationalAssignment Row, Guid? Root, DateOnly Day, Guid? Stage)>();
         foreach (var a in selected.OrderBy(a => OperationalAgenda.Priority(a.OperationalCriticality)).ThenBy(a => a.DueAt).ThenByDescending(a => a.RemainingMinutes).ThenBy(a => a.Id))
@@ -189,7 +201,7 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             if (a.DueAt <= now || decision?.Action == "RETIRE")
             {
                 if (a.DueAt <= now && decision?.Action == "TRANSFER")
-                { Block(a, "La tarea ya venció.", "No puede transferirse. Revisa el retiro y la exclusión.", ["Revisar retiro"]); continue; }
+                { Block(a, "La tarea ya venció.", "No puede transferirse. Revisa el retiro y la exclusión.", ["Retirar por ausencia"]); continue; }
                 changes.Add(new(a, null, "RETIRE", root, evaluated, stage?.Id)); continue;
             }
             if (!all.Any(x => x.Id == a.Id) && stage == null && !preparedRows.Any(p => p.Value.Any(r => r.Id == a.Id)))
@@ -231,7 +243,10 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
         var placed = new List<IncidenceChange>(); var nodes = 0; var exhausted = false;
         var exclusive = stages.Select(s => s.Id).Concat(attempts.Where(a => a.AssignmentId != null).Select(a => a.AssignmentId!.Value))
             .Concat(preparedRows.Values.SelectMany(rows => rows).Select(a => a.Id)).ToHashSet();
-        var neighbours = request.Reflow ? all.Where(a => a.PersonId != person.Id && a.StartsAt > now &&
+        var possibleRecipients = jobs.SelectMany(j => people.Where(w => RecipientReason(j.Row, w) == null &&
+            (request.Decisions.SingleOrDefault(d => d.AssignmentId == j.Row.Id)?.RecipientId is not {} id || w.Id == id)))
+            .Select(w => w.Id).ToHashSet();
+        var neighbours = request.Reflow ? all.Where(a => possibleRecipients.Contains(a.PersonId) && a.StartsAt > now &&
             WeekContract.LocalToday(a.StartsAt) == request.Day && a.DueAt > now && a.SchedulingPolicyId != null &&
             a.OperationalCriticality != "CRITICA" && a.GoalUnits == 0 && a.ProgressUnits == 0 && a.Comment == null &&
             a.OccasionId == null && a.ReassignedFromId == null && a.TransferRemainingMinutes == null &&
@@ -258,6 +273,7 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             }
             foreach (var start in prepared)
             {
+                if (!preparedRows[start.Id].Any(r => placed.Any(c => c.Before.Id == r.Id))) continue;
                 OperationalAssignment? previous = null;
                 foreach (var step in preparedSteps.Where(s => s.VersionId == start.VersionId).OrderBy(s => s.Position))
                 {
@@ -269,11 +285,9 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             }
             return true;
         }
-        bool Search(CapacityLedger ledger, int index)
+        IEnumerable<IncidenceChange> Choices(CapacityLedger ledger, int index)
         {
             ct.ThrowIfCancellationRequested();
-            if (index == jobs.Count) return DependenciesFit();
-            if (++nodes > 20000) { exhausted = true; return false; }
             var job = jobs[index]; var a = job.Row; var decision = request.Decisions.SingleOrDefault(d => d.AssignmentId == a.Id);
             var candidates = people.Where(w => (!neighbourIds.Contains(a.Id) || w.Id == a.PersonId) && RecipientReason(a, w) == null &&
                 (decision?.RecipientId == null || w.Id == decision.RecipientId))
@@ -290,7 +304,7 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
                 // Keep required role and the captured effort; a specialist may have a different employment role.
                 foreach (var slot in OperationalAgenda.Alternatives(placementLedger, worker.Id, projected, earliest))
                 {
-                    if (++nodes > 20000) { exhausted = true; return false; }
+                    if (++nodes > 20000) { exhausted = true; yield break; }
                     OperationalAgenda.Apply(projected, slot);
                     var footprint = ledger.Footprint(projected).ToArray();
                     if (overload && projected.GoalUnits > 0 && footprint.Any(f => {
@@ -316,15 +330,29 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
                          stage.FixedDueAt is {} fixedDue && projected.DueAt > fixedDue ||
                          stages.Any(s => s.RunId == stage.RunId && s.Position > stage.Position && s.OperationalCriticality == "CRITICA" && s.NominalStartsAt < projected.DueAt))) continue;
                     var saved = Copy(projected);
-                    placed.Add(new(a, saved, neighbourIds.Contains(a.Id) ? "MOVE" : "TRANSFER", job.Root, job.Day, job.Stage, overload) {
+                    yield return new(a, saved, neighbourIds.Contains(a.Id) ? "MOVE" : "TRANSFER", job.Root, job.Day, job.Stage, overload) {
                         ExcessMinutes = Math.Max(0, Pending(ledger, worker.Id, request.Day) + footprint.Where(f=>f.Day==request.Day).Sum(f=>f.Minutes) - RemainingCapacity(ledger, worker.Id, request.Day, earliest)),
                         OverloadDays = overload && a.GoalUnits > 0 ? footprint.Select(f => $"{f.Day:dd/MM/yyyy}: {f.Minutes:0.#} min de esta obligación; exceso {Math.Max(0, Pending(ledger,worker.Id,f.Day)+f.Minutes-RemainingCapacity(ledger,worker.Id,f.Day,earliest)):0.#} min.").ToArray() : [],
                         Overlaps = ledger.Tasks.Where(t => t.PersonId == worker.Id && t.StartsAt < saved.DueAt && t.DueAt > saved.StartsAt).Select(t => t.Name).ToArray()
-                    });
-                    if (Search(ledger.WithAdded(saved), index + 1)) return true;
-                    placed.RemoveAt(placed.Count - 1);
-                    if (exhausted) return false;
+                    };
                 }
+            }
+        }
+        bool Search(CapacityLedger ledger, int index)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (index == jobs.Count) return DependenciesFit();
+            if (++nodes > 20000) { exhausted = true; return false; }
+            // Fail on an empty remaining domain before enumerating combinations of
+            // otherwise feasible slots. The same constraints and budget apply here.
+            for (var remaining = index; remaining < jobs.Count; remaining++)
+                if (!Choices(ledger, remaining).Any()) return false;
+            foreach (var choice in Choices(ledger, index))
+            {
+                placed.Add(choice);
+                if (Search(ledger.WithAdded(choice.After!), index + 1)) return true;
+                placed.RemoveAt(placed.Count - 1);
+                if (exhausted) return false;
             }
             return false;
         }

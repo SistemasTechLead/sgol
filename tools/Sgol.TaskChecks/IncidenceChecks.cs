@@ -67,6 +67,7 @@ internal static partial class IncidenceChecks
         await service.ApplyAsync(f.Director, future, preview.Fingerprint, default);
         await BoundaryChecks(db, clock);
         await RiskChecks(db, clock);
+        await SearchChecks(db, clock);
         await ProcessChecks(db, clock);
         EconomicChecks(clock);
         await ConcurrentChecks(db, clock);
@@ -85,5 +86,7 @@ internal static partial class IncidenceChecks
         Check(!await db.Set<OperationalIncidence>().AnyAsync(i => i.PersonId == f.Person) && !await db.AvailabilityDayVersions.AnyAsync(i => i.PersonId == f.Person), "stale proposal leaves no partial absence");
         preview = await service.PreviewAsync(f.Director, request with { NotBefore = clock.UtcNow.AddMinutes(2) }, default);
         Check(preview.Changes.Single(c => c.Before.Id == a.Id).Action == "RETIRE", "exact due instant is expired");
+        var expiredTransfer = await service.PreviewAsync(f.Director, request with { NotBefore = clock.UtcNow.AddMinutes(2), Decisions = [new(a.Id,"TRANSFER",f.OtherPerson)] }, default);
+        Check(!expiredTransfer.CanApply && expiredTransfer.Cases.Single(c => c.EntityId == a.Id).Options.Contains("Retirar por ausencia"), "expired transfer offers an actionable retirement choice on re-review");
     }
 }

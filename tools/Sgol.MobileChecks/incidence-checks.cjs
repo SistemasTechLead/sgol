@@ -77,13 +77,15 @@ const fixture = JSON.parse(fs.readFileSync(path.join(output, 'fixture.json')));
       await page.locator('select[name$=".RecipientId"]').selectOption(fixture.conflictRecipient);
       await page.locator('input[name$=".AuthorizeOverload"][type="checkbox"]').check();
       await page.setViewportSize({width:320,height:1000});
+      await page.locator('select[name$=".RecipientId"]').selectOption('');
+      await page.locator('#Reflow').check();
       await page.screenshot({path:path.join(output,'conflict-320.png'),fullPage:true});
       await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Revisar cambios',exact:true}).click()]);
       assert(await page.getByText(/Sobrecarga autorizada para/).count());
       assert.equal(await page.locator('input[name$=".AuthorizeOverload"][type="hidden"]').inputValue(),'true');
       await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Confirmar ausencia y cambios',exact:true}).click()]);
       await page.getByRole('heading',{name:/Ausencia confirmada/}).waitFor();
-      results.push({engine:name,scenario:'protected evidence conflict, explicit recipient and overload, review preserves decisions, atomic confirmation',status:'passed'});
+      results.push({engine:name,scenario:'protected evidence, retire/transfer toggles, automatic recipient plus overload and reflow, preserved decisions and atomic confirmation',status:'passed'});
     }
     assert.deepEqual(errors, []); await browser.close();
   }
