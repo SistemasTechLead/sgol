@@ -43,6 +43,8 @@ internal static partial class IncidenceChecks
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         var supervisorPerson = await db.AppUsers.Where(u => u.Id == supervisor.Director).Select(u => u.PersonId).SingleAsync();
         await Row(db, fixture, clock, clock.UtcNow.AddHours(1));
+        await Row(db, fixture, clock, clock.UtcNow.AddHours(-1));
+        await Row(db, conflictFixture, clock, clock.UtcNow.AddHours(-1));
         var person = await db.People.SingleAsync(p => p.Id == fixture.Person);
         person.DisplayName = "Ausente para formulario real con nombre largo y descripción de prueba";
         await db.SaveChangesAsync();

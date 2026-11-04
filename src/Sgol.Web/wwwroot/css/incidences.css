@@ -1,7 +1,29 @@
-/* Keep the existing shell readable at narrow widths; the account remains in its menu. */
-[data-incidence-form] > :not(.campo) { grid-column: 1 / -1; }
-[data-incidence-form] > button,
-[data-incidence-form] > a { justify-self: start; }
+.incidence-form { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr); gap: 12px 16px; align-items: start; }
+.incidence-form > :not(.campo), .incidence-form > .incidence-form__reason { grid-column: 1 / -1; }
+.incidence-form > button, .incidence-form > a { justify-self: start; }
+.incidence-form > h3, .incidence-form > p { margin: 0; }
+.incidence-form .campo, .incidence-search .campo { min-width: 0; margin: 0; }
+.incidence-form .campo__control, .incidence-search .campo__control { width: 100%; min-width: 0; }
+.incidence-group { min-width: 0; border: 1px solid var(--color-borde); border-radius: 12px; overflow: hidden; }
+.incidence-group > h4 { margin: 0; padding: 12px 16px; background: var(--color-superficie); font-size: 1rem; }
+.incidence-group > h4 span { color: var(--color-texto-secundario); font-weight: normal; }
+.incidence-group--decisions { border-inline-start: 3px solid var(--color-acento); }
+.incidence-task { padding: 12px 16px; border-top: 1px solid var(--color-borde); overflow-wrap: anywhere; display: grid; gap: 6px; }
+.incidence-task h5 { font-size: 1rem; margin: 0; }
+.incidence-task p { margin: 0; }
+.incidence-task summary { cursor: pointer; padding-block: 10px; min-height: 44px; color: var(--color-texto-secundario); }
+.incidence-task details p { margin-block: 6px; }
+.incidence-task--decision .campo { margin-top: 6px; }
+.incidence-search__filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 12px; }
+.incidence-search__filters .campo { flex: 1 1 12rem; }
+.incidence-search__filters .campo:has(input[type="search"]) { flex-grow: 2; }
+.incidence-person { border-top: 1px solid var(--color-borde); padding-block: 10px; overflow-wrap: anywhere; }
+.incidence-person p { margin: 0; }
+.incidence-person p + p { margin-top: 4px; color: var(--color-texto-secundario); font-size: .875rem; }
+@media (max-width: 600px) {
+    .incidence-form { grid-template-columns: minmax(0, 1fr); }
+    .incidence-task, .incidence-group > h4 { padding-inline: 12px; }
+}
 @media (max-width: 480px) {
     body:has([data-incidence-page]) .encabezado-aplicacion__identidad { display: none; }
 }

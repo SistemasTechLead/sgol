@@ -270,3 +270,21 @@ Nueva Web observada: proceso 28840, lanzador 19696 registrado en `.local/process
 Se reconciliaron las notas existentes de supervisión, disponibilidad, bono, procesos, planificación, historial y pantallas; la instalación local y la base documental identifican la publicación vigente. La copia versionada se sincronizó tras comprobar divergencias, conservando las mejoras anteriores de la bóveda. Graphify actualizado: 42 notas, 288 nodos y 550 relaciones. Enlaces locales comprobados en referencias afectadas, Inicio, mapas e inventario: cero destinos rotos. No se crearon notas de planes ni informes en la bóveda.
 
 Evidencia privada: `before.json`, `before.dump`, `before-fingerprint.json`, `after-fingerprint.json`, `migration.log`, `health.json`, `web.log` y `web.error.log` en `.local/deploy-incidences-20261104/`. Las pruebas ampliadas y el formulario de reprogramación posterior señalados antes siguen pendientes; publicar no amplía su cobertura.
+
+## 16. Ajuste de composición y densidad (04/11/2026)
+
+Cambio de interfaz: registro antes de consulta; fecha editable y visible en el registro; búsqueda compacta debajo, con nombres de parámetros y paginación conservados. Vista previa ordenada por grupos: conflictos que requieren decisión, reasignaciones/otros cambios y retiros al final. Se sustituyen paneles anidados por filas compactas, con historial desplegable, tokens existentes y foco accesible. No cambian servicios, efectos económicos, permisos ni esquema.
+
+Fuentes: `Pages/Validations/Incidents.cshtml`, `wwwroot/css/incidences.css`; regresiones en `IncidenceHttpChecks.cs` e `incidence-checks.cjs`. El árbol estaba limpio al comenzar.
+
+| Escenario | Resultado esperado | Entorno y prueba | Estado |
+|---|---|---|---|
+| Compilación | Razor y herramientas sin errores | Build Debug, 12 proyectos | Aprobado, 0 errores/avisos |
+| Formulario e invariantes | Vista previa, confirmación, reintento, permisos e integridad conservados | Base `sgol_task_checks_incidence_layout_20261104`, 52 comprobaciones de servicio y 10 HTTP | Aprobado |
+| Prioridad | Conflictos antes de retiros; transferencias antes de retiros | Fixture mixto y aserciones DOM reales | Aprobado |
+| Tamaños y temas | Sin desbordamiento; foco y lectura utilizables | Chromium/Edge y WebKit, 320/768/1440, light/dark/special; 18 combinaciones + 2 recorridos | Aprobado, 20 escenarios |
+| Consulta y teclado | Vacío correcto, fecha futura conservada, acceso de consulta para supervisores | Formulario real y teclado en Chromium | Aprobado |
+| Inspección visual | Espaciado compacto y jerarquía legible | Capturas 320 claro/conflicto y 1440 oscuro | Aprobado |
+| Dispositivo físico/lector de pantalla | Comprobar interacción asistida | No disponibles en esta ejecución | No ejecutado |
+
+Evidencia privada: `.local/incidence-layout-host.log`, `.local/incidence-layout-browser.log`, `.local/incidence-layout-extra.log` y `.local/incidence-ui/`. Sesiones sintéticas en host aislado; no acreditan autenticación compartida. Primer intento de navegador falló por falta de NODE_PATH; corregido con runtime existente. La primera aserción auxiliar de teclado supuso un único Tab en fecha: falló por sus segmentos nativos; corregida para recorrerlos, sin cambios en producto. No quedan fallos de estas pruebas pendientes. Publicación y reconciliación de bóveda se registran después de verificar el host.
