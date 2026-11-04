@@ -40,6 +40,8 @@ La vista previa reúne disponibilidad, transferencias, retiros y efecto en el bo
 
 La sobrecarga se autoriza para una tarea y destinataria concretas, mostrando exceso y empalmes. No elimina ausencias, especialidades, turno, dependencias ni reservas exclusivas; no cambia la capacidad global. El reacomodo opcional muestra también las tareas vecinas futuras sin actividad protegida que cambiarían. Las obligaciones que vencen otro día conservan plazo y bono; se revisa su esfuerzo en los días restantes.
 
+Las destinatarias ofrecidas cumplen rol o especialidad, disponibilidad y un tramo de horario suficiente. La falta de capacidad por sí sola no las oculta: requiere revisar la carga o autorizar sobrecarga explícita. Los huecos ocupados, dependencias y condiciones conjuntas se validan al revisar. Si una selección anterior deja de ser elegible, se informa y se exige nueva revisión; los envíos manipulados no dispensan la regla. Los conflictos de rol y presupuesto identifican destinataria y causa.
+
 Cambiar datos exige revisar de nuevo. La confirmación conjunta revalida el estado y vencimientos, incluso al commit; un fallo revierte el conjunto. Repetir la misma intención devuelve el recibo existente. No se permite restaurar solo disponibilidad para deshacer la incidencia. Ausencias parciales, reversión automática y formulario de reprogramación posterior de procesos no están disponibles.
 
 Fuentes: [servicio de incidencias](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalIncidenceService.cs), [formulario](../../../../src/Sgol.Web/Pages/Validations/Incidents.cshtml). Relaciones: [Disponibilidad](horarios-cobertura.md), [Procesos](procesos.md), [Bono](bono-tareas.md).

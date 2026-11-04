@@ -312,3 +312,5 @@ Corrección mixta: cada caso devuelve IDs de destinatarias que cumplen rol/espec
 | Operación compartida | Registrar ausencia o transferir las seis tareas | No se ejecuta en esta corrección | No ejecutado, fuera de la reproducción autorizada |
 
 Evidencias privadas: `.local/incidence-recipients-final-host.log`, `.local/incidence-recipients-final-browser.log`, `.local/incidence-ui/`, `.local/incidence-diagnosis-20261104/`. Sin fallos de validación pendientes en esta matriz; pruebas físicas y autenticación compartida no repetidas. La publicación y la reconciliación documental se completan después de verificar el artefacto.
+
+Publicación del ajuste completada: `3e3bb74` subido antes de reemplazar Web por `.local/runtime/incidencias-recipients-20261104/Sgol.Web.dll` (proceso 14692/lanzador 40992), con proxy 20652 conservado. Release y salud live/ready/acceso local/LAN aprobados (200, TLS normal). Sin migraciones, sin registrar ausencia ni confirmar asignaciones compartidas. Reconciliadas referencias de Supervisión, pantallas, instalación y base documental y su copia versionada, tras comprobar el artefacto.
