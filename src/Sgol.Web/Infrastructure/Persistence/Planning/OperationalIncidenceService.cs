@@ -11,7 +11,8 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
-public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, OperationalSupervisionService supervision)
+public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, OperationalSupervisionService supervision,
+    ILogger<OperationalIncidenceService>? logger = null)
 {
     static string Hash(object value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
     static OperationalAssignment Copy(OperationalAssignment a) => AssignmentDefinition.Copy(a);
@@ -92,18 +93,21 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
         source = new(source.Workers, source.Tasks.Select(a => byId.GetValueOrDefault(a.Id) ?? a).Concat(all.Where(a => a.CompletedAt != null &&
             WeekContract.LocalToday(a.StartsAt) == request.Day)).DistinctBy(a => a.Id).ToArray(),
             source.Capacities, source.Unavailable, source.Legacy, source.Today) { Temporal = source.Temporal };
-        var stages = await db.Set<OperationalSequenceStage>().AsNoTracking().Where(s => db.Set<OperationalSequenceRun>().Any(r => r.Id == s.RunId && r.Status == "EN_CURSO")).OrderBy(s => s.RunId).ThenBy(s => s.Position).ToArrayAsync(ct);
+        var stages = await db.Set<OperationalSequenceStage>().AsNoTracking().Where(s => db.Set<OperationalSequenceRun>().Any(r => r.Id == s.RunId && r.Status == "EN_CURSO")).OrderBy(s => s.RunId).ThenBy(s => s.Position).ThenBy(s => s.Id).ToArrayAsync(ct);
         var attempts = await db.Set<OperationalSequenceAttempt>().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync(ct);
         var prepared = await db.Set<PreparedProcessStart>().AsNoTracking().Where(s => s.Status == "PREPARADO" && s.IncidenceHoldId == null).OrderBy(s => s.Id).ToArrayAsync(ct);
-        var preparedSteps = await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s => prepared.Select(p => p.VersionId).Contains(s.VersionId)).OrderBy(s => s.Position).ToArrayAsync(ct);
+        var preparedSteps = await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s => prepared.Select(p => p.VersionId).Contains(s.VersionId)).OrderBy(s => s.VersionId).ThenBy(s => s.Position).ToArrayAsync(ct);
         var preparedRows = prepared.ToDictionary(p => p.Id, p => p.AgendaJson != null ? JsonSerializer.Deserialize<OperationalAssignment[]>(p.AgendaJson)! :
             ProcessPlanningService.Reservations(p.Id, p.VersionId, p.StartsAt, JsonSerializer.Deserialize<Dictionary<int, Guid>>(p.Participants)!, preparedSteps.Where(s => s.VersionId == p.VersionId).ToArray()).ToArray());
         var carryovers = await db.Set<OperationalCarryoverRequest>().AsNoTracking().OrderBy(r => r.Id).ToArrayAsync(ct);
-        var facts = await db.Set<TaskBonusFact>().AsNoTracking().OrderBy(f => f.RecordedAt).ThenBy(f => f.Revision).ToArrayAsync(ct);
-        var transfers = await db.Set<OperationalTransfer>().AsNoTracking().OrderBy(t => t.At).ToArrayAsync(ct);
+        // Fingerprints require a total order: timestamps/revisions can tie for many
+        // records. Query plans or physical layout must not create false concurrency.
+        var facts = await db.Set<TaskBonusFact>().AsNoTracking().OrderBy(f => f.RecordedAt).ThenBy(f => f.Revision).ThenBy(f => f.Id).ToArrayAsync(ct);
+        var transfers = await db.Set<OperationalTransfer>().AsNoTracking().OrderBy(t => t.At).ThenBy(t => t.Id).ToArrayAsync(ct);
         var priorDecisions = await (from d in db.Set<OperationalIncidenceDisposition>().AsNoTracking()
             join i in db.Set<OperationalIncidence>().AsNoTracking() on d.IncidenceId equals i.Id
             where i.At <= now
+            orderby d.Id
             select new IncidenceBonusDecision(d.AssignmentId, d.ObligationId, d.StageId, d.PersonId, d.RecipientId, d.EvaluationDay, d.Action, i.At)).ToArrayAsync(ct);
         var obligations = TaskBonusService.Materialize(facts, transfers, carryovers, now, DateTimeOffset.MaxValue, priorDecisions);
         var availability = await db.AvailabilityDayVersions.AsNoTracking().Where(a => a.Status == AvailabilityVersionStatus.Current).OrderBy(a => a.Id).ToArrayAsync(ct);
@@ -147,7 +151,11 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             });
         var temporal = JsonSerializer.SerializeToNode(source.Temporal)!; temporal.AsObject().Remove("Now");
         var fingerprint = Hash(new { request, all, stages, attempts, prepared, preparedSteps, carryovers, facts, transfers, priorDecisions, availability, closures, evidence, attachments,
-            source.Workers, source.Capacities, source.Legacy, Temporal = temporal, Algorithm = 3 });
+            source.Workers, source.Capacities, source.Legacy, Temporal = temporal, Algorithm = 4 });
+        logger?.LogInformation("Incidence review {IntentKey}: request {RequestHash}; assignments {AssignmentsHash}; processes {ProcessesHash}; bonus {BonusHash}; availability {AvailabilityHash}; evidence {EvidenceHash}",
+            request.Key, Hash(request), Hash(all), Hash(new { stages, attempts, prepared, preparedSteps }),
+            Hash(new { carryovers, facts, transfers, priorDecisions, closures }),
+            Hash(new { availability, source.Workers, source.Capacities, source.Legacy, Temporal = temporal }), Hash(new { evidence, attachments }));
         var selected = all.Where(a => a.PersonId == person.Id &&
             (WeekContract.LocalToday(a.StartsAt) == request.Day || source.Footprint(a).Any(f => f.Day == request.Day) ||
              WeekContract.LocalToday(a.DueAt.AddTicks(-1)) == request.Day)).ToArray();
@@ -420,9 +428,17 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
                 await tx.CommitAsync(ct); return prior;
             }
             var preview = await BuildAsync(actor, request, ct);
-            if (!preview.CanApply || preview.Fingerprint != fingerprint || preview.Changes.Any(c => c.Action is "TRANSFER" or "MOVE" &&
-                (c.Before.DueAt <= clock.UtcNow || c.After!.StartsAt < clock.UtcNow)))
-                throw Error("La propuesta cambió o cruzó un límite temporal. Revisa otra vez; no se guardó ningún cambio.");
+            if (!preview.CanApply)
+            {
+                var conflict = preview.Cases.First();
+                throw Error($"{conflict.Task}: {conflict.Cause} Revisa los cambios para resolverlo. No se guardó ningún cambio.");
+            }
+            CheckTemporalLimits(preview);
+            if (preview.Fingerprint != fingerprint)
+            {
+                logger?.LogWarning("Incidence confirmation {IntentKey}: fingerprint mismatch; reviewed {ReviewedHash}; current {CurrentHash}", request.Key, fingerprint, preview.Fingerprint);
+                throw Error("Los datos o el reparto recalculado no coinciden con la vista previa. Pulsa Revisar cambios para actualizarla; no se guardó ningún cambio.");
+            }
             var receipt = new OperationalIncidence { Id = Guid.CreateVersion7(), PersonId = request.PersonId, Day = request.Day,
                 ActorId = actor, At = clock.UtcNow, IntentKey = request.Key, IntentHash = hash, Fingerprint = fingerprint,
                 Reason = request.Reason.Trim(), ReceiptJson = JsonSerializer.Serialize(preview) };
@@ -477,8 +493,7 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
                 ResourceId = receipt.Id, ResourceType = "OPERATIONAL_INCIDENCE", BranchId = BranchScope.LorettaId, Action = "ABSENCE_APPLIED",
                 Outcome = "SUCCESS", CorrelationId = request.Key, AfterData = JsonSerializer.SerializeToDocument(preview) });
             await db.SaveChangesAsync(ct);
-            if (preview.Changes.Any(c => c.Action is "TRANSFER" or "MOVE" && (c.Before.DueAt <= clock.UtcNow || c.After!.StartsAt < clock.UtcNow)))
-                throw Error("La propuesta cruzó un límite temporal al guardarse. Revisa otra vez; no se guardó ningún cambio.");
+            CheckTemporalLimits(preview);
             await tx.CommitAsync(ct); return receipt;
         }
         catch
@@ -490,6 +505,18 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             db.ChangeTracker.Clear(); db.PendingBonusFacts.Clear(); db.PendingBonusAvailability.Clear(); db.PendingBonusExclusions.Clear();
             db.PendingIncidenceLimits.Clear();
             throw;
+        }
+    }
+
+    void CheckTemporalLimits(IncidencePreview preview)
+    {
+        var now = clock.UtcNow;
+        foreach (var change in preview.Changes.Where(c => c.Action is "TRANSFER" or "MOVE"))
+        {
+            if (change.Before.DueAt <= now)
+                throw Error($"{change.Before.Name}: venció durante la revisión. Pulsa Revisar cambios para revisar su retiro; no se guardó ningún cambio.");
+            if (change.After!.StartsAt < now)
+                throw Error($"{change.Before.Name}: la hora de inicio propuesta ya pasó. Pulsa Revisar cambios para buscar un horario vigente; no se guardó ningún cambio.");
         }
     }
 

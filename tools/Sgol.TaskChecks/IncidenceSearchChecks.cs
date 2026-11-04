@@ -21,6 +21,19 @@ internal static partial class IncidenceChecks
             Check(preview.CanApply && preview.Changes.Single().After is {} after && after.PersonId!=f.Person && preview.Changes.Single().OverloadAuthorized,
                 $"automatic overload identifies actual recipient before confirmation day+{offset}");
             Check(preview.Request.Reflow && preview.Changes.All(c=>c.Action!="MOVE"),"reflow permission preserves neighbours when fixed slots solve the incident");
+            if(offset==0)
+            {
+                // Physical row order is not a business change. Equal timestamps and
+                // revisions must not make a reviewed proposal depend on query layout.
+                await db.Database.ExecuteSqlRawAsync("""
+                    DO $$ DECLARE fact_id uuid; BEGIN
+                    FOR fact_id IN SELECT "Id" FROM task_bonus_fact ORDER BY "Id" DESC LOOP
+                    UPDATE task_bonus_fact SET "Kind"="Kind" WHERE "Id"=fact_id;
+                    END LOOP; END $$;
+                    """);
+                var reordered=await service.PreviewAsync(f.Director,request,default);
+                Check(reordered.Fingerprint==preview.Fingerprint,"physical ordering of unchanged bonus facts does not invalidate preview");
+            }
             var receipt=await service.ApplyAsync(f.Director,request,preview.Fingerprint,default);db.ChangeTracker.Clear();
             Check((await service.ApplyAsync(f.Director,request,preview.Fingerprint,default)).Id==receipt.Id,"automatic overload with reflow confirms and replays idempotently");
             var neighbours=await db.OperationalAssignments.AsNoTracking().Where(a=>a.Id!=task.Id).OrderBy(a=>a.Id).ToArrayAsync();

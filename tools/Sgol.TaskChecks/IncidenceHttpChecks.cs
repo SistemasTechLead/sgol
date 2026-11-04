@@ -135,6 +135,12 @@ internal static partial class IncidenceChecks
         Check(response.IsSuccessStatusCode && retirementHtml.Contains("data-incidence-confirm") &&
             Field(retirementHtml, "Decisions[keep0].RecipientId") == "" && Field(retirementHtml, "Decisions[keep0].AuthorizeOverload") == "false",
             "HTTP retirement discards forged recipient and overload before review");
+        var staleForm = new Dictionary<string,string>(invalidRecipientForm) {
+            ["Fingerprint"]="deliberately-stale", ["NotBefore"]=Field(retirementHtml,"NotBefore") };
+        response=await client.PostAsync("/supervision/incidencias?handler=Apply",new FormUrlEncodedContent(staleForm));
+        var staleHtml=WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Check(response.StatusCode==HttpStatusCode.Conflict && staleHtml.Contains("no coinciden con la vista previa") && !staleHtml.Contains("límite temporal"),"HTTP state mismatch is not mislabeled as a temporal expiry");
+        Check(Field(staleHtml,"Decisions[keep0].AssignmentId")==protectedRow.Id.ToString() && Field(staleHtml,"Decisions[keep0].Action")=="RETIRE", "HTTP rejection preserves reviewed decisions for the next review");
         handler.CookieContainer.Add(client.BaseAddress, new Cookie("incidence-role", "worker"));
         Check((await client.GetAsync("/supervision/incidencias")).StatusCode == HttpStatusCode.Forbidden, "worker cannot browse supervision");
         handler.CookieContainer.Add(client.BaseAddress, new Cookie("incidence-role", "supervisor"));

@@ -383,3 +383,30 @@ Corrección de interfaz/contrato: `Incidents.cshtml` serializa el campo oculto c
 La regresión mantenible se añadió a `IncidenceHttpChecks.cs`. Evidencias privadas en `.local/`; sin migraciones. Referencias de bóveda pendientes de reconciliar al verificar la publicación efectiva.
 
 Publicado commit 6519aa2 desde .local/runtime/incidencias-precision-20261104/Sgol.Web.dll, Web 9200/lanzador 27752. Proxy 20652 conservado. Live/ready internos y acceso LAN: 200, TLS normal. Bóveda y copia versionada reconciliadas tras verificar publicación; sin migraciones ni confirmación de ausencia compartida.
+
+## 21. Orden determinista y diagnóstico de confirmación (04/11/2026)
+
+El nuevo rechazo compartido ocurrió unos 18 segundos después de la revisión. El registro anterior no guardaba las huellas por componente ni distinguía la causa; no permite atribuir retrospectivamente ese intento a un vencimiento o a una diferencia de estado. No se afirma que la pérdida de precisión de la sección anterior explicara todos los rechazos.
+
+Investigación y corrección:
+- La copia del estado actual confirmó con el servicio tras 15 segundos de reloj simulado y con el formulario/navegador y reloj real, tanto usando Debug como el ensamblado Release efectivamente publicado. Eso no prueba que el envío compartido tuviera iguales datos o estado concurrente.
+- Se reprodujo otro defecto: hechos de bono con fecha/revisión iguales podían salir en distinto orden físico y cambiar la huella sin modificar su contenido. La regresión reordena físicamente filas únicamente en una base aislada y falla antes de la corrección.
+- La huella usa orden total por identificador en los empates de hechos, transferencias y etapas; orden por versión/posición para pasos preparados y por identificador para disposiciones. Algoritmo 4; requiere nueva revisión de propuestas anteriores.
+- El rechazo diferencia conflictos de la propuesta, tarea vencida, inicio propuesto ya pasado y huella distinta. Los dos límites temporales identifican la tarea; se conserva el control antes de guardar y al commit.
+- Se registran clave de intención y hashes por componente (petición, asignaciones, procesos, bono, disponibilidad y evidencia), sin cuerpos de evidencia, motivos ni datos personales. Permiten localizar una divergencia posterior; no constituyen autorización para confirmar.
+- Las decisiones ocultas sobreviven al rechazo del formulario. Volver a Revisar cambios conserva acción, destinataria y sobrecarga; sigue requiriendo nueva confirmación.
+
+| Escenario | Entorno y evidencia | Estado |
+|---|---|---|
+| Servicio con reloj fraccionario y 15 segundos entre revisión y confirmación | Copia `sgol_task_checks_incidence_clock_20261104`, `.local/incidence-clock-20261104/probe.log`; confirmación y reintento | Aprobado |
+| Formulario real con estado copiado y reloj real | Copias `sgol_task_checks_incidence_form_20261104` y `sgol_task_checks_incidence_release_20261104`; Debug y DLL Release previa, navegador Chromium, recibo | Aprobado |
+| Orden físico de hechos sin cambios lógicos | Base `sgol_task_checks_incidence_order_before_20261104`, `.local/incidence-order-before.log` | Fallido antes del arreglo; defecto reproducido |
+| Mismo escenario con orden determinista | Base nueva `sgol_task_checks_incidence_order_ui_20261104`, `.local/incidence-order-ui.log` | Aprobado |
+| Regresiones, permisos, reloj, integridad, procesos, bono, formularios y decisiones conservadas | 92 comprobaciones funcionales/HTTP en base aislada | Aprobado |
+| Navegadores, temas, tamaños, teclado, rechazo y posterior confirmación | 20 escenarios Chromium/WebKit; `.local/incidence-order-browser.log`; captura móvil de error inspeccionada | Aprobado |
+| Compilación Debug y Release | Cero errores/avisos en compilación final; `.local/incidence-order-publish.log` | Aprobado |
+| Compilación intermedia | Intento de ordenar pasos por Id inexistente; corregido usando su clave versión/posición | Fallido inicialmente; aprobado final |
+| Causa exacta del envío compartido anterior | No había trazas suficientes; la reproducción demuestra un defecto adicional, no su ocurrencia en aquel envío | Pendiente de evidencia; sin atribución categórica |
+| Confirmación operativa compartida, dispositivo físico y sesión compartida | No se registró ausencia ni se aplicó reparto compartido; pruebas con sesión sintética aislada | No ejecutado |
+
+Sin migraciones ni alteración del historial compartido. Evidencias y copias privadas en `.local/`. Bóveda pendiente de reconciliación tras verificar despliegue.
