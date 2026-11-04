@@ -33,6 +33,7 @@ if (args.Contains("--performance-jpeg")) { await PerformanceJpegChecks.RunAsync(
 if (args.Contains("--performance-regressions")) { await PerformanceRegressionChecks.RunAsync(); return; }
 if (args.Contains("--performance-media")) { await PerformanceMediaChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-media")); return; }
 if (args.Contains("--performance-scanner")) { await PerformanceScannerChecks.RunAsync(PerformanceLoadChecks.ArtifactDirectory("performance-scanner")); await PerformanceScannerChecks.RunHostComparisonAsync(PerformanceLoadChecks.ArtifactDirectory("performance-scanner")); return; }
+if (args.Contains("--refresh-issue-presentation")) { RefreshIssuePresentationChecks.Run(); return; }
 if (args.Contains("--checklist-rules")) { ChecklistChecks.Rules(); return; }
 if (args.Contains("--bonus-rules")) { TaskBonusChecks.Rules(); return; }
 if (args.Contains("--my-work-closed")) { MyWorkClosedChecks.Run(); return; }
@@ -59,6 +60,8 @@ var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Cont
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 var bonusBeforeMigration = args.Contains("--bonus-migration") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--refresh-search-replay")) { await RefreshSearchReplayChecks.Run(db); return; }
+if (args.Contains("--refresh-overdue-capacity")) { await RefreshOverdueCapacityChecks.Run(db); return; }
 if (args.Contains("--process-recurrence-ui")) { await ProcessRecurrenceUi.Run(db); return; }
 if (args.Contains("--process-recurrence-seed")) { await ProcessRecurrenceChecks.Run(db, uiSeed: true); return; }
 if (args.Contains("--process-recurrence")) { await ProcessRecurrenceChecks.Run(db); return; }

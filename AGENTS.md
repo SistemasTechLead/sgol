@@ -39,6 +39,14 @@ Antes de planear o implementar cambios funcionales, de interfaz o mixtos, lee [e
 - **No guardes en la bóveda planes de implementación, propuestas, bitácoras, informes de pruebas o casos particulares, diagnósticos temporales ni ejercicios de importación.** Los planes y registros de ingeniería que requiera el protocolo van en `docs/desarrollo/cambios/` del repositorio; evidencias generadas y archivos privados van en `.local/` o `artifacts/` según corresponda, sin publicarlos. Extrae de esos registros únicamente las reglas vigentes que deban incorporarse a la referencia.
 - Antes de cerrar, comprueba enlaces locales, mapa, inventario y referencias afectadas; repara enlaces al sustituir o retirar notas. No copies masivamente `docs/` a la bóveda ni reintroduzcas documentos históricos retirados. Si la bóveda no está disponible, informa la limitación y registra la actualización pendiente fuera de ella, sin afirmar que se realizó.
 
+## Índice de la bóveda con Graphify
+
+- Para descubrir qué notas o relaciones documentales intervienen en una tarea, ejecutar primero `./scripts/consultar-boveda.ps1 -Query 'tema concreto'`. Actualiza el índice local y verifica hashes; después leer Inicio, el mapa pertinente y las secciones fuente necesarias. No repetir lecturas ya realizadas sin un cambio relevante.
+- Usar `-Action Explain -Query 'ruta/nota.md'` para conexiones de una nota y `-Action Path -Query 'origen' -Target 'destino'` para seguir enlaces. Empezar con los límites predeterminados; ampliar solo cuando falte información. No leer todo `graph.json` ni informes completos en el contexto del chat.
+- El índice cubre estructura y enlaces de Markdown, no el cuerpo completo, el código de SGOL ni el despliegue. Consultar las fuentes para reglas y verificaciones. Una búsqueda vacía, parcial o recortada no prueba ausencia; usar `rg` dirigido si hace falta. Las cadenas exactas y rutas ya conocidas pueden consultarse directamente.
+- Si la actualización falla, no usar el grafo viejo. Si falta la bóveda, informar y recurrir a `docs/boveda/`. Tras editar notas, ejecutar `./scripts/consultar-boveda.ps1 -Action Update`. No activar extracción con LLM ni reconstrucciones forzadas como recuperación automática.
+- Procedimiento, instalación fijada y límites: [consulta con Graphify](docs/boveda/docs/desarrollo/consulta-boveda-graphify.md). Esta regla conserva los recorridos obligatorios de infraestructura y la app compartida como fuente de comportamiento.
+
 ## Entornos y datos
 
 - Antes de actualizar, recargar o reiniciar la app local/compartida, sigue obligatoriamente este recorrido dentro de la bóveda: `Inicio.md` → `mapas/infraestructura.md` → `docs/instalacion-local.md` → `organizacion/base-documental.md`; consulta `docs/acceso-red.md` si interviene LAN/proxy. Empieza por esas ubicaciones conocidas, no por una búsqueda general del host. Verifica después los procesos, argumentos, publicación y listeners efectivos: la documentación orienta, pero no prueba el estado actual. Distingue reiniciar el mismo artefacto de publicar cambios; conserva proxy, dependencias y datos cuando la petición solo alcance Web. Si las rutas no coinciden o la bóveda falta, informa y usa los registros/scripts del checkout como alternativa. Al ejecutar la operación, indica brevemente en el chat las notas consultadas y qué comprobación guio la acción; no crees bitácoras de recorrido en la bóveda ni afirmes que su gráfico registra las lecturas.
@@ -57,3 +65,8 @@ Antes de planear o implementar cambios funcionales, de interfaz o mixtos, lee [e
 - Registra escenarios aprobados, fallidos, no ejecutados y no aplicables, con su evidencia o justificación. No declares validado lo que solo se inspeccionó.
 - Si una prueba crítica queda pendiente, comunica la limitación y el estado real; no presentes el cambio como completamente validado.
 - Revisa el diff antes de atribuir cambios. Conserva modificaciones previas del usuario. Respeta las autorizaciones vigentes para commit, push y despliegue, sin inventar nuevas aprobaciones.
+
+## Salidas de comandos con RTK
+
+- Aplicar [RTK.md](RTK.md): prefijar explícitamente con `rtk` los comandos compatibles de Git, `rg` y .NET. El hook local no sustituye esta instrucción en herramientas que no lo activen.
+- Conservar códigos de salida y recuperar salida original para revisiones completas o evidencia exacta. No interpretar un resumen como cobertura total ni repetir operaciones con efectos solo para obtener más detalle.

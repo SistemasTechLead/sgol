@@ -68,8 +68,9 @@ public sealed partial class OperationalCarryoverService
                 else recipient = worker.Id;
             }
             var day = command.Action == "APPROVE" ? item.ProposedStart is {} start ? WeekContract.LocalToday(start) : (DateOnly?)null : command.Day;
-            if (day == null || day < request.From || day > request.Through || item.BeforeDate is {} limit && day >= limit)
-                issues.Add(Prefix($"elige un día entre {request.From:dd/MM/yyyy} y {request.Through:dd/MM/yyyy}, respetando el límite de la petición."));
+            var through = PostponementWindow.DecisionThrough(request, item, current);
+            if (day == null || day < request.From || day > through || item.BeforeDate is {} limit && day >= limit)
+                issues.Add(Prefix($"elige un día entre {request.From:dd/MM/yyyy} y {through:dd/MM/yyyy}, respetando el límite de la petición."));
             if (issues.Count == 0)
             {
                 var context = await PostponementContext(recipient, [current.Id], day!.Value, day.Value, ct);

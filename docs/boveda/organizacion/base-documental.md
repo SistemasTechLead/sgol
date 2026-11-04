@@ -10,12 +10,12 @@ El 03/11/2026 se estableció que la documentación debe describir los cambios qu
 
 - Repositorio: `C:\Users\siste\Dev\SistemaSGOL`, rama `master`.
 - Commit: `464d283418e8546c543727120f0a754fad0f65c8`, «Integra procesos periódicos, resolución de posposiciones y mejoras de interfaz».
-- Tras `git fetch origin`, HEAD y origin/master coinciden: cero commits de diferencia y árbol de trabajo limpio. No había cambios pendientes que confirmar o subir.
-- Publicación que atiende el puerto interno 7241: `.local/runtime/carryover-notices-row-20261103/Sgol.Web.dll`, proceso 40108 durante la inspección. Los identificadores de proceso son observaciones temporales.
-- Proxy LAN: proceso 25924; escucha en localhost:7240 y 192.168.1.92:7440/7443. `tools/Sgol.LanProxy/Program.cs` dirige el tráfico web a `http://127.0.0.1:7241`.
-- El ensamblado informa `1.0.0+483b55cadb98e7d01057831f285d7c1f26d40294`. Esa etiqueta se incorporó antes del commit conjunto y no demuestra por sí sola que falten sus cambios.
+- En la comprobación previa al cambio, tras `git fetch origin`, HEAD y origin/master coincidían: cero commits de diferencia y árbol de trabajo limpio. No había cambios pendientes que confirmar o subir.
+- Publicación que atiende el puerto interno 7241: `.local/runtime/calendar-preservation-20261104/Sgol.Web.dll`, proceso 16340, lanzador 5028, comprobados el 04/11/2026. Incluye las excepciones de conservación confirmadas hasta el siguiente cambio del catálogo, su conteo y confirmación independiente; conserva la exclusión autorizada de vencidas no reprogramadas en la actualización de asignaciones, restauración de candidatos fallidos y diagnóstico del límite. El formulario se probó en copia aislada; las 789 asignaciones compartidas conservaron su huella completa antes/después de publicar. No hubo migración ni aplicación de la propuesta en la base compartida. Readiness interno y acceso local/LAN respondieron 200 con comprobación TLS normal. El proxy 20652 (lanzador 23392), verificado el 04/11/2026, se conservó. Esta publicación incorpora los comentarios de conclusión en las tarjetas de Validación, los detalles de cambios en conflictos y el enlace de arrastre/posposición a Supervisión; incluye además el rango mensual de posposición y la migración `20261104010000_AddMonthlyCarryoverWindow`. Las 789 asignaciones y 13 solicitudes conservaron su huella completa antes/después de migrar. Esos cambios permanecen sin commit. La comprobación autenticada de esa pantalla sigue pendiente. Los identificadores de proceso son observaciones temporales.
+- Proxy LAN: proceso 20652 (comprobado el 04/11/2026); escucha en localhost:7240 y 192.168.1.92:7440/7443. `tools/Sgol.LanProxy/Program.cs` dirige el tráfico web a `http://127.0.0.1:7241`.
+- El ensamblado anterior informaba `1.0.0+483b55cadb98e7d01057831f285d7c1f26d40294`. Esa etiqueta se incorporó antes del commit conjunto y no demuestra por sí sola que falten sus cambios.
 
-## Comprobación y límites
+## Comprobación anterior y límites
 
 | Escenario | Resultado esperado | Método y entorno | Resultado |
 |---|---|---|---|

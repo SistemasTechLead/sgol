@@ -21,6 +21,10 @@ Entrada funcional: [Propósito y recorrido de SGOL](docs/funcional/sistema.md).
 - [Desarrollo y entrega](mapas/desarrollo.md): Protocolo de cambios, Git, compilación y gestión documental.
 - [Calidad y observabilidad](mapas/calidad.md): Pruebas, auditorías, rendimiento, diagnósticos y límites de validación.
 
+## Explorar visualmente
+
+[Ver Graphify dentro de Obsidian](docs/desarrollo/consulta-boveda-graphify.md#visualización-interactiva) · [Cómo actualizarlo y usarlo](docs/desarrollo/consulta-boveda-graphify.md#visualización-interactiva).
+
 ## Mantener esta red
 
 - [Base documental y comprobación del despliegue](organizacion/base-documental.md).

@@ -27,6 +27,8 @@ public sealed class RefreshModel(IRazorSessionState sessions, AssignmentRefreshS
     public AssignmentRefreshPreview? Preview { get; private set; }
     public Dictionary<Guid, string> Plans { get; private set; } = [];
     public Dictionary<string, string> DecisionTasks { get; private set; } = [];
+    public Dictionary<Guid, string> SpecializationNames { get; private set; } = [];
+    public Dictionary<Guid, string> ProcessNames { get; private set; } = [];
     public string? Error { get; private set; }
     private AssignmentRefreshRequest RequestInput => new(Guid.Empty, Key, NotBefore, null, ReplaceRemainingEstimate, ChangeAuthorizedDeadline, AdoptLegacyCalendar, RetireInactiveAssignments, RetireExcludedAssignments, PreserveProcessAssignmentIds, PreserveCalendarAssignmentIds);
     private async Task<Guid?> Actor(CancellationToken ct)
@@ -38,6 +40,8 @@ public sealed class RefreshModel(IRazorSessionState sessions, AssignmentRefreshS
     private async Task Load(Guid actor, CancellationToken ct)
     {
         Preview = await refresh.PreviewAsync(actor, RequestInput, ct);
+        SpecializationNames = await db.Set<Sgol.Web.Infrastructure.Persistence.Organization.Specialization>().AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        ProcessNames = await db.Set<OperationalSequence>().AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         Fingerprint = Preview.Fingerprint;
         var planIds = Preview.Differences.Select(d => (d.After ?? d.Before)!.PlanId).Distinct().ToArray();
         Plans = await db.DirectionPreparedPlans.AsNoTracking().Where(p => planIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
@@ -67,7 +71,7 @@ public sealed class RefreshModel(IRazorSessionState sessions, AssignmentRefreshS
             try
             {
                 await refresh.ApplyAsync(actor.Value, RequestInput, Fingerprint, Reason, ct);
-                TempData["AssignmentsUpdated"] = "Asignaciones actualizadas. Se conservaron avances, evidencias y el historial de cambios.";
+                TempData["AssignmentsUpdated"] = "Cambios y decisiones guardados. Se conservaron avances, evidencias y el historial.";
                 return RedirectToPage("Index");
             }
             catch (DirectionPlanException e) { Error = Message(e.Code); }

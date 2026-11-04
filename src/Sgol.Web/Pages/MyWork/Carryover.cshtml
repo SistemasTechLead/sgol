@@ -9,7 +9,7 @@
 @if(Model.Success != null) { <p class="alerta alerta--exito" role="status">@Model.Success</p> }
 <form method="post" id="postponement-form" data-postponement class="panel-seccion">
     <h2>Tareas vencidas</h2>
-    <p>La propuesta buscará espacios desde mañana hasta el mismo día de la próxima semana. Los días sin plan semanal usarán como estimación la carga del día equivalente anterior.</p>
+    <p>La propuesta buscará espacios desde mañana: hasta un mes desde la solicitud para tareas mensuales y hasta siete días para las demás. El límite adicional elegido se respeta en ambos casos. Los días sin plan semanal usarán como estimación la carga del último día equivalente hasta hoy.</p>
     @if(Model.Overdue.Length == 0) { <p>No tienes tareas vencidas pendientes.</p> }
     else {
         <label class="carryover-select-all"><input type="checkbox" data-select-all /> Seleccionar todas las disponibles</label>

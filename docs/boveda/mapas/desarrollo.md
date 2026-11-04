@@ -13,6 +13,10 @@ Protocolo de cambios, Git, compilación y gestión documental.
 
 - [Protocolo de investigación, implementación y validación de SGOL](../docs/desarrollo/PROTOCOLO_IMPLEMENTACION.md)
 
+- [Consultar la bóveda con Graphify](../docs/desarrollo/consulta-boveda-graphify.md)
+
+- [Reducir las salidas de comandos con RTK](../docs/desarrollo/salidas-comandos-rtk.md)
+
 ## Relaciones
 
 - Se relaciona con [Calidad y observabilidad](calidad.md): Pruebas, auditorías, rendimiento, diagnósticos y límites de validación.

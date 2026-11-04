@@ -20,11 +20,32 @@ public sealed record PostponementPreview(DateOnly From, DateOnly Through, Carryo
 
 public static class PostponementWindow
 {
-    public static (DateOnly From, DateOnly Through, DateOnly? BeforeDate) For(DateOnly today, int? beforeWeekday)
+    public static DateOnly End(DateOnly submitted, string periodType) => periodType == "MENSUAL" ? submitted.AddMonths(1) : submitted.AddDays(7);
+
+    // Keep the original request immutable, including for requests submitted before this rule.
+    public static DateOnly? DecisionThrough(OperationalCarryoverRequest request, CarryoverItem item, OperationalAssignment? current)
+    {
+        var through = request.Through;
+        if (current?.PeriodType == "MENSUAL" && request.From is {} from)
+            through = End(from.AddDays(-1), current.PeriodType);
+        else if (request.From is {} start && through is {} end)
+            through = end < start.AddDays(6) ? end : start.AddDays(6);
+        if (item.BeforeDate is {} before && through > before.AddDays(-1)) through = before.AddDays(-1);
+        return through;
+    }
+
+    public static DateOnly ReferenceDay(DateOnly day, DateOnly today)
+    {
+        var reference = day.AddDays(-7);
+        while (reference > today) reference = reference.AddDays(-7);
+        return reference;
+    }
+
+    public static (DateOnly From, DateOnly Through, DateOnly? BeforeDate) For(DateOnly today, int? beforeWeekday, bool monthly = false)
     {
         if (beforeWeekday is < 0 or > 6) throw new DirectionPlanException("ARRASTRE_DATOS_INVALIDOS", 422);
         var from = today.AddDays(1);
-        if (beforeWeekday == null) return (from, today.AddDays(7), null);
+        if (beforeWeekday == null) return (from, End(today, monthly ? "MENSUAL" : "SEMANAL"), null);
         var distance = (beforeWeekday.Value - (int)today.DayOfWeek + 7) % 7;
         var before = today.AddDays(distance == 0 ? 7 : distance);
         if (before <= from) throw new DirectionPlanException("ARRASTRE_LIMITE_SIN_DIAS", 422);
@@ -87,11 +108,11 @@ public sealed partial class OperationalCarryoverService
         var rows = selected.Select(id => overdue.SingleOrDefault(t => t.Assignment.Id == id)).ToArray();
         if (rows.Any(r => r == null || r.Blocked != null)) throw Error("ARRASTRE_CONFLICTO");
         var today = WeekContract.LocalToday(clock.UtcNow);
-        var window = PostponementWindow.For(today, beforeWeekday);
+        var window = PostponementWindow.For(today, beforeWeekday, rows.Any(r => r!.Assignment.PeriodType == "MENSUAL"));
         var (ledger, days, context) = await PostponementContext(person, selected, window.From, window.Through, ct);
         var conflicts = new List<string>();
         if ((await ImmediateSupervisors(person, ct)).Length == 0) conflicts.Add("No hay un supervisor inmediato activo para resolver esta petición.");
-        var (items, loads, failures) = PostponementAllocator.Calculate(rows.Select(r => r!.Assignment).ToArray(), ledger, days);
+        var (items, loads, failures) = PostponementAllocator.Calculate(rows.Select(r => r!.Assignment).ToArray(), ledger, days, today);
         if (window.BeforeDate != null) items = items.Select(i => i with { BeforeDate = window.BeforeDate }).ToArray();
         conflicts.AddRange(failures);
         var immediate = await ImmediateSupervisors(person, ct);
@@ -114,19 +135,21 @@ public sealed partial class OperationalCarryoverService
             .GroupBy(i => i.AssignmentId).ToDictionary(g => g.Key, g => g.First().Start);
         var postponedIds = origins.Keys.ToArray();
         DateOnly ReferenceDay(OperationalAssignment a) => WeekContract.LocalToday(origins.GetValueOrDefault(a.Id, a.StartsAt));
-        // The immediately preceding equivalent weekday supplies a forecast only where no assigned weekly plan exists.
+        // Repeat the latest equivalent weekday at or before today only where no assigned weekly plan exists.
         // Read completed rows too: historical demand is scheduled work, not today's outstanding work.
-        var first = OperationalSchedule.Instant(from.AddDays(-7)); var end = OperationalSchedule.Instant(through.AddDays(-6));
+        var today = WeekContract.LocalToday(clock.UtcNow);
+        var references = CapacityLedger.Days(from, through).Select(day => PostponementWindow.ReferenceDay(day, today)).ToArray();
+        var first = OperationalSchedule.Instant(references.Min()); var end = OperationalSchedule.Instant(references.Max().AddDays(1));
         var history = await db.OperationalAssignments.AsNoTracking().Where(a => a.PersonId == person && (a.StartsAt >= first && a.StartsAt < end || postponedIds.Contains(a.Id)) &&
             a.PeriodType == "SEMANAL" && a.GoalUnits == 0 && a.ReviewStatus != "REASIGNADA" &&
             db.DirectionPreparedPlans.Any(p => p.Id == a.PlanId && p.BranchId == BranchScope.LorettaId)).OrderBy(a => a.Id).ToArrayAsync(ct);
-        var referenceFrom = from.AddDays(-7);
+        var referenceFrom = references.Min();
         var plans = await db.DirectionPreparedPlans.AsNoTracking().Where(p => p.BranchId == BranchScope.LorettaId && p.PeriodType == "SEMANAL" && p.Status == "ASIGNADO" && p.StartsOn <= through && p.EndsOn >= referenceFrom)
             .OrderBy(p => p.Id).Select(p => new { p.Id, p.StartsOn, p.EndsOn, p.IsWeeklyOperationsPlan }).ToArrayAsync(ct);
         var days = CapacityLedger.Days(from, through).Select(day => {
             var actual = ledger.DayLoad(person, day);
             var hasPlan = plans.Any(p => p.IsWeeklyOperationsPlan && p.StartsOn <= day && p.EndsOn >= day);
-            var reference = day.AddDays(-7);
+            var reference = PostponementWindow.ReferenceDay(day, today);
             var historical = history.Where(a => ReferenceDay(a) == reference).Sum(a => (decimal)a.LoadMinutes);
             // Only weekly demand is substituted; monthly, occasional and process reservations remain additive.
             // Approved backlog is extra demand, never a substitute for the next ordinary weekly occurrence.
@@ -152,7 +175,7 @@ public sealed partial class OperationalCarryoverService
         if (intent == Guid.Empty) throw Error("ARRASTRE_DATOS_INVALIDOS", 422);
         var preview = await PreviewPostponementAsync(actor, selected, cause, explanation, ct, beforeWeekday);
         if (preview.Conflicts.Length > 0 || preview.Fingerprint != fingerprint) throw Error("ARRASTRE_CONFLICTO");
-        var r = new OperationalCarryoverRequest { Id = Guid.CreateVersion7(), Kind = "POSPONER", AlgorithmVersion = preview.BeforeDate == null ? 2 : 3,
+        var r = new OperationalCarryoverRequest { Id = Guid.CreateVersion7(), Kind = "POSPONER", AlgorithmVersion = 4,
             BranchId = BranchScope.LorettaId, PersonId = person, RequestedBy = actor, IntentKey = intent,
             Cause = cause, CauseDescription = CarryoverCauses.All[cause], Explanation = explanation!.Trim(),
             From = preview.From, Through = preview.Through, Minutes = preview.Items.Sum(i => i.WorkMinutes),
@@ -197,13 +220,13 @@ public static class PostponementAllocator
     public static string Structure(OperationalAssignment row) => JsonSerializer.Serialize(new { Original = OperationalCarryoverCalculator.Structure(row), row.NominalStartsAt, row.ClosureMarginPercent,
         row.TransferRemainingMinutes, row.TransferProgressUnits, row.GoalUnits, row.ProgressUnits, row.ScheduleKey });
     public static OperationalAssignment Copy(OperationalAssignment row) => JsonSerializer.Deserialize<OperationalAssignment>(JsonSerializer.Serialize(row))!;
-    public static (CarryoverItem[] Items, PostponementDay[] Days, string[] Conflicts) Calculate(OperationalAssignment[] rows, CapacityLedger ledger, PostponementDay[] days)
+    public static (CarryoverItem[] Items, PostponementDay[] Days, string[] Conflicts) Calculate(OperationalAssignment[] rows, CapacityLedger ledger, PostponementDay[] days, DateOnly? submitted = null)
     {
         var loads = days.ToDictionary(d => d.Day); var items = new List<CarryoverItem>(); var conflicts = new List<string>();
         foreach (var row in rows.OrderBy(r => OperationalAgenda.Priority(r.OperationalCriticality)).ThenByDescending(r => r.RemainingMinutes).ThenBy(r => r.DueAt).ThenBy(r => r.Id))
         {
             var choices = new List<(OperationalAssignment Row, PostponementDay Day)>();
-            foreach (var day in loads.Values.Where(d => d.ReferenceKnown && d.Capacity > 0 && d.Actual + d.Forecast + d.Added + row.RemainingMinutes <= d.Capacity)) {
+            foreach (var day in loads.Values.Where(d => (submitted == null || d.Day <= PostponementWindow.End(submitted.Value, row.PeriodType)) && d.ReferenceKnown && d.Capacity > 0 && d.Actual + d.Forecast + d.Added + row.RemainingMinutes <= d.Capacity)) {
                 var next = Copy(row); var local = TimeZoneInfo.ConvertTime(row.NominalStartsAt ?? row.StartsAt, OperationalSchedule.Zone);
                 var nominal = TemporalEligibilityContext.At(day.Day, row.OperationalCriticality == "CRITICA" ? local.Hour * 60 + local.Minute : 0);
                 next.NominalStartsAt = nominal; next.StartsAt = nominal;

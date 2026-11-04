@@ -25,6 +25,8 @@ La propiedad clasificado_el fecha la organización, no verifica el contenido. So
 
 Entrar por Inicio, abrir el mapa pertinente y leer solo los documentos útiles para la tarea. Contrastar el estado cambiante con la fuente propietaria. Al cerrar un cambio, actualizar referencia y procedimiento afectados, revisar enlaces e indicar pruebas pendientes. Esta política está incorporada en [AGENTS.md del repositorio](../../../AGENTS.md). Las referencias actuales se mantienen en esta bóveda; los planes y registros de ingeniería se guardan en docs/desarrollo/cambios/ del repositorio y las evidencias privadas fuera de la bóveda. Los cambios aún no desplegados se documentan allí hasta reconciliar la referencia con la app compartida. No existe sincronización automática entre esta bóveda y el repositorio.
 
+Para descubrir qué notas consultar, usar el [índice local de Graphify](../docs/desarrollo/consulta-boveda-graphify.md), que se actualiza y verifica al consultar. Leer después las notas fuente. El índice conserva estructura y enlaces, no acredita reglas ni despliegues; las búsquedas exactas y las rutas ya conocidas no requieren consultarlo.
+
 ## Referencias de organización
 
 - [Diátaxis](https://diataxis.fr/): separar documentación por necesidad del lector.

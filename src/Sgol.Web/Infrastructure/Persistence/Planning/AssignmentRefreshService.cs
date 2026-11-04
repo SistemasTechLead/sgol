@@ -25,7 +25,13 @@ public sealed record AssignmentRefreshDecision(string Code, string Title, string
     public string? Cause { get; init; }
     public string? Context { get; init; }
 }
-public sealed record AssignmentRefreshIssue(string Code, string Detail, string? TaskCode, string? TaskName, string? Context);
+public sealed record AssignmentRefreshIssue(string Code, string Detail, string? TaskCode, string? TaskName, string? Context)
+{
+    public OperationalAssignment? PreviousAssignment { get; init; }
+    public OperationalTask? CurrentDefinition { get; init; }
+    public bool ProcessStage { get; init; }
+}
+public sealed record AssignmentCalendarPreservation(OperationalAssignment Assignment, string CatalogFingerprint);
 public sealed record AssignmentRefreshPreview(AssignmentRefreshRequest Request, string TaskName, string Fingerprint,
     AssignmentRefreshDifference[] Differences, string[] Conflicts, int Excluded)
 {
@@ -33,13 +39,15 @@ public sealed record AssignmentRefreshPreview(AssignmentRefreshRequest Request, 
     public string[] DecisionConflicts { get; init; } = [];
     public string[] Notices { get; init; } = [];
     public AssignmentRefreshIssue[] Issues { get; init; } = [];
-    public bool CanApply => Conflicts.Length == 0 && Differences.Length > 0;
+    public AssignmentCalendarPreservation[] CalendarPreservations { get; init; } = [];
+    public bool CanApply => Conflicts.Length == 0 && (Differences.Length > 0 || CalendarPreservations.Length > 0);
 }
 
 // Explicit adoption, sharing the operational lock with delivery, progress, transfers and planning.
 public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPreparedPlanService direction, IClock clock)
 {
     private const string Action = "OPERATIONAL_ASSIGNMENTS_REFRESHED";
+    private const string CalendarPreservedAction = "OPERATIONAL_ASSIGNMENT_CALENDAR_PRESERVED";
     private static string Hash(object value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
     private static object TemporalState(TemporalEligibilityContext context)
     {
@@ -49,6 +57,17 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
     }
     private static Guid StableId(Guid key, string value) => new(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"refresh:{key}:{value}"))[..16]);
 
+    private async Task<HashSet<Guid>> PreservedCalendarsAsync(OperationalAssignment[] rows, IReadOnlyDictionary<Guid, OperationalTask> definitions, CancellationToken ct)
+    {
+        var ids = rows.Where(AssignmentDefinition.Pending).Select(a => a.Id).ToArray();
+        var events = await db.AuditEvents.AsNoTracking().Where(e => e.Action == CalendarPreservedAction && e.ResourceId != null && ids.Contains(e.ResourceId.Value))
+            .OrderByDescending(e => e.OccurredAt).ThenByDescending(e => e.Id).Select(e => new { ResourceId = e.ResourceId!.Value, e.AfterData }).ToArrayAsync(ct);
+        var latest = events.DistinctBy(e => e.ResourceId).ToDictionary(e => e.ResourceId);
+        return rows.Where(a => definitions.TryGetValue(a.TaskId, out var task) && latest.TryGetValue(a.Id, out var saved) &&
+            saved.AfterData != null && saved.AfterData.RootElement.TryGetProperty("CatalogFingerprint", out var fingerprint) && fingerprint.GetString() == Hash(task))
+            .Select(a => a.Id).ToHashSet();
+    }
+
     public async Task<Dictionary<Guid, int>> CountsAsync(Guid actor, CancellationToken ct)
     {
         await direction.AuthorizeAsync(actor, ct);
@@ -56,10 +75,11 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         var plans = await db.DirectionPreparedPlans.Where(p => p.BranchId == BranchScope.LorettaId && p.Status == "ASIGNADO").Select(p => p.Id).ToArrayAsync(ct);
         var weeklyPlans = await db.DirectionPreparedPlans.Where(p => plans.Contains(p.Id) && p.IsWeeklyOperationsPlan).Select(p => p.Id).ToArrayAsync(ct);
         var rows = await db.OperationalAssignments.AsNoTracking().Where(a => plans.Contains(a.PlanId) && a.CompletedAt == null).ToArrayAsync(ct);
+        var preservedCalendars = await PreservedCalendarsAsync(rows, tasks, ct);
         var stages = await db.Set<OperationalSequenceStage>().AsNoTracking().Where(s => db.Set<OperationalSequenceRun>().Any(r => r.Id == s.RunId && r.Status == "EN_CURSO" && plans.Contains(r.PlanId))).ToArrayAsync(ct);
         var attempts = await db.Set<OperationalSequenceAttempt>().AsNoTracking().Where(a => a.AssignmentId != null).ToArrayAsync(ct);
         var linked = attempts.Where(a => stages.Any(s => s.CurrentAttemptId == a.Id)).Select(a => a.AssignmentId!.Value).ToHashSet();
-        var result = rows.Where(AssignmentDefinition.Pending).Where(a => !linked.Contains(a.Id) && tasks.ContainsKey(a.TaskId) &&
+        var result = rows.Where(AssignmentDefinition.Pending).Where(a => !preservedCalendars.Contains(a.Id) && !linked.Contains(a.Id) && tasks.ContainsKey(a.TaskId) &&
             (AssignmentDefinition.Differences(a, tasks[a.TaskId]).Length > 0 || !tasks[a.TaskId].Active || weeklyPlans.Contains(a.PlanId) && !tasks[a.TaskId].IsWeeklyOperationsTask)).GroupBy(a => a.TaskId).ToDictionary(g => g.Key, g => g.Count());
         foreach (var stage in stages.Where(s => s.Status is not ("CONCLUIDA" or "CANCELADA" or "OMITIDA")))
         {
@@ -96,6 +116,8 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         var plans = await db.DirectionPreparedPlans.AsNoTracking().Where(p => p.BranchId == BranchScope.LorettaId && p.Status == "ASIGNADO").OrderBy(p => p.Id).ToArrayAsync(ct);
         var planIds = plans.Select(p => p.Id).ToArray();
         var all = await db.OperationalAssignments.AsNoTracking().Where(a => planIds.Contains(a.PlanId)).OrderBy(a => a.Id).ToArrayAsync(ct);
+        var preservedCalendars = await PreservedCalendarsAsync(all, definitions, ct);
+        var calendarPreservations = new List<AssignmentCalendarPreservation>();
         var runs = await db.Set<OperationalSequenceRun>().AsNoTracking().Where(r => planIds.Contains(r.PlanId) && r.Status == "EN_CURSO").OrderBy(r => r.Id).ToArrayAsync(ct);
         var runIds = runs.Select(r => r.Id).ToArray();
         var stages = await db.Set<OperationalSequenceStage>().AsNoTracking().Where(s => runIds.Contains(s.RunId)).OrderBy(s => s.RunId).ThenBy(s => s.Position).ToArrayAsync(ct);
@@ -108,7 +130,14 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         void Block(string code, string detail, OperationalAssignment? row = null, OperationalTask? task = null)
         {
             conflicts.Add(detail);
-            issues.Add(new(code, detail, row?.TaskCode ?? task?.TaskCode, row?.Name ?? task?.Name, row == null ? null : Context(row)));
+            var previous = row == null ? null : all.FirstOrDefault(a => a.Id == row.Id) ?? row;
+            issues.Add(new(code, detail, row?.TaskCode ?? task?.TaskCode, row?.Name ?? task?.Name, row == null ? null : Context(row))
+            {
+                PreviousAssignment = previous == null ? null : AssignmentDefinition.Copy(previous),
+                ProcessStage = previous != null && (linked.ContainsKey(previous.Id) || stages.Any(s => s.Id == previous.Id)),
+                CurrentDefinition = previous != null && definitions.TryGetValue(previous.TaskId, out var current)
+                    ? AssignmentDefinition.Copy(current) : null
+            });
         }
         var processDecisions = new List<AssignmentRefreshDecision>();
         var processNames = await db.Set<OperationalSequence>().AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
@@ -129,9 +158,11 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
                 (a.AssignmentId == null || all.Any(row => row.Id == a.AssignmentId && AssignmentDefinition.Pending(row)))))
             .Select(s => s.RunId).ToHashSet();
         var notices = runs.Where(r => cancelRuns.Contains(r.Id)).Select(r => $"Se cancelará el proceso «{r.Name}» y se retirarán sus pendientes. Las etapas ya entregadas conservarán su historial.").ToArray();
+        var preservedCount = all.Count(a => preservedCalendars.Contains(a.Id) && selected.ContainsKey(a.TaskId));
+        if (preservedCount > 0) notices = notices.Append($"{preservedCount} pendientes conservan su configuración anterior por una decisión confirmada. Volverán a revisión si cambia el catálogo.").ToArray();
         var diffs = new List<AssignmentRefreshDifference>();
         var stageRows = new Dictionary<Guid, OperationalSequenceStage>();
-        var targets = all.Where(a => selected.ContainsKey(a.TaskId) && AssignmentDefinition.Pending(a) && !linked.ContainsKey(a.Id)).ToList();
+        var targets = all.Where(a => selected.ContainsKey(a.TaskId) && AssignmentDefinition.Pending(a) && !preservedCalendars.Contains(a.Id) && !linked.ContainsKey(a.Id)).ToList();
         foreach (var stage in stages.Where(s => (selected.ContainsKey(s.TaskId) || cancelRuns.Contains(s.RunId)) && s.Status is not ("CONCLUIDA" or "CANCELADA" or "OMITIDA")))
         {
             var attempt = attempts.SingleOrDefault(a => a.Id == stage.CurrentAttemptId);
@@ -245,7 +276,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             var expected = task.PeriodType == "OCASIONAL" ? new List<DateOnly>() : OperationalSchedule.Dates(plan.StartsOn, plan.EndsOn, task).ToList();
             if (MonthlyTaskCalendar.UsesCalendar(task) && MonthlyTaskCalendar.Occurrences(task, from, plan.EndsOn).Any(o => o.ValidDate == null))
                 Block("invalid-date", task.TaskCode + ": el nuevo calendario contiene una fecha inexistente. Corrige sus días del mes antes de retirar o agregar ocurrencias.", null, task);
-            var protectedRows = all.Where(a => a.PlanId == plan.Id && a.TaskId == task.Id && !AssignmentDefinition.Pending(a) && a.ReviewStatus != "REASIGNADA").ToArray();
+            var protectedRows = all.Where(a => a.PlanId == plan.Id && a.TaskId == task.Id && (!AssignmentDefinition.Pending(a) || preservedCalendars.Contains(a.Id)) && a.ReviewStatus != "REASIGNADA").ToArray();
             foreach (var closed in protectedRows)
             {
                 var day = WeekContract.LocalToday(closed.NominalStartsAt ?? closed.StartsAt);
@@ -302,6 +333,7 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             }
         }
         var affectedIds = diffs.Where(d => d.Before != null).Select(d => d.Before!.Id).ToHashSet();
+        affectedIds.UnionWith(preservedCalendars);
         var evidence = await db.OperationalPhotographs.AsNoTracking().Where(p => affectedIds.Contains(p.AssignmentId)).OrderBy(p => p.Id).Select(p => new { p.Id, p.AssignmentId, p.AttachedAt }).ToArrayAsync(ct);
         var attachments = await db.OperationalAttachments.AsNoTracking().Where(p => affectedIds.Contains(p.AssignmentId)).OrderBy(p => p.AssignmentId).Select(p => new { p.AssignmentId, p.CreatedAt, p.FileName }).ToArrayAsync(ct);
         var progress = await db.OperationalProgressEntries.AsNoTracking().Where(p => affectedIds.Contains(p.AssignmentId)).OrderBy(p => p.Id).ToArrayAsync(ct);
@@ -349,13 +381,14 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             const string title = "Conservar este pendiente y actualizar las demás asignaciones";
             var accepted = request.PreserveCalendarAssignmentIds?.Contains(row.Id) == true;
             processDecisions.Add(new("calendar-preserve:" + row.Id, title,
-                "Mantiene toda esta asignación sin cambios: responsable, horario, carga, configuración, avances, archivos y solicitudes. El calendario nuevo se usará para las nuevas asignaciones. Esta excepción se autoriza solo para esta actualización.",
+                "Mantiene toda esta asignación sin cambios: responsable, horario, carga, configuración, avances, archivos y solicitudes. Al confirmar, la excepción queda registrada hasta que cambie de nuevo el catálogo. El calendario nuevo se usará para las nuevas asignaciones.",
                 [row.TaskCode], accepted) { AssignmentId = row.Id, Problem = problem, Cause = "El calendario la quitaría, pero tiene " + string.Join(", ", causes.Select(c => c.Replace("una sesión de captura (no implica archivos cargados)", "una captura iniciada").Replace("una solicitud de arrastre o posposición pendiente", "una solicitud pendiente").Replace("un arrastre o posposición aprobado", "un plazo autorizado"))) + ".", Context = Context(row) });
             if (!accepted)
             {
                 var message = problem + " Marca «" + title + "» y pulsa Revisar cambios para continuar.";
                 conflicts.Add(message); decisionConflicts.Add(message);
             }
+            else calendarPreservations.Add(new(AssignmentDefinition.Copy(row), Hash(definitions[row.TaskId])));
             // Keep the reservation in the ledger and affectedIds to prevent neighbour reflow.
             diffs.Remove(diff);
         }
@@ -394,8 +427,14 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
         var released = scheduled.Where(d => d.Before != null).Select(d => d.Before!.Id).Concat(diffs.Where(d => d.After == null || d.Retire).Select(d => d.Before!.Id)).ToHashSet();
         // Active process reservations can have the stage ID in the ledger as well as the assignment ID.
         foreach (var id in released.ToArray()) if (stageRows.TryGetValue(id, out var stage)) released.Add(stage.Id);
+        // Historical pending work is not silently moved into today's demand. Only
+        // unchanged reservations are excluded; rescheduled rows consume capacity again.
+        var excludedOverdue = source.Tasks.Where(a => !released.Contains(a.Id) && a.CompletedAt == null && a.DueAt <= clock.UtcNow)
+            .Select(a => a.Id).ToHashSet();
+        if (excludedOverdue.Count > 0)
+            notices = notices.Append($"{excludedOverdue.Count} pendientes vencidos conservan sus fechas y su historial; no consumen capacidad en este cálculo porque no se reprograman.").ToArray();
         var ledger = new CapacityLedger(source.Workers, source.Tasks.Where(a => !released.Contains(a.Id)).ToArray(), source.Capacities, source.Unavailable, source.Legacy, source.Today)
-        { Temporal = source.Temporal, PlannedChanges = source.PlannedChanges, Override = source.Override };
+        { Temporal = source.Temporal, ExcludedDemandIds = source.ExcludedDemandIds.Union(excludedOverdue).ToHashSet(), PlannedChanges = source.PlannedChanges, Override = source.Override };
         var schedulingRows = scheduled.OrderBy(d => d.ProcessStage ? 0 : 1)
             .ThenBy(d => d.ProcessStage ? stageRows[d.Before!.Id].Position : OperationalAgenda.Priority(d.After!.OperationalCriticality))
             .ThenBy(d => d.After!.StartsAt).ThenBy(d => d.After!.Id).ToArray();
@@ -404,14 +443,15 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             .GroupBy(a => (a.TaskId, a.PersonId, Week: WeeklyBoardSnapshot.Monday(WeekContract.LocalToday(a.StartsAt))))
             .ToDictionary(g => g.Key, g => g.Count());
         var budget = 0;
-        var blockedIndex = -1;
+        var schedulingOriginals = schedulingRows.Select(d => AssignmentDefinition.Copy(d.After!)).ToArray();
         AssignmentRefreshDifference? blocked = null;
-        bool Search(CapacityLedger state, int index)
+        var blockedIndex = -1;
+        var searchingIndex = 0;
+        IEnumerable<OperationalAssignment> Choices(CapacityLedger state, int index)
         {
             ct.ThrowIfCancellationRequested();
-            if (index == schedulingRows.Length) return true;
-            if (++budget > 20000) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422);
-            var diff = schedulingRows[index]; var row = diff.After!;
+            searchingIndex = index;
+            var diff = schedulingRows[index]; var row = AssignmentDefinition.Copy(schedulingOriginals[index]);
             var target = selected.ContainsKey(row.TaskId) && !diff.Fields.SequenceEqual(new[] { "Reacomodo por capacidad" });
             var definition = definitions[row.TaskId];
             var requiredRole = target ? definition.AssignedRole : AssignmentDefinition.Baseline(row, definition).AssignedRole;
@@ -437,19 +477,20 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             }
             foreach (var worker in people)
             {
+                CopyValues(original, row);
                 row.PersonId = worker.Id; row.PersonName = worker.Name; row.AssignedRole = worker.Role;
                 // Prefer preserving the current valid block before exploring new placements.
                 if (preserveAnchor && diff.Before != null &&
-                    (row.StartsAt >= earliest || row.ScheduleMode == "PROGRESO" && worker.Id == diff.Before.PersonId) && state.CanAssign(worker.Id, row) &&
-                    Search(state.WithAdded(AssignmentDefinition.Copy(row)), index + 1)) return true;
+                    (row.StartsAt >= earliest || row.ScheduleMode == "PROGRESO" && worker.Id == diff.Before.PersonId) && state.CanAssign(worker.Id, row))
+                    yield return AssignmentDefinition.Copy(row);
                 // A different duration need not change activation. Try its new closing time
                 // at the original start before moving flexible work earlier or later.
                 if (preserveAnchor && row.SchedulingPolicyId != null && row.ScheduleMode != "PROGRESO" && row.OccasionId == null && original.StartsAt >= earliest)
                 {
                     row.StartsAt = original.StartsAt;
                     row.DueAt = row.StartsAt.AddMinutes(OperationalAgenda.Duration(row.LoadMinutes, row.ClosureMarginPercent!.Value));
-                    if ((processStage?.FixedDueAt == null || row.DueAt <= processStage.FixedDueAt) && state.CanAssign(worker.Id, row) &&
-                        Search(state.WithAdded(AssignmentDefinition.Copy(row)), index + 1)) return true;
+                    if ((processStage?.FixedDueAt == null || row.DueAt <= processStage.FixedDueAt) && state.CanAssign(worker.Id, row))
+                        yield return AssignmentDefinition.Copy(row);
                     row.DueAt = original.DueAt;
                 }
                 if (row.OccasionId != null || diff.ProcessStage)
@@ -491,30 +532,52 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
                     }
                     foreach (var placement in OperationalAgenda.Alternatives(state, worker.Id, row, earliest))
                     {
+                        ct.ThrowIfCancellationRequested();
+                        searchingIndex = index;
                         if (++budget > 20000) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422);
                         OperationalAgenda.Apply(row, placement);
                         if (processStage?.FixedDueAt is {} fixedDue && row.DueAt > fixedDue) continue;
                         if (!state.CanAssign(worker.Id, row)) continue;
-                        if (Search(state.WithAdded(AssignmentDefinition.Copy(row)), index + 1)) return true;
+                        yield return AssignmentDefinition.Copy(row);
                     }
                 }
             }
-            // Restore this node; descendants are copied in the successful proposal only.
-            CopyValues(original, row);
-            if (index > blockedIndex) { blockedIndex = index; blocked = diff; }
+        }
+        bool Search(CapacityLedger state, int index)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (index == schedulingRows.Length) return true;
+            if (++budget > 20000) throw new DirectionPlanException("SCHEDULING_SEARCH_INCONCLUSIVE", 422);
+            foreach (var candidate in Choices(state, index).DistinctBy(r => (r.PersonId, r.StartsAt, r.DueAt, r.NominalStartsAt)))
+            {
+                CopyValues(candidate, schedulingRows[index].After!);
+                if (Search(state.WithAdded(candidate), index + 1)) return true;
+            }
+            if (index > blockedIndex) { blockedIndex = index; blocked = schedulingRows[index]; }
             return false;
         }
         if (!conflicts.Except(decisionConflicts).Any() && schedulingRows.Length > 0)
         {
+            var solved = false;
             try {
-                if (!Search(ledger, 0)) {
+                solved = Search(ledger, 0);
+                if (!solved) {
                     var row = blocked?.Before ?? blocked?.After;
                     var detail = row == null ? "" : $" Conflicto en {row.TaskCode}, {row.PersonName}, {TimeZoneInfo.ConvertTime(row.StartsAt, OperationalSchedule.Zone):dd/MM/yyyy HH:mm}.";
                     Block("capacity", "No hay una agenda compatible con turnos, capacidad, criticidad y responsables elegibles." + detail +
                         " Las vencidas de días anteriores solo conservan su agenda si no tienen avance ni evidencia y cambian únicamente datos de la tarea o carga. Revisa ese pendiente y las ventanas disponibles.", row);
                 }
             }
-            catch (DirectionPlanException e) when (e.Code == "SCHEDULING_SEARCH_INCONCLUSIVE") { Block("search", "La búsqueda alcanzó su límite. No se puede asegurar que la agenda sea imposible; reduce los conflictos y vuelve a calcular.", null); }
+            catch (DirectionPlanException e) when (e.Code == "SCHEDULING_SEARCH_INCONCLUSIVE")
+            {
+                var row = schedulingRows[searchingIndex].Before ?? schedulingOriginals[searchingIndex];
+                Block("search", $"Se agotaron 20 000 pasos al explorar {row.TaskCode}, {row.PersonName}, {Context(row)} dentro de {schedulingRows.Length} bloques. Esta asignación identifica el punto de interrupción, no una causa demostrada de falta de capacidad. No se aplicó ningún movimiento; vuelve a revisar la propuesta.", row);
+            }
+            finally
+            {
+                if (!solved)
+                    for (var i = 0; i < schedulingRows.Length; i++) CopyValues(schedulingOriginals[i], schedulingRows[i].After!);
+            }
         }
         foreach (var diff in diffs.Where(d => !d.Retire && !d.KeepsAgenda && d.Before != null && d.After != null))
         {
@@ -538,11 +601,11 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             d.Before.SchedulingPolicyId == d.After.SchedulingPolicyId && d.Before.ClosureMarginPercent == d.After.ClosureMarginPercent && d.Before.NominalStartsAt == d.After.NominalStartsAt);
         var fingerprint = Hash(new { request, Selected = selected.Keys.Order(), currentPolicy, definitions = definitions.Values, plans, all, runs, stages, attempts, carryovers,
             source.Workers, source.Tasks, source.Capacities, Temporal = TemporalState(source.Temporal), Unavailable = source.Unavailable.OrderBy(x => x.Item1).ThenBy(x => x.Item2), Legacy = source.Legacy.OrderBy(x => x.Key), evidence, attachments, progress, childLinks, transfers, captureSessions,
-            diffs, conflicts, processDecisions, Algorithm = 4 });
+            diffs, conflicts, processDecisions, calendarPreservations, PreservedCalendars = preservedCalendars.Order(), ExcludedOverdue = excludedOverdue.Order(), Algorithm = 6 });
         return new(request, request.TaskId == Guid.Empty ? "Todas las tareas con asignaciones pendientes desactualizadas" : selected[request.TaskId].Name, fingerprint, diffs.ToArray(), conflicts.Distinct().ToArray(), all.Count(a => selected.ContainsKey(a.TaskId) && !AssignmentDefinition.Pending(a)))
         {
             Decisions = processDecisions.Concat(decisions.Select(d => new AssignmentRefreshDecision(d.Key,d.Value.Title,d.Value.Help,d.Value.Tasks.Order().ToArray(),d.Value.Accepted))).ToArray(),
-            DecisionConflicts = decisionConflicts.Distinct().ToArray(), Notices = notices, Issues = issues.Distinct().ToArray()
+            DecisionConflicts = decisionConflicts.Distinct().ToArray(), Notices = notices, Issues = issues.Distinct().ToArray(), CalendarPreservations = calendarPreservations.ToArray()
         };
     }
 
@@ -644,7 +707,10 @@ public sealed class AssignmentRefreshService(SgolDbContext db, IDirectionPrepare
             }
             AddAudit(actor, after.Id, "OPERATIONAL_ASSIGNMENT_REFRESHED", before, new { Assignment = after, request.Key, Reason = reason.Trim(), diff.Fields });
         }
-        AddAudit(actor, request.Key, Action, null, new { preview.Fingerprint, request, Reason = reason.Trim(), Count = preview.Differences.Length });
+        foreach (var preservation in preview.CalendarPreservations)
+            AddAudit(actor, preservation.Assignment.Id, CalendarPreservedAction, preservation.Assignment,
+                new { preservation.CatalogFingerprint, request.Key, Reason = reason.Trim() });
+        AddAudit(actor, request.Key, Action, null, new { preview.Fingerprint, request, Reason = reason.Trim(), Count = preview.Differences.Length, Preserved = preview.CalendarPreservations.Length });
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
     }
 

@@ -23,7 +23,7 @@
             }
         </div>
     </header>
-    @if (Model.CanManage) { <p id="global-refresh-status" role="status">@(Model.RefreshCounts.Count > 0 ? $"En todo el catálogo: {Model.RefreshCounts.Values.Sum()} asignaciones pendientes con diferencias en {Model.RefreshCounts.Count} tareas. Revisa y actualiza todas juntas." : "Todas las asignaciones pendientes están actualizadas.")</p> }
+    @if (Model.CanManage) { <p id="global-refresh-status" role="status">@(Model.RefreshCounts.Count > 0 ? $"En todo el catálogo: {Model.RefreshCounts.Values.Sum()} asignaciones pendientes con diferencias en {Model.RefreshCounts.Count} tareas. Revisa y actualiza todas juntas." : "No hay diferencias pendientes de revisión. Las excepciones confirmadas se conservan hasta que cambie el catálogo.")</p> }
     @if (!Model.CanManage) { <p>Consulta el catálogo de tareas. Dirección administra sus cambios.</p> }
     <form method="get" action="/tareas" class="tasks-search task-catalog-filters" aria-label="Filtros de tareas"><label class="campo"><span class="campo__etiqueta">Buscar tareas</span><input class="campo__control" type="search" name="Search" value="@Model.Search" placeholder="Nombre o código de tarea" /></label>
         <label class="campo"><span class="campo__etiqueta">Proceso</span><select class="campo__control" asp-for="ProcessFilter"><option value="">Todos</option>@foreach(var process in Model.Processes) { <option value="@process.Id">@process.Name</option> }</select></label>

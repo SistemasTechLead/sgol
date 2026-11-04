@@ -4393,7 +4393,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.ToTable("operational_carryover_request", null, t =>
                         {
-                            t.HasCheckConstraint("CK_carryover_interval", "\"Minutes\" > 0 AND ((\"Kind\" = 'INCIDENTE' AND \"IncidentEnd\" = \"IncidentStart\" + \"Minutes\" * interval '1 minute' AND \"From\" IS NULL AND \"Through\" IS NULL) OR (\"Kind\" = 'POSPONER' AND \"From\" IS NOT NULL AND \"Through\" IS NOT NULL AND \"Through\" BETWEEN \"From\" AND \"From\" + 6))");
+                            t.HasCheckConstraint("CK_carryover_interval", "\"Minutes\" > 0 AND ((\"Kind\" = 'INCIDENTE' AND \"IncidentEnd\" = \"IncidentStart\" + \"Minutes\" * interval '1 minute' AND \"From\" IS NULL AND \"Through\" IS NULL) OR (\"Kind\" = 'POSPONER' AND \"From\" IS NOT NULL AND \"Through\" IS NOT NULL AND \"Through\" BETWEEN \"From\" AND CASE WHEN \"AlgorithmVersion\" >= 4 THEN ((\"From\" - 1) + interval '1 month')::date ELSE \"From\" + 6 END))");
 
                             t.HasCheckConstraint("CK_carryover_state", "\"Revision\" > 0 AND ((\"State\" = 'PENDIENTE' AND \"DecidedBy\" IS NULL AND \"DecidedAt\" IS NULL) OR (\"State\" IN ('APROBADA','RECHAZADA','RESUELTA') AND \"DecidedBy\" IS NOT NULL AND \"DecidedAt\" IS NOT NULL AND length(\"DecisionComment\") > 0))");
                         });

@@ -148,6 +148,7 @@ internal static class AssignmentRefreshChecks
         Check(!(await service.PreviewAsync(actor, request, default)).CanApply, "pending carryover prevents contradictory concurrent decisions");
         var requestRow = await db.Set<OperationalCarryoverRequest>().SingleAsync(r => r.Id == carryover.Id);
         requestRow.Revision++; requestRow.State = "APROBADA"; requestRow.DecidedBy = actor; requestRow.DecidedAt = clock.UtcNow; requestRow.DecisionComment = "Prueba autorizada";
+        requestRow.ResultsJson = JsonSerializer.Serialize(new[] { new CarryoverResult(row.Id, row.DueAt, row.DueAt.AddMinutes(10), row.DueAt.AddMinutes(10), null, "RECONOCIMIENTO") });
         await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         Check(!(await service.PreviewAsync(actor, request, default)).CanApply, "approved carryover deadline requires explicit override");
         request = request with { ChangeAuthorizedDeadline = true };

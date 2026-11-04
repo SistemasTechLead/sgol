@@ -21,6 +21,9 @@
             <div><strong>@retired</strong><span>@(retired == 1 ? "pendiente para retirar" : "pendientes para retirar")</span></div>
             <div><strong>@preview.Excluded</strong><span>entregas y cierres que se conservan</span></div>
         </div>
+        @if (preview.CalendarPreservations.Length > 0) { <p role="status">@preview.CalendarPreservations.Length decisiones de conservación por confirmar. No cambian las asignaciones; se guardan como excepciones hasta que cambie el catálogo.</p> }
+        @if (preview.Decisions.Length > 0 || preview.Differences.Length > 0 || preview.Conflicts.Length > 0)
+        {
         <form method="post" asp-page-handler="Preview" class="assignment-refresh__options" data-refresh-options>
             <input type="hidden" name="Reason" value="@Model.Reason" />
             @if (preview.Decisions.Length > 0)
@@ -54,6 +57,7 @@
             <button type="submit" class="boton boton--primario">@(preview.Decisions.Length > 0 ? "Revisar cambios" : "Volver a revisar")</button>
             <p data-refresh-dirty hidden role="status">Cambiaste las opciones. Pulsa Revisar cambios para ver el nuevo resultado antes de confirmar.</p>
         </form>
+        }
         @if (otherConflicts.Length > 0)
         {
             <section class="assignment-refresh__blocked" aria-labelledby="refresh-blocked-title">
@@ -66,8 +70,25 @@
                         @if (issue.Context != null) { <p class="assignment-refresh__context">@issue.Context</p> }
                         <p><span class="assignment-refresh__caption">Motivo</span> @text.Cause</p>
                         <p><span class="assignment-refresh__caption">Solución</span> @text.Action</p>
-                        @if (text.Url != null) { <a href="@text.Url" class="assignment-refresh__case-link">@(text.Url == "/tareas/procesos" ? "Ir a Procesos" : text.Url == "/planificacion" ? "Ir a Planificación" : "Ir a Tareas")</a> }
-                        <details class="assignment-refresh__details"><summary>Ver detalles</summary><p>@issue.Detail</p></details>
+                        @if (text.Url != null) { <a href="@text.Url" class="assignment-refresh__case-link">@(text.Url == "/tareas/procesos" ? "Ir a Procesos" : text.Url == "/planificacion" ? "Ir a Planificación" : text.Url == "/validaciones" ? "Ir a Supervisión" : "Ir a Tareas")</a> }
+                        <details class="assignment-refresh__details"><summary>Ver detalles</summary>
+                            <p>@issue.Detail</p>
+                            @if (RefreshCaseText.Changes(issue, Model.SpecializationNames, Model.ProcessNames) is { Length: > 0 } changes)
+                            {
+                                <p><strong>Cambios del catálogo pendientes de aplicar a esta asignación</strong></p>
+                                <ul class="assignment-refresh__changes">
+                                @foreach (var change in changes)
+                                {
+                                    <li><strong>@change.Field</strong><br />En la asignación: @change.Before<br />En el catálogo actual: @change.Current</li>
+                                }
+                                </ul>
+                                <p>Estos cambios aún no se han aplicado a esta asignación. El motivo anterior indica qué impide continuar; la comparación no atribuye el bloqueo a un único parámetro.</p>
+                            }
+                            else if (issue.Code == "capacity")
+                            {
+                                <p>Esta asignación no tiene diferencias directas con el catálogo. El conflicto se detectó al reacomodar la agenda por los cambios de otras asignaciones de esta revisión.</p>
+                            }
+                        </details>
                     </article>
                 }
                 @foreach (var conflict in otherConflicts.Except(preview.Issues.Select(i => i.Detail)))
@@ -110,17 +131,17 @@
         @if (preview.CanApply)
         {
             <form method="post" asp-page-handler="Apply" class="assignment-refresh__confirm" data-refresh-apply>
-                <h2>@(reviewStep + 1). Confirma la actualización</h2>
+                <h2>@(preview.Differences.Length == 0 ? reviewStep : reviewStep + 1). @(preview.Differences.Length == 0 ? "Confirma la conservación" : "Confirma la actualización")</h2>
                 <input type="hidden" asp-for="Key" /><input type="hidden" asp-for="NotBefore" /><input type="hidden" asp-for="Fingerprint" />
                 <input type="hidden" asp-for="ReplaceRemainingEstimate" /><input type="hidden" asp-for="ChangeAuthorizedDeadline" /><input type="hidden" asp-for="AdoptLegacyCalendar" /><input type="hidden" asp-for="RetireInactiveAssignments" /><input type="hidden" asp-for="RetireExcludedAssignments" />
                 @foreach (var id in Model.PreserveProcessAssignmentIds) { <input type="hidden" name="PreserveProcessAssignmentIds" value="@id" /> }
                 @foreach (var id in Model.PreserveCalendarAssignmentIds) { <input type="hidden" name="PreserveCalendarAssignmentIds" value="@id" /> }
                 <label class="campo"><span class="campo__etiqueta">Motivo para el historial</span><textarea class="campo__control" asp-for="Reason" maxlength="1000" required rows="2" placeholder="Por ejemplo: Actualizar requisitos y retirar tareas que ya no se realizan"></textarea></label>
-                <p>Se guardarán todos los cambios mostrados arriba.</p>
-                <button class="boton boton--primario" type="submit">@(retired == 0 ? "Confirmar cambios" : updated == 0 ? "Confirmar retiros" : "Confirmar cambios y retiros")</button>
+                <p>Se guardarán los cambios y las decisiones mostrados arriba.</p>
+                <button class="boton boton--primario" type="submit">@(preview.Differences.Length == 0 ? "Confirmar conservación" : retired == 0 ? "Confirmar cambios" : updated == 0 ? "Confirmar retiros" : "Confirmar cambios y retiros")</button>
             </form>
         }
-        else if (preview.Differences.Length == 0 && preview.Conflicts.Length == 0) { <p>No hay cambios para aplicar en esta revisión. Los pendientes que elegiste conservar siguen sin cambios.</p> }
+        else if (preview.Differences.Length == 0 && preview.Conflicts.Length == 0) { <p>No hay cambios ni decisiones pendientes de confirmar.</p> }
     }
 </section>
 <script src="~/js/assignment-refresh.js" asp-append-version="true" defer></script>

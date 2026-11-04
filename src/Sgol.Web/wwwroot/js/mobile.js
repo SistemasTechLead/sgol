@@ -69,6 +69,10 @@
 
     function fold(element, label, key, buttonHost) {
         if (!element || element.dataset.mobileFold) return null;
+        if (window.SgolSearch?.isStandalone(element)) {
+            element.classList.add('standalone-search');
+            return null;
+        }
         element.dataset.mobileFold = key;
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'mobile-fold-toggle'; button.textContent = label;

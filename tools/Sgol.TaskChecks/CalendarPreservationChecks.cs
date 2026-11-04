@@ -88,6 +88,8 @@ internal static class CalendarPreservationChecks
         builder.Services.AddDbContext<SgolDbContext>(o=>o.UseNpgsql(db.Database.GetConnectionString()));
         builder.Services.AddSingleton<IClock>(clock);builder.Services.AddSingleton<IUuidGenerator,Uuid7Generator>();
         builder.Services.AddScoped<AuditTransaction>();builder.Services.AddScoped<IDirectionPreparedPlanService,EfDirectionPreparedPlanService>();builder.Services.AddScoped<IDirectionPlanningCatalogReader,DirectionPlanningCatalogReader>();builder.Services.AddScoped<AssignmentRefreshService>();
+        builder.Services.AddScoped<OperationalTaskService>();builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Organization.SpecializationService>();builder.Services.AddScoped<OperationalProcessCatalogService>();builder.Services.AddScoped<OperationalSchedulingPolicyService>();
+        builder.Services.AddSingleton<Sgol.Evidence.Contracts.IFileTechnicalValidator,Sgol.Evidence.Technical.FileTechnicalValidator>();builder.Services.AddSingleton<Sgol.Evidence.Contracts.IFileMalwareScanner,CheckScanner>();
         builder.Services.AddScoped<Sgol.Web.Infrastructure.Persistence.Identity.IPersonAvatarReader,Sgol.Web.Infrastructure.Persistence.Identity.PersonAvatarService>();
         builder.Services.AddScoped<IRazorSessionState>(sp=>new Session(fixture.Director,directorPerson,clock,
             sp.GetRequiredService<IHttpContextAccessor>().HttpContext!.Request.Cookies["test-role"]=="worker"?CanonicalRole.SalesFloor:CanonicalRole.Direction));
@@ -148,6 +150,42 @@ internal static class CalendarPreservationChecks
         Check(carryoverBefore==JsonSerializer.Serialize(await db.Set<OperationalCarryoverRequest>().AsNoTracking().SingleAsync(r=>r.Id==carryover.Id)),"pending request unchanged");
         Check(await db.OperationalAttachments.AnyAsync(a=>a.AssignmentId==row.Id),"new attachment preserved");
         Check((await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==other.Id)).Name==otherTask.Name,"other assignment updated");
+        Check(!(await service.CountsAsync(fixture.Director,default)).ContainsKey(task.Id),"confirmed preservation no longer activates catalog update");
+        var settled=await service.PreviewAsync(fixture.Director,request with {Key=Guid.NewGuid()},default);
+        Check(settled.Decisions.Length==0 && settled.Differences.Length==0 && !settled.CanApply,"reopening after confirmation is settled without repeating the checkbox");
+        Check(settled.Notices.Any(n=>n.Contains("decisión confirmada")),"saved exception remains visible without pretending the catalog was adopted");
+        var unrelated=await db.OperationalTasks.SingleAsync(t=>t.Id==otherTask.Id);unrelated.LoadMinutes=20;unrelated.Revision++;
+        await db.SaveChangesAsync();db.ChangeTracker.Clear();
+        var neighbourRequest=request with {Key=Guid.NewGuid()};
+        var neighbourPreview=await service.PreviewAsync(fixture.Director,neighbourRequest,default);
+        Check(neighbourPreview.CanApply && neighbourPreview.Decisions.Length==0 && neighbourPreview.Differences.All(d=>d.Before?.Id!=row.Id),"another task can change without reopening or reflowing the saved exception");
+        await service.ApplyAsync(fixture.Director,neighbourRequest,neighbourPreview.Fingerprint,"Actualizar otra tarea",default);db.ChangeTracker.Clear();
+        Check(before==JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==row.Id)),"saved exception remains intact through neighbouring reflow");
+        var changedDefinition=await db.OperationalTasks.SingleAsync(t=>t.Id==task.Id);
+        changedDefinition.Description="New catalog revision reopens preservation";changedDefinition.Revision++;
+        await db.SaveChangesAsync();db.ChangeTracker.Clear();
+        Check((await service.CountsAsync(fixture.Director,default)).ContainsKey(task.Id),"any new catalog version reactivates the preserved assignment");
+        var only=await service.PreviewAsync(fixture.Director,accepted with {Key=Guid.NewGuid()},default);
+        Check(only.CanApply && only.Differences.Length==0 && only.CalendarPreservations.Length==1,"preservation alone is a confirmable decision");
+        html=await client.GetStringAsync("/tareas/actualizar");
+        response=await client.PostAsync("/tareas/actualizar?handler=Preview",new FormUrlEncodedContent(new Dictionary<string,string>{
+            ["__RequestVerificationToken"]=Field(html,"__RequestVerificationToken"),["PreserveCalendarAssignmentIds"]=row.Id.ToString()}));
+        html=await response.Content.ReadAsStringAsync();
+        Check(response.IsSuccessStatusCode && WebUtility.HtmlDecode(html).Contains("Confirmar conservación") && html.Contains("data-refresh-apply"),"zero updates still offers explicit preservation confirmation in real Razor");
+        form=new Dictionary<string,string> {["__RequestVerificationToken"]=Field(html,"__RequestVerificationToken"),["Key"]=Field(html,"Key"),
+            ["NotBefore"]=Field(html,"NotBefore"),["Fingerprint"]=Field(html,"Fingerprint"),["PreserveCalendarAssignmentIds"]=row.Id.ToString(),["Reason"]="Conservar hasta nuevo cambio de catálogo"};
+        response=await client.PostAsync("/tareas/actualizar?handler=Apply",new FormUrlEncodedContent(form));
+        Check(response.StatusCode==HttpStatusCode.Redirect,"preservation-only confirmation persists");
+        response=await client.PostAsync("/tareas/actualizar?handler=Apply",new FormUrlEncodedContent(form));
+        Check(response.StatusCode==HttpStatusCode.Redirect,"preservation-only confirmation retry is idempotent");
+        db.ChangeTracker.Clear();
+        Check(await db.AuditEvents.CountAsync(e=>e.ResourceId==row.Id && e.Action=="OPERATIONAL_ASSIGNMENT_CALENDAR_PRESERVED")==2,"one exception audit per confirmed catalog version");
+        Check(before==JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().SingleAsync(a=>a.Id==row.Id)),"durable exception changes neither assignment snapshot nor revision");
+        Check(!(await service.CountsAsync(fixture.Director,default)).ContainsKey(task.Id),"second confirmed exception clears update count again");
+        html=await client.GetStringAsync("/tareas/actualizar");
+        Check(!html.Contains("data-refresh-options") && !html.Contains("data-refresh-apply") && html.Contains("No hay cambios ni decisiones pendientes"),"empty view has no misleading active action");
+        html=await client.GetStringAsync("/tareas");
+        Check(Regex.IsMatch(html,"<button[^>]*disabled[^>]*>Actualizar Asignaciones</button>"),"real catalog disables update button after the last exception is saved");
         handler.CookieContainer.Add(client.BaseAddress,new Cookie("test-role","worker"));
         Check((await client.GetAsync("/tareas/actualizar")).StatusCode==HttpStatusCode.Forbidden,"worker denied");
     }

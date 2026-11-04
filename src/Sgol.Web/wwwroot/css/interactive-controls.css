@@ -114,6 +114,15 @@
 #contenido-principal .mobile-record-toggle:hover {
     background: color-mix(in srgb, var(--color-superficie-elevada) 88%, var(--color-texto-primario));
 }
+/* A lone search needs no filter disclosure or full-width grid columns. */
+form.standalone-search {
+    display: flex; flex-wrap: wrap; align-items: end; gap: var(--espacio-12);
+    min-width: 0;
+}
+form.standalone-search .campo {
+    flex: 1 1 18rem; min-width: 0; max-width: 32rem; margin: 0;
+}
+form.standalone-search .campo__control { width: 100%; min-width: 0; }
 .carryover-guidance { margin-block: 16px; color: var(--color-texto-secundario); }
 .carryover-guidance p { margin-block: 8px; }
 #carryovers .carryover-request {

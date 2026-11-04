@@ -47,7 +47,13 @@
                         @if (a.Requirement is "FOTOGRAFIA" or "CAPTURA_PANTALLA") { <a href="@(file + "&preview=true")" target="_blank" rel="noopener"><img class="validation-image" src="@(file + "&preview=true")" alt="Evidencia: @a.Name" loading="lazy" /></a> }
                         else { <a class="boton boton--secundario" href="@file">@a.FileName</a> }
                     } else if (a.Comment is null && a.Requirement != "CHECKLIST") {
-                        <p class="texto-secundario">@(a.Requirement == "NINGUNO" ? a.Conclusion ?? "Sin requisito de evidencia." : "Sin evidencia entregada.")</p>
+                        <p class="texto-secundario">@(a.Requirement == "NINGUNO" ? "Sin requisito de evidencia." : "Sin evidencia entregada.")</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(a.Conclusion)) {
+                        <div class="validation-card__conclusion">
+                            <p><strong>Comentario de conclusión</strong></p>
+                            <p class="supervision-text">@a.Conclusion</p>
+                        </div>
                     }
                     @if (a.GoalUnits > 0) { <p>@a.ProgressUnits / @a.GoalUnits @a.ProgressUnit</p> }
                 </div>

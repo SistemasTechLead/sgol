@@ -2,10 +2,12 @@
 
 [Inicio](../Inicio.md) · [Reglas](reglas.md) · [Base documental](base-documental.md)
 
-La bóveda contiene 25 documentos de referencia y procedimiento: quince referencias funcionales consolidadas, siete de diseño, dos guías de infraestructura y el protocolo de implementación. Los informes de casos, planes, propuestas y ejercicios de importación se retiraron de la bóveda. El respaldo y la trazabilidad de sustitución se conservan fuera de ella.
+La bóveda contiene 27 documentos de referencia y procedimiento: quince referencias funcionales consolidadas, siete de diseño, dos guías de infraestructura, el protocolo de implementación y los procedimientos de Graphify y RTK. Los informes de casos, planes, propuestas y ejercicios de importación se retiraron de la bóveda. El respaldo y la trazabilidad de sustitución se conservan fuera de ella.
 
 | Documento | Categoría | Tipo |
 |---|---|---|
+| [Reducir las salidas de comandos con RTK](../docs/desarrollo/salidas-comandos-rtk.md) | [desarrollo](../mapas/desarrollo.md) | procedimiento |
+| [Consultar la bóveda con Graphify](../docs/desarrollo/consulta-boveda-graphify.md) | [desarrollo](../mapas/desarrollo.md) | procedimiento |
 | [SGOL para pruebas en la red del trabajo](../docs/acceso-red.md) | [infraestructura](../mapas/infraestructura.md) | procedimiento |
 | [Protocolo de investigación, implementación y validación de SGOL](../docs/desarrollo/PROTOCOLO_IMPLEMENTACION.md) | [desarrollo](../mapas/desarrollo.md) | procedimiento |
 | [Diseño actual de SGOL](../docs/design/00-diseno-sgol.md) | [diseno](../mapas/diseno.md) | referencia |

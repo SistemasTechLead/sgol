@@ -10,6 +10,7 @@
 <article class="postponement-request" aria-label="Petición de @request.Items().FirstOrDefault()?.PersonName">
     @foreach (var item in request.PendingItems()) {
         var current = page.CarryoverCurrent.GetValueOrDefault(item.AssignmentId);
+        var through = PostponementWindow.DecisionThrough(request, item, current);
         var diagnostic = page.CarryoverDiagnostics.GetValueOrDefault(item.AssignmentId);
         var active = page.ItemDecision.AssignmentId == item.AssignmentId;
         var form = active ? page.ItemDecision : new Sgol.Web.Pages.Validations.CarryoverItemForm { RequestId = request.Id, AssignmentId = item.AssignmentId, Revision = current?.Revision ?? item.Revision };
@@ -71,7 +72,7 @@
                 <div data-item-recipient hidden="@(form.Action != "REASSIGN")"><label>Nuevo responsable<select name="ItemDecision.Recipient" aria-describedby="@(key)-eligibility"><option value="">Selecciona una persona</option>@foreach (var recipient in page.CarryoverRecipients.GetValueOrDefault(item.AssignmentId) ?? []) { <option value="@recipient.Id" selected="@(form.Recipient == recipient.Id)">@recipient.Name · @Sgol.Web.Presentation.Navigation.SessionPresentation.RoleName(recipient.Role)</option> }</select></label><small id="@(key)-eligibility">@(current?.SpecializationId != null ? "Requiere la especialidad de la tarea; el rol puede ser distinto. Excluye personas a prueba." : "Requiere el mismo rol de la tarea; un rol superior no lo sustituye automáticamente.") Solo aparecen personas activas dentro de tu alcance de supervisión.</small>@if (!(page.CarryoverRecipients.GetValueOrDefault(item.AssignmentId)?.Any() ?? false)) { <p class="postponement-note">No hay otra persona elegible. Revisa la especialidad o el rol registrado y tu alcance de supervisión; también puedes cambiar el día.</p> }</div>
                 <div data-item-day hidden="@(form.Action is not ("REASSIGN" or "RESCHEDULE"))">
                     <label>Buscar horario<select data-item-day-mode data-requested-day="@requestedDay.ToString("yyyy-MM-dd")"><option value="same" selected="@(form.Day == null || form.Day == requestedDay)">Un espacio libre en el día solicitado</option><option value="other" selected="@(form.Day != null && form.Day != requestedDay)">Elegir otro día</option></select></label>
-                    <label data-item-date-label>Día de trabajo<input type="date" name="ItemDecision.Day" value="@((form.Day ?? requestedDay).ToString("yyyy-MM-dd"))" min="@request.From?.ToString("yyyy-MM-dd")" max="@request.Through?.ToString("yyyy-MM-dd")" /></label><small>Del @request.From?.ToString("dd/MM/yyyy") al @request.Through?.ToString("dd/MM/yyyy"). Busca un tramo completo libre; conserva responsable y avances al cambiar la propuesta.</small></div>
+                    <label data-item-date-label>Día de trabajo<input type="date" name="ItemDecision.Day" value="@((form.Day ?? requestedDay).ToString("yyyy-MM-dd"))" min="@request.From?.ToString("yyyy-MM-dd")" max="@through?.ToString("yyyy-MM-dd")" /></label><small>Del @request.From?.ToString("dd/MM/yyyy") al @through?.ToString("dd/MM/yyyy"). Busca un tramo completo libre; conserva responsable y avances al cambiar la propuesta.</small></div>
                 </div>
                 <label>Motivo de tu decisión<textarea name="ItemDecision.Comment" required maxlength="4000" rows="2" placeholder="Explica el ajuste o la decisión para quien solicitó el arrastre">@form.Comment</textarea></label>
                 @if (preview != null) {
@@ -95,7 +96,7 @@
                 }
                 <div class="postponement-actions"><button name="confirm" value="false" class="boton boton--secundario">Revisar resultado</button></div>
             </form>
-            <details><summary>Ver detalles</summary><p>Solicitud @request.Id · @ReportCatalog.Time(request.SubmittedAt)</p><p>Cierre al enviar: @ReportCatalog.Time(item.Due). Ventana: @request.From?.ToString("dd/MM/yyyy") – @request.Through?.ToString("dd/MM/yyyy").</p><p>Causa registrada: @request.CauseDescription</p><p>Cálculo al enviar: @item.LoadSummary</p></details>
+            <details><summary>Ver detalles</summary><p>Solicitud @request.Id · @ReportCatalog.Time(request.SubmittedAt)</p><p>Cierre al enviar: @ReportCatalog.Time(item.Due). Ventana original: @request.From?.ToString("dd/MM/yyyy") – @request.Through?.ToString("dd/MM/yyyy").</p><p>Causa registrada: @request.CauseDescription</p><p>Cálculo al enviar: @item.LoadSummary</p></details>
         </section>
     }
     @if (request.Results().Length > 0) { <details><summary>@request.Results().Length tareas ya resueltas</summary>@foreach (var result in request.Results()) { <p>@request.Items().First(i => i.AssignmentId == result.AssignmentId).Task · @OperationalCarryoverService.ResolutionLabel(result.Kind) · @result.Comment</p> }</details> }

@@ -23,6 +23,11 @@ internal static class PostponementChecks
     public static void Rules()
     {
         var today = new DateOnly(2026, 10, 27); var person = Guid.NewGuid();
+        Require(PostponementWindow.For(new(2026,11,3), null, true).Through == new DateOnly(2026,12,3), "Monthly window is one calendar month from submission");
+        Require(PostponementWindow.For(new(2027,1,31), null, true).Through == new DateOnly(2027,2,28), "Monthly window clamps short months");
+        Require(PostponementWindow.For(new(2028,1,31), null, true).Through == new DateOnly(2028,2,29), "Monthly window respects leap years");
+        Require(PostponementWindow.For(today, 5, true).Through == today.AddDays(2), "Explicit exclusive weekday still restricts monthly tasks");
+        Require(PostponementWindow.ReferenceDay(new(2026,11,30), new(2026,11,3)) == new DateOnly(2026,11,2), "Month-end forecast uses known equivalent weekday, not empty future demand");
         var worker = new CapacityWorker(person, "Fixture", "POST", CanonicalRole.SalesFloor, null, null);
         var temporal = new TemporalEligibilityContext { Enabled = true, Schedules = [new() { Id = Guid.NewGuid(), PersonId = person, Revision = 1,
             DaysJson = JsonSerializer.Serialize(Enumerable.Range(0,7).ToDictionary(i => i, i => new WorkInterval[] {new(540,780),new(900,1080)})) }] };
@@ -44,6 +49,14 @@ internal static class PostponementChecks
         var critical = Task(10); critical.OperationalCriticality = "CRITICA";
         var criticalResult = PostponementAllocator.Calculate([critical], ledger, days);
         Require(criticalResult.Items.Single().Warning.Contains("Crítica") && TimeZoneInfo.ConvertTime(criticalResult.Items.Single().ProposedStart!.Value, OperationalSchedule.Zone).Hour == 9, "Critical tasks preserve time of day and warn about authorization");
+        var monthly = Task(10); monthly.PeriodType = "MENSUAL";
+        var weekly = Task(10); weekly.PeriodType = "SEMANAL";
+        var distant = new[] { new PostponementDay(today.AddDays(20), 0, 0, 0, 240, today.AddDays(-1)) };
+        var mixed = PostponementAllocator.Calculate([monthly, weekly], ledger, distant, today);
+        Require(mixed.Items.Length == 1 && mixed.Items[0].AssignmentId == monthly.Id && mixed.Conflicts.Length == 1, "Mixed request never extends weekly tasks to monthly range");
+        var historical = new OperationalCarryoverRequest { From = today.AddDays(1), Through = today.AddDays(7) };
+        Require(PostponementWindow.DecisionThrough(historical, mixed.Items[0], monthly) == today.AddMonths(1) && historical.Through == today.AddDays(7), "Existing monthly request gains effective range without rewriting snapshot");
+        Require(PostponementWindow.DecisionThrough(historical, mixed.Items[0] with { BeforeDate = today.AddDays(3) }, monthly) == today.AddDays(2), "Historical explicit deadline remains exclusive");
     }
     private static async Task Reject(Func<Task> action, string code) {
         try { await action(); throw new Exception("Expected " + code); } catch (DirectionPlanException e) { Require(e.Code == code, "Rejected with " + code); }

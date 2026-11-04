@@ -2,7 +2,7 @@
 categoria: infraestructura
 tipo: procedimiento
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
+ultima_verificacion: 2026-11-04
 verificado_en: procesos-puertos-y-scripts
 ---
 
@@ -35,13 +35,15 @@ La instalación es de desarrollo y simulación operativa. Local y LAN pueden com
 
 ## Topología observada
 
-En la comprobación del 03/11/2026, el lanzador Web ejecuta `scripts/run-local.ps1 -Service web -Red -BinaryPath` con:
+En la comprobación del 04/11/2026, el lanzador Web ejecuta `scripts/run-local.ps1 -Service web -Red -BinaryPath` con:
 
-`C:\Users\siste\Dev\SistemaSGOL\.local\runtime\carryover-notices-row-20261103\Sgol.Web.dll`
+`C:\Users\siste\Dev\SistemaSGOL\.local\runtime\calendar-preservation-20261104\Sgol.Web.dll`
 
 La Web escucha en `127.0.0.1:7241`. El proxy atiende `https://localhost:7240` y `https://192.168.1.92:7440`; el puerto LAN 7443 corresponde al circuito de almacenamiento del proxy. La dirección LAN es una observación, no una dirección garantizada permanentemente.
 
 La publicación activa no es `dotnet watch`. Guardar el código no actualiza automáticamente este proceso. El lanzador también admite un modo de desarrollo con watch cuando se omite BinaryPath; cambiar entre modos es una decisión distinta de reiniciar el mismo artefacto.
+
+Los recursos estáticos requieren una comprobación separada del ensamblado: `run-local.ps1` establece `src/Sgol.Web` como directorio de trabajo al usar `BinaryPath`. El host puede servir CSS y JavaScript del checkout mediante `UseStaticFiles()`. El 03/11/2026 se contrastó por HTTP que `search-text.js`, `mobile.js`, `desktop-workspace.js` e `interactive-controls.css` corresponden al checkout, no a las copias de la carpeta de publicación. Para esos recursos, guardar cambios sí modifica lo servido sin reiniciar Web; comprobar el contenido efectivo antes de copiar o reiniciar. Esto no acredita una prueba autenticada de las pantallas ni implica que las vistas Razor se recompilen.
 
 ## Identificar el destino sin buscar desde cero
 
@@ -70,4 +72,4 @@ Informar qué se reinició o actualizó, publicación utilizada, comprobaciones 
 - [Proxy LAN](../../../tools/Sgol.LanProxy/Program.cs).
 - [Seguridad](funcional/seguridad.md) y [protocolo de implementación](desarrollo/PROTOCOLO_IMPLEMENTACION.md).
 
-Se verificaron procesos, listeners y scripts mediante lectura. No se ejecutó un reinicio ni una actualización al redactar esta guía. El estado efectivo debe comprobarse de nuevo al realizar la operación.
+Se verificaron procesos, listeners y scripts mediante lectura. La actualización de Web del 04/11/2026 se comprobó con el proceso efectivo y respuestas 200 de readiness interno y acceso local/LAN; el proxy se conservó. El estado efectivo debe comprobarse de nuevo al realizar la operación.

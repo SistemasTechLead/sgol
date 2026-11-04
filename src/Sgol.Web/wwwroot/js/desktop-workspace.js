@@ -85,6 +85,10 @@
         });
         main.querySelectorAll(filterSelector).forEach(form => {
             if (form.dataset.desktopFiltersReady) return;
+            if (window.SgolSearch.isStandalone(form)) {
+                form.classList.add('standalone-search');
+                return;
+            }
             form.dataset.desktopFiltersReady = 'true';
             form.classList.add('desktop-filter-bar');
             form.querySelectorAll('.report-filter-grid').forEach(grid => grid.classList.add('desktop-filter-group'));

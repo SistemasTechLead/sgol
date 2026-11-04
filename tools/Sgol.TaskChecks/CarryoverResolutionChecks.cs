@@ -103,6 +103,7 @@ internal static class CarryoverResolutionChecks
         Check(closedPreview.Conflicts.Length == 0 && closedPreview.Proposed == null, "delivery during wait closes without moving assignment");
         await service.ResolveItemAsync(fixture.Director, close, closedPreview.Fingerprint, default); db.ChangeTracker.Clear();
         Check((await db.OperationalAssignments.AsNoTracking().SingleAsync(a => a.Id == delivered.Id)).DueAt == delivered.DueAt, "delivered dates preserved");
+        await MonthlyPostponementChecks.Run(db, fixture, clock);
         if (ui) await CarryoverResolutionHttpChecks.Run(db, fixture, clock);
     }
     private static string ExplanationFallback(this PostponementPreview _) => "Aún no se me capacita. Prueba aislada de resolución por tarea.";
