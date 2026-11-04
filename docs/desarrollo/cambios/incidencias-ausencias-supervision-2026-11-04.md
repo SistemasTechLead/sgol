@@ -410,3 +410,5 @@ Investigación y corrección:
 | Confirmación operativa compartida, dispositivo físico y sesión compartida | No se registró ausencia ni se aplicó reparto compartido; pruebas con sesión sintética aislada | No ejecutado |
 
 Sin migraciones ni alteración del historial compartido. Evidencias y copias privadas en `.local/`. Bóveda pendiente de reconciliación tras verificar despliegue.
+
+Publicado a3fd69e desde .local/runtime/incidencias-concurrency-20261104/Sgol.Web.dll, Web 34452/lanzador 31712. Proxy 20652 conservado. Live/ready internos y acceso LAN: 200, TLS normal; error de arranque vacío. Referencias funcionales, de pantalla e infraestructura reconciliadas y copia versionada sincronizada. Sin migraciones ni confirmaciones compartidas.
