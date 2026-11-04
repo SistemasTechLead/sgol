@@ -2,36 +2,26 @@
 
 [Inicio](../Inicio.md) · [Infraestructura](../mapas/infraestructura.md) · [Inventario](inventario.md)
 
-## Decisión del usuario
+## Fuente y vigencia
 
-El 03/11/2026 se estableció que la documentación debe describir los cambios que usa la aplicación compartida. Las propuestas no implementadas y las pruebas históricas se distinguen de la referencia actual. Esta decisión define qué comportamiento documentar; no convierte automáticamente las copias de la bóveda y Git en una sola fuente de edición.
+La referencia describe el comportamiento de la aplicación compartida. La bóveda y su copia en `docs/boveda/` son ubicaciones independientes. Los planes y resultados detallados de ingeniería permanecen fuera de la bóveda, en `docs/desarrollo/cambios/` del repositorio.
 
-## Estado observado el 03/11/2026
+## Publicación efectiva
 
-- Repositorio: `C:\Users\siste\Dev\SistemaSGOL`, rama `master`.
-- Commit: `464d283418e8546c543727120f0a754fad0f65c8`, «Integra procesos periódicos, resolución de posposiciones y mejoras de interfaz».
-- En la comprobación previa al cambio, tras `git fetch origin`, HEAD y origin/master coincidían: cero commits de diferencia y árbol de trabajo limpio. No había cambios pendientes que confirmar o subir.
-- Publicación que atiende el puerto interno 7241: `.local/runtime/calendar-preservation-20261104/Sgol.Web.dll`, proceso 16340, lanzador 5028, comprobados el 04/11/2026. Incluye las excepciones de conservación confirmadas hasta el siguiente cambio del catálogo, su conteo y confirmación independiente; conserva la exclusión autorizada de vencidas no reprogramadas en la actualización de asignaciones, restauración de candidatos fallidos y diagnóstico del límite. El formulario se probó en copia aislada; las 789 asignaciones compartidas conservaron su huella completa antes/después de publicar. No hubo migración ni aplicación de la propuesta en la base compartida. Readiness interno y acceso local/LAN respondieron 200 con comprobación TLS normal. El proxy 20652 (lanzador 23392), verificado el 04/11/2026, se conservó. Esta publicación incorpora los comentarios de conclusión en las tarjetas de Validación, los detalles de cambios en conflictos y el enlace de arrastre/posposición a Supervisión; incluye además el rango mensual de posposición y la migración `20261104010000_AddMonthlyCarryoverWindow`. Las 789 asignaciones y 13 solicitudes conservaron su huella completa antes/después de migrar. Esos cambios permanecen sin commit. La comprobación autenticada de esa pantalla sigue pendiente. Los identificadores de proceso son observaciones temporales.
-- Proxy LAN: proceso 20652 (comprobado el 04/11/2026); escucha en localhost:7240 y 192.168.1.92:7440/7443. `tools/Sgol.LanProxy/Program.cs` dirige el tráfico web a `http://127.0.0.1:7241`.
-- El ensamblado anterior informaba `1.0.0+483b55cadb98e7d01057831f285d7c1f26d40294`. Esa etiqueta se incorporó antes del commit conjunto y no demuestra por sí sola que falten sus cambios.
+- Checkout: `C:\Users\siste\Dev\SistemaSGOL`, rama `master`. Código publicado: commit `e9273b1`, subido a `origin/master`.
+- Web: `.local/runtime/incidencias-20261104/Sgol.Web.dll`, puerto interno `127.0.0.1:7241`. Proceso 28840, lanzador 19696, observados el 04/11/2026. Los IDs son observaciones temporales, no garantías para operaciones posteriores.
+- Proxy conservado: proceso 20652, lanzador 23392, acceso local `https://localhost:7240` y LAN `https://192.168.1.92:7440`; almacenamiento por 7443. Confirmar dirección y procesos antes de actuar.
+- Esquema aplicado: incluye `20261104171654_AddOperationalIncidences` y `20261104173103_AddIncidencePreparedHold`, sobre `20261104010000_AddMonthlyCarryoverWindow`. Incidencias forma parte del artefacto activo; no se registró ninguna ausencia al publicarlo.
+- El despliegue incluye los avances previos conservados en `8ee3330`: actualización de asignaciones, posposiciones, búsquedas visibles y ajustes de interfaz. El host no usa watch. Los recursos estáticos pueden servirse desde `src/Sgol.Web/wwwroot` por el directorio de trabajo del lanzador.
 
-## Comprobación anterior y límites
+## Alcance de comprobación
 
-| Escenario | Resultado esperado | Método y entorno | Resultado |
-|---|---|---|---|
-| Repositorio/remoto | Sin divergencia ni cambios pendientes | fetch, status y rev-list en checkout local | Aprobado: 0/0 y limpio |
-| Fuente de la publicación | Archivos fuente disponibles coinciden | SHA de documentos en los 11 PDB portables frente al checkout | 684 coincidencias y cero diferencias; 103 rutas no disponibles no pudieron contrastarse |
-| Recursos web | Archivos estáticos del checkout coinciden con publicación | SHA-256 de wwwroot | Aprobado: 74 coincidencias, cero diferencias y cero ausentes |
-| Acceso LAN | Endpoint de acceso responde | GET HTTPS /acceso | 200 |
-| Acceso local | Endpoint responde | GET HTTPS /acceso sin seguir redirección | 302; destino de redirección no validado en esta comprobación |
-| Autenticación TLS | Cadena de confianza válida | curl utilizó -k para la comprobación HTTP | No ejecutado |
-| Recorridos autenticados | Reglas y pantallas funcionan en todos los casos | Nueva batería funcional/visual | No ejecutado: esta fase organiza documentación |
-| Configuración y base | Coincidencia completa con un despliegue reproducible | Comparación de configuración efectiva, esquema y datos | No ejecutado: no se declara equivalencia completa |
+La publicación y su procedencia se verificaron con proceso/argumentos, compilación Release y migraciones. Las huellas de las 95 tablas anteriores, incluidas 791 asignaciones, fueron idénticas antes y después de migrar, antes de iniciar Web. Se conservó respaldo privado y el artefacto anterior. La cuenta runtime tiene acceso a las tablas nuevas.
 
-Los PDB y recursos aportan evidencia de correspondencia del código disponible con la publicación; no certifican todos los insumos de compilación, cada Razor generado ni el estado de la base. No se reinició el host ni se modificaron datos. No se repitieron pruebas funcionales ajenas al cambio documental.
+Salud interna live/ready y acceso local/LAN respondieron 200 con validación TLS normal. Incidencias sin sesión redirige a Acceso; esto no acredita un recorrido autenticado del host. Sus reglas y formulario se probaron en bases aisladas, con sesiones sintéticas, Chromium/WebKit, tamaños y temas; esos resultados no equivalen a registrar una ausencia en la simulación compartida.
 
-## Uso posterior
+Las referencias funcionales mantienen sus límites específicos: la reprogramación posterior de procesos retirados por incidencia aún no dispone de formulario, y no hay reversión automática ni ausencias parciales. La revisión estática de las otras reglas no constituye una nueva validación funcional completa.
 
-Antes de ejecutar operaciones, comprobar de nuevo proceso, puerto, publicación y configuración pertinente. Las rutas aquí registradas sirven de punto de entrada, no de garantía perpetua. Mantener separados el comportamiento actual, la compatibilidad con registros históricos y las propuestas futuras.
+## Antes de operar
 
-Las referencias de diseño y las quince referencias funcionales tienen alcance de revisión estática. Los planes, informes de casos y ejercicios de importación fueron sustituidos o retirados de la bóveda. La clasificación y la consolidación no equivalen a nuevas pruebas de ejecución. La bóveda continúa siendo independiente de Git, sin sincronización automática.
+Seguir [instalación local](../docs/instalacion-local.md) y [acceso LAN](../docs/acceso-red.md), verificar procesos, listeners, publicación y destino de base. Una actualización de Web conserva proxy y dependencias cuando ese es el alcance. Los respaldos, secretos y evidencias privadas permanecen fuera de esta bóveda y de Git.

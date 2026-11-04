@@ -2,8 +2,8 @@
 categoria: dominio
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
-verificado_en: inspeccion-estatica
+ultima_verificacion: 2026-11-04
+verificado_en: codigo-publicado-y-pruebas-aisladas
 ---
 
 # Supervisión, correcciones y transferencias
@@ -32,9 +32,21 @@ Vista previa y confirmación comprueban elegibilidad, presencia, horario, capaci
 
 Relacionados: [Historial](modelo-historial.md), [Posposiciones](arrastres-posposiciones.md), [Bono](bono-tareas.md).
 
+## Incidencias de ausencia
+
+Incidencias (`/supervision/incidencias`) registra ausencias de día completo de hoy o de una fecha futura. Dirección confirma; los demás supervisores consultan personas y disposiciones dentro de su alcance. La consulta por fecha y nombre muestra disponibilidad, pendientes, vencidas, minutos y recibos. No tener ausencia registrada no acredita asistencia.
+
+La vista previa reúne disponibilidad, transferencias, retiros y efecto en el bono. Las vencidas del día se retiran y excluyen conservando historial; deudas de otros días permanecen. Las no vencidas se distribuyen según tiempo de turno restante, capacidad, demanda y elegibilidad, sin reducir esfuerzo. Avances y evidencia requieren una decisión explícita y se conservan. Los casos identifican tarea, causa, efecto, detalles y opciones pertinentes.
+
+La sobrecarga se autoriza para una tarea y destinataria concretas, mostrando exceso y empalmes. No elimina ausencias, especialidades, turno, dependencias ni reservas exclusivas; no cambia la capacidad global. El reacomodo opcional muestra también las tareas vecinas futuras sin actividad protegida que cambiarían. Las obligaciones que vencen otro día conservan plazo y bono; se revisa su esfuerzo en los días restantes.
+
+Cambiar datos exige revisar de nuevo. La confirmación conjunta revalida el estado y vencimientos, incluso al commit; un fallo revierte el conjunto. Repetir la misma intención devuelve el recibo existente. No se permite restaurar solo disponibilidad para deshacer la incidencia. Ausencias parciales, reversión automática y formulario de reprogramación posterior de procesos no están disponibles.
+
+Fuentes: [servicio de incidencias](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalIncidenceService.cs), [formulario](../../../../src/Sgol.Web/Pages/Validations/Incidents.cshtml). Relaciones: [Disponibilidad](horarios-cobertura.md), [Procesos](procesos.md), [Bono](bono-tareas.md).
+
 ## Fuentes y alcance
 
-Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Revisión estática; no constituye una nueva prueba funcional, visual o de datos del host.
+Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Incidencias se contrastó con el código publicado y pruebas funcionales aisladas. En el host compartido se comprobaron salud, acceso y conservación de datos al migrar; no se confirmó ninguna ausencia ni se repitió un recorrido autenticado. Las demás reglas conservan su alcance de revisión estática.
 
 - [OperationalSupervisionService.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalSupervisionService.cs)
 - [OperationalSupervisionService.Reassignment.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalSupervisionService.Reassignment.cs)

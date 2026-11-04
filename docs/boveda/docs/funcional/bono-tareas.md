@@ -2,8 +2,8 @@
 categoria: dominio
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
-verificado_en: inspeccion-estatica
+ultima_verificacion: 2026-11-04
+verificado_en: codigo-publicado-y-pruebas-aisladas
 ---
 
 # Bono de tareas
@@ -38,9 +38,12 @@ El velocímetro es calificación, no avance operativo. Mi trabajo presenta seman
 
 Relacionados: [Ejecución](ejecucion-evidencias.md), [Supervisión](supervision.md), [Historial](modelo-historial.md), [Interfaces](interfaces.md).
 
+En las [incidencias de ausencia](supervision.md#incidencias-de-ausencia), retirar una obligación quita su base y descuentos, sin simular entrega. Una transferencia confirmada deja una sola obligación con la receptora, sin trasladar devoluciones anteriores ajenas y conservando sus entregas posteriores. Las obligaciones de varios días que vencen después conservan plazo y bono. Los compromisos posteriores de una etapa retirada se distinguen económicamente del compromiso excluido; no heredan ciegamente su exclusión. Los cierres persistidos no se reabren.
+
+
 ## Fuentes y alcance
 
-Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Revisión estática; no constituye una nueva prueba funcional, visual o de datos del host.
+Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Incidencias se contrastó con el código publicado y pruebas funcionales aisladas. En el host compartido se comprobaron salud, acceso y conservación de datos al migrar; no se confirmó ninguna ausencia ni se repitió un recorrido autenticado. Las demás reglas conservan su alcance de revisión estática.
 
 - [TaskBonusCalculator.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/TaskBonusCalculator.cs)
 - [TaskBonusService.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/TaskBonusService.cs)

@@ -21,6 +21,8 @@ Fuente: [Access/Index.cshtml](../../../../src/Sgol.Web/Pages/Access/Index.cshtml
 
 ## Mi trabajo
 
+La búsqueda de asignaciones aparece directamente, con Buscar y Limpiar; aplica el patrón de [buscador único](03-componentes.md#filtros).
+
 La pantalla combina navegación de apartados, bono de la semana actual, consulta de tareas y progreso diario. La ayuda de cabecera reúne explicación de orden y colores. El listado muestra tarea, inicio, vencimiento, carga, requisito, estado y acción de evidencia. Incluye contexto de plan, especialización, criticidad y avance cuando corresponde.
 
 En móvil, la tarea prioriza nombre, estado, vencimiento, requisito y acción; los detalles adicionales se despliegan. Abrir una tarea operativa muestra un diálogo con descripción, evidencia, conclusión, avance, decisiones e historial según su situación. Una entrega enviada ofrece consulta; una tarea habilitada ofrece captura o avance. Las fotografías también tienen una página de galería.
@@ -33,6 +35,8 @@ Fuentes: [Mi trabajo](../../../../src/Sgol.Web/Pages/MyWork/Index.cshtml), [tabl
 
 ## Tareas y asignación ocasional
 
+La búsqueda de ocasionales en Asignar tarea aparece directamente, según el patrón de [buscador único](03-componentes.md#filtros).
+
 El catálogo tiene navegación, Actualizar Asignaciones, filtros combinables y tabla compacta. La identidad de la tarea reúne nombre, código y descripción; la selección habilita acciones contextuales. Los filtros cubren búsqueda/proceso, requisito, periodicidad, repeticiones, criticidad, rol, estado y calendario. El contenido descriptivo utiliza Markdown de lectura.
 
 Crear/editar organiza el formulario en datos, evidencia, calendario/plazo y carga/opciones. Los campos de días, recurrencia, fotografías, checklist y progreso dependen de la configuración seleccionada. La pantalla de porcentaje de cierre está en el mismo módulo y explica el alcance del cambio sobre nuevas operaciones.
@@ -44,6 +48,8 @@ Asignar tarea lista las ocasionales disponibles y permite crear una nueva según
 Fuentes: [catálogo](../../../../src/Sgol.Web/Pages/Tasks/Index.cshtml), [actualización](../../../../src/Sgol.Web/Pages/Tasks/Refresh.cshtml), [ocasionales](../../../../src/Sgol.Web/Pages/Occasional/Index.cshtml), [asignación](../../../../src/Sgol.Web/Pages/Tasks/Assign.cshtml).
 
 ## Catálogo de procesos
+
+La búsqueda para añadir tareas al proceso aparece directamente, según el patrón de [buscador único](03-componentes.md#filtros).
 
 La consulta muestra nombre, descripción y situación de publicación/habilitación. El editor reúne datos, calendario de inicio y tareas ordenadas. Las tarjetas de etapa abren un diálogo de edición; añadir tareas usa un selector con búsqueda. Las opciones avanzadas agrupan inicio mínimo y devolución. Los ítems compartidos y sus tiempos tienen una pantalla propia.
 
@@ -65,9 +71,11 @@ Fuentes: [planes](../../../../src/Sgol.Web/Pages/Planning/_DirectionPlans.cshtml
 
 ## Supervisión y Validación
 
+Incidencias ofrece consulta por fecha/nombre, lista paginada con disponibilidad, pendientes/vencidas/minutos y recibos. Dirección dispone de motivo, revisión de efectos y confirmación conjunta. Los conflictos siguen tarea, causa, efecto y detalles; cambiar decisiones invalida la propuesta. La composición usa controles y paneles existentes, con adaptación móvil, temas y teclado. Véase [la regla funcional](../funcional/supervision.md#incidencias-de-ausencia).
+
 Supervisión presenta capacidad, peticiones de arrastre y apartados de tareas con filtros y acciones. La posición de arrastres respecto a pendientes depende de si hay peticiones autorizadas por resolver. Supervisar/Ver abre el detalle con descripción, evidencia, conclusión, avance y decisión. Las correcciones incluyen programación y propuesta antes de confirmar.
 
-Validación utiliza tarjetas de evidencia. Cada tarjeta identifica tarea, responsable, fechas, estado y contenido entregado, junto a la decisión editable cuando procede. Las galerías tienen navegación entre fotos; los errores se colocan en la tarjeta afectada. La barra superior reúne apartado y filtros desplegables. El envío de revisión por lote conserva la fase de propuesta/confirmación. Anterior/Siguiente aparece solo cuando corresponde.
+Validación utiliza tarjetas de evidencia. Cuando la entrega contiene un comentario de conclusión, la tarjeta lo muestra bajo «Comentario de conclusión», independientemente del requisito de evidencia. Conserva los saltos de línea, trata el contenido como texto y omite el bloque cuando no hay conclusión. Cada tarjeta identifica tarea, responsable, fechas, estado y contenido entregado, junto a la decisión editable cuando procede. Las galerías tienen navegación entre fotos; los errores se colocan en la tarjeta afectada. La barra superior reúne apartado y filtros desplegables. El envío de revisión por lote conserva la fase de propuesta/confirmación. Anterior/Siguiente aparece solo cuando corresponde.
 
 Las peticiones de posposición se organizan por solicitud y tarea. El editor en contexto muestra decisión, destinatario o día cuando aplica, motivo, obstáculos y efecto previsto. La historia separa cabecera resumida de datos secundarios. Carga y reasignación agrupa por persona, muestra minutos/capacidad y prepara una transferencia con avance e historial.
 
@@ -96,6 +104,8 @@ La ficha de sucursal permanece como ruta de consulta implementada y restringida 
 Fuentes: [personas](../../../../src/Sgol.Web/Pages/People/Index.cshtml), [detalle](../../../../src/Sgol.Web/Pages/People/Details.cshtml), [horarios](../../../../src/Sgol.Web/Pages/People/_Schedule.cshtml), [especializaciones](../../../../src/Sgol.Web/Pages/People/Specializations.cshtml), [sucursal](../../../../src/Sgol.Web/Pages/Branches/Details.cshtml).
 
 ## Reportes
+
+La búsqueda dentro del detalle aparece directamente, según el patrón de [buscador único](03-componentes.md#filtros); conserva los parámetros ocultos del reporte.
 
 La pantalla reúne tipo de reporte, periodo, filtros y presentación. Más filtros y presentación incluye opciones adicionales y columnas del detalle/PDF. Generar reporte aplica la consulta; un aviso identifica cambios aún no aplicados.
 
@@ -144,6 +154,7 @@ Las rutas siguientes tienen una página Razor en el código revisado. La existen
 | `/planificacion/versiones` | [Pages/Planning/Releases.cshtml](../../../../src/Sgol.Web/Pages/Planning/Releases.cshtml) |
 | `/reportes` | [Pages/Reports/Index.cshtml](../../../../src/Sgol.Web/Pages/Reports/Index.cshtml) |
 | `/supervision/bono-tareas` | [Pages/Validations/Bonus.cshtml](../../../../src/Sgol.Web/Pages/Validations/Bonus.cshtml) |
+| `/supervision/incidencias` | [Pages/Validations/Incidents.cshtml](../../../../src/Sgol.Web/Pages/Validations/Incidents.cshtml) |
 | `/supervision/carga` | [Pages/Validations/Workload.cshtml](../../../../src/Sgol.Web/Pages/Validations/Workload.cshtml) |
 | `/tablero` | [Pages/Board/Index.cshtml](../../../../src/Sgol.Web/Pages/Board/Index.cshtml) |
 | `/tablero/rol-de-tareas` | [Pages/Board/Weekly.cshtml](../../../../src/Sgol.Web/Pages/Board/Weekly.cshtml) |

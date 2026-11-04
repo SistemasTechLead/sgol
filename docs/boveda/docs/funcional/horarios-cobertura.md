@@ -2,8 +2,8 @@
 categoria: dominio
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
-verificado_en: inspeccion-estatica
+ultima_verificacion: 2026-11-04
+verificado_en: codigo-publicado-y-pruebas-aisladas
 ---
 
 # Horarios, elegibilidad y cobertura de cierre
@@ -24,9 +24,12 @@ La tarea de cierre se identifica por configuración, no por coincidencia de nomb
 
 Las tareas y procesos consumen esta disponibilidad. Cambiar el horario puede invalidar una corrección programada y exigir [reprogramación explícita](supervision.md); no autoriza mover compromisos silenciosamente.
 
+Las [incidencias de ausencia](supervision.md#incidencias-de-ausencia) guardan indisponibilidad versionada para la fecha, conjuntamente con tareas y bono. Una ausencia futura impide nuevas asignaciones incompatibles. Cambiar solo disponibilidad no revierte una incidencia confirmada; esa restauración se rechaza.
+
+
 ## Fuentes y alcance
 
-Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Revisión estática; no constituye una nueva prueba funcional, visual o de datos del host.
+Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Incidencias se contrastó con el código publicado y pruebas funcionales aisladas. En el host compartido se comprobaron salud, acceso y conservación de datos al migrar; no se confirmó ninguna ausencia ni se repitió un recorrido autenticado. Las demás reglas conservan su alcance de revisión estática.
 
 - [PersonalSchedules.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/PersonalSchedules.cs)
 - [PersonalScheduleService.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/PersonalScheduleService.cs)

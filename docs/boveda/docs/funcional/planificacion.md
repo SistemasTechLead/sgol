@@ -2,8 +2,8 @@
 categoria: dominio
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
-verificado_en: inspeccion-estatica
+ultima_verificacion: 2026-11-04
+verificado_en: codigo-publicado-y-pruebas-aisladas
 ---
 
 # Planificación, capacidad y criticidad
@@ -32,9 +32,12 @@ Las vencidas anteriores conservan seguimiento; no se recrean ni mueven silencios
 
 Las [correcciones](supervision.md), [posposiciones](arrastres-posposiciones.md) y [resoluciones por ítems](carga-por-items.md) tienen excepciones propias. No trasladar una excepción de sobrecarga de una operación a otra.
 
+El reparto por [incidencia de ausencia](supervision.md#incidencias-de-ausencia) distingue capacidad diaria de tiempo de turno restante y descuenta esfuerzo completado sin duplicar demanda. Una sustitución administrativa no acredita esfuerzo realizado. La excepción de sobrecarga es local a la tarea revisada; no altera configuraciones globales. Las obligaciones de varios días se distribuyen en días compatibles sin extender el vencimiento.
+
+
 ## Fuentes y alcance
 
-Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Revisión estática; no constituye una nueva prueba funcional, visual o de datos del host.
+Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Incidencias se contrastó con el código publicado y pruebas funcionales aisladas. En el host compartido se comprobaron salud, acceso y conservación de datos al migrar; no se confirmó ninguna ausencia ni se repitió un recorrido autenticado. Las demás reglas conservan su alcance de revisión estática.
 
 - [OperationalScheduling.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalScheduling.cs)
 - [PlanningCapacity.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/PlanningCapacity.cs)

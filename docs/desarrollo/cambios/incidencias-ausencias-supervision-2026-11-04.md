@@ -1,8 +1,8 @@
 # Plan: incidencias de ausencia y redistribución en Supervisión
 
 Fecha: 2026-11-04. Zona operativa: `America/Mexico_City`.
-Estado: **implementado localmente, sin desplegar; validación principal ejecutada y cobertura ampliada pendiente según las secciones 12 y 14**. Cambio mixto: reglas, persistencia e interfaz.
-Alcance de esta entrega: implementación y pruebas con personas sintéticas en bases aisladas. No se registró la ausencia de Alejandra ni se modificó la simulación compartida. Los cambios anteriores se conservaron y subieron por petición posterior del usuario en `8ee3330`; esta implementación permanece sin commit ni push.
+Estado: **desplegado en la simulación compartida por autorización posterior del usuario; validación principal ejecutada y cobertura ampliada pendiente según las secciones 12 y 14**. Cambio mixto: reglas, persistencia e interfaz.
+Código confirmado y subido: `e9273b1`, posterior a los cambios previos conservados en `8ee3330`. Se aplicaron únicamente las migraciones necesarias y se publicó Web. No se registró la ausencia de Alejandra ni ninguna otra incidencia en la simulación compartida. El despliegue y sus comprobaciones constan en la sección 15; la sección 14 conserva el registro de implementación y pruebas anteriores.
 
 ## 1. Objetivo y decisiones confirmadas
 
@@ -42,7 +42,7 @@ La investigación inicial encontró modificaciones previas, incluidas `Assignmen
 
 ## 3. Recorrido propuesto
 
-Ruta implementada en el checkout: `/supervision/incidencias`; archivos nuevos `Pages/Validations/Incidents.cshtml` y `.cshtml.cs`. No disponible en la publicación compartida hasta un despliegue autorizado.
+Ruta implementada y publicada: `/supervision/incidencias`; archivos `Pages/Validations/Incidents.cshtml` y `.cshtml.cs`. Requiere una sesión y alcance autorizados.
 
 1. Lista de colaboradoras con fecha, estado de disponibilidad/incidencia, pendientes no vencidos, vencidos y minutos afectados. Consultas por fecha/nombre; no exponer personas fuera del alcance. El estado inicial no declara que una persona asistió solo porque no tiene ausencia registrada.
 2. Acción **Registrar ausencia**. Fecha predeterminada hoy; motivo obligatorio. Una persona y un día por operación en la primera versión. No incluir registro retroactivo de días anteriores.
@@ -203,7 +203,7 @@ La entrega pasó de planificación a implementación autorizada. La sección sig
 
 ## 14. Implementación y resultados reales del 04/11/2026
 
-### Código implementado, todavía sin desplegar
+### Código implementado antes del despliegue de la sección 15
 
 - `OperationalIncidenceService` y `OperationalIncidences`: consulta por alcance, clasificación por fecha, reparto por ocupación restante, búsqueda acotada con retroceso, decisiones explícitas y confirmación serializable bajo el bloqueo operativo común. Recibo único por actor/clave y persona/día; auditoría y disposiciones antes/después. La huella incluye agenda, reservas, disponibilidad, capacidad, hechos del bono, cierres y decisiones anteriores.
 - La capacidad restante considera turno restante y esfuerzo completado. La sobrecarga es particular por tarea/destinataria, muestra exceso y empalmes, no cambia capacidades globales y conserva restricciones temporales, especialidad, ausencias y reservas exclusivas. El reacomodo opcional solo incluye vecinas futuras sin actividad protegida.
@@ -255,4 +255,18 @@ Evidencias privadas: `.local/incidence-service-final.log` (52 comprobaciones de 
 
 No ejecutados en su combinación completa: generación/copia de cada tipo de plan, todas las modalidades de corrección y conteo por ítems, todas las especialidades/empleos futuros, solicitud de arrastre parcial concurrente, reacomodo complejo con varias anclas, cierres semanales concurrentes, entrega concurrente y todos los consumidores de reportes/tablero. La conservación del cierre se protege en el servicio y por el protocolo existente; las reglas económicas y el rollback sí se probaron, sin afirmar que eso sustituye cada recorrido pendiente.
 
-No se desplegó ni se operó la simulación compartida. Por ello **no se actualizó la bóveda para describir Incidencias como comportamiento vigente**. Al desplegar con autorización, queda pendiente reconciliar las notas existentes de supervisión, horarios, planificación/procesos, bono, historial y navegación, comprobar sus enlaces y sincronizar solo las notas pertinentes con `docs/boveda/`.
+Durante la implementación no se desplegó ni se operó la simulación compartida, y la bóveda no describía la función como vigente. Tras la autorización posterior de commit, push y despliegue, se completó la reconciliación documental descrita a continuación.
+
+## 15. Commit, push y despliegue autorizado
+
+El usuario autorizó después hacer commit/push y desplegar la simulación compartida. Se confirmó `e9273b1` y se subió a `origin/master` antes de publicar. Compilación Release y publicación en `.local/runtime/incidencias-20261104/` aprobadas. Se conservó el artefacto anterior `calendar-preservation-20261104`.
+
+Se siguió el recorrido de infraestructura de la bóveda y se verificaron procesos/argumentos. Se detuvieron exclusivamente Web 16340 y su lanzador 5028; el proxy 20652 y su lanzador 23392 permanecieron activos. Antes de migrar, con Web detenida, se guardaron respaldo PostgreSQL custom y huellas por tabla en `.local/deploy-incidences-20261104/`. El respaldo privado mide 284,627,061 bytes.
+
+Destino comprobado: `sgol_local` en `127.0.0.1:5440`. El rol `sgol_migrator` aplicó `20261104171654_AddOperationalIncidences` y `20261104173103_AddIncidencePreparedHold`. Las huellas de las 95 tablas anteriores, incluidas **791 asignaciones**, coincidieron exactamente antes/después, antes de iniciar Web. La comparación excluye el campo nuevo nulo `IncidenceHoldId`, las tablas nuevas y el historial de migraciones. Incidencias y disposiciones quedaron con **cero filas**. Se comprobaron permisos de runtime sobre ambas tablas.
+
+Nueva Web observada: proceso 28840, lanzador 19696 registrado en `.local/processes.json`, artefacto `.local/runtime/incidencias-20261104/Sgol.Web.dll`, puerto 7241. Live y readiness internos respondieron 200; `/acceso` local y LAN respondieron 200 con TLS normal. `/supervision/incidencias` sin sesión redirige a Acceso: no se presenta esto como prueba autenticada de la pantalla. No se modificaron ausencias ni se confirmó una propuesta operativa durante el despliegue.
+
+Se reconciliaron las notas existentes de supervisión, disponibilidad, bono, procesos, planificación, historial y pantallas; la instalación local y la base documental identifican la publicación vigente. La copia versionada se sincronizó tras comprobar divergencias, conservando las mejoras anteriores de la bóveda. Graphify actualizado: 42 notas, 288 nodos y 550 relaciones. Enlaces locales comprobados en referencias afectadas, Inicio, mapas e inventario: cero destinos rotos. No se crearon notas de planes ni informes en la bóveda.
+
+Evidencia privada: `before.json`, `before.dump`, `before-fingerprint.json`, `after-fingerprint.json`, `migration.log`, `health.json`, `web.log` y `web.error.log` en `.local/deploy-incidences-20261104/`. Las pruebas ampliadas y el formulario de reprogramación posterior señalados antes siguen pendientes; publicar no amplía su cobertura.

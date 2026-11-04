@@ -2,8 +2,8 @@
 categoria: datos
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
-verificado_en: inspeccion-estatica
+ultima_verificacion: 2026-11-04
+verificado_en: codigo-publicado-y-pruebas-aisladas
 ---
 
 # Modelo operativo e historial
@@ -36,9 +36,12 @@ Mi trabajo, Supervisión, tableros y Reportes consumen hechos con alcances disti
 
 Relacionados: [Procesos](procesos.md), [Supervisión](supervision.md), [Bono](bono-tareas.md).
 
+Las [incidencias](supervision.md#incidencias-de-ausencia) conservan un recibo por persona/día y una clave de intención por actor, con huella, motivo y auditoría. Cada disposición vincula asignación, raíz económica, día evaluado, etapa o reserva afectada, destinataria y estado antes/después. Disponibilidad, transferencias, retiro y exclusiones se confirman en la misma transacción. Un reintento no duplica registros y las migraciones inversas rechazan eliminar historial de incidencias.
+
+
 ## Fuentes y alcance
 
-Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Revisión estática; no constituye una nueva prueba funcional, visual o de datos del host.
+Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Incidencias se contrastó con el código publicado y pruebas funcionales aisladas. En el host compartido se comprobaron salud, acceso y conservación de datos al migrar; no se confirmó ninguna ausencia ni se repitió un recorrido autenticado. Las demás reglas conservan su alcance de revisión estática.
 
 - [OperationalTasks.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalTasks.cs)
 - [OperationalAttachment.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalAttachment.cs)
