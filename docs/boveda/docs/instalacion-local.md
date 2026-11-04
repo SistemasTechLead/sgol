@@ -37,7 +37,7 @@ La instalación es de desarrollo y simulación operativa. Local y LAN pueden com
 
 En la comprobación del 04/11/2026, el lanzador Web ejecuta `scripts/run-local.ps1 -Service web -Red -BinaryPath` con:
 
-`C:\Users\siste\Dev\SistemaSGOL\.local\runtime\incidencias-recipients-20261104\Sgol.Web.dll`
+`C:\Users\siste\Dev\SistemaSGOL\.local\runtime\incidencias-options-20261104\Sgol.Web.dll`
 
 La Web escucha en `127.0.0.1:7241`. El proxy atiende `https://localhost:7240` y `https://192.168.1.92:7440`; el puerto LAN 7443 corresponde al circuito de almacenamiento del proxy. La dirección LAN es una observación, no una dirección garantizada permanentemente.
 

@@ -330,3 +330,5 @@ Cambio mixto de formulario: destinataria, ayuda y sobrecarga se agrupan en Opcio
 | Dispositivos físicos y sesión compartida autenticada | No repetidos; sesiones sintéticas solo en base aislada | No ejecutado |
 
 Evidencia privada: `.local/incidence-options-host.log`, `.local/incidence-options-browser.log`, `.local/incidence-ui/`. Sin fallos pendientes. No se registró ausencia ni se aplicaron reasignaciones compartidas. No hay migraciones. La referencia de la bóveda se reconciliará con la publicación efectiva.
+
+Publicado `cf93b42` desde `.local/runtime/incidencias-options-20261104/Sgol.Web.dll`, proceso 8972/lanzador 36724; proxy conservado. Release, live/ready internos y acceso LAN aprobados (200, TLS normal). Referencias funcionales, de pantalla e infraestructura reconciliadas después de verificar el proceso y sincronizadas con la copia versionada. Sin migraciones ni operaciones de ausencia/reparto compartidas.
