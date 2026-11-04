@@ -361,3 +361,5 @@ Correcciones:
 | Simulación compartida | No registrar ausencia ni aplicar reparto operativo | No ejecutado; la confirmación del usuario queda pendiente |
 
 Evidencias privadas: `.local/incidence-search-final-host.log`, `.local/incidence-search-final-browser.log`, `.local/incidence-diagnosis-20261104/` y `.local/incidence-ui/`. No hay migraciones. El resultado de la copia no reemplaza la revisión del estado actual compartido: tareas que vencieron después se clasifican de nuevo. Las pruebas usan sesiones sintéticas aisladas; no se repitió autenticación compartida ni dispositivo físico.
+
+Publicado `b27752c` desde `.local/runtime/incidencias-search-20261104/Sgol.Web.dll`, proceso 11944/lanzador 21772. Proxy 20652 conservado. Release, live/ready internos y acceso LAN aprobados (200, TLS normal). Referencias reconciliadas tras comprobar el proceso, sin migraciones ni confirmaciones operativas compartidas.

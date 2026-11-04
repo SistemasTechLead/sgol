@@ -8,13 +8,13 @@ La referencia describe el comportamiento de la aplicación compartida. La bóved
 
 ## Publicación efectiva
 
-- Checkout: `C:\Users\siste\Dev\SistemaSGOL`, rama `master`. Código publicado: commit `cf93b42`, subido a `origin/master`.
-- Web: `.local/runtime/incidencias-options-20261104/Sgol.Web.dll`, puerto interno `127.0.0.1:7241`. Proceso 8972, lanzador 36724, observados el 04/11/2026. Los IDs son observaciones temporales, no garantías para operaciones posteriores.
+- Checkout: `C:\Users\siste\Dev\SistemaSGOL`, rama `master`. Código publicado: commit `b27752c`, subido a `origin/master`.
+- Web: `.local/runtime/incidencias-search-20261104/Sgol.Web.dll`, puerto interno `127.0.0.1:7241`. Proceso 11944, lanzador 21772, observados el 04/11/2026. Los IDs son observaciones temporales, no garantías para operaciones posteriores.
 - Proxy conservado: proceso 20652, lanzador 23392, acceso local `https://localhost:7240` y LAN `https://192.168.1.92:7440`; almacenamiento por 7443. Confirmar dirección y procesos antes de actuar.
 - Esquema aplicado: incluye `20261104171654_AddOperationalIncidences` y `20261104173103_AddIncidencePreparedHold`, sobre `20261104010000_AddMonthlyCarryoverWindow`. Incidencias forma parte del artefacto activo; no se registró ninguna ausencia al publicarlo.
 - El despliegue incluye los avances previos conservados en `8ee3330`: actualización de asignaciones, posposiciones, búsquedas visibles y ajustes de interfaz. El host no usa watch. Los recursos estáticos pueden servirse desde `src/Sgol.Web/wwwroot` por el directorio de trabajo del lanzador.
 
-La composición compacta de Incidencias está incluida en esta publicación: registro antes de consulta y decisiones antes de retiros. La actualización del selector filtra destinatarias incompatibles y explica los bloqueos de rol y capacidad. Las opciones de destinataria y sobrecarga aparecen solo al transferir y se descartan al retirar. No requiere migraciones ni registra ausencias al publicarse.
+La composición compacta de Incidencias está incluida en esta publicación: registro antes de consulta y decisiones antes de retiros. La actualización del selector filtra destinatarias incompatibles y explica los bloqueos de rol y capacidad. Las opciones de destinataria y sobrecarga aparecen solo al transferir y se descartan al retirar. El reparto automático admite sobrecarga revisada y el reacomodo prioriza conservar agendas. No requiere migraciones ni registra ausencias al publicarse.
 
 ## Alcance de comprobación
 
