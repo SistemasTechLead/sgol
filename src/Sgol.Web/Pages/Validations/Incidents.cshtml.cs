@@ -27,6 +27,7 @@ public sealed class IncidentsModel(IRazorSessionState sessions, OperationalIncid
     public OperationalIncidence[] History { get; private set; } = [];
     public IncidencePreview? Preview { get; private set; }
     public OperationalIncidence? Receipt { get; private set; }
+    public IncidenceEvidence[] Evidence { get; private set; } = [];
     public bool CanConfirm { get; private set; }
     public string? Error { get; private set; }
     public DateOnly Today => WeekContract.LocalToday(clock.UtcNow);
@@ -60,12 +61,24 @@ public sealed class IncidentsModel(IRazorSessionState sessions, OperationalIncid
         {
             var actor = await Actor(ct); if (actor == null) return Redirect("/acceso");
             await Load(actor.Value, ct);
-            if (receipt != null) Receipt = History.SingleOrDefault(i => i.Id == receipt) ?? throw new DirectionPlanException("ACCESO_DENEGADO", 403);
+            if (receipt != null) {
+                Receipt = History.SingleOrDefault(i => i.Id == receipt) ?? throw new DirectionPlanException("ACCESO_DENEGADO", 403);
+                Evidence = await service.EvidenceAsync(actor.Value, Day!.Value, receipt.Value, ct);
+            }
             return Page();
         }
         catch (DirectionPlanException e) { return StatusCode(e.Status); }
     }
     public Task<IActionResult> OnPostPreviewAsync(CancellationToken ct) => Act(false, ct);
+    public async Task<IActionResult> OnGetEvidenceAsync(Guid receipt, Guid assignmentId, Guid? photoId, CancellationToken ct)
+    {
+        var actor = await Actor(ct); if (actor == null) return Redirect("/acceso");
+        try {
+            var file = await service.EvidenceFileAsync(actor.Value, Day ?? Today, receipt, assignmentId, photoId, ct);
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return File(file.Content, file.ContentType, file.FileName);
+        } catch (DirectionPlanException e) { return StatusCode(e.Status); }
+    }
     public Task<IActionResult> OnPostApplyAsync(CancellationToken ct) => Act(true, ct);
     async Task<IActionResult> Act(bool apply, CancellationToken ct)
     {

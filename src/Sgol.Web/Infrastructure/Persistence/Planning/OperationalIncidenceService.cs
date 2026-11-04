@@ -11,10 +11,17 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
-public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, OperationalSupervisionService supervision,
+public sealed partial class OperationalIncidenceService(SgolDbContext db, IClock clock, OperationalSupervisionService supervision,
     ILogger<OperationalIncidenceService>? logger = null)
 {
     static string Hash(object value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
+    // Decision order and fields that do not apply to retirement are not intent.
+    // Keep duplicates: validation must still reject them rather than silently choosing one.
+    static IncidenceRequest Normalize(IncidenceRequest request) => request with {
+        Decisions = request.Decisions.Select(d => d.Action == "RETIRE"
+            ? d with { RecipientId = null, AuthorizeOverload = false } : d)
+            .OrderBy(d => d.AssignmentId).ToArray()
+    };
     static OperationalAssignment Copy(OperationalAssignment a) => AssignmentDefinition.Copy(a);
     static DirectionPlanException Error(string message, int status = 409) => new(message, status);
 
@@ -58,6 +65,7 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
 
     public async Task<IncidencePreview> PreviewAsync(Guid actor, IncidenceRequest request, CancellationToken ct)
     {
+        request = Normalize(request);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await OperationalTaskService.LockAsync(db, ct);
         var result = await BuildAsync(actor, request, ct);
@@ -151,7 +159,7 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             });
         var temporal = JsonSerializer.SerializeToNode(source.Temporal)!; temporal.AsObject().Remove("Now");
         var fingerprint = Hash(new { request, all, stages, attempts, prepared, preparedSteps, carryovers, facts, transfers, priorDecisions, availability, closures, evidence, attachments,
-            source.Workers, source.Capacities, source.Legacy, Temporal = temporal, Algorithm = 4 });
+            source.Workers, source.Capacities, source.Legacy, Temporal = temporal, Algorithm = 5 });
         logger?.LogInformation("Incidence review {IntentKey}: request {RequestHash}; assignments {AssignmentsHash}; processes {ProcessesHash}; bonus {BonusHash}; availability {AvailabilityHash}; evidence {EvidenceHash}",
             request.Key, Hash(request), Hash(all), Hash(new { stages, attempts, prepared, preparedSteps }),
             Hash(new { carryovers, facts, transfers, priorDecisions, closures }),
@@ -415,6 +423,7 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
 
     public async Task<OperationalIncidence> ApplyAsync(Guid actor, IncidenceRequest request, string fingerprint, CancellationToken ct)
     {
+        request = Normalize(request);
         if (await supervision.AuthorizeAsync(actor, ct) != CanonicalRole.Direction) throw Error("ACCESO_DENEGADO", 403);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         try
@@ -424,7 +433,10 @@ public sealed class OperationalIncidenceService(SgolDbContext db, IClock clock, 
             var prior = await db.Set<OperationalIncidence>().AsNoTracking().SingleOrDefaultAsync(i => i.ActorId == actor && i.IntentKey == request.Key, ct);
             if (prior != null)
             {
-                if (prior.IntentHash != hash) throw Error("Esta clave ya confirmó otra intención. Consulta el recibo original.");
+                // Receipts from earlier versions hashed the original enumeration order.
+                // Compare their persisted reviewed request without rewriting historical data.
+                if (prior.IntentHash != hash && Hash(Normalize(JsonSerializer.Deserialize<IncidencePreview>(prior.ReceiptJson)!.Request)) != hash)
+                    throw Error("Esta clave ya confirmó otra intención. Consulta el recibo original.");
                 await tx.CommitAsync(ct); return prior;
             }
             var preview = await BuildAsync(actor, request, ct);

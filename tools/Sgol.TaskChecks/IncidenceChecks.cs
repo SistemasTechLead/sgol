@@ -71,6 +71,7 @@ internal static partial class IncidenceChecks
         await ProcessChecks(db, clock);
         EconomicChecks(clock);
         await ConcurrentChecks(db, clock);
+        await AuditChecks(db, clock);
         Check(!db.Database.HasPendingModelChanges(), "migration matches model");
         await DowngradeGuard(db);
         if (ui) await HttpChecks(db, clock);

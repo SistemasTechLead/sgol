@@ -385,6 +385,19 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
     private async Task EnableActive(OperationalSequenceRun run,CancellationToken token)
     {
         var stage=await db.Set<OperationalSequenceStage>().SingleAsync(s=>s.RunId==run.Id && s.Position==run.ActivePosition,token);
+        var revision = stage.Revision;
+        var before = db.Entry(stage).Properties.Where(p => p.Metadata.Name != nameof(stage.Revision))
+            .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
+        await EnableActiveCore(run, stage, token);
+        // Polling a waiting/blocked stage is not a state transition. Preserve its
+        // revision unless a persisted value actually changed, including on legacy paths.
+        var changed = db.Entry(stage).Properties.Any(p => p.Metadata.Name != nameof(stage.Revision) &&
+            !Equals(before[p.Metadata.Name], p.CurrentValue));
+        stage.Revision = changed ? Math.Max(stage.Revision, revision + 1) : revision;
+    }
+
+    private async Task EnableActiveCore(OperationalSequenceRun run, OperationalSequenceStage stage, CancellationToken token)
+    {
         if(stage.Status is "DISPONIBLE" or "CONCLUIDA" or "CANCELADA" or "OMITIDA" or "PENDIENTE_REPROGRAMACION") return;
         if (stage.CalculatedLoadMinutes > 4800) { stage.Status="PENDIENTE_ASIGNACION"; stage.BlockReason=$"{stage.Name}: demanda de {stage.CalculatedLoadMinutes} min; excede el límite programable. Requiere resolución de planificación sin dividir ni ampliar turno."; return; }
         var rule=await db.Set<OperationalSequenceStep>().AsNoTracking().SingleAsync(s=>s.VersionId==run.VersionId && s.Position==stage.Position,token);

@@ -62,6 +62,19 @@ var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.T
 var bonusBeforeMigration = args.Contains("--bonus-migration") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
 if (args.Contains("--incidences")) { await IncidenceChecks.Run(db, args.Contains("--ui")); return; }
+if (args.Contains("--incidence-audit")) {
+    var auditClock = new IncidenceChecks.Clock();
+    await using var auditDb = new SgolDbContext(options, bonusClock: auditClock);
+    await IncidenceChecks.AuditChecks(auditDb, auditClock); return;
+}
+if (args.Contains("--incidence-integration")) { await IncidenceChecks.IntegrationChecks(db, args.Contains("--ui")); return; }
+if (args.Contains("--incidence-planning-integration")) { await IncidenceChecks.PlanningIntegrationChecks(db); return; }
+if (args.Contains("--incidence-evidence-integration")) { await IncidenceChecks.EvidenceIntegrationChecks(db); return; }
+if (args.Contains("--incidence-integration-http")) {
+    var integrationClock = new IncidenceChecks.Clock();
+    await using var integrationDb = new SgolDbContext(options, bonusClock: integrationClock);
+    await IncidenceChecks.IntegrationHttpChecks(integrationDb, integrationClock); return;
+}
 if (args.Contains("--refresh-search-replay")) { await RefreshSearchReplayChecks.Run(db); return; }
 if (args.Contains("--refresh-overdue-capacity")) { await RefreshOverdueCapacityChecks.Run(db); return; }
 if (args.Contains("--process-recurrence-ui")) { await ProcessRecurrenceUi.Run(db); return; }

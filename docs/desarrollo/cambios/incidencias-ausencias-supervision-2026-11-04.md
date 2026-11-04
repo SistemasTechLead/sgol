@@ -2,6 +2,7 @@
 
 Fecha: 2026-11-04. Zona operativa: `America/Mexico_City`.
 Estado: **desplegado en la simulación compartida por autorización posterior del usuario; validación principal ejecutada y cobertura ampliada pendiente según las secciones 12 y 14**. Cambio mixto: reglas, persistencia e interfaz.
+Auditoría posterior del 04/11/2026: **correcciones locales sin desplegar**, resultados y límites en la sección 22. La autorización de esta auditoría excluye despliegue, commit, push y escrituras operativas compartidas; las publicaciones descritas en secciones anteriores son antecedentes.
 Código confirmado y subido: `e9273b1`, posterior a los cambios previos conservados en `8ee3330`. Se aplicaron únicamente las migraciones necesarias y se publicó Web. No se registró la ausencia de Alejandra ni ninguna otra incidencia en la simulación compartida. El despliegue y sus comprobaciones constan en la sección 15; la sección 14 conserva el registro de implementación y pruebas anteriores.
 
 ## 1. Objetivo y decisiones confirmadas
@@ -412,3 +413,160 @@ Investigación y corrección:
 Sin migraciones ni alteración del historial compartido. Evidencias y copias privadas en `.local/`. Bóveda pendiente de reconciliación tras verificar despliegue.
 
 Publicado a3fd69e desde .local/runtime/incidencias-concurrency-20261104/Sgol.Web.dll, Web 34452/lanzador 31712. Proxy 20652 conservado. Live/ready internos y acceso LAN: 200, TLS normal; error de arranque vacío. Referencias funcionales, de pantalla e infraestructura reconciliadas y copia versionada sincronizada. Sin migraciones ni confirmaciones compartidas.
+
+## 22. Auditoría ampliada independiente, sin despliegue (04/11/2026)
+
+### Alcance, entorno y procedencia
+
+Cambio funcional con comprobación de integración de interfaz: servicio de incidencias y productor de revisiones de etapas. No se modificaron Razor, CSS ni JavaScript servido por el host compartido. Checkout inicialmente limpio; se conservaron los archivos existentes. No se efectuaron commit, push, migraciones compartidas, confirmaciones de ausencias compartidas ni cambios de asignación compartidos.
+
+Se leyeron AGENTS, RTK, protocolo, este plan, Graphify verificado, Inicio, dominio, reglas, supervisión, bono, diseño consolidado y el recorrido de infraestructura → instalación local → base documental. La comprobación de procesos/listeners confirmó Web 34452 con `.local/runtime/incidencias-concurrency-20261104/Sgol.Web.dll`, lanzador 31712, proxy 20652 y PostgreSQL local 5440. La Web compartida permaneció con ese artefacto; las DLL de esta auditoría **no están activas allí**.
+
+Se creó `.local/incidence-audit-20261104/shared.dump` mediante `pg_dump` de lectura. Restauración exclusivamente en `sgol_task_checks_incidence_audit_copy_20261104`, comprobada con `current_database()` y 791 asignaciones. Esta copia ya contenía una incidencia confirmada por una operación anterior; no se revirtió. Para reproducir el caso previo se restauró además `.local/incidence-diagnosis-20261104/snapshot.dump` en otra base, `sgol_task_checks_incidence_audit_replay_20261104`. No se restauró ninguna base compartida.
+
+Los fixtures usan bases nuevas `sgol_task_checks_incidence_audit_*` en localhost:5440, protegidas por el guard existente de las herramientas. Los hosts Razor aislados usaron 7297 (fixtures, reloj controlado) y 7298 (copia, reloj real y temporizador cada 15 s), con sesiones sintéticas expresamente identificadas. No representan autenticación real del host compartido. Datos, HTML, capturas, cuerpos de formularios, respaldos y logs quedaron en `.local/`, comprobado como ignorado por Git.
+
+### Productores y consumidores comprobados
+
+| Dato | Productor / validación | Persistencia y consumidores |
+|---|---|---|
+| Persona, día, clave, motivo, NotBefore, decisiones y Reflow | `Pages/Validations/Incidents.cshtml(.cs)`, binding/CSRF, `OperationalIncidenceService.PreviewAsync/BuildAsync/ApplyAsync` | Huella, intención y recibo `OperationalIncidence`; consulta `HistoryAsync`, `SummariesAsync` y renderizado del recibo |
+| Revisión de etapa, reserva y dependencia | `Sequences/OperationalProcessService.EnableActive/EnableScheduledStage`, `TickAsync`, timer de 15 s | `OperationalSequenceStage`, intentos, reservas del ledger; huella de Incidencias y bloqueo/activación del proceso |
+| Responsable, fechas, esfuerzo y actividad | Búsqueda conjunta, `OperationalAgenda`, ledger y `ApplyAsync` | Misma asignación, `OperationalTransfer`, disposiciones antes/después; filtros activos, supervisión, cálculo de capacidad y bono |
+| Ausencia | Sucesor de `AvailabilityDayVersion` en la transacción de confirmación | Disponibilidad/ledger, hechos de disponibilidad de bono; productor ocasional real y guard de persistencia de nuevas asignaciones |
+| Exclusión y raíz económica | `ApplyAsync`, `TaskBonusPersistence`, interceptor de commit, `TaskBonusService.Materialize/IncidenceRoot` | Exclusiones, hechos, transferencias y cierres; consulta de bono sin duplicar obligación |
+| Evidencia | Asignación, checklist con autor, fotografías y adjuntos | Conservación de IDs y contenido al transferir/retirar; componentes de huella. Las pruebas de archivo aquí no recorren una nueva subida a almacenamiento externo |
+
+### Defectos y correcciones
+
+1. **Revisiones fabricadas por el temporizador.** Dos `TickAsync` con una etapa programada sin cambios aumentaban su revisión. La huella de Incidencias incluía esa revisión; esperar podía invalidar una propuesta sin cambio lógico. Reproducido antes de corregir en `process-before.log`. `EnableActive` compara los valores persistidos antes/después y conserva la revisión si no cambió ninguno; si cambian, garantiza su incremento. No se eliminó la revisión de la huella ni se dispensó un cambio real. Regresión mantenible en `IncidenceProcessChecks.cs`; confirmación adicional en copia con temporizador activo y espera real de 35 s.
+2. **Orden de decisiones confundido con intención.** Invertir dos decisiones equivalentes cambiaba la huella; reproducido en Release en `before.log`. El servicio normaliza por AssignmentId antes de revisar y confirmar, sin eliminar duplicados. Algoritmo de propuesta 5: una propuesta anterior requerirá nueva revisión cuando se active esta versión. Los recibos anteriores admiten replay comparando la intención normalizada del recibo persistido; no se reescriben. Acciones distintas con igual clave siguen rechazándose.
+3. **Contrato Retirar diferente entre formulario y servicio.** Razor descartaba destinataria/sobrecarga, pero el servicio rechazaba sobrecarga en una retirada y podía incluir campos irrelevantes en su hash. Ahora el servicio descarta ambos para RETIRE. No cambia la semántica de TRANSFER ni se descartan acciones inválidas. Regresión de equivalencia, replay y manipulación en `IncidenceAuditChecks.cs`; formulario real de retiro ya cubierto por `IncidenceHttpChecks.cs` y vuelto a ejecutar.
+
+Los cambios son locales, sin migraciones. La restauración automática de NuGet añadió incidentalmente Markdig al lockfile de herramientas; se revirtió exclusivamente esa modificación generada, ajena a la auditoría. No se cambió ninguna dependencia del producto.
+
+### Trazas compartidas: qué permiten concluir
+
+Se extrajeron únicamente eventos del servicio desde `.local/incidence-order-web.log` a `shared-traces.json` privado. Para una misma clave, revisión a las **13:22:48** y confirmación a las **13:23:00**, hora de México, conservaron los hashes de petición, asignaciones, bono, disponibilidad y evidencia, pero cambió el de **procesos**, seguido de `fingerprint mismatch`.
+
+Esto localiza el componente de un rechazo posterior al despliegue de las trazas. El aumento de revisión sin cambio lógico está reproducido y es compatible con ese patrón y con el timer de 15 s. Las trazas no guardaban las filas de etapas antes/después: **no demuestran retrospectivamente qué etapa produjo aquel cambio ni excluyen un cambio real de proceso**. Tampoco permiten atribuir los rechazos anteriores sin trazas a esta misma causa.
+
+### Matriz de escenarios y resultados de esta auditoría
+
+`F` = fixtures aislados con servicios reales y PostgreSQL; `H` = Razor/HTTP reales aislados con CSRF; `B` = navegador sobre H; `C` = copia aislada de simulación. Estados se refieren a esta ejecución, no a promesas de la suite.
+
+| Escenario / precondición | Acción y resultado esperado | Entorno y evidencia | Estado |
+|---|---|---|---|
+| Dos decisiones, una transferencia y un retiro | Invertir enumeración: misma intención y huella | F Release, `before.log`, `final2.log` | Fallido antes; corregido y aprobado |
+| Etapa programada esperando su hora | Repetir timer: sin nueva revisión si no hay cambio; activación posterior sigue funcionando | F Release, `process-before.log`, `final2.log` | Fallido antes; corregido y aprobado |
+| Retiro con campos irrelevantes | Destinataria/sobrecarga descartadas; misma huella y replay | F + H, `final2.log` | Aprobado |
+| Recibo histórico con hash no canónico | Reintentar igual intención con otro orden: mismo recibo; acción distinta rechazada | F, `final2.log`, `state2.log` | Aprobado |
+| Hoy/futuro × Reflow sí/no × destinataria automática/explícita × sobrecarga sí/no | Ocho combinaciones cubren cada par de niveles; revisar, confirmar y consultar; esfuerzo y responsable coinciden | F, `IncidenceAuditChecks`, `state2.log` | Aprobado |
+| Vencimiento almacenado | Revisar a -1 tick, exactamente y +1 tick: transferible antes, retiro en/después del límite | F, `final2.log` | Aprobado |
+| Hora fraccionaria y demora | Round-trip de NotBefore, confirmación tras 15/45 s controlados | F + H, `final2.log` | Aprobado |
+| Estado copiado, reloj real y timer activo | Abrir → revisar → resolver → revisar → esperar 35 s → confirmar → recibo | C + Chromium + DLL Release, `replay-browser.log`, `replay-host.log` | Aprobado |
+| Medianoche local, cambio semanal y mensual | Propuesta del día anterior rechazada sin ausencia; día nuevo aceptado | F, 08→09/11 y 30/11→01/12, sin tareas en este caso, `state2.log` | Aprobado, alcance limitado a fecha de incidencia |
+| Fecha pasada o decisiones duplicadas manipuladas | Rechazo antes de guardar | F, `state2.log` | Aprobado |
+| Sin tareas, una tarea, mezcla vencidas/vigentes y deudas anteriores | Ausencia futura vacía; transferencia/retiro del día; deuda histórica intacta | F + H + C, `final2.log` | Aprobado |
+| Progreso, comentario, checklist con autor y archivo | Exigir decisión explícita; transferir o retirar conservando avance, carga, autoría y bytes | F, `IncidenceStateAuditChecks`, `state2.log` | Aprobado |
+| Obligación de varios días y carga imposible | Conservar plazo/bono; no dispensar esfuerzo fuera del turno | F, regresión RiskChecks, `final2.log` | Aprobado |
+| Capacidad cero, ausencia, rol incompatible, fin de turno | Sobrecarga solo dispensa capacidad/empalmes permitidos; sigue rechazando restricciones no dispensables | F + H + B, `final2.log`, `browser.log` | Aprobado |
+| Reacomodo innecesario / necesario / reparto imposible | Conservar vecinas primero; mover cuando hace falta; rechazo sin reparto parcial | F, SearchChecks, `final2.log` | Aprobado |
+| Orden físico de hechos de bono sin cambio lógico | Reordenar físicamente filas: misma huella | F, SearchChecks, `final2.log` | Aprobado |
+| Etapa activa y proceso preparado | Retirar, conservar proceso, bloquear sucesoras/activación y no recrear con timer | F, ProcessChecks, `final2.log` | Aprobado |
+| Cambio concurrente de rol, capacidad, disponibilidad, horario, adjunto o comentario de actividad | Confirmación obsoleta rechazada; responsable original y ausencia no parcial | F, StateAuditChecks, `state2.log` | Aprobado; mutaciones entre llamadas, no seis carreras simultáneas |
+| Doble confirmación concurrente | Una confirmación; serialización rechazada puede reintentarse con recibo único | F con dos DbContexts, `final2.log` | Aprobado |
+| Fallo al commit diferido y vencimiento dentro de callback de commit | Rollback de ausencia, historial y bono; conservar asignación original | F, RiskChecks, `final2.log` | Aprobado |
+| Disponibilidad preexistente y fallo tras segundo SaveChanges | Snapshot de asignaciones/disponibilidad y conteos de hechos, exclusiones, recibos, transferencias/auditoría idénticos; retry mismo contexto confirma una vez | F, `atomic2.log`, `state2.log` | Aprobado |
+| Bono tras retiro/transferencia y nueva obligación de etapa | Sin base/descuento de retiro ni duplicación; no heredar descuento/exclusión ajenos | F, consulta persistida y Materialize, `final2.log` | Aprobado; parte de los casos económicos son pruebas de materialización |
+| Nueva asignación a ausente | Productor ocasional real y guard de persistencia rechazan | F, `final2.log` | Aprobado |
+| Dirección, supervisora y colaboradora; recibo ajeno y CSRF | Solo Dirección confirma; consulta filtrada; recibo ajeno/POST sin CSRF rechazados | H, `final2.log` | Aprobado |
+| Formulario con rechazo y decisiones previas | Conservar decisiones; volver a revisar; confirmar; repetir envío devuelve recibo | H + B, `final2.log`, `browser.log`, `webkit.log` | Aprobado |
+| Transferir → Retirar → Transferir, automático/sobrecarga/reacomodo | Campos se limpian/deshabilitan y vuelven a requerir revisión | B Chromium, `browser.log` | Aprobado |
+| 320/768/1440, light/dark/special, teclado, foco y texto largo | Sin desborde; controles accesibles por teclado; error/success/recibo reales | B, 10 escenarios por motor; capturas `.local/incidence-ui/` | Aprobado; captura de rechazo 320 inspeccionada |
+| Autenticación real compartida, dispositivos físicos y lector de pantalla | No equivalen a la sesión sintética | No ejecutado | Pendiente de esa validación |
+| Ausencia operativa compartida, despliegue, commit/push | Prohibidos en esta petición | Sin ejecución | No aplicable a esta entrega |
+
+### Comandos, artefacto y fallos de preparación
+
+- `rtk dotnet build tools/Sgol.TaskChecks/Sgol.TaskChecks.csproj -c Release --no-restore`: compilación final sin errores/avisos; logs `build-final2.log`, `build-state2.log`.
+- `rtk proxy dotnet tools/Sgol.TaskChecks/bin/Release/net10.0/Sgol.TaskChecks.dll --incidences --ui`: **122 comprobaciones** aprobadas de servicio/HTTP en `final2.log`.
+- `rtk proxy dotnet tools/Sgol.TaskChecks/bin/Release/net10.0/Sgol.TaskChecks.dll --incidence-audit`: **61 comprobaciones** aprobadas en `state2.log`; incluye 29 ya ejecutadas en la suite anterior y 32 adicionales. **154 comprobaciones distintas**, no 183 independientes.
+- Conexiones mediante `SGOL_TASK_CHECKS_CONNECTION`, construidas desde el almacén protegido y con nombre aislado verificado; no se guardan contraseñas en este plan. Creación explícita mediante `docker exec sgol-local-postgres-1 createdb -U sgol_local -O sgol_migrator <nombre-aislado>`; restauración con `pg_restore --role=sgol_migrator --no-owner --no-privileges --exit-on-error -d <nombre-aislado>`.
+- `node tools/Sgol.MobileChecks/incidence-checks.cjs`: Chromium completó sus 10 escenarios; el primer arranque de WebKit falló por usar una instalación de Playwright distinta a la de los navegadores disponibles. Se ejecutó después únicamente WebKit con el runtime 1.62.1 compatible, 10 escenarios aprobados en `webkit.log`; no se repitieron las confirmaciones ya consumidas de Chromium. `NODE_PATH` se obtiene de `dependencies/node/node_modules` del runtime de `Get-Command node`.
+- Harness privado `.local/incidence-audit-20261104/Probe.csproj`, `Program.cs` y `copy-check.cjs`: Razor de la DLL Release, reloj real, timer real, guard de nombre de base y puerto 7298; `replay-browser.log` registra confirmación tras 35 s. No inicia el servicio compartido.
+- SHA-256 de `Sgol.Web.dll` compilada, usada por TaskChecks y cargada por el harness de copia: `40CE74BF5F14C94C3121912E7FDE4E4B218688347CDB31A002AE6B8E20215DBE`; comparación en `assembly-hashes.json`. Es el candidato Release probado, no el binario compartido.
+- El primer intento de suite no pudo crear base con el rol migrador, correctamente sin privilegio CREATEDB; se creó una base aislada explícita con el administrador local. Se corrigieron tres problemas de fixtures, conservando las validaciones: tomar el vencimiento persistido a precisión PostgreSQL; configurar el reloj del interceptor de bono en el modo independiente; crear sucesor de horario en lugar de modificar una revisión inmutable. Sus logs iniciales quedan como fallidos de preparación, no defectos del producto.
+- `rtk proxy git diff --check` y comprobación de enlaces locales del plan antes del cierre. No se actualizó la bóveda porque estas correcciones no están desplegadas; reconciliación pendiente de una activación futura autorizada.
+
+### Evaluación y cobertura todavía pendiente
+
+Los dos rechazos artificiales reproducidos quedaron corregidos y cubiertos por regresiones. El servicio y el formulario confirmaron con el candidato Release, tanto en fixtures como con datos copiados y reloj real. No hay fallos pendientes en los escenarios aprobados de esta matriz. **Esto no acredita integración completa de todas las combinaciones solicitadas.**
+
+Quedan sin comprobar de extremo a extremo en esta auditoría: subida/lectura real de fotos y archivos por almacenamiento externo después de transferir; todos los estados históricos de entregas/revisión/No satisfecha combinados con incidencias; especialidad/periodo de prueba y cobertura de cierre en combinaciones adversas; arrastres/posposiciones pendientes con resolución desde sus propios formularios; cierres semanales reales persistidos y obligaciones mensuales atravesando el cambio de mes; agotamiento efectivo de 20,000 pasos provocado en la versión final; dos usuarios distintos confirmando simultáneamente; pérdida real de respuesta de red; y recorridos completos de Mi trabajo, planificación y todas las rutas productoras tras la incidencia. El rollover probado no sustituye esas obligaciones multidiarias, y una prueba de materialización no sustituye un cierre real.
+
+La huella sigue incluyendo un conjunto amplio de datos: un **cambio real**, incluso de otra operación, puede requerir nueva revisión. Esta auditoría corrige revisiones sin cambios; no recorta el alcance de concurrencia sin demostrar primero qué dependencias se pueden excluir con seguridad. No surgió una nueva decisión de negocio necesaria para estas correcciones.
+
+Evaluación: candidato corregido con evidencia sólida sobre los fallos encontrados y los recorridos descritos; **validación integral aún pendiente** en los puntos anteriores. No se recomienda describirlo como «completamente integrado» ni convertir los resultados aislados en una validación operativa compartida.
+
+## 23. Cierre de los recorridos pendientes en entorno aislado (04/11/2026)
+
+Esta sección actualiza la evaluación de la sección 22. Se conservaron sus cambios locales y las evidencias de la copia representativa. Cambio **mixto**: consulta histórica de evidencia y presentación en el recibo, más pruebas de integración de los productores y consumidores existentes. No se desplegó, hizo commit/push ni se escribió en la simulación compartida.
+
+### Defecto reproducido y corrección
+
+La carga real de cámara, confirmación de ausencia y retiro dejaban la fotografía almacenada pero inaccesible desde el recibo. `run02.log` reproduce el fallo después de cargar mediante formulario, normalizar y analizar con ClamAV. Las consultas ordinarias de Mi trabajo excluyen asignaciones retiradas; no se amplió su autorización de escritura para resolverlo.
+
+`OperationalIncidenceService.Evidence.cs` incorpora listado y descarga de solo lectura autorizados mediante `HistoryAsync`: rol supervisor, persona dentro de alcance, asignación incluida en las disposiciones visibles y archivo creado como máximo en la fecha de confirmación. No permite usar un identificador de otra asignación ni consultar entregas posteriores desde el recibo antiguo. `Incidents.cshtml(.cs)` presenta enlaces dentro de un desplegable, fecha, autora de captura y distinción entre captura sin entregar y entrega; preserva codificación Razor, descarga como adjunto, `nosniff` y `private, no-store`. No convierte capturas anteriores en una entrega de la destinataria.
+
+Precisión respecto a la sección anterior: **las fotos y adjuntos operativos de esta ruta se guardan en PostgreSQL**, no en SeaweedFS. La dependencia externa recorrida en la carga fue el antivirus ClamAV local. Configurar un bucket no era una precondición de estos escenarios; el host de prueba registra el scanner real y mantiene el almacenamiento ajeno sin uso. El PDF histórico se introduce como registro legado en un fixture y se descarga por el servicio real; no se presenta como una subida de PDF desde formulario.
+
+### Entornos y matriz ejecutada
+
+Todas las bases de esta sección son nuevas, localhost:5440, con prefijo `sgol_task_checks_`. La herramienta comprueba host y prefijo antes de migrar o escribir. El host Razor aislado usó HTTPS 7296 y **autenticación real del producto**: credenciales sintéticas privadas, contraseña, enrolamiento MFA/TOTP, sesión persistida, cookies, CSRF y filtros de pantalla reales. No se sustituyó la sesión por un usuario fijo. Esto tampoco constituye autenticación ni validación operativa en la app compartida.
+
+Evidencia privada bajo `.local/incidence-integration-20261104/`. Estados siguientes corresponden a ejecuciones, no a escenarios propuestos:
+
+| Precondición / acción | Resultado esperado y observado | Entorno / prueba / evidencia | Estado |
+|---|---|---|---|
+| Entrega real pendiente de revisión, concluida, no satisfecha o reasignada; intentar ausencia del mismo día | Bloqueo específico de trabajo entregado; no reescribir asignación ni corrección | `domain-final.log`, `IncidenceIntegrationChecks` | Aprobado |
+| Cierre semanal materializado por lectura real de bono; confirmar ausencia en semana posterior | Cierre existente y versión de resultado idénticos tras incidencia y nueva lectura | Misma suite, comparación serializada antes/después | Aprobado |
+| Obligación mensual 30/11–02/12; ausencia y avance del reloj a diciembre | Conservar responsable, plazo, esfuerzo, instantánea y bono, sin exclusión | Misma suite, reloj controlado | Aprobado |
+| Destinataria sin especialidad, en prueba o habilitada; sobrecarga explícita | Rechazar las dos incompatibles, aceptar la habilitada sin dispensar restricciones | Misma suite | Aprobado |
+| Dos directoras distintas, contextos y claves diferentes, mismo día/persona | Una única confirmación y recibo; contendiente sin cambios parciales | Misma suite, llamadas simultáneas | Aprobado |
+| Nueve tareas y ventana insuficiente diseñada para consumir 20,000 pasos | Diagnóstico de búsqueda agotada; cero ausencias y nueve asignaciones intactas | Misma suite, búsqueda real | Aprobado |
+| Ausencia de persona con cobertura de cierre; nueva elección y asignación ocasional | Persona ausente excluida, rechazo de asignación incompatible, reemplazo explícito y destinataria elegible aceptados | Misma suite, servicios reales con huella de agenda | Aprobado |
+| Subir fotos mediante cámara; transferir una tarea y retirar otra | Bytes verificados conservados, recibo descargable, autora original y estado sin entregar visibles | `run07.log`, formularios Razor, PostgreSQL y ClamAV reales | Aprobado |
+| Solicitar evidencia con empleada, recibo falso, asignación ajena o foto de otra tarea | 403/404 según autorización y pertenencia; no filtrar archivo | Mismo recorrido HTTP | Aprobado |
+| Destinataria carga y entrega otra foto después de transferir | Entrega con su captura propia; descarga autorizada; responsable anterior sin acceso y recibo antiguo excluye archivo posterior | Mismo recorrido HTTP | Aprobado |
+| Transferir tarea EXCEL, entregar XLSX multipart y descargar | Validación real de Excel y antivirus; bytes descargados idénticos; anterior responsable sin acceso | Mismo recorrido HTTP | Aprobado |
+| Crear posposición y arrastre por incidente desde sus formularios; revisar ausencia; resolver en Validación | Incidencia bloqueada mientras petición pendiente; resolución por formularios, original conservado, sin ítems pendientes | Mismo recorrido HTTP; posposición queda RESUELTA con resultado RECHAZO; incidente RECHAZADA | Aprobado |
+| Abrir Mi trabajo, Validación, Planificación, bono y Reportes tras confirmar/entregar | Páginas autenticadas responden 200; persistencia y permisos de las operaciones se verifican separadamente | Mismo recorrido HTTP; estos GET no equivalen a probar cada acción de cada pantalla | Aprobado en alcance descrito |
+| Ausencia futura antes de crear plan ordinario y plan semanal de operaciones | Generación real excluye a la persona ausente; actualización de catálogo aplicada sin reasignarle trabajo | `planning03.log`, `IncidencePlanningIntegrationChecks` | Aprobado |
+| Entrega de ayer, ausencia hoy y mañana; generar corrección | Fecha personalizada incompatible rechazada sin hijo; búsqueda de hueco salta ambas ausencias y persiste en día permitido | Misma suite de planificación | Aprobado |
+| Transferir tarea de cierre con sobrecarga a persona sin cobertura; cambiar cobertura explícitamente | Primer intento bloqueado sin cambios; nueva propuesta y transferencia válidas después de cambiar cobertura | Misma suite de planificación | Aprobado |
+| PDF legado en tarea retirada, supervisor dentro/fuera de alcance después de cambio de rol | Listado y bytes conservados dentro de alcance; acceso denegado fuera; Dirección conserva consulta autorizada | `evidence-final.log`, `IncidenceEvidenceIntegrationChecks` | Aprobado |
+| Recibo real en Chromium/Edge y WebKit, 320/768/1440 px, temas light/dark/special | Sin desbordamiento, desplegable y enlace operables con teclado/foco, descarga real, sin errores JavaScript | `browser-results.json`, 18 capturas; inspección visual adicional móvil oscuro y escritorio claro | Aprobado |
+| Cortar respuesta de red **después** del commit; reenviar mismo cuerpo/clave, recargar y abrir segunda pestaña | Se recupera el mismo recibo; no se pide una segunda confirmación distinta | Script Playwright, `route.fetch` observa 302 antes de `connectionreset`; 2 motores | Aprobado |
+| Regresiones anteriores: tiempo, historial, atomicidad, procesos/preparados, concurrencia, idempotencia, huellas y modelo | Conservar las garantías anteriores al añadir lectura histórica | `regression-final.log`, `--incidences` | Aprobado |
+
+### Resultados reproducibles y fallos de preparación
+
+- Release final: compilación sin errores ni advertencias en `build-final.log`. `Sgol.Web.dll` probada: SHA-256 `AD9F47F3FFE0D8066F14B35878C89635C4FC6DEC21D429DACF84968951744FDC`.
+- `rtk proxy dotnet tools/Sgol.TaskChecks/bin/Release/net10.0/Sgol.TaskChecks.dll --incidences`: **135** comprobaciones de incidencias; base `sgol_task_checks_incidence_final_20261104`.
+- Mismo comando con `--incidence-integration`: **33**, base `sgol_task_checks_incidence_domain_final_20261104`.
+- Con `--incidence-integration-http`: **51**, base `sgol_task_checks_incidence_integration_07_20261104`; incluye espera de navegador mediante `SGOL_INCIDENCE_BROWSER=1`.
+- Con `--incidence-planning-integration`: **18**, base `sgol_task_checks_incidence_planning_03_20261104`.
+- Con `--incidence-evidence-integration`: **4**, base `sgol_task_checks_incidence_evidence_20261104`.
+- `node tools/Sgol.MobileChecks/incidence-integration-checks.cjs`: **22** escenarios de navegador con sesiones autenticadas reales del host aislado. `NODE_PATH` corresponde a `node_modules` del runtime instalado de Node; Chromium usa canal `msedge`, WebKit la instalación compatible de Playwright. Cookies privadas y capturas no se versionan.
+- Total de esta sección: **241 comprobaciones de servicio/HTTP y 22 escenarios de navegador**, todos aprobados en sus ejecuciones finales. No se suman los preámbulos de reglas generales de TaskChecks ni se suman nuevamente los resultados de la sección 22.
+- Conservaron logs de intentos intermedios. `run01` falló por scanner fail-closed del host incompleto; `run02` reprodujo el defecto del producto; `run04` detectó expectativa incorrecta del fixture (RESUELTA con RECHAZO no es RECHAZADA); `run05` requirió la huella de revisión ocasional; `run06` carecía de tarea dentro del tramo del incidente. `planning01` omitía un ítem del catálogo semanal. Se corrigieron fixtures, sin dispensar validaciones. Un build intermedio encontró TaskChecks bloqueado por su host aún activo; se compiló después de su cierre normal. Ninguno se contabiliza como una ejecución final aprobada.
+- Revisión del diff, `rtk proxy git diff --check`, enlaces locales del documento y exclusión Git de evidencias privadas. Sin migración nueva; la regresión verifica concordancia del modelo.
+
+### Evaluación final y límites
+
+Se cerraron en entorno aislado los recorridos críticos enumerados como pendientes en la sección 22, con la precisión de almacenamiento y alcance de pruebas indicada arriba. El candidato queda **listo para una activación autorizada y su comprobación posterior en la app compartida**. Las operaciones de procesos/preparados y la copia representativa mantienen la evidencia detallada de la sección 22; la regresión final volvió a cubrir procesos y bloqueos de activación. No se afirma que cada combinación imaginable ni cada acción de todas las pantallas haya sido ejecutada.
+
+No ejecutado por alcance vigente: despliegue, confirmación operativa compartida ni modificación de asignaciones compartidas. No ejecutado por disponibilidad de equipo: dispositivo móvil físico y lector de pantalla; se verificaron viewport móvil y teclado en los dos motores. SeaweedFS no aplica a estos adjuntos operativos. No surgió una decisión de negocio nueva pendiente.
+
+El host aislado terminó normalmente; 7296/7297/7298 quedaron sin listeners. Se comprobaron nuevamente Web compartida 34452 / padre 31712 con publicación `incidencias-concurrency-20261104` y proxy 20652, sin reiniciarlos. Por no estar desplegada la nueva consulta, **la bóveda permanece sin cambios**: tras una activación autorizada habrá que reconciliar las referencias de ejecución/evidencia y de la pantalla de incidencias con el comportamiento realmente publicado. Esta documentación de ingeniería registra el candidato, no sustituye la referencia vigente de la app compartida.

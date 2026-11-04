@@ -16,7 +16,21 @@
     <section class="panel-seccion" aria-labelledby="receipt-title"><h2 id="receipt-title">Ausencia confirmada: @saved.PersonName</h2>
         <p role="status">Disponibilidad y disposiciones guardadas conjuntamente.</p><p>@receipt.Day.ToString("dd/MM/yyyy") · @MyWorkPresentation.Time(receipt.At)</p><p>@receipt.Reason</p>
         @if (!Model.CanConfirm) { <p>Se muestran únicamente disposiciones y destinatarias dentro de tu alcance.</p> }
-        @foreach (var change in saved.Changes) { <p>@change.Before.Name · @IncidentsModel.Effect(change)</p> }
+        @foreach (var change in saved.Changes) {
+            <p>@change.Before.Name · @IncidentsModel.Effect(change)</p>
+            var evidence = Model.Evidence.Where(e => e.AssignmentId == change.Before.Id).ToArray();
+            @if (evidence.Length > 0) {
+                <details class="incidence-evidence"><summary>Evidencia conservada de @change.Before.Name (@evidence.Length)</summary>
+                    <p>Archivos anteriores a esta confirmación. Las capturas sin entregar no acreditan una entrega.</p>
+                    <ul>@foreach (var file in evidence) {
+                        <li><a asp-page-handler="Evidence" asp-route-Day="@receipt.Day.ToString("yyyy-MM-dd")" asp-route-receipt="@receipt.Id" asp-route-assignmentId="@file.AssignmentId" asp-route-photoId="@file.PhotoId">Descargar @file.FileName</a>
+                            · @MyWorkPresentation.Time(file.CreatedAt) · @(file.Delivered ? "Entregada" : "Captura sin entregar")
+                            @if (file.ActorName != null) { <span> · Capturada por @file.ActorName</span> }
+                        </li>
+                    }</ul>
+                </details>
+            }
+        }
         <details><summary>Datos del recibo</summary><p>Incidencia: @receipt.Id</p><p>Actor: @receipt.ActorId</p><p>Clave de intención: @receipt.IntentKey</p></details>
     </section>
 }

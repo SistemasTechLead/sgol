@@ -23,6 +23,9 @@
 .incidence-person { border-top: 1px solid var(--color-borde); padding-block: 10px; overflow-wrap: anywhere; }
 .incidence-person p { margin: 0; }
 .incidence-person p + p { margin-top: 4px; color: var(--color-texto-secundario); font-size: .875rem; }
+.incidence-evidence { min-width: 0; overflow-wrap: anywhere; }
+.incidence-evidence summary { cursor: pointer; padding-block: 10px; min-height: 44px; }
+.incidence-evidence li { margin-block: 8px; }
 @media (max-width: 600px) {
     .incidence-form { grid-template-columns: minmax(0, 1fr); }
     .incidence-task, .incidence-group > h4 { padding-inline: 12px; }

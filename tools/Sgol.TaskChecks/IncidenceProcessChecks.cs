@@ -45,6 +45,11 @@ internal static partial class IncidenceChecks
             if (activate)
             {
                 run = (await planning.ActivateAsync(f.Director, plan, default)).Single(); db.ChangeTracker.Clear();
+                await engine.TickAsync(default); db.ChangeTracker.Clear();
+                var scheduledBefore = JsonSerializer.Serialize(await db.Set<OperationalSequenceStage>().AsNoTracking().Where(s=>s.RunId==run).OrderBy(s=>s.Id).ToArrayAsync());
+                await engine.TickAsync(default); db.ChangeTracker.Clear();
+                Check(scheduledBefore==JsonSerializer.Serialize(await db.Set<OperationalSequenceStage>().AsNoTracking().Where(s=>s.RunId==run).OrderBy(s=>s.Id).ToArrayAsync()),
+                    "unchanged scheduled process timer does not manufacture a new revision");
                 clock.UtcNow = OperationalSchedule.Instant(input.From, 11); await engine.TickAsync(default); db.ChangeTracker.Clear();
             }
             var svc = new OperationalIncidenceService(db, clock, CorrectionSchedulingChecks.Service(db, clock));
