@@ -2,8 +2,8 @@
 categoria: dominio
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
-verificado_en: inspeccion-estatica
+ultima_verificacion: 2026-11-04
+verificado_en: codigo-publicado-y-pruebas-aisladas
 ---
 
 # Ejecución, progreso y evidencias
@@ -32,12 +32,15 @@ El borrador se guarda en servidor con autor, fecha y control de versión. La ent
 
 La entrega y evidencia se guardan con el cambio de estado. Supervisión consulta lo entregado; los procesos añaden decisiones, documentos y cantidades según su versión. Editar catálogo no reescribe evidencia histórica. Reportes puede incluir el checklist entregado.
 
+Las fotos y adjuntos de tareas operativas se almacenan como bytes en PostgreSQL y se analizan con ClamAV al cargar. El recibo de una incidencia ofrece descarga de la evidencia creada hasta su confirmación, aun si la tarea fue retirada. Autoriza por el alcance del recibo y la pertenencia de la asignación; una captura sin entregar no acredita entrega y no cambia de autora al transferir. Las entregas posteriores de la destinataria no pertenecen a ese recibo. Los archivos legados sin autor de captura no reciben una autoría inventada.
+
 Relacionados: [Supervisión](supervision.md), [Modelo e historial](modelo-historial.md), [Procesos](procesos.md), [Componentes visuales](../design/03-componentes.md).
 
 ## Fuentes y alcance
 
-Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Revisión estática; no constituye una nueva prueba funcional, visual o de datos del host.
+Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Carga/descarga de fotos y Excel y consulta histórica se probaron con formularios y servicios reales en bases aisladas; no constituye una prueba autenticada del host compartido. Las demás reglas mantienen alcance de revisión estática.
 
+- [Evidencia de incidencias](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalIncidenceService.Evidence.cs)
 - [OperationalTaskService.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalTaskService.cs)
 - [OperationalTaskService.Checklist.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalTaskService.Checklist.cs)
 - [OperationalChecklist.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalChecklist.cs)

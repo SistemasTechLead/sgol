@@ -46,6 +46,8 @@ Las destinatarias ofrecidas cumplen rol o especialidad, disponibilidad y un tram
 
 El formulario conserva el instante de la propuesta con su precisión completa al confirmar. Cambiar datos exige revisar de nuevo. La comparación usa orden determinista de los registros: un cambio de orden físico no invalida la propuesta. Los rechazos distinguen conflicto vigente, vencimiento de tarea, inicio propuesto pasado y diferencias de estado; un límite temporal identifica la tarea. El formulario conserva decisiones tras un rechazo para volver a revisar. La confirmación conjunta revalida el estado y vencimientos, incluso al commit; un fallo revierte el conjunto. Repetir la misma intención devuelve el recibo existente. No se permite restaurar solo disponibilidad para deshacer la incidencia. Ausencias parciales, reversión automática y formulario de reprogramación posterior de procesos no están disponibles.
 
+El recibo permite descargar evidencia anterior a la confirmación, incluso de tareas retiradas, dentro del alcance del supervisor. Distingue capturas sin entregar, fecha y autora; no expone entregas posteriores desde el recibo antiguo. La comparación de intención normaliza el orden de decisiones y descarta destinataria/sobrecarga al retirar; los recibos anteriores siguen admitiendo reintentos equivalentes sin reescribir su historial.
+
 Fuentes: [servicio de incidencias](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalIncidenceService.cs), [formulario](../../../../src/Sgol.Web/Pages/Validations/Incidents.cshtml). Relaciones: [Disponibilidad](horarios-cobertura.md), [Procesos](procesos.md), [Bono](bono-tareas.md).
 
 ## Fuentes y alcance

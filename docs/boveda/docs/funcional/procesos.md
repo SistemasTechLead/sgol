@@ -35,6 +35,8 @@ Relacionados: [Planificación](planificacion.md), [Ejecución](ejecucion-evidenc
 Retirar una etapa por [incidencia de ausencia](supervision.md#incidencias-de-ausencia) deja la etapa y las reservas dependientes inviables en Pendiente de reprogramación. No cancela la ejecución ni satisface dependencias. Se conservan intentos y evidencia; el temporizador no recrea el trabajo retirado. Los inicios preparados afectados quedan retenidos y liberan sus reservas. Activar el plan o cambiar solo responsables no resuelve esa retención. El formulario para reprogramar posteriormente la cadena no está disponible.
 
 
+El temporizador conserva la revisión de una etapa cuando una comprobación no modifica sus valores persistidos. Un cambio real de estado o reserva sí actualiza la revisión; esperar sin cambios no invalida por sí solo una propuesta de incidencia.
+
 ## Fuentes y alcance
 
 Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Incidencias se contrastó con el código publicado y pruebas funcionales aisladas. En el host compartido se comprobaron salud, acceso y conservación de datos al migrar; no se confirmó ninguna ausencia ni se repitió un recorrido autenticado. Las demás reglas conservan su alcance de revisión estática.
