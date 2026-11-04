@@ -1,0 +1,7 @@
+/* Keep the existing shell readable at narrow widths; the account remains in its menu. */
+[data-incidence-form] > :not(.campo) { grid-column: 1 / -1; }
+[data-incidence-form] > button,
+[data-incidence-form] > a { justify-self: start; }
+@media (max-width: 480px) {
+    body:has([data-incidence-page]) .encabezado-aplicacion__identidad { display: none; }
+}

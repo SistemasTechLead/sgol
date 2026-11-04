@@ -56,10 +56,12 @@ if (settings.Host != "localhost" || settings.Database is null || !settings.Datab
     throw new Exception("Checks only run against a dedicated localhost sgol_task_checks_* database.");
 var options = new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connection).Options;
 await using var db = new SgolDbContext(options);
+if (args.Contains("--incidence-migration")) { await IncidenceChecks.MigrationChecks(db); return; }
 var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Contains("--process-schema-only") ? await SequenceSchemaChecks.Snapshot(db) : null;
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 var bonusBeforeMigration = args.Contains("--bonus-migration") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--incidences")) { await IncidenceChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--refresh-search-replay")) { await RefreshSearchReplayChecks.Run(db); return; }
 if (args.Contains("--refresh-overdue-capacity")) { await RefreshOverdueCapacityChecks.Run(db); return; }
 if (args.Contains("--process-recurrence-ui")) { await ProcessRecurrenceUi.Run(db); return; }

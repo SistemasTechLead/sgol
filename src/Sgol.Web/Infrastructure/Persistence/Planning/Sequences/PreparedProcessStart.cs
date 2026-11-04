@@ -5,6 +5,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed class PreparedProcessStart
 {
+    public Guid? IncidenceHoldId { get; set; }
     public string? AgendaJson { get; set; }
     public string? ItemRatesJson { get; set; }
     public Guid Id { get; set; }

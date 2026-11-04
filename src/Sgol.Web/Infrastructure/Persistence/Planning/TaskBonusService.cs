@@ -112,7 +112,11 @@ public sealed class TaskBonusService(SgolDbContext db, IClock clock, Operational
         var carryovers = await db.Set<OperationalCarryoverRequest>().AsNoTracking().Where(r => r.State != "RECHAZADA")
             .OrderBy(r => r.DecidedAt).ToArrayAsync(token);
         var exclusions = await db.Set<TaskBonusExclusion>().AsNoTracking().Where(e => e.Week == week && e.At < period.ReviewCutoffAt && e.At <= now).ToArrayAsync(token);
-        var obligations = Materialize(facts, transfers, carryovers, cutoff, period.ReviewCutoffAt);
+        var incidenceDecisions = await (from d in db.Set<OperationalIncidenceDisposition>().AsNoTracking()
+            join i in db.Set<OperationalIncidence>().AsNoTracking() on d.IncidenceId equals i.Id
+            where i.At <= cutoff && i.At < period.ReviewCutoffAt
+            select new IncidenceBonusDecision(d.AssignmentId, d.ObligationId, d.StageId, d.PersonId, d.RecipientId, d.EvaluationDay, d.Action, i.At)).ToArrayAsync(token);
+        var obligations = Materialize(facts, transfers, carryovers, cutoff, period.ReviewCutoffAt, incidenceDecisions);
         obligations = obligations.Select(o => o with { Events = o.Events.Concat(exclusions.Where(e => e.ObligationId == o.Id && e.PersonId == o.PersonId)
             .Select(e => new TaskBonusEvent("EXCLUDED", e.At, Actor: e.ActorId, Reason: e.Reason))).ToArray() }).ToArray();
         var schedules = await db.Set<PersonalScheduleVersion>().AsNoTracking().Where(s => people.Contains(s.PersonId) && s.ChangedAt < period.ReviewCutoffAt && s.ChangedAt <= now).ToArrayAsync(token);
@@ -149,8 +153,9 @@ public sealed class TaskBonusService(SgolDbContext db, IClock clock, Operational
     }
 
     public static TaskBonusObligation[] Materialize(TaskBonusFact[] facts, OperationalTransfer[] transfers,
-        OperationalCarryoverRequest[] carryovers, DateTimeOffset now, DateTimeOffset reviewCutoff)
+        OperationalCarryoverRequest[] carryovers, DateTimeOffset now, DateTimeOffset reviewCutoff, IncidenceBonusDecision[]? incidenceDecisions = null)
     {
+        incidenceDecisions = (incidenceDecisions ?? []).Where(d => d.At <= now && d.At < reviewCutoff).ToArray();
         transfers = transfers.Concat(facts.Where(f => f.Kind == "HANDOFF").Select(f => JsonSerializer.Deserialize<OperationalTransfer>(f.SnapshotJson)!)).DistinctBy(t => t.Id).ToArray();
         var byAssignment = facts.Where(f => f.Kind != "HANDOFF" && (f.Kind == "BASELINE" || f.RecordedAt <= now && f.RecordedAt < reviewCutoff))
             .GroupBy(f => f.AssignmentId).ToDictionary(g => g.Key, g => g.OrderBy(f => f.Kind == "BASELINE" ? 0 : 1).ThenBy(f => f.Revision).ToArray());
@@ -162,7 +167,14 @@ public sealed class TaskBonusService(SgolDbContext db, IClock clock, Operational
             var seen = new HashSet<Guid>();
             while (seen.Add(id) && states.TryGetValue(id, out var state))
             {
-                if (state.ProcessStageId is {} stage) return stages[stage];
+                if (state.ProcessStageId is {} stage)
+                {
+                    var retired = incidenceDecisions.Where(d => d.StageId == stage && d.Action == "RETIRE" && d.At < byAssignment[state.Id][0].RecordedAt).OrderByDescending(d => d.At).FirstOrDefault();
+                    if (retired != null)
+                        return states.Values.Where(s => s.ProcessStageId == stage && byAssignment[s.Id][0].RecordedAt > retired.At)
+                            .OrderBy(s => byAssignment[s.Id][0].RecordedAt).ThenBy(s => s.StartsAt).First().Id;
+                    return stages[stage];
+                }
                 if (state.ReassignedFromId is {} parent) id = parent; else break;
             }
             return id;
@@ -208,6 +220,7 @@ public sealed class TaskBonusService(SgolDbContext db, IClock clock, Operational
                 if (s.RetiredAt is {} retired) events.Add(new("CANCELLED", retired));
                 if (fact.Kind == "DELETED") events.Add(new("CANCELLED", fact.RecordedAt));
             }
+            var recordedEvents = events.ToArray();
             var frozen = false;
             foreach (var movement in movements)
             {
@@ -238,10 +251,40 @@ public sealed class TaskBonusService(SgolDbContext db, IClock clock, Operational
                 }
             }
             var points = issue != null && original.Criticality is not ("FLEXIBLE" or "IMPORTANTE" or "CRITICA") ? 0m : TaskBonusCalculator.Points(original.Criticality!);
+            var incidence = incidenceDecisions.Where(d => d.ObligationId == original.Id && d.Action is "TRANSFER" or "RETIRE").OrderBy(d => d.At).LastOrDefault();
+            if (incidence?.Action == "TRANSFER" && incidence.RecipientId is {} receiver)
+            {
+                // A reviewed absence transfers this day's obligation, never previous returns or
+                // deductions. Raw facts remain intact for historical inspection.
+                person = receiver; day = incidence.Day;
+                events = recordedEvents.Where(e => e.At > incidence.At).Append(new TaskBonusEvent("TRANSFERRED", incidence.At, Reason: "Incidencia de ausencia")).ToList();
+            }
+            else if (incidence?.Action == "RETIRE") events.Add(new("EXCLUDED", incidence.At, Reason: "Incidencia de ausencia"));
             output.Add(new(original.Id, original.Id, person, original.TaskCode, original.Name, day, original.Criticality ?? "SIN_CLASIFICACION",
                 points, events.DistinctBy(e => (e.Kind, e.At, e.Actor)).OrderBy(e => e.At).ThenBy(e => e.Order).ToArray(), issue));
         }
         return output.ToArray();
+    }
+
+    public static Guid? IncidenceRoot(TaskBonusFact[] facts, Guid assignment, IncidenceBonusDecision[]? decisions = null)
+    {
+        var states = facts.Where(f => f.Kind != "HANDOFF").GroupBy(f => f.AssignmentId)
+            .ToDictionary(g => g.Key, g => JsonSerializer.Deserialize<TaskBonusAssignmentSnapshot>(g.OrderBy(f => f.Kind == "BASELINE" ? 0 : 1).ThenBy(f => f.Revision).First().SnapshotJson)!);
+        var visited = new HashSet<Guid>();
+        while (visited.Add(assignment) && states.TryGetValue(assignment, out var state))
+        {
+            if (state.ProcessStageId is {} stage)
+            {
+                var created = facts.Where(f => f.AssignmentId == state.Id && f.Kind != "HANDOFF").Min(f => f.RecordedAt);
+                var retired = (decisions ?? []).Where(d => d.StageId == stage && d.Action == "RETIRE" && d.At < created).OrderByDescending(d => d.At).FirstOrDefault();
+                return states.Values.Where(s => s.ProcessStageId == stage && (retired == null ||
+                    facts.Where(f => f.AssignmentId == s.Id && f.Kind != "HANDOFF").Min(f => f.RecordedAt) > retired.At))
+                    .OrderBy(s => facts.Where(f => f.AssignmentId == s.Id && f.Kind != "HANDOFF").Min(f => f.RecordedAt)).ThenBy(s => s.StartsAt).First().Id;
+            }
+            if (state.ReassignedFromId is {} parent) assignment = parent;
+            else return assignment;
+        }
+        return null;
     }
 
     private static DateOnly EvaluationDay(TaskBonusAssignmentSnapshot s)

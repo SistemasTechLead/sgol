@@ -4399,6 +4399,110 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalIncidence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("IntentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("IntentKey")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ReceiptJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId", "IntentKey")
+                        .IsUnique();
+
+                    b.HasIndex("PersonId", "Day")
+                        .IsUnique();
+
+                    b.ToTable("operational_incidence", (string)null);
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalIncidenceDisposition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateOnly>("EvaluationDay")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("IncidenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ObligationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("OverloadAuthorized")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RecipientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("StageId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ObligationId");
+
+                    b.HasIndex("IncidenceId", "AssignmentId")
+                        .IsUnique();
+
+                    b.ToTable("operational_incidence_disposition", (string)null);
+                });
+
             modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalOccasion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5218,7 +5322,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
 
-                            t.HasCheckConstraint("CK_sequence_stage_state", "\"Status\" IN ('EN_ESPERA','PROGRAMADA','DISPONIBLE','PENDIENTE_ASIGNACION','FUERA_DE_PLAZO','CONCLUIDA','CANCELADA','OMITIDA') AND (\"Status\" NOT IN ('DISPONIBLE','CONCLUIDA') OR (\"CurrentAttemptId\" IS NOT NULL AND \"EnabledAt\" IS NOT NULL))");
+                            t.HasCheckConstraint("CK_sequence_stage_state", "\"Status\" IN ('EN_ESPERA','PROGRAMADA','DISPONIBLE','PENDIENTE_ASIGNACION','FUERA_DE_PLAZO','CONCLUIDA','CANCELADA','OMITIDA','PENDIENTE_REPROGRAMACION') AND (\"Status\" NOT IN ('DISPONIBLE','CONCLUIDA') OR (\"CurrentAttemptId\" IS NOT NULL AND \"EnabledAt\" IS NOT NULL))");
                         });
                 });
 
@@ -5349,12 +5453,13 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<bool>("StartHourConfirmed")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("StartScheduleJson").HasColumnType("jsonb");
-
                     b.Property<string>("StartKind")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
+
+                    b.Property<string>("StartScheduleJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<int>("WindowFromDay")
                         .HasColumnType("integer");
@@ -6000,6 +6105,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("AgendaJson")
                         .HasColumnType("jsonb");
+
+                    b.Property<Guid?>("IncidenceHoldId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ItemRatesJson")
                         .HasColumnType("jsonb");
@@ -7304,6 +7412,24 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.HasOne("Sgol.Organization.Contracts.Person", null)
                         .WithMany()
                         .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalIncidence", b =>
+                {
+                    b.HasOne("Sgol.Organization.Contracts.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Sgol.Web.Infrastructure.Persistence.Planning.OperationalIncidenceDisposition", b =>
+                {
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalIncidence", null)
+                        .WithMany()
+                        .HasForeignKey("IncidenceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

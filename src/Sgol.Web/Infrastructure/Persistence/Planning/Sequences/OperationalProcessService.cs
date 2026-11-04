@@ -34,6 +34,7 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
         await OperationalTaskService.LockAsync(db, token); await AuthorizeStart();
         var root = await db.Set<OperationalSequence>().SingleOrDefaultAsync(p => p.Id == processId && !p.IsGeneral && p.DeletedAt == null && p.Enabled, token) ?? throw Error("PROCESS_OPERATION_NOT_READY",409);
         var startKey = capturedStartKey ?? $"O:{processId:N}:{key:N}";
+        if (await db.Set<PreparedProcessStart>().AnyAsync(s => s.StartKey == startKey && s.IncidenceHoldId != null, token)) throw Error("PROCESS_INCIDENCE_REPROGRAM_REQUIRED",409);
         var existing = await db.Set<OperationalSequenceRun>().SingleOrDefaultAsync(r => r.StartKey == startKey, token);
         if (existing != null) { if(tx!=null) await tx.CommitAsync(token); return existing.Id; }
         var version = await db.Set<OperationalSequenceVersion>().AsNoTracking().SingleAsync(v => v.SequenceId==processId && v.Id == (capturedVersionId ?? root.PublishedVersionId) && v.PublishedAt != null, token);
@@ -323,6 +324,7 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
         if(run.Status!="EN_CURSO" || run.Revision!=revision) throw Error("PROCESS_CONFLICT",409);
         var stages=await db.Set<OperationalSequenceStage>().Where(s=>s.RunId==runId && people.Keys.Contains(s.Position)).OrderBy(s=>s.Position).ToArrayAsync(token);
         if(stages.Length!=people.Count || stages.Any(s=>s.Position<run.ActivePosition || s.Status is "CONCLUIDA" or "CANCELADA" or "OMITIDA" or "FUERA_DE_PLAZO")) throw Error("PROCESS_CONFLICT",409);
+        if(stages.Any(s=>s.Status=="PENDIENTE_REPROGRAMACION")) throw Error("PROCESS_INCIDENCE_REPROGRAM_REQUIRED",409);
         var before=JsonSerializer.SerializeToDocument(stages);
         var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,token);
         if(capacity!=null)
@@ -383,7 +385,7 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
     private async Task EnableActive(OperationalSequenceRun run,CancellationToken token)
     {
         var stage=await db.Set<OperationalSequenceStage>().SingleAsync(s=>s.RunId==run.Id && s.Position==run.ActivePosition,token);
-        if(stage.Status is "DISPONIBLE" or "CONCLUIDA" or "CANCELADA" or "OMITIDA") return;
+        if(stage.Status is "DISPONIBLE" or "CONCLUIDA" or "CANCELADA" or "OMITIDA" or "PENDIENTE_REPROGRAMACION") return;
         if (stage.CalculatedLoadMinutes > 4800) { stage.Status="PENDIENTE_ASIGNACION"; stage.BlockReason=$"{stage.Name}: demanda de {stage.CalculatedLoadMinutes} min; excede el límite programable. Requiere resolución de planificación sin dividir ni ampliar turno."; return; }
         var rule=await db.Set<OperationalSequenceStep>().AsNoTracking().SingleAsync(s=>s.VersionId==run.VersionId && s.Position==stage.Position,token);
         var currentAttempt=await db.Set<OperationalSequenceAttempt>().SingleAsync(a=>a.Id==stage.CurrentAttemptId,token);

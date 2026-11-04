@@ -92,6 +92,9 @@ public sealed class EfAvailabilityAdministrationService(
             await auditTransaction.ExecuteAsync(
                 async token =>
                 {
+                    await Planning.OperationalTaskService.LockAsync(dbContext, token);
+                    if (command.IsAvailable && await dbContext.Set<Planning.OperationalIncidence>().AnyAsync(i => i.PersonId == command.PersonId && i.Day == command.LocalDate, token))
+                        throw new AvailabilityValidationException("Existe una incidencia de ausencia confirmada. Cambiar solo disponibilidad no revierte sus tareas ni su bono.");
                     await EnsureActiveLorettaPersonLockedAsync(command.PersonId, token);
                     var currentRows = await dbContext.AvailabilityDayVersions
                         .FromSqlInterpolated(

@@ -1,8 +1,8 @@
 # Plan: incidencias de ausencia y redistribución en Supervisión
 
 Fecha: 2026-11-04. Zona operativa: `America/Mexico_City`.
-Estado: **propuesto; no implementado ni desplegado**. Cambio mixto: reglas, persistencia e interfaz.
-Alcance de esta entrega: investigación estática y plan. No se registró la ausencia ni se modificaron asignaciones, disponibilidad o bono de ninguna persona.
+Estado: **implementado localmente, sin desplegar; validación principal ejecutada y cobertura ampliada pendiente según las secciones 12 y 14**. Cambio mixto: reglas, persistencia e interfaz.
+Alcance de esta entrega: implementación y pruebas con personas sintéticas en bases aisladas. No se registró la ausencia de Alejandra ni se modificó la simulación compartida. Los cambios anteriores se conservaron y subieron por petición posterior del usuario en `8ee3330`; esta implementación permanece sin commit ni push.
 
 ## 1. Objetivo y decisiones confirmadas
 
@@ -26,7 +26,7 @@ Decisiones del usuario durante la planificación:
 
 Se consultaron el protocolo del repositorio, RTK, el índice Graphify vigente, Inicio, mapas de dominio y diseño, reglas documentales, las referencias de actualización de asignaciones, bono y patrones/componentes visuales. Las lecturas de Inicio, dominio y reglas realizadas en el intercambio anterior se reutilizaron.
 
-El checkout contiene modificaciones previas, incluidas `AssignmentRefreshService.cs`, `Refresh.cshtml`, `Refresh.cshtml.cs`, `RefreshCaseText.cs`, arrastres, pruebas y migraciones. Deben conservarse e integrarse; este plan no se atribuye esos cambios. No se comprobó el artefacto compartido ni se hizo una consulta autenticada de los datos del caso. Los hallazgos siguientes describen el **código inspeccionado**, no una certificación del host.
+La investigación inicial encontró modificaciones previas, incluidas `AssignmentRefreshService.cs`, `Refresh.cshtml`, `Refresh.cshtml.cs`, `RefreshCaseText.cs`, arrastres, pruebas y migraciones. Se conservaron en `8ee3330` antes de implementar. Se contrastaron productores, consumidores y contratos del código actual; el host compartido se inspeccionó sin reiniciarlo ni publicar. Los hallazgos de esta sección describen el **código previo inspeccionado**, no funciones nuevas disponibles en la app compartida. No se consultaron ni modificaron datos del caso particular.
 
 | Fuente propietaria | Comportamiento observado / consecuencia para el plan |
 |---|---|
@@ -42,7 +42,7 @@ El checkout contiene modificaciones previas, incluidas `AssignmentRefreshService
 
 ## 3. Recorrido propuesto
 
-Ruta propuesta: `/supervision/incidencias`; archivos nuevos `Pages/Validations/Incidents.cshtml` y `.cshtml.cs`.
+Ruta implementada en el checkout: `/supervision/incidencias`; archivos nuevos `Pages/Validations/Incidents.cshtml` y `.cshtml.cs`. No disponible en la publicación compartida hasta un despliegue autorizado.
 
 1. Lista de colaboradoras con fecha, estado de disponibilidad/incidencia, pendientes no vencidos, vencidos y minutos afectados. Consultas por fecha/nombre; no exponer personas fuera del alcance. El estado inicial no declara que una persona asistió solo porque no tiene ausencia registrada.
 2. Acción **Registrar ausencia**. Fecha predeterminada hoy; motivo obligatorio. Una persona y un día por operación en la primera versión. No incluir registro retroactivo de días anteriores.
@@ -161,42 +161,98 @@ Una repetición con la misma clave devuelve el resultado anterior; misma clave c
 
 ## 12. Matriz de pruebas propuestas
 
-Todas las filas están **propuestas; no ejecutadas** en esta entrega. «Integración» incluye persistencia real PostgreSQL y verificación antes/después; formularios incluyen autenticación, binding y CSRF.
+Esta matriz conserva la cobertura amplia prevista. Las filas marcadas **No ejecutado integralmente** están **no ejecutadas en su combinación completa**; no deben interpretarse como aprobadas por las pruebas parciales de la sección 14. La evidencia ejecutada se detalla allí. «Integración» usa PostgreSQL real aislado; los formularios usan sesiones sintéticas inyectadas, binding y CSRF reales, sin probar inicio de sesión ni MFA.
 
 | Escenario / precondición y acción | Resultado esperado | Prueba y entorno | Estado |
 |---|---|---|---|
-| Ausente hoy, pendientes compatibles, dos receptoras con turnos/carga distintos | Reparto aproxima ocupación restante, mantiene esfuerzo y no excede restricciones | Reglas + integración aislada | Propuesto |
-| Tarea a un instante antes, exactamente al vencimiento y después | Solo la no vencida se transfiere; las demás se retiran/excluyen | Reloj controlado + formulario aislado | Propuesto |
-| Tarea vence entre vista previa y confirmación | Conflicto explicativo, ningún cambio parcial y revisión nueva | Integración + formulario aislado | Propuesto |
-| Vencida hoy y vencida de día anterior en la misma lista | Retirar solo la del día afectado; conservar deuda de otros días | Integración y consultas aisladas | Propuesto |
-| Ausencia futura con plan existente y receptora no presente hoy pero disponible ese día | Programación futura válida, sin activación inmediata | Integración + formulario aislado | Propuesto |
-| Ausencia futura sin plan, luego generar/copiar/activar/asignar/corregir | No crear trabajo para la ausente; conservar incidencia sin duplicados | Recorridos de productores reales, aislado | Propuesto |
-| Nadie elegible por especialidad, rol, empleo, prueba o ausencia | Causa por candidata; retiro explícito; ninguna excepción invalida requisitos | Integración + navegador aislado | Propuesto |
-| Presupuesto operativo insuficiente, turno suficiente | Sobrecarga solo después de autorización explícita y con exceso visible | Servicio + formulario/navegador aislado | Propuesto |
-| Fuera de turno, descanso, duración físicamente imposible o recurso exclusivo | Sobrecarga no elimina restricciones; ofrecer salida válida | Integración aislada | Propuesto |
-| Reacomodo de vecinas, activadas protegidas, críticas y margen | Mostrar cambios indirectos; preservar anclas y plazos vencidos | Integración + formulario aislado | Propuesto |
-| Progreso parcial, checklist, texto, fotos y adjuntos; transferir o retirar | Autoría, evidencia y avance intactos; sin entrega simulada | Integración + formulario aislado | Propuesto |
-| Ocasional, corrección, repetición, personas distintas, carga por ítems | Elegibilidad y procedencia correctas; no omisiones silenciosas | Integración aislada | Propuesto |
-| Solicitud de arrastre/posposición parcial pendiente | Resolver o cerrar por incidencia explícitamente; restantes conservados | Formularios e integración aislada | Propuesto |
-| Entregada, revisión pendiente o cierre antes/durante la operación | No retirar ni mover; conflicto concurrente si cambió | Integración concurrente aislada | Propuesto |
-| Etapa activa exclusiva, reserva futura y sucesoras | Proceso pendiente de reprogramación; no cancelado ni satisfecho; reservas coherentes | Integración del proceso y temporizador aislados | Propuesto |
-| Reprogramar después una etapa retirada por ausencia | Conserva raíz histórica; nuevo compromiso no hereda indebidamente exclusión | Integración proceso + bono aislada | Propuesto |
-| Obligación de varios días / día original distinto del operativo | Conservar obligación y bono, redistribuir esfuerzo restante sin ampliar plazo; explicar falta de capacidad | Integración aislada | Propuesto |
-| Retiro con descuento previo; transferencia con antecedentes de devolución | Ausente sin base/descuento de obligaciones afectadas; receptora sin duplicación ni deuda ajena | `TaskBonus*Checks` ampliados, aislado | Propuesto |
-| Un día excluido y otros días evaluables; semana entera sin base | Mantener evaluación de otros días y estado sin tareas correcto | Reglas + integración bono aislada | Propuesto |
-| Corte semanal y cierre persistido concurrente | No reabrir ni reescribir resultado cerrado | Integración con reloj controlado | Propuesto |
-| Dos incidencias simultáneas, doble envío, respuesta perdida | Recalcular cuando proceda; replay único; recibo verificable | Concurrencia + HTTP aislado | Propuesto |
-| Fallo después de disponibilidad, transferencia o exclusión | Rollback de todas las entidades y hechos de bono | Inyección de fallo, base aislada | Propuesto |
-| Dirección, otros supervisores, persona fuera de alcance, payload manipulado | Solo Dirección confirma; consulta limitada; servidor rechaza abuso | Formularios HTTP reales aislados | Propuesto |
-| Búsqueda interrumpida vs imposibilidad demostrada | Mensajes distintos, entidad identificada, sin propuesta parcial falsa | Reglas y presentación aisladas | Propuesto |
-| Mi trabajo, supervisión, carga, tablero, detalle, historial y reportes | Retiradas fuera del trabajo activo; historial accesible; carga/bono coherentes | Consultas y navegador aislado | Propuesto |
-| 320 px, móvil y escritorio, temas, teclado, foco y texto largo | Lista/casos legibles; foco en errores; estados vacío/carga/error/éxito correctos | Pantalla real autenticada Chromium/WebKit | Propuesto |
-| Migración y regresiones de actualización, transferencias y capacidad | Datos previos preservados; sin romper recorridos existentes | Build + migración/integración aislada | Propuesto |
+| Ausente hoy, pendientes compatibles, dos receptoras con turnos/carga distintos | Reparto aproxima ocupación restante, mantiene esfuerzo y no excede restricciones | Reglas + integración aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Tarea a un instante antes, exactamente al vencimiento y después | Solo la no vencida se transfiere; las demás se retiran/excluyen | Reloj controlado + formulario aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Tarea vence entre vista previa y confirmación | Conflicto explicativo, ningún cambio parcial y revisión nueva | Integración + formulario aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Vencida hoy y vencida de día anterior en la misma lista | Retirar solo la del día afectado; conservar deuda de otros días | Integración y consultas aisladas | No ejecutado integralmente; cobertura parcial en §14 |
+| Ausencia futura con plan existente y receptora no presente hoy pero disponible ese día | Programación futura válida, sin activación inmediata | Integración + formulario aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Ausencia futura sin plan, luego generar/copiar/activar/asignar/corregir | No crear trabajo para la ausente; conservar incidencia sin duplicados | Recorridos de productores reales, aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Nadie elegible por especialidad, rol, empleo, prueba o ausencia | Causa por candidata; retiro explícito; ninguna excepción invalida requisitos | Integración + navegador aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Presupuesto operativo insuficiente, turno suficiente | Sobrecarga solo después de autorización explícita y con exceso visible | Servicio + formulario/navegador aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Fuera de turno, descanso, duración físicamente imposible o recurso exclusivo | Sobrecarga no elimina restricciones; ofrecer salida válida | Integración aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Reacomodo de vecinas, activadas protegidas, críticas y margen | Mostrar cambios indirectos; preservar anclas y plazos vencidos | Integración + formulario aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Progreso parcial, checklist, texto, fotos y adjuntos; transferir o retirar | Autoría, evidencia y avance intactos; sin entrega simulada | Integración + formulario aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Ocasional, corrección, repetición, personas distintas, carga por ítems | Elegibilidad y procedencia correctas; no omisiones silenciosas | Integración aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Solicitud de arrastre/posposición parcial pendiente | Resolver o cerrar por incidencia explícitamente; restantes conservados | Formularios e integración aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Entregada, revisión pendiente o cierre antes/durante la operación | No retirar ni mover; conflicto concurrente si cambió | Integración concurrente aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Etapa activa exclusiva, reserva futura y sucesoras | Proceso pendiente de reprogramación; no cancelado ni satisfecho; reservas coherentes | Integración del proceso y temporizador aislados | No ejecutado integralmente; cobertura parcial en §14 |
+| Reprogramar después una etapa retirada por ausencia | Conserva raíz histórica; nuevo compromiso no hereda indebidamente exclusión | Integración proceso + bono aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Obligación de varios días / día original distinto del operativo | Conservar obligación y bono, redistribuir esfuerzo restante sin ampliar plazo; explicar falta de capacidad | Integración aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Retiro con descuento previo; transferencia con antecedentes de devolución | Ausente sin base/descuento de obligaciones afectadas; receptora sin duplicación ni deuda ajena | `TaskBonus*Checks` ampliados, aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Un día excluido y otros días evaluables; semana entera sin base | Mantener evaluación de otros días y estado sin tareas correcto | Reglas + integración bono aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Corte semanal y cierre persistido concurrente | No reabrir ni reescribir resultado cerrado | Integración con reloj controlado | No ejecutado integralmente; cobertura parcial en §14 |
+| Dos incidencias simultáneas, doble envío, respuesta perdida | Recalcular cuando proceda; replay único; recibo verificable | Concurrencia + HTTP aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| Fallo después de disponibilidad, transferencia o exclusión | Rollback de todas las entidades y hechos de bono | Inyección de fallo, base aislada | No ejecutado integralmente; cobertura parcial en §14 |
+| Dirección, otros supervisores, persona fuera de alcance, payload manipulado | Solo Dirección confirma; consulta limitada; servidor rechaza abuso | Formularios HTTP reales aislados | No ejecutado integralmente; cobertura parcial en §14 |
+| Búsqueda interrumpida vs imposibilidad demostrada | Mensajes distintos, entidad identificada, sin propuesta parcial falsa | Reglas y presentación aisladas | No ejecutado integralmente; cobertura parcial en §14 |
+| Mi trabajo, supervisión, carga, tablero, detalle, historial y reportes | Retiradas fuera del trabajo activo; historial accesible; carga/bono coherentes | Consultas y navegador aislado | No ejecutado integralmente; cobertura parcial en §14 |
+| 320 px, móvil y escritorio, temas, teclado, foco y texto largo | Lista/casos legibles; foco en errores; estados vacío/carga/error/éxito correctos | Pantalla real autenticada Chromium/WebKit | No ejecutado integralmente; cobertura parcial en §14 |
+| Migración y regresiones de actualización, transferencias y capacidad | Datos previos preservados; sin romper recorridos existentes | Build + migración/integración aislada | No ejecutado integralmente; cobertura parcial en §14 |
 
-Reutilizar y extender `AssignmentRetirementChecks`, `AssignmentRefreshChecks`, `RefreshOverdueCapacityChecks`, `CalendarPreservationChecks`, `TransferChecks`, `CurrentAssignmentTransferChecks`, `CapacityRuleChecks`, `DistributionChecks` y `TaskBonusChecks`/`TaskBonusLifecycleChecks`/`TaskBonusHttpChecks`; añadir `IncidenceChecks`, `IncidenceHttpChecks` y navegador de Incidencias. Los nombres nuevos son propuestas, no archivos existentes.
+Herramientas nuevas existentes: `IncidenceChecks`, `IncidenceRiskChecks`, `IncidenceProcessChecks`, `IncidenceEconomicChecks`, `IncidenceHttpChecks`, `IncidenceMigrationChecks` y `tools/Sgol.MobileChecks/incidence-checks.cjs`. Las suites amplias de actualización, transferencias y distribución siguen siendo candidatas a cobertura adicional, no pruebas ejecutadas por nombrarlas aquí.
 
 ## 13. Criterios de aceptación y cierre de esta entrega
 
 El flujo futuro queda aceptable cuando ninguna tarea del alcance quede sin destino explícito, las vencidas no se transfieran, el reparto sea explicable, las excepciones sean particulares y revisadas, el bono refleje exclusión sin duplicación, y todo se confirme atómicamente con historial y reintento seguro. La ausencia no debe cambiar catálogo, empleo, otros días ni cierres ya emitidos.
 
-En esta entrega se investigó el código y se recogieron decisiones de negocio; no se ejecutaron escenarios funcionales, compilación, migración, navegador ni operaciones sobre la app. Esas comprobaciones no corresponden a un cambio exclusivamente documental. La validación del producto permanece propuesta. Las decisiones principales de negocio de este plan quedaron confirmadas por el usuario; la corrección de incidencias erróneas y las ausencias parciales quedan fuera de esta versión.
+La entrega pasó de planificación a implementación autorizada. La sección siguiente registra resultados reales y sus límites. La corrección de incidencias erróneas y las ausencias parciales siguen fuera de esta versión. La reprogramación posterior de un proceso es una operación futura: esta versión deja la etapa explícitamente pendiente, bloquea la reactivación implícita y separa las raíces económicas de compromisos posteriores; no ofrece todavía un formulario para reprogramar esa cadena.
+
+## 14. Implementación y resultados reales del 04/11/2026
+
+### Código implementado, todavía sin desplegar
+
+- `OperationalIncidenceService` y `OperationalIncidences`: consulta por alcance, clasificación por fecha, reparto por ocupación restante, búsqueda acotada con retroceso, decisiones explícitas y confirmación serializable bajo el bloqueo operativo común. Recibo único por actor/clave y persona/día; auditoría y disposiciones antes/después. La huella incluye agenda, reservas, disponibilidad, capacidad, hechos del bono, cierres y decisiones anteriores.
+- La capacidad restante considera turno restante y esfuerzo completado. La sobrecarga es particular por tarea/destinataria, muestra exceso y empalmes, no cambia capacidades globales y conserva restricciones temporales, especialidad, ausencias y reservas exclusivas. El reacomodo opcional solo incluye vecinas futuras sin actividad protegida.
+- `TaskBonusService`: exclusiones ligadas a raíces, transferencia sin descuentos previos ajenos, conservación de entregas posteriores y separación de futuros compromisos de etapas retiradas. `TaskBonusCommitInterceptor` verifica también los límites temporales de la incidencia en el callback de commit.
+- Procesos: estado `PENDIENTE_REPROGRAMACION`, liberación de reservas dependientes, bloqueo del temporizador y retención del proceso abierto. Inicios preparados retenidos mediante `IncidenceHoldId`; activarlos no recrea sus reservas. Las pantallas de procesos muestran ese estado y no ofrecen activación del plan retenido.
+- `EfAvailabilityAdministrationService` comparte el bloqueo y rechaza restaurar únicamente disponibilidad de una incidencia, porque no desharía tareas y bono.
+- Razor `/supervision/incidencias`: consulta paginada, búsqueda, disponibilidad, pendientes/vencidas/minutos, motivo, decisiones, vista previa, confirmación y recibo. Reutiliza navegación, controles, paneles y `assignment-refresh.css`. Los archivos pequeños `incidences.css/js` ajustan la composición de esta página, invalidación de la revisión y estado de envío.
+- Migraciones `20261104171654_AddOperationalIncidences` y `20261104173103_AddIncidencePreparedHold`: tablas/índices, estado de etapa, retención preparada y protección de inserciones/cambios de destinataria o fecha incompatibles con ausencias confirmadas. No hay backfill de exclusiones ni cambios de datos operativos previos. La reversión de la primera migración rechaza borrar historial existente.
+
+### Entornos y evidencia
+
+PostgreSQL de pruebas en `localhost:5440`, bases `sgol_task_checks_incidence_20261104`, `sgol_task_checks_incidence_clean_20261104` y `sgol_task_checks_incidence_upgrade_20261104`. La última se creó vacía, migró al esquema anterior, recibió fixtures y luego ambas migraciones nuevas. El host Razor temporal usa `https://localhost:7297`; no es el host compartido. Se consultó previamente el recorrido de infraestructura de la bóveda y se verificaron procesos/argumentos antes de detener exclusivamente hosts de pruebas.
+
+Evidencias privadas: `.local/incidence-service-final.log` (52 comprobaciones de reglas/integración), `.local/incidence-final.log` (incluye 10 comprobaciones HTTP), `.local/incidence-clean.log`, `.local/incidence-migration.log`, `.local/incidence-ui/results.json` (20 escenarios) y capturas en ese directorio. Compilación final: 12 proyectos, cero errores y advertencias; sintaxis JavaScript y `git diff --check` aprobados; enlaces locales del plan sin destinos faltantes. No se versionan credenciales, bases ni capturas. Las sesiones de navegador son de prueba; los navegadores omiten comprobación TLS del certificado local. No se certifican login, MFA, TLS ni acceso LAN por estas pruebas. Al terminar se detuvo el host de pruebas; el host compartido observado continúa en `127.0.0.1:7241` con el artefacto `calendar-preservation-20261104`, sin intervención sobre él.
+
+| Recorrido ejecutado | Entorno / prueba | Estado y resultado |
+|---|---|---|
+| Vista previa sin escritura; vencida de hoy y deuda anterior; transferencia no vencida | PostgreSQL, `IncidenceChecks` | **Aprobado**: retiro solo del día, historia conservada, deuda anterior intacta y esfuerzo conservado |
+| Disponibilidad, recibo de transferencia, retiro, exclusión y auditoría | Servicio real + lectura posterior | **Aprobado**: guardado conjunto y ausencia de duplicación de base en la ausente |
+| Replay y misma clave con otra intención | Servicio + formulario real | **Aprobado**: mismo recibo; intención distinta rechazada |
+| Hora exacta de vencimiento y cambio entre vista previa/confirmación | Reloj controlado | **Aprobado**: se exige revisar, sin ausencia parcial |
+| Vencimiento dentro del callback de commit | Interceptor de prueba + transacción real | **Aprobado**: rollback y asignación original conservada |
+| Fallo diferido al commit, después de las escrituras | Trigger de fallo exclusivamente aislado | **Aprobado**: revierte recibo, disponibilidad, retiro y exclusión |
+| Dos envíos simultáneos | Dos contextos/conexiones y reintento tras serialización | **Aprobado**: un solo recibo persistido |
+| Sobrecarga, evidencia adjunta y ausencia de receptora | `IncidenceRiskChecks` | **Aprobado**: autorización requerida, exceso visible, bytes intactos, capacidad global intacta y ausencia no dispensada |
+| Tiempo restante y sobrecarga dentro de turno, incluidos varios días | Servicio y cálculos con reloj controlado | **Aprobado**: respeta fin de turno/duración/plazo; esfuerzo completado consume presupuesto sin duplicar pendientes; sustitución administrativa no simula esfuerzo entregado |
+| Obligación de varios días que cabe después de la ausencia | Servicio + comparación JSON antes/después | **Aprobado**: misma obligación, plazo y bono; ningún retiro económico |
+| Etapa activa y sucesora; reserva en plan preparado | Catálogo, preparación, activación, incidencia y timer reales | **Aprobado**: proceso abierto, etapas retenidas, reservas liberadas y ninguna recreación automática |
+| Devolución anterior y entrega posterior de receptora | Materialización de hechos del bono | **Aprobado**: sin traslado de devolución anterior ni pérdida de la entrega posterior; una obligación |
+| Compromiso posterior de la misma etapa retirada | Materialización de snapshots y resolución de raíz | **Aprobado** como regla económica; **no ejecutado** como flujo real de reprogramación, que no tiene formulario en esta versión |
+| Ausencia futura sin trabajo y productor ocasional posterior | Confirmación y `PreviewOccasionAsync` reales | **Aprobado**: conserva ausencia sin inventar tareas y rechaza nueva asignación a la ausente |
+| Inserción incompatible con ausencia | Persistencia PostgreSQL | **Aprobado**: guardia de base rechaza la asignación |
+| Razor, binding, CSRF, confirmación, redirect y recibo | HTTP real con sesiones sintéticas | **Aprobado** |
+| Trabajadora y Subcoordinación | HTTP real: GET y POST manipulado | **Aprobado**: trabajadora sin acceso; supervisora consulta sin botón, no puede confirmar por POST ni abrir recibos fuera de alcance adivinando su ID |
+| 320/768/1440 px × claro/oscuro/especial × Chromium/WebKit | Pantalla real y estilos reales; capturas, foco, Enter, texto largo | **Aprobado**: 18 combinaciones; se suman confirmación/recibo en WebKit y resolución de conflicto con evidencia/destinataria/sobrecarga/revisión/confirmación en Chromium. No dispositivos físicos ni lector de pantalla |
+| Migración desde vacío y desde esquema anterior con datos | `--incidences` / `--incidence-migration` | **Aprobado**: modelo coincide, datos anteriores idénticos, segunda ejecución sin cambios y downgrade rechazado antes de perder recibos o retenciones |
+| Reglas existentes de bono, capacidad y secuencias | `--bonus-rules`, `--capacity-rules-only`, `--sequence-rules-only` | **Aprobado**: 34 reglas de bono, 7 de capacidad y suite de calendario/dependencias/secuencias |
+
+### Fallos encontrados y corregidos
+
+- La primera versión del trigger consultaba `CompletedAt` en `operational_assignment`; ese dato está en la tabla de entrega. Falló en la base aislada y se corrigió; el arranque limpio posterior pasó.
+- El rollback después de un error diferido al commit ocultaba la excepción original cuando PostgreSQL ya había terminado la transacción. Corregido y comprobado con inyección de fallo.
+- La materialización posterior a una transferencia con devolución previa podía perder la entrega nueva al recortar eventos. Se conservan los hechos completos antes del recorte y la regresión pasó.
+- Se corrigieron el binding del fingerprint opcional, la conservación de decisiones entre revisiones, raíz económica de posteriores compromisos, capacidad completada omitida y validación conjunta de dependencias.
+- Fallos de fixtures: namespace/importación, revisión inicial del catálogo, tipo de adjunto y asignación de propiedad init-only. Corregidos; no se eliminaron validaciones del producto para pasar pruebas.
+- Fallo de sincronización del navegador al comprobar el recibo antes de acabar la navegación. Se añadió espera del resultado real y el recorrido pasó. Se revisaron visualmente cabecera móvil y composición de formulario de escritorio, y se ajustaron.
+
+### Cobertura adicional pendiente y documentación vigente
+
+No ejecutados en su combinación completa: generación/copia de cada tipo de plan, todas las modalidades de corrección y conteo por ítems, todas las especialidades/empleos futuros, solicitud de arrastre parcial concurrente, reacomodo complejo con varias anclas, cierres semanales concurrentes, entrega concurrente y todos los consumidores de reportes/tablero. La conservación del cierre se protege en el servicio y por el protocolo existente; las reglas económicas y el rollback sí se probaron, sin afirmar que eso sustituye cada recorrido pendiente.
+
+No se desplegó ni se operó la simulación compartida. Por ello **no se actualizó la bóveda para describir Incidencias como comportamiento vigente**. Al desplegar con autorización, queda pendiente reconciliar las notas existentes de supervisión, horarios, planificación/procesos, bono, historial y navegación, comprobar sus enlaces y sincronizar solo las notas pertinentes con `docs/boveda/`.

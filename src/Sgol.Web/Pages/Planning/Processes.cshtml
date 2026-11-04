@@ -7,14 +7,14 @@
 @if(Model.Error!=null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
 @if(Model.Plan is { } plan)
 {
-    <div class="process-toolbar"><div><strong>@plan.Plan.Name</strong><small>@(plan.Plan.Status == "BORRADOR" ? "Plan preparado · siguiente paso: activar" : "Plan activado")</small></div><div class="process-actions">@if(Model.CanManage && plan.Plan.Status=="BORRADOR") { <button class="boton boton--primario" type="submit" form="process-plan-activate">Activar plan e iniciar el flujo</button> }<a class="boton boton--secundario" href="/planificacion">Volver a planificación</a></div></div>
-    <section class="panel-seccion"><h2>Responsables del proceso</h2><p>@(plan.Plan.Status=="BORRADOR" ? "Preparado: carga reservada, sin tareas habilitadas" : "Activado: las etapas siguen su flujo")</p>
+    <div class="process-toolbar"><div><strong>@plan.Plan.Name</strong><small>@(plan.Starts.Any(s=>s.IncidenceHoldId!=null) ? "Pendiente de reprogramación por incidencia" : plan.Plan.Status == "BORRADOR" ? "Plan preparado · siguiente paso: activar" : "Plan activado")</small></div><div class="process-actions">@if(Model.CanManage && plan.Plan.Status=="BORRADOR" && !plan.Starts.Any(s=>s.IncidenceHoldId!=null)) { <button class="boton boton--primario" type="submit" form="process-plan-activate">Activar plan e iniciar el flujo</button> }<a class="boton boton--secundario" href="/planificacion">Volver a planificación</a></div></div>
+    <section class="panel-seccion"><h2>Responsables del proceso</h2><p>@(plan.Starts.Any(s=>s.IncidenceHoldId!=null) ? "Hay inicios pendientes de reprogramación; sus reservas se liberaron." : plan.Plan.Status=="BORRADOR" ? "Preparado: carga reservada, sin tareas habilitadas" : "Activado: las etapas siguen su flujo")</p>
         <p>La versión seleccionada queda capturada al preparar el plan. Activarlo no habilita todas las etapas.</p>
         @foreach(var start in plan.Starts)
         {
             var captured=plan.Configurations.Single(c=>c.StartId==start.Id);
             <h3>@captured.Name · Versión @captured.Version</h3>
-            <p>Inicio previsto @start.StartsAt.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM/yyyy HH:mm") · Ciudad de México · @(start.Status=="PREPARADO" ? "Preparado" : "Activado")</p>
+            <p>Inicio previsto @start.StartsAt.ToOffset(TimeSpan.FromHours(-6)).ToString("dd/MM/yyyy HH:mm") · Ciudad de México · @(start.IncidenceHoldId!=null ? "Pendiente de reprogramación por incidencia; reservas liberadas" : start.Status=="PREPARADO" ? "Preparado" : "Activado")</p>
             <div class="process-flow process-plan-flow" data-process-plan-flow>@foreach(var stage in captured.Stages) { <article class="process-stage process-plan-card"><span class="process-position">Etapa @stage.Position</span><strong class="process-plan-task-name" title="@stage.Name">@stage.Name</strong><p>@IndexModel.RoleLabel(stage.Role) · @stage.Minutes min @(stage.IsEstimate ? "estimados hasta el conteo" : "de trabajo") @if(stage.OutputItem is {} item) { <span><br />Reporta @item.Name · tarifa capturada @item.Minutes min/unidad</span> }</p><strong>@stage.PersonName</strong><span class="process-flow-arrow" aria-hidden="true" data-process-flow-arrow>→</span></article> }</div>
         }
         @if(Model.CanManage && plan.Plan.Status=="BORRADOR") { <form id="process-plan-activate" method="post" asp-page-handler="Activate"><input type="hidden" name="planId" value="@plan.Plan.Id" /></form> }

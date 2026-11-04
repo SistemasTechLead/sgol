@@ -13,6 +13,8 @@ internal sealed class TaskBonusCommitInterceptor(Func<DateTimeOffset> now) : DbT
     {
         if (data.Context is not SgolDbContext db) return null;
         var at = now();
+        if (db.PendingIncidenceLimits.Any(limit => at >= limit.Due || at > limit.Starts))
+            throw new DirectionPlanException("La propuesta cruzó un límite temporal al confirmar. Revisa otra vez; no se guardó ningún cambio.", 409);
         if (db.PendingBonusExclusions.Values.Any(week => at >= TaskBonusCalculator.Period(week).ReviewCutoffAt))
             throw new DirectionPlanException("BONUS_CLOSED", 409);
         if (db.PendingBonusFacts.Count == 0 && db.PendingBonusAvailability.Count == 0) return null;
@@ -41,6 +43,7 @@ internal sealed class TaskBonusCommitInterceptor(Func<DateTimeOffset> now) : DbT
     {
         if (data.Context is not SgolDbContext db) return;
         db.PendingBonusFacts.Clear(); db.PendingBonusAvailability.Clear(); db.PendingBonusExclusions.Clear();
+        db.PendingIncidenceLimits.Clear();
     }
     public override void TransactionCommitted(DbTransaction transaction, TransactionEndEventData eventData) => Clear(eventData);
     public override void TransactionRolledBack(DbTransaction transaction, TransactionEndEventData eventData) => Clear(eventData);

@@ -154,6 +154,7 @@ public sealed class IndexModel(IRazorSessionState sessions, OperationalTaskServi
         "PROCESS_ITEM_RETIRED" => "El ítem está retirado o no existe. Selecciona uno activo; los procesos que ya lo usaban conservan su uso.",
         "PROCESS_ITEM_RESOLUTION_INVALID" => "Selecciona una opción válida para resolver la siguiente tarea.",
         "PROCESS_CONFLICT" => "El proceso cambió. Recarga antes de guardar; no se aplicó este envío.",
+        "PROCESS_INCIDENCE_REPROGRAM_REQUIRED" => "El proceso quedó pendiente de reprogramación por una ausencia. Sus reservas afectadas se liberaron; revisa el recibo en Supervisión → Incidencias. Cambiar solo responsables o activar el plan no reprograma sus dependencias.",
         "PROCESS_PLAN_TIME_REQUIRED" => "Falta una hora de inicio válida para esta ocasión. Elige la fecha y la hora de inicio del plan (HH:mm, Ciudad de México) y vuelve a revisar fechas y capacidad.",
         "PROCESS_START_SCHEDULE_INVALID" => "Revisa el inicio del proceso: usa días fijos solo en semanal; hasta 7 repeticiones semanales, 28 mensuales, 90 trimestrales o 100 anuales. Solo los procesos semanales pueden agregarse al plan de operaciones.",
         "PROCESS_CALENDAR_HOUR_REQUIRED" => "El proceso publicado no tiene una hora de calendario confirmada. Usa Ocasión explícita y elige la hora en este plan, o configura la hora del calendario y publica una nueva versión del proceso.",

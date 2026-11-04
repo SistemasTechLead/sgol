@@ -66,6 +66,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IDirectionPreparedPlanService, EfDirectionPreparedPlanService>();
         services.AddScoped<OperationalTaskService>();
         services.AddScoped<TaskBonusService>();
+        services.AddScoped<OperationalIncidenceService>();
         services.AddHostedService<TaskBonusClosingWorker>();
         services.AddScoped<AssignmentRefreshService>();
         services.AddScoped<OperationalSchedulingPolicyService>();

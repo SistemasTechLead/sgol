@@ -1,0 +1,98 @@
+@page "/supervision/incidencias"
+@model Sgol.Web.Pages.Validations.IncidentsModel
+@using Sgol.Web.Infrastructure.Persistence.Planning
+@using Sgol.Web.Pages.Validations
+@using Sgol.Web.Presentation.MyWork
+@using System.Text.Json
+@{ ViewData["Title"] = "Incidencias"; }
+<link rel="stylesheet" href="~/css/assignment-refresh.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/incidences.css" asp-append-version="true" />
+<script src="~/js/incidences.js" asp-append-version="true" defer></script>
+<header class="encabezado-pagina" data-incidence-page><div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Incidencias</h1><p>Ausencias de día completo y sus efectos en el trabajo y el bono.</p></div></header>
+<partial name="_SectionNavigation" model='@("supervision")' />
+@if (Model.Error != null) { <div class="alerta alerta--peligro" role="alert" tabindex="-1" autofocus>@Model.Error</div> }
+<section class="panel-seccion">
+    <form method="get" class="planificacion__formulario">
+        <label class="campo"><span class="campo__etiqueta">Fecha</span><input class="campo__control" type="date" asp-for="Day" required /></label>
+        <label class="campo"><span class="campo__etiqueta">Colaboradora</span><input class="campo__control" type="search" asp-for="Search" /></label>
+        <button class="boton boton--primario">Consultar</button>
+    </form>
+    @if (!Model.CanConfirm) { <p>Consulta dentro de tu alcance. Solo Dirección puede confirmar una ausencia y sus cambios.</p> }
+    @if (Model.People.Length == 0) { <p>No hay colaboradoras dentro de tu alcance para esta fecha.</p> }
+    @if (Model.People.Length > 0 && Model.FilteredPeople.Length == 0) { <p>No hay coincidencias con la búsqueda.</p> }
+    @foreach (var person in Model.FilteredPeople.Skip((Model.PageNumber - 1) * 20).Take(20)) {
+        var incidence = Model.History.SingleOrDefault(i => i.PersonId == person.Id);
+        var summary = Model.Summaries.Single(s => s.PersonId == person.Id);
+        <p><strong>@person.Name</strong> · @if (incidence != null) { <a href="/supervision/incidencias?Day=@Model.Day?.ToString("yyyy-MM-dd")&receipt=@incidence.Id">Ausencia registrada · Consultar recibo</a> } else { <span>Sin incidencia registrada</span> }</p>
+        <p>@(summary.Available ? "Disponibilidad sin ausencia registrada" : "No disponible") · Pendientes: @summary.PendingTasks (@summary.OverdueTasks vencidas) · @summary.PendingMinutes.ToString("0.#") min</p>
+    }
+    @if (Model.PageCount > 1) {
+        <nav aria-label="Páginas de colaboradoras"><span>@Model.PageNumber / @Model.PageCount</span>
+        @if (Model.PageNumber > 1) { <a asp-route-Day="@Model.Day?.ToString("yyyy-MM-dd")" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber - 1)">Anterior</a> }
+        @if (Model.PageNumber < Model.PageCount) { <a asp-route-Day="@Model.Day?.ToString("yyyy-MM-dd")" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber + 1)">Siguiente</a> }</nav>
+    }
+</section>
+@if (Model.Receipt is {} receipt) {
+    var saved = JsonSerializer.Deserialize<IncidencePreview>(receipt.ReceiptJson)!;
+    <section class="panel-seccion" aria-labelledby="receipt-title"><h2 id="receipt-title">Ausencia confirmada: @saved.PersonName</h2>
+        <p role="status">Disponibilidad y disposiciones guardadas conjuntamente.</p><p>@receipt.Day.ToString("dd/MM/yyyy") · @MyWorkPresentation.Time(receipt.At)</p><p>@receipt.Reason</p>
+        @if (!Model.CanConfirm) { <p>Se muestran únicamente disposiciones y destinatarias dentro de tu alcance.</p> }
+        @foreach (var change in saved.Changes) { <p>@change.Before.Name · @IncidentsModel.Effect(change)</p> }
+        <details><summary>Datos del recibo</summary><p>Incidencia: @receipt.Id</p><p>Actor: @receipt.ActorId</p><p>Clave de intención: @receipt.IntentKey</p></details>
+    </section>
+}
+@if (Model.CanConfirm && Model.Receipt == null && Model.Day >= Model.Today) {
+    <section class="panel-seccion"><h2>Registrar ausencia</h2>
+    <form method="post" asp-page-handler="Preview" class="planificacion__formulario" data-incidence-form>
+        <input type="hidden" asp-for="Day" /><input type="hidden" asp-for="Key" /><input type="hidden" asp-for="NotBefore" /><input type="hidden" asp-for="Fingerprint" />
+        <label class="campo"><span class="campo__etiqueta">Colaboradora ausente</span><select class="campo__control" asp-for="PersonId" required><option value="">Selecciona una persona</option>@foreach (var p in Model.People.Where(p => !Model.History.Any(i => i.PersonId == p.Id))) { <option value="@p.Id">@p.Name</option> }</select></label>
+        <label class="campo"><span class="campo__etiqueta">Motivo</span><textarea class="campo__control" asp-for="Reason" minlength="5" maxlength="1000" required rows="3"></textarea></label>
+        <label><input asp-for="Reflow" /> Revisar también el reacomodo de tareas futuras sin actividad dentro del mismo día</label>
+        @if (Model.Preview is {} preview) {
+            <h3>Vista previa: @preview.PersonName · @preview.Request.Day.ToString("dd/MM/yyyy")</h3>
+            <p>Calculada: @MyWorkPresentation.Time(preview.CalculatedAt). La confirmación verifica de nuevo estados y vencimientos.</p>
+            @foreach (var change in preview.Changes) {
+                <article class="panel-seccion"><h4>@change.Before.Name</h4>
+                    <p>@IncidentsModel.Effect(change)</p>
+                    @if (change.OverloadAuthorized) { <p class="alerta alerta--advertencia">Sobrecarga autorizada para @change.After?.PersonName: @change.ExcessMinutes.ToString("0.#") min de exceso. Empalmes: @(change.Overlaps.Length == 0 ? "ninguno" : string.Join(", ", change.Overlaps)).</p> }
+                    @foreach (var day in change.OverloadDays) { <p>@day</p> }
+                    @if (change.After != null) { <p>@MyWorkPresentation.Time(change.After.StartsAt) — @MyWorkPresentation.Time(change.After.DueAt) · @change.Before.RemainingMinutes min pendientes</p> }
+                    <details><summary>Ver asignación e historial</summary><p>Antes: @change.Before.PersonName · @MyWorkPresentation.Time(change.Before.StartsAt) — @MyWorkPresentation.Time(change.Before.DueAt).</p><p>Asignación: @change.Before.Id · Día evaluado: @change.EvaluationDay.ToString("dd/MM/yyyy").</p></details>
+                    @if (change.StageId != null && change.Action == "RETIRE") { <p>La etapa y sus sucesoras quedan pendientes de reprogramación. El proceso no se cancela.</p> }
+                </article>
+            }
+            @for (var d = 0; d < Model.Decisions.Count; d++) {
+                var kept = Model.Decisions[d]; var index = "keep" + d;
+                if (!preview.Cases.Any(c => c.EntityId == kept.AssignmentId)) {
+                    <input type="hidden" name="Decisions.Index" value="@index" /><input type="hidden" name="Decisions[@index].AssignmentId" value="@kept.AssignmentId" /><input type="hidden" name="Decisions[@index].Action" value="@kept.Action" /><input type="hidden" name="Decisions[@index].RecipientId" value="@kept.RecipientId" /><input type="hidden" name="Decisions[@index].AuthorizeOverload" value="@kept.AuthorizeOverload.ToString().ToLowerInvariant()" />
+                }
+            }
+            @for (var i = 0; i < preview.Cases.Length; i++) {
+                var item = preview.Cases[i];
+                var previous = Model.Decisions.SingleOrDefault(d => d.AssignmentId == item.EntityId);
+                var canTransfer = item.Options.Any(o => o.StartsWith("Elegir") || o.StartsWith("Transferir") || o.StartsWith("Reasignar") || o.Contains("reasignación"));
+                var canRetire = item.Options.Any(o => o.StartsWith("Retirar"));
+                <article class="panel-seccion"><h4>@item.Task</h4><p><strong>Causa:</strong> @item.Cause</p><p><strong>Efecto:</strong> @item.Effect</p>
+                    <details><summary>Ver detalles</summary>@foreach (var detail in item.Details) { <p>@detail</p> }<p>Registro: @item.EntityId</p></details>
+                    @if (canTransfer || canRetire) {
+                        <input type="hidden" name="Decisions.Index" value="@i" />
+                        <input type="hidden" name="Decisions[@i].AssignmentId" value="@item.EntityId" />
+                        <label class="campo"><span class="campo__etiqueta">Decisión para @item.Task</span><select class="campo__control" name="Decisions[@i].Action"><option value="">Selecciona una opción</option>@if (canTransfer) { <option value="TRANSFER" selected="@(previous?.Action == "TRANSFER")">Transferir conservando lo realizado</option> }@if (canRetire) { <option value="RETIRE" selected="@(previous?.Action == "RETIRE")">Retirar por ausencia conservando historial</option> }</select></label>
+                        @if (canTransfer) {
+                            <label class="campo"><span class="campo__etiqueta">Destinataria, si transfieres</span><select class="campo__control" name="Decisions[@i].RecipientId"><option value="">Reparto automático</option>@foreach (var p in Model.People.Where(p => p.Id != Model.PersonId)) { <option value="@p.Id" selected="@(previous?.RecipientId == p.Id)">@p.Name</option> }</select></label>
+                            <label><input type="checkbox" name="Decisions[@i].AuthorizeOverload" value="true" checked="@(previous?.AuthorizeOverload == true)" /> Autorizar sobrecarga y empalmes para esta tarea y destinataria, dentro del turno</label>
+                        }
+                    } else { @foreach (var option in item.Options) { <p>@option</p> } <a href="/validaciones">Ir a Supervisión</a> }
+                </article>
+            }
+            @foreach (var balance in preview.Balances.Where(b => b.Before != b.After)) { <p>@balance.Name · Carga @balance.Before.ToString("0.#") → @balance.After.ToString("0.#") min · Capacidad restante @balance.Capacity.ToString("0.#") min</p> }
+            @if (preview.CanApply) {
+                <p role="status" data-incidence-stale hidden>Cambiaste los datos. Revisa los cambios antes de confirmar.</p>
+                <button class="boton boton--primario" asp-page-handler="Apply" data-incidence-confirm>Confirmar ausencia y cambios</button>
+            }
+        }
+        <button class="boton boton--secundario" type="submit">Revisar cambios</button>
+        <p role="status" data-incidence-loading hidden>Procesando la propuesta…</p>
+        @if (Model.Preview != null || Model.Error != null) { <a href="/supervision/incidencias?Day=@Model.Day?.ToString("yyyy-MM-dd")">Iniciar otra propuesta</a> }
+    </form></section>
+}

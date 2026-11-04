@@ -52,6 +52,7 @@ public sealed partial class IndexModel
     };
     public string OperationalTiming(OperationalAssignmentDetails task) => task.PendingProcessStatus switch {
         "EN_ESPERA" => "En espera de la etapa anterior", "PROGRAMADA" => "Programada", "PENDIENTE_ASIGNACION" => "Pendiente de asignación",
+        "PENDIENTE_REPROGRAMACION" => "Pendiente de reprogramación por incidencia",
         // Reassignment closes the original assignment; it never schedules it again.
         // A supervision closure without a delivery must not be presented as an entrega.
         _ when task.ReviewStatus == "NO_SATISFECHA" => "Cerrada · No satisfecha",

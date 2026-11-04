@@ -139,6 +139,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
         var plan=await db.DirectionPreparedPlans.SingleOrDefaultAsync(p=>p.Id==planId && p.BranchId==BranchScope.LorettaId,token) ?? throw Error("DIRECTION_PLAN_NOT_FOUND",404);
         var starts=await db.Set<PreparedProcessStart>().Where(s=>s.PlanId==planId).OrderBy(s=>s.StartsAt).ToArrayAsync(token);
         if(starts.Length==0) throw Error("PROCESS_NOT_FOUND",404);
+        if(starts.Any(s => s.IncidenceHoldId != null)) throw Error("PROCESS_INCIDENCE_REPROGRAM_REQUIRED",409);
         if(plan.Status=="ASIGNADO") { if(tx!=null) await tx.CommitAsync(token); return await db.Set<OperationalSequenceRun>().Where(r=>r.PlanId==planId).Select(r=>r.Id).ToArrayAsync(token); }
         // Remove prepared reservations inside the same transaction, then materialize run reservations/assignments.
         foreach(var start in starts) { start.Status="ACTIVADO"; start.Revision++; }
@@ -243,7 +244,7 @@ public sealed partial class ProcessPlanningService(SgolDbContext db,IDirectionPr
     }
     internal static async Task<OperationalAssignment[]> PreparedReservationsAsync(SgolDbContext db,CancellationToken token)
     {
-        var starts=await db.Set<PreparedProcessStart>().AsNoTracking().Where(s=>s.Status=="PREPARADO").OrderBy(s=>s.Id).ToArrayAsync(token);
+        var starts=await db.Set<PreparedProcessStart>().AsNoTracking().Where(s=>s.Status=="PREPARADO" && s.IncidenceHoldId == null).OrderBy(s=>s.Id).ToArrayAsync(token);
         var ids=starts.Select(s=>s.VersionId).ToArray();
         var steps=await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s=>ids.Contains(s.VersionId)).OrderBy(s=>s.Position).ToArrayAsync(token);
         return starts.SelectMany(s=>s.AgendaJson != null ? JsonSerializer.Deserialize<OperationalAssignment[]>(s.AgendaJson)! : Reservations(s.Id,s.VersionId,s.StartsAt,JsonSerializer.Deserialize<Dictionary<int,Guid>>(s.Participants)!,steps.Where(p=>p.VersionId==s.VersionId).ToArray())

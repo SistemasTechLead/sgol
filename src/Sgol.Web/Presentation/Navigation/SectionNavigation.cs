@@ -66,13 +66,15 @@ public static class SectionNavigation
                 var validation = Flag("Validation");
                 var workload = path.StartsWithSegments("/supervision/carga");
                 var bonus = path.StartsWithSegments("/supervision/bono-tareas");
+                var incidents = path.StartsWithSegments("/supervision/incidencias");
                 string View(bool value) => QueryHelpers.AddQueryString("/validaciones", request.Query
                     .Where(q => !new[] { "task", "handler", "Validation" }.Contains(q.Key, StringComparer.OrdinalIgnoreCase))
                     .ToDictionary(q => q.Key, q => (string?)q.Value.ToString())
                     .Append(new KeyValuePair<string, string?>("Validation", value.ToString())).ToDictionary());
-                links.Add(new("Supervisión", View(false), !validation && !workload && !bonus, "eye"));
-                links.Add(new("Validación", View(true), validation && !bonus, "check"));
+                links.Add(new("Supervisión", View(false), !validation && !workload && !bonus && !incidents, "eye"));
+                links.Add(new("Validación", View(true), validation && !bonus && !incidents, "check"));
                 links.Add(new("Carga y reasignación", "/supervision/carga", workload, "users"));
+                links.Add(new("Incidencias", "/supervision/incidencias", incidents, "calendar"));
                 links.Add(new("Porcentaje para el bono", "/supervision/bono-tareas", bonus, "info"));
                 break;
             case "board":

@@ -27,6 +27,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
     internal readonly HashSet<Guid> PendingBonusFacts = [];
     internal readonly HashSet<Guid> PendingBonusAvailability = [];
     internal readonly Dictionary<Guid, DateOnly> PendingBonusExclusions = [];
+    internal readonly List<(DateTimeOffset Due, DateTimeOffset Starts)> PendingIncidenceLimits = [];
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         TaskBonusPersistence.Capture(this, bonusClock?.UtcNow ?? DateTimeOffset.UtcNow);
@@ -141,6 +142,7 @@ public sealed class SgolDbContext(DbContextOptions<SgolDbContext> options, IConf
     {
         base.OnModelCreating(modelBuilder);
         TaskBonusPersistence.Configure(modelBuilder);
+        OperationalIncidencePersistence.Configure(modelBuilder);
         modelBuilder.HasDbFunction(typeof(Sgol.Web.Presentation.Search.SearchText).GetMethod(nameof(Sgol.Web.Presentation.Search.SearchText.SqlNormalize))!).HasName("sgol_search");
         modelBuilder.ApplyConfiguration(new OperationalTransferConfiguration());
         modelBuilder.ApplyConfiguration(new OperationalCarryoverConfiguration());
