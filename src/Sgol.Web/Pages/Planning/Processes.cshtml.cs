@@ -41,6 +41,7 @@ public sealed partial class ProcessesModel(IRazorSessionState sessions,Operation
     }
     public static string PlanError(DirectionPlanException error)
     {
+        if (error.Data["CountConflict"] is string countConflict) return countConflict;
         if (error.Data["CandidateFailures"] is DirectionPlanException[] failures)
             return string.Join(" ", failures.Select(PlanError).Distinct());
         var reason = error.Data["ConflictReason"] as string ?? error.Code;
@@ -74,5 +75,22 @@ public sealed partial class ProcessesModel(IRazorSessionState sessions,Operation
         var actor=await Actor(token,true); if(actor==null) return StatusCode(403);
         try { await plans.ActivateAsync(actor.Value,planId,token); return RedirectToPage(new { planId }); }
         catch(DirectionPlanException e) { Response.StatusCode=e.Status; Error=Sgol.Web.Pages.Tasks.IndexModel.Message(e.Code); Plan=await plans.ReadAsync(actor.Value,planId,token); return Page(); }
+    }
+    public async Task<IActionResult> OnPostRetryAutomaticAsync(Guid planId, CancellationToken token)
+    {
+        var actor = await Actor(token, true); if (actor == null) return StatusCode(403);
+        try { await plans.RetryAutomaticAsync(actor.Value, planId, token); return RedirectToPage(new { planId }); }
+        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = PlanError(e); Plan = await plans.ReadAsync(actor.Value, planId, token); return Page(); }
+    }
+    public async Task<IActionResult> OnPostRescheduleAutomaticAsync(Guid planId, Guid startId, long revision, DateOnly day, CancellationToken token)
+    {
+        var actor = await Actor(token, true); if (actor == null) return StatusCode(403);
+        try {
+            if (!ModelState.IsValid) throw new DirectionPlanException("PROCESS_INVALID", 422);
+            await plans.RescheduleAutomaticAsync(actor.Value, planId, startId, revision, day, token);
+            await plans.RetryAutomaticAsync(actor.Value, planId, token);
+            return RedirectToPage(new { planId });
+        }
+        catch (DirectionPlanException e) { Response.StatusCode = e.Status; Error = PlanError(e); Plan = await plans.ReadAsync(actor.Value, planId, token); return Page(); }
     }
 }

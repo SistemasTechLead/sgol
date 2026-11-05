@@ -18,6 +18,16 @@ try {ReportAnalysis.Range(filter,today);throw new Exception("Unknown column acce
 ReportRow Row(string status, Guid? from=null) => new(Guid.NewGuid(),Guid.Parse("11111111-1111-1111-1111-111111111111"),Guid.NewGuid(),"Tarea","T-1","Persona","PISO_VENTAS","Plan","Área",status,"COMENTARIO","PROGRESO","SEMANAL",1,24,60,30,now.AddDays(-3),now.AddDays(-2),status is "CONCLUIDA" or "PENDIENTE_REVISION"?now.AddDays(-1):null,null,100,50,"unidades","","",from);
 var done=Row("CONCLUIDA");var parent=Row("REASIGNADA");var pending=Row("VENCIDA",parent.Id);var delivered=Row("PENDIENTE_REVISION");
 var rows=new[]{done,parent,pending,delivered};
+var people = ReportPerson.Summarize(rows, new Dictionary<Guid,decimal> { [done.PersonId] = 20 });
+Check(people.Single() is { Total:3, Delivered:2, Completed:1, Pending:1, Load:30, Fulfillment:33.3m, OverCapacity:true, Occupancy:150 }, "People panel excludes reassigned attempts and delivered load, preserves excess percentage");
+Check(ReportPerson.Summarize([pending], new Dictionary<Guid,decimal>()).Single() is { Capacity:null, Occupancy:null, OverCapacity:false }, "Missing capacity is not fabricated zero capacity");
+Check(ReportPerson.Summarize([pending], new Dictionary<Guid,decimal> { [pending.PersonId]=0 }).Single().OverCapacity, "Positive load with zero capacity is over capacity");
+Check(ReportPerson.Summarize([parent], new Dictionary<Guid,decimal>()).Single().Fulfillment == null, "Reassigned-only selection has no fulfillment denominator");
+Check(ReportPerson.Summarize([done, done with { PersonId=Guid.NewGuid() }], new Dictionary<Guid,decimal>()).Length==2, "Same-name collaborators retain distinct identities");
+foreach (var kind in ReportCatalog.Definitions.Select(d=>d.Id)) {
+    var selected = ReportAnalysis.Filter(rows, ReportCatalog.Preset(kind), now);
+    Check(ReportPerson.Summarize(selected,new Dictionary<Guid,decimal>()).Sum(p=>p.Total)==selected.Count(r=>r.Status!="REASIGNADA"), "Panel follows template: " + kind);
+}
 var metrics=ReportAnalysis.Metrics(rows,"overview",now);
 Check(metrics[0].Value=="3" && metrics[1].Value=="33.3 %","Reassignment attempts excluded from fulfillment denominator");
 Check(metrics[2].Value=="1" && metrics[3].Value=="1","Delivery does not imply successful review");

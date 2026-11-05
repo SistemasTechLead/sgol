@@ -10,10 +10,20 @@
     var attempt = view.Attempts.SingleOrDefault(a => a.Id == active.CurrentAttemptId);
 }
         <partial name="_Markdown" model="@rule.Instructions" />
+        @if (view.Run.CountSemanticsVersion >= 2 && active.DependencyEventId is {} dependencyId)
+        {
+            var dependency = view.Events.SingleOrDefault(e => e.Id == dependencyId);
+            var preceding = view.Stages.Where(s => s.Position < active.Position && s.Status == "CONCLUIDA").OrderByDescending(s => s.Position).FirstOrDefault();
+            if (dependency != null && preceding != null && dependency.AttemptId != preceding.CurrentAttemptId)
+            {
+                var corrected = view.Stages.Single(s => s.Id == view.Attempts.Single(a => a.Id == dependency.AttemptId).StageId);
+                <p><strong>Revisión conjunta:</strong> al entregar esta tarea revisas la entrega de @corrected.Name y la entrega conservada de @preceding.Name. Consulta ambas en las evidencias del proceso.</p>
+            }
+        }
         @if (active.LoadSourceAttemptId is {} loadSource) {
             var producer = view.Attempts.Single(a => a.Id == loadSource);
             var sourceStage = view.Stages.Single(s => s.Id == producer.StageId);
-            <p><strong>Carga recibida:</strong> @producer.ItemQuantity × @sourceStage.OutputItemMinutes min de @sourceStage.OutputItemName = @active.CalculatedLoadMinutes min.</p>
+            <p>Usa conteo de etapa @sourceStage.Position · @sourceStage.TaskCode.</p><p><strong>Carga recibida:</strong> @producer.ItemQuantity × @sourceStage.OutputItemMinutes min de @sourceStage.OutputItemName = @active.CalculatedLoadMinutes min.</p>
         }
         @if (attempt?.ContinuationAttemptId != null && view.Attempts.Any(a=>a.StageId==active.Id && a.Id!=attempt.Id && a.AssignmentId!=null)) {
             <details open><summary>Trabajo conservado para continuar</summary>
@@ -45,7 +55,7 @@
         }
         @if(view.CanReturnPendingCount && view.PendingCountProducerId is {} pendingProducerId) {
             var producer=view.Attempts.Single(a=>a.Id==pendingProducerId);var source=view.Stages.Single(s=>s.Id==producer.StageId);
-            <section class="panel-seccion"><h3>Corregir conteo antes de asignar</h3><p>La etapa todavía no tiene asignación. Puedes devolver el conteo @producer.ItemQuantity de @source.OutputItemName a @source.Name. No se registrará una ejecución de la etapa pendiente.</p>
+            <section class="panel-seccion"><h3>Corregir conteo</h3><p>Puedes devolver el conteo @producer.ItemQuantity de @source.OutputItemName a @source.Name. Su responsable volverá a reportarlo; el impacto se revisará antes de crear correcciones de las receptoras.</p>
             <form method="post" asp-page="/MyWork/Processes" asp-page-handler="ReturnPendingCount" asp-antiforgery="false" class="process-item-form">
                 <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" /><input type="hidden" name="RunId" value="@view.Run.Id" /><input type="hidden" name="stageId" value="@active.Id" /><input type="hidden" name="stageRevision" value="@active.Revision" /><input type="hidden" name="Key" value="@Guid.CreateVersion7()" />
                 <label class="campo"><span class="campo__etiqueta">Motivo para devolver el conteo</span><textarea class="campo__control" name="reason" maxlength="4000" required></textarea></label>
@@ -84,12 +94,13 @@
                 }
                 @if(attempt.ContinuationAttemptId != null) { <label><input type="checkbox" name="UsePreservedWork" value="true" checked="@Model.UsePreservedWork" /> Reutilizar material conservado de esta tarea si no adjunto material nuevo. Se valida y registra una nueva copia con su origen; no se reabren sesiones anteriores.</label> }
                 @if (active.OutputItemRateId != null) {
-                    <label class="campo"><span class="campo__etiqueta">Cantidad de @active.OutputItemName</span><input class="campo__control" name="ItemQuantity" type="number" min="0" max="2147483647" step="1" value="@Model.ItemQuantity" required data-item-quantity data-item-minutes="@active.OutputItemMinutes" /></label>
-                    <p data-item-formula aria-live="polite">La cantidad × @active.OutputItemMinutes min sustituye la estimación siguiente. Cero salta a auditoría final.</p>
+                    <label class="campo"><span class="campo__etiqueta">Cantidad de @active.OutputItemName</span><input class="campo__control" name="ItemQuantity" type="number" min="0" max="2147483647" step="1" value="@Model.ItemQuantity" required data-item-quantity data-item-minutes="@active.OutputItemMinutes" data-count-selective="@(view.Run.CountSemanticsVersion >= 2 ? "true" : "false")" /></label>
+                    <p data-item-formula aria-live="polite">@(view.Run.CountSemanticsVersion >= 2 ? "La cantidad calcula la carga de las receptoras seleccionadas. Cero omite únicamente esas receptoras; las independientes continúan en orden." : "La cantidad sustituye la estimación siguiente. Cero salta a auditoría final.")</p>
+                    @if(view.Run.CountSemanticsVersion >= 2) { <p>Receptoras: @string.Join(", ", view.Stages.Where(s=>s.InputCountSourceTaskId==active.TaskId).Select(s=>$"Etapa {s.Position} · {s.TaskCode} · {s.Name}"))</p> }
                     <div data-process-resolution>
                     @if (Model.ItemConflict != null) {
                         <input type="hidden" name="CapacityFingerprint" value="@Model.CapacityFingerprint" /><div class="alerta alerta--peligro" role="alert" tabindex="-1" data-item-conflict><div class="alerta__contenido"><p>@Model.ItemConflict</p><p>La entrega aún no se guardó. Selecciona una opción y confirma de nuevo.</p>
-                        <label class="campo"><span class="campo__etiqueta">Resolver la siguiente tarea</span><select class="campo__control" name="CapacityResolution" required><option value="">Selecciona una opción</option><option value="PENDING">Guardar entrega y dejar siguiente etapa pendiente</option>@if(Sgol.Web.Infrastructure.Persistence.Planning.ProcessItemRules.CanResolve(active.Role)) { @if(Model.CanSearch) { <option value="LOWEST">Buscar primer hueco compatible en los próximos 7 días</option> } @if(Model.CanForce) { <option value="FORCE">Asignar de todos modos: sobrecarga, solapamiento y descanso dentro del turno</option> } }</select></label>
+                        <label class="campo"><span class="campo__etiqueta">Resolver las tareas afectadas</span><select class="campo__control" name="CapacityResolution" required><option value="">Selecciona una opción</option><option value="PENDING">Confirmar entrega e impacto; conservar conflictos pendientes</option>@if(Sgol.Web.Infrastructure.Persistence.Planning.ProcessItemRules.CanResolve(active.Role)) { @if(Model.CanSearch) { <option value="LOWEST">Buscar primer hueco compatible en los próximos 7 días</option> } @if(Model.CanForce) { <option value="FORCE">Asignar de todos modos: sobrecarga, solapamiento y descanso dentro del turno</option> } }</select></label>
                         <p>La búsqueda prioriza la fecha y hora más tempranas; a igual hora, la menor carga. Puede conservar a la persona reservada si tiene el primer hueco completo.</p>
                         <p>Forzar registra el intervalo y descanso utilizado como excepción de esta asignación. No amplía el turno ni permite ausencias.</p></div></div>
                     }

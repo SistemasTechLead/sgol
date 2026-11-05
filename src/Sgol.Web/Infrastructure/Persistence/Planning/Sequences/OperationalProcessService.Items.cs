@@ -9,6 +9,8 @@ public sealed partial class OperationalProcessService
     private async Task<OperationalSequenceStage?> ApplyItemCount(OperationalSequenceRun run, OperationalSequenceStage source,
         OperationalSequenceAttempt attempt, Guid actor, int? quantity, string? resolution, CancellationToken ct)
     {
+        if (run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion)
+            return await ApplySelectedCounts(run, source, attempt, quantity, resolution, ct);
         if (source.OutputItemRateId == null) return null;
         var minutes = ProcessItemRules.Calculate(quantity, source.OutputItemMinutes!.Value);
         attempt.ItemQuantity = quantity; attempt.CapacityResolution = resolution;

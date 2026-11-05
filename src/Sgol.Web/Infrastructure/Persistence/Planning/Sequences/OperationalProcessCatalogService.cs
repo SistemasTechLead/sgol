@@ -52,6 +52,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         var version = draft?.Id ?? root.PublishedVersionId;
         var steps = version == null ? [] : await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s => s.VersionId == version).OrderBy(s => s.Position).ToArrayAsync(token);
         var tasks = await db.OperationalTasks.AsNoTracking().Where(t => t.ProcessId == id && !t.Deleted).OrderBy(t => t.Name).ToArrayAsync(token);
+        ProcessCountSources.ConvertLegacy(steps);
         return new(root, draft, steps, tasks) { Configuration = draft ?? (root.PublishedVersionId == null ? null :
             await db.Set<OperationalSequenceVersion>().AsNoTracking().SingleAsync(v => v.Id == root.PublishedVersionId, token)) };
     }
@@ -90,7 +91,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
     public async Task SaveAsync(Guid actor, ProcessDraftInput input, CancellationToken token)
     {
         input.Description ??= "";
-        foreach (var step in input.Steps) step.Instructions ??= "";
+        foreach (var step in input.Steps) { step.Instructions ??= ""; step.OutputTargetTaskId = null; }
         ValidateIdentity(input.Name, input.Description); ValidateRules(input, false);
         await direction.AuthorizeAsync(actor, token);
         await using var tx = await db.Database.BeginTransactionAsync(token);
@@ -169,6 +170,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
         var members = await db.OperationalTasks.Where(t => t.ProcessId == id && !t.Deleted).ToArrayAsync(token);
         await RequireValidMembership(id, steps, members, token);
         await ValidateItems(steps, draft.Id, token);
+        ProcessCountSources.ConvertLegacy(steps);
         ValidateRules(new() { Schedule = ProcessStartSchedule.Read(draft.StartScheduleJson), StartKind = draft.StartKind, FirstMonth = draft.FirstMonth, WindowFromDay = draft.WindowFromDay,
             WindowThroughDay = draft.WindowThroughDay, PreferredWeekDay = draft.PreferredWeekDay,
             StartHour = draft.StartHourConfirmed ? draft.StartHour : null, Steps = steps.ToList() }, true);
@@ -183,6 +185,8 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
             if (s.Position > 1 && task.OperationalCriticality == "CRITICA" && s.MinimumStartOffsetHours == null) throw LocatedError("PROCESS_CRITICAL_ANCHOR_REQUIRED", [task.Id], "MinimumStartOffsetHours");
             s.TaskSnapshot = JsonSerializer.Serialize(task); }
         draft.AgendaVersion = 1;
+        draft.CountSemanticsVersion = ProcessCountSources.CurrentVersion;
+        foreach (var step in steps) step.OutputTargetTaskId = null;
         // Save snapshots while the version is still mutable, then freeze it atomically.
         await db.SaveChangesAsync(token);
         draft.PublishedAt = clock.UtcNow; draft.PublishedBy = actor; draft.Revision++;
@@ -205,6 +209,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
             await RequireValidMembership(id, publishedSteps, [], token);
         }
         root.Enabled = enabled; root.Revision++; Audit(actor, enabled ? "PROCESS_ACTIVATED" : "PROCESS_DEACTIVATED", id);
+        if (enabled) await CreateAutomaticCalendarAsync(actor, root, token);
         await db.SaveChangesAsync(token); await tx.CommitAsync(token);
     }
 
@@ -267,7 +272,7 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
     }
 
     private static OperationalSequenceStep CopyStep(OperationalSequenceStep s, Guid version) => new() { VersionId = version,
-        OutputItemId=s.OutputItemId, OutputTargetTaskId=s.OutputTargetTaskId, IsFinalAudit=s.IsFinalAudit,
+        InputCountSourceTaskId=s.InputCountSourceTaskId, OutputItemId=s.OutputItemId, OutputTargetTaskId=s.OutputTargetTaskId, IsFinalAudit=s.IsFinalAudit,
         Position = s.Position, TaskId = s.TaskId, Action = s.Action, ReleaseCondition = s.ReleaseCondition,
         DeadlineKind = s.DeadlineKind, DeadlineHours = s.DeadlineHours, MinimumStartOffsetHours = s.MinimumStartOffsetHours,
         ReturnToPosition = s.ReturnToPosition, Instructions = s.Instructions.Trim() };
@@ -316,12 +321,13 @@ public sealed partial class OperationalProcessCatalogService(SgolDbContext db, I
             if (input.Steps.Count(s => s.IsFinalAudit) != 1 || !input.Steps.Single(s => s.Position == input.Steps.Count).IsFinalAudit)
                 throw Error("PROCESS_ITEM_AUDIT_REQUIRED");
             foreach (var s in input.Steps.Where(s => s.OutputItemId != null))
-                if (s.IsFinalAudit || s.Position == input.Steps.Count || input.Steps.Single(x => x.Position == s.Position + 1).TaskId != s.OutputTargetTaskId)
+                if (s.IsFinalAudit || s.Position == input.Steps.Count)
                     throw Error("PROCESS_ITEM_TARGET_INVALID");
         }
         if (input.Steps.Any(s => s.IsFinalAudit && s.Position != input.Steps.Count || s.OutputItemId == null && s.OutputTargetTaskId != null)) throw Error("PROCESS_ITEM_TARGET_INVALID");
         if(publish && (input.Steps.Count<2 || input.Steps.Single(s=>s.Position==1).Action!="ENTREGAR" || input.Steps.Single(s=>s.Position==input.Steps.Count).Action!="AUTORIZAR"))
             throw Error("PROCESS_DOCUMENT_BOUNDARIES_REQUIRED");
+        ProcessCountSources.FromSteps(input.Steps.ToArray());
     }
 
     private async Task ValidateItems(OperationalSequenceStep[] steps, Guid version, CancellationToken ct)

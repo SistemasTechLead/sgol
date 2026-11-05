@@ -29,7 +29,7 @@ public sealed partial class OperationalProcessCatalogService
         // silently releasing them would change a saved workload proposal.
         var plan = await (from start in db.Set<PreparedProcessStart>()
             join prepared in db.DirectionPreparedPlans on start.PlanId equals prepared.Id
-            where start.ProcessId == id && start.Status == "PREPARADO"
+            where start.ProcessId == id && (start.Status == "PREPARADO" || start.Status == "PENDIENTE")
             orderby start.StartsAt
             select new { prepared.Id, prepared.Name }).FirstOrDefaultAsync(token);
         if (plan != null)

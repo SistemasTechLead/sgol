@@ -8,7 +8,7 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Tasks;
 
-public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProcessCatalogService processes, OperationalTaskService tasks) : PageModel
+public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProcessCatalogService processes, OperationalTaskService tasks, ProcessPlanningService plans) : PageModel
 {
     [BindProperty] public ProcessDraftInput Input { get; set; } = new();
     [BindProperty] public int[] ProcessDays { get; set; } = [];
@@ -24,6 +24,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     public ProcessMembershipConflict[] TaskConflicts { get; private set; } = [];
     public List<(string Field, string Message)> FieldConflicts { get; } = [];
     public string? Notice { get; private set; }
+    public (Guid Id, string Name)[] AutomaticPlans { get; private set; } = [];
     public Guid? BlockingPlanId { get; private set; }
     public string SavedInputJson { get; private set; } = "{}";
     private async Task<Guid?> Actor(CancellationToken token, bool write)
@@ -38,6 +39,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
         Items = await processes.ItemsAsync(actor, token);
         if (id == null) return;
         Editor = await processes.ReadAsync(actor, id.Value, token);
+        AutomaticPlans = await plans.AutomaticPlansAsync(actor, id.Value, token);
         if (Editor.Process.IsGeneral) return;
         var submitted = Input;
         {
@@ -51,7 +53,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
             Input.Schedule, Input.Name, Input.Description, Input.StartKind, Input.FirstMonth, Input.WindowFromDay,
             Input.WindowThroughDay, Input.PreferredWeekDay, Input.StartHour,
             Steps = Input.Steps.Select(s => new { s.TaskId, s.Position, s.Action, s.ReleaseCondition,
-                s.MinimumStartOffsetHours, s.ReturnToPosition, s.Instructions, s.OutputItemId, s.OutputTargetTaskId, s.IsFinalAudit })
+                s.MinimumStartOffsetHours, s.ReturnToPosition, s.Instructions, s.OutputItemId, s.InputCountSourceTaskId, s.IsFinalAudit })
         });
         if (preserveInput) Input = submitted;
         Candidates = (await tasks.ListAsync(actor, token)).Where(t =>
@@ -77,7 +79,11 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
     }
     public Task<IActionResult> OnPostAddAsync(Guid taskId, long taskRevision, CancellationToken token) => Write(token, () => processes.AddTaskAsync(UserId, Input.Id, Input.Revision, taskId, taskRevision, token));
     public Task<IActionResult> OnPostPublishAsync(CancellationToken token) => Write(token, () => processes.PublishAsync(UserId, Input.Id, Input.Revision, token), "published");
-    public Task<IActionResult> OnPostEnableAsync(bool enabled, CancellationToken token) => Write(token, () => processes.SetEnabledAsync(UserId, Input.Id, Input.Revision, enabled, token), enabled ? "enabled" : "disabled");
+    public Task<IActionResult> OnPostEnableAsync(bool enabled, CancellationToken token) => Write(token, async () => {
+        await processes.SetEnabledAsync(UserId, Input.Id, Input.Revision, enabled, token);
+        if (enabled) foreach (var plan in await plans.AutomaticPlansAsync(UserId, Input.Id, token))
+            await plans.RetryAutomaticAsync(UserId, plan.Id, token);
+    }, enabled ? "enabled" : "disabled");
     public Task<IActionResult> OnPostAbandonAsync(bool confirmed, CancellationToken token) => Write(token, () => confirmed ? processes.AbandonAsync(UserId, Input.Id, Input.Revision, token) : Task.FromException(new DirectionPlanException("PROCESS_INVALID", 422)));
     public Task<IActionResult> OnPostDeleteAsync(bool confirmed, CancellationToken token) => Write(token,
         () => confirmed ? processes.DeleteAsync(UserId, Input.Id, Input.Revision, token) : Task.FromException(new DirectionPlanException("PROCESS_DELETE_CONFIRMATION_REQUIRED", 422)), "deleted");
@@ -92,6 +98,7 @@ public sealed class ProcessesModel(IRazorSessionState sessions, OperationalProce
             await action(); return notice == "deleted" ? RedirectToPage(new { notice }) : RedirectToPage(new { id = Input.Id, notice }); }
         catch (DirectionPlanException e) {
             Response.StatusCode = e.Status; Error = IndexModel.Message(e.Code);
+            if (e.Data["CountConflict"] is string countConflict) Error = countConflict;
             if (e.Data["TaskConflicts"] is ProcessMembershipConflict[] conflicts)
             {
                 TaskConflicts = conflicts;

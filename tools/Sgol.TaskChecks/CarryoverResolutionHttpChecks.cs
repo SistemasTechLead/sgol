@@ -19,7 +19,7 @@ using Sgol.Web.Presentation.Navigation;
 
 internal static class CarryoverResolutionHttpChecks
 {
-    public static async Task Run(SgolDbContext db, QaFixtures.Actors fixture, CorrectionSchedulingChecks.Clock clock)
+    public static async Task Run(SgolDbContext db, QaFixtures.Actors fixture, CorrectionSchedulingChecks.Clock clock, Func<Task>? checks = null, bool directorMyWork = false)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (!File.Exists(Path.Combine(root.FullName, "SistemaSGOL.slnx"))) root = root.Parent!;
@@ -38,7 +38,7 @@ internal static class CarryoverResolutionHttpChecks
         // This isolated test host explicitly substitutes authentication; product forms, CSRF,
         // authorization services, transaction boundaries and SQL persistence remain real.
         builder.Services.AddScoped<IRazorSessionState>(sp=>sp.GetRequiredService<IHttpContextAccessor>().HttpContext!.Request.Path.StartsWithSegments("/mi-trabajo")
-            ? new CheckSession(fixture.Worker,fixture.Person,CanonicalRole.SalesFloor) : new CheckSession(fixture.Director,directorPerson));
+            ? new CheckSession(fixture.Worker,fixture.Person,directorMyWork ? CanonicalRole.Direction : CanonicalRole.SalesFloor) : new CheckSession(fixture.Director,directorPerson));
         await using var app=builder.Build();
         app.Use(async(ctx,next)=>{var actor=ctx.Request.Path.StartsWithSegments("/mi-trabajo")?fixture.Worker:fixture.Director;ctx.User=new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier,actor.ToString())],"TEST_ONLY"));await next();});
         var taskCode = await db.OperationalTasks.Where(t => t.Id == fixture.Definition).Select(t => t.TaskCode).SingleAsync();
@@ -46,6 +46,7 @@ internal static class CarryoverResolutionHttpChecks
         app.UseStaticFiles();app.MapRazorPages();await app.StartAsync();
 
         Console.WriteLine("RESOLUTION_UI_READY https://localhost:7291/validaciones");
-        await app.WaitForShutdownAsync();
+        if (checks == null) await app.WaitForShutdownAsync();
+        else { try { await checks(); } finally { await app.StopAsync(); } }
     }
 }

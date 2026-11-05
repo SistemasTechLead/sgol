@@ -23,6 +23,7 @@ public sealed class OperationalSequence
 // A published version is immutable. Editing creates another version.
 public sealed class OperationalSequenceVersion
 {
+    public int CountSemanticsVersion { get; set; }
     public string? StartScheduleJson { get; set; }
     public int? AgendaVersion { get; set; }
     public Guid Id { get; set; }
@@ -46,6 +47,7 @@ public sealed class OperationalSequenceVersion
 
 public sealed class OperationalSequenceStep
 {
+    public Guid? InputCountSourceTaskId { get; set; }
     public Guid? OutputItemId { get; set; }
     public Guid? OutputTargetTaskId { get; set; }
     public bool IsFinalAudit { get; set; }
@@ -64,6 +66,7 @@ public sealed class OperationalSequenceStep
 
 public sealed class OperationalSequenceRun
 {
+    public int CountSemanticsVersion { get; set; }
     public bool UsesTaskEvidence { get; set; }
     public Guid Id { get; set; }
     public Guid VersionId { get; set; }
@@ -88,6 +91,7 @@ public sealed class OperationalSequenceRun
 // is inserted while a stage is waiting or has an expired fixed deadline.
 public sealed class OperationalSequenceStage
 {
+    public Guid? InputCountSourceTaskId { get; set; }
     public Guid? OutputItemRateId { get; set; }
     public string? OutputItemName { get; set; }
     public int? OutputItemMinutes { get; set; }
@@ -117,7 +121,7 @@ public sealed class OperationalSequenceStage
     public string? SpecializationName { get; set; }
     public int LoadMinutes { get; set; }
     public int MinimumPhotos { get; set; } = 1;
-    public int MaximumPhotos { get; set; } = 20;
+    public int MaximumPhotos { get; set; } = 50;
     public long MaximumPhotoBytes { get; set; } = 31457280;
     public string Status { get; set; } = "EN_ESPERA";
     public Guid? CurrentAttemptId { get; set; }
@@ -248,7 +252,7 @@ internal static class OperationalSequenceSchema
         stage.Property(s => s.OperationalCriticality).HasMaxLength(12);
         stage.HasOne<OperationalSchedulingPolicy>().WithMany().HasForeignKey(s => s.SchedulingPolicyId).OnDelete(DeleteBehavior.Restrict);
         stage.ToTable("operational_sequence_stage", t => {
-            t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
+            t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 50 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 50 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
             t.HasCheckConstraint("CK_sequence_stage_dates", "\"PlannedDueAt\" > \"PlannedStartsAt\" AND ((\"EnabledAt\" IS NULL AND \"EffectiveDueAt\" IS NULL) OR (\"EnabledAt\" IS NOT NULL AND \"EligibleAt\" IS NOT NULL AND \"EffectiveDueAt\" IS NOT NULL AND \"EffectiveDueAt\" > \"EnabledAt\" AND \"EnabledAt\" >= \"EligibleAt\"))");
             t.HasCheckConstraint("CK_sequence_stage_state", "\"Status\" IN ('EN_ESPERA','PROGRAMADA','DISPONIBLE','PENDIENTE_ASIGNACION','FUERA_DE_PLAZO','CONCLUIDA','CANCELADA','OMITIDA','PENDIENTE_REPROGRAMACION') AND (\"Status\" NOT IN ('DISPONIBLE','CONCLUIDA') OR (\"CurrentAttemptId\" IS NOT NULL AND \"EnabledAt\" IS NOT NULL))");
             t.HasCheckConstraint("CK_sequence_stage_dependency", "(\"DependencySatisfiedAt\" IS NULL AND \"DependencyEventId\" IS NULL) OR (\"DependencySatisfiedAt\" IS NOT NULL AND \"DependencyEventId\" IS NOT NULL)");

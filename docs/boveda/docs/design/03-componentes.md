@@ -57,11 +57,11 @@ Fuentes: [desktop-workspace.js](../../../../src/Sgol.Web/wwwroot/js/desktop-work
 
 ## Ayuda y mensajes
 
-La ayuda de cabecera se abre con un botón de información de 44 × 44 px y un icono de 17 px. Su panel es flotante, no modal, con fondo ligeramente transparente y desenfoque; se posiciona dentro del espacio disponible. Contiene la descripción y las ayudas generales de la pantalla. Los errores, instrucciones de campos y consecuencias de confirmaciones permanecen en su contexto operativo.
+Las pantallas operativas no muestran ayuda general de cabecera ni su botón de información. Los errores, instrucciones de campos y consecuencias de confirmaciones permanecen en su contexto operativo.
 
 `_ProblemAlert` presenta título, explicación y detalles técnicos desplegables cuando existe identificador. `_SuccessAlert` anuncia el resultado con `role="status"`. `_EmptyState` reúne título, explicación opcional y acción opcional. `_ValidationSummary` concentra errores de formulario. `_StatusBadge` combina icono y texto con una variante semántica.
 
-Fuentes: [ayuda de cabecera](../../../../src/Sgol.Web/wwwroot/js/desktop-workspace.js), [_ProblemAlert](../../../../src/Sgol.Web/Pages/Shared/_ProblemAlert.cshtml), [_EmptyState](../../../../src/Sgol.Web/Pages/Shared/_EmptyState.cshtml).
+Fuentes: [presentación operativa](../../../../src/Sgol.Web/wwwroot/css/desktop-workspace.css), [_ProblemAlert](../../../../src/Sgol.Web/Pages/Shared/_ProblemAlert.cshtml), [_EmptyState](../../../../src/Sgol.Web/Pages/Shared/_EmptyState.cshtml).
 
 ## Diálogos
 
@@ -72,6 +72,8 @@ El mecanismo compartido abre por `data-dialog-open`, enfoca `data-initial-focus`
 Fuentes: [components.js](../../../../src/Sgol.Web/wwwroot/js/components.js), [components.css](../../../../src/Sgol.Web/wwwroot/css/components.css), [_MotivatedConfirmation](../../../../src/Sgol.Web/Pages/Shared/_MotivatedConfirmation.cshtml).
 
 ## Evidencias y contenido enriquecido
+
+Los campos de mínimo y máximo de imágenes del catálogo y de tareas ocasionales admiten 1–50. La captura y las galerías utilizan el límite de la asignación; los registros anteriores no adoptan 50 automáticamente.
 
 Las descripciones e instrucciones se presentan mediante `_Markdown`. Admite formato de texto, listas y tablas; el HTML está deshabilitado, las imágenes se representan mediante su texto alternativo y los enlaces activos se limitan a HTTP, HTTPS y correo. La edición conserva el texto Markdown original.
 

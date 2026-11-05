@@ -12,18 +12,20 @@ public static class CapacityRuleChecks
             LoadMinutes = 200 };
         CapacityWorker[] workers = [new(person, "Persona", "P", "PISO_VENTAS", null, null)];
         var ledger = new CapacityLedger(workers, [], [], [(person, day.AddDays(1))], [], day);
-        Check(ledger.DayCapacity(person, day) == 240, "Normal day provides 240 minutes");
+        Check(ledger.DayCapacity(person, day) == 360, "Normal day provides 360 minutes");
         Check(ledger.CanFit(person, task), "A 200-minute task now fits");
-        task.LoadMinutes = 241;
-        Check(!ledger.CanFit(person, task), "A task above 240 minutes is still blocked");
+        task.LoadMinutes = 360;
+        Check(ledger.CanFit(person, task), "Six hours fit exactly");
+        task.LoadMinutes = 361;
+        Check(!ledger.CanFit(person, task), "A task above 360 minutes is still blocked");
         Check(ledger.DayCapacity(person, day.AddDays(1)) == 0, "Unavailable day stays at zero");
         ledger.Override = new(person, day, day, 50, 240, "Media capacidad");
-        Check(ledger.DayCapacity(person, day) == 120 && ledger.DayCapacity(person, day.AddDays(2)) == 240,
-            "Percentage reduction expires back to 240");
+        Check(ledger.DayCapacity(person, day) == 120 && ledger.DayCapacity(person, day.AddDays(2)) == 360,
+            "Existing 240-minute adjustment retains its percentage and expires back to 360");
         var saved = new CapacityLedger(workers, [], [new() { PersonId = person, From = day, Through = day, DailyMinutes = 100, Percent = 75 }], [], [], day);
         Check(saved.DayCapacity(person, day) == 75, "Explicit individual setting is preserved");
-        Check(new OperationalCapacity().DailyMinutes == 240 && new CapacityForm().DailyMinutes == 240,
-            "New settings and supervision forms start at 240");
+        Check(new OperationalCapacity().DailyMinutes == 360 && new CapacityForm().DailyMinutes == 360,
+            "New settings and supervision forms start at 360");
     }
 
     private static void Check(bool condition, string message)

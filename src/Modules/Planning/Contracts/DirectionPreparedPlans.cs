@@ -28,7 +28,7 @@ public sealed record OperationalAssignmentDetails(Guid Id, string TaskCode, stri
     Guid? PlanId = null, string? PlanName = null, string? PlanPeriodType = null,
     DateOnly? PlanStartsOn = null, DateOnly? PlanEndsOn = null,
     string ScheduleMode = "DISTRIBUIDA", int GoalUnits = 0, int ProgressUnits = 0, string ProgressUnit = "unidades", long Revision = 1,
-    Guid? SpecializationId = null, string? SpecializationName = null, int MinimumPhotos = 1, int MaximumPhotos = 20, long MaximumPhotoBytes = 31457280,
+    Guid? SpecializationId = null, string? SpecializationName = null, int MinimumPhotos = 1, int MaximumPhotos = 50, long MaximumPhotoBytes = 31457280,
     Guid? OccasionId = null, string? Description = null, string? TemporalPolicyJson = null, string? TemporalDecisionJson = null, string? OperationalCriticality = null, DateTimeOffset? NominalStartsAt = null, Guid? SchedulingPolicyId = null,
     int? TransferRemainingMinutes = null, int TransferProgressUnits = 0, string ChecklistJson = "[]", string ChecklistDraftJson = "null")
 {

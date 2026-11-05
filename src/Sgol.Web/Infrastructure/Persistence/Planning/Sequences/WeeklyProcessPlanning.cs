@@ -19,7 +19,8 @@ internal static class WeeklyProcessPlanning
         var selected = published.Where(p => ProcessStartSchedule.Read(p.Version.StartScheduleJson).WeeklyOperations).ToArray();
         var ids = selected.Select(p => p.Version.Id).ToArray();
         var steps = await db.Set<OperationalSequenceStep>().AsNoTracking().Where(s => ids.Contains(s.VersionId)).OrderBy(s => s.Position).ToArrayAsync(token);
-        return selected.Select(p => new WeeklyProcessDefinition(p.Root, p.Version, steps.Where(s => s.VersionId == p.Version.Id).ToArray())).ToArray();
+        return selected.Select(p => new WeeklyProcessDefinition(p.Root, p.Version, steps.Where(s => s.VersionId == p.Version.Id).ToArray()))
+            .Where(p => p.Version.CountSemanticsVersion < ProcessCountSources.CurrentVersion || !p.Steps.Any(s => s.OutputItemId != null)).ToArray();
     }
     internal static async Task<PreparedProcessStart[]> PreviewAsync(SgolDbContext db, WeeklyProcessDefinition[] definitions,
         DateOnly from, DateOnly through, CapacityLedger ledger, OperationalSchedulingPolicy policy, DateTimeOffset now, CancellationToken token)
@@ -36,7 +37,8 @@ internal static class WeeklyProcessPlanning
             foreach (var start in starts)
             {
                 var key = $"C:{definition.Root.Id:N}:{WeekContract.LocalToday(start):yyyyMMdd}";
-                if (await db.Set<PreparedProcessStart>().AnyAsync(s => s.StartKey == key, token) || await db.Set<OperationalSequenceRun>().AnyAsync(r => r.StartKey == key, token))
+                var dayFrom = OperationalSchedule.Instant(WeekContract.LocalToday(start)); var dayThrough = dayFrom.AddDays(1);
+                if (await db.Set<PreparedProcessStart>().AnyAsync(s => s.StartKey == key || s.ProcessId == definition.Root.Id && s.StartsAt >= dayFrom && s.StartsAt < dayThrough, token) || await db.Set<OperationalSequenceRun>().AnyAsync(r => r.StartKey == key, token))
                     throw new DirectionPlanException("PLAN_OCCURRENCES_RESERVED", 422) { Data = { ["ProcessName"] = definition.Version.Name, ["ProcessDay"] = WeekContract.LocalToday(start) } };
                 var input = new ProcessPlanInput { Key = definition.Version.Id, People = definition.Steps.ToDictionary(s => s.Position, _ => Guid.Empty) };
                 var notBefore = OperationalSchedule.Instant(ledger.Today);
@@ -48,6 +50,7 @@ internal static class WeeklyProcessPlanning
                     ledger = ledger.WithAdded(assignment);
                 }
                 result.Add(new PreparedProcessStart { Id = Guid.CreateVersion7(), ProcessId = definition.Root.Id, VersionId = definition.Version.Id,
+                    CountSourcesJson = definition.Version.CountSemanticsVersion >= ProcessCountSources.CurrentVersion ? JsonSerializer.Serialize(ProcessCountSources.FromSteps(definition.Steps)) : null,
                     StartKey = key, StartsAt = start, Participants = JsonSerializer.Serialize(people), AgendaJson = JsonSerializer.Serialize(agenda),
                     ItemRatesJson = JsonSerializer.Serialize(await ProcessItemRules.CaptureAsync(db, definition.Steps, token)) });
             }

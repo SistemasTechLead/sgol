@@ -3,12 +3,13 @@
 @using Sgol.Web.Infrastructure.Persistence.Planning
 @using Sgol.Web.Infrastructure.Persistence.Reporting
 @{ ViewData["Title"] = "Petición de arrastre"; }
-<header class="encabezado-pagina"><div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Petición de arrastre</h1><p class="encabezado-pagina__descripcion">Selecciona tareas vencidas para solicitar su posposición. El supervisor inmediato debe autorizar el cambio.</p></div><partial name="_SectionNavigation" model='@("my-work")' /></header>
+<header class="encabezado-pagina"><div class="encabezado-pagina__contenido"><h1 class="encabezado-pagina__titulo">Petición de arrastre</h1><p class="encabezado-pagina__descripcion">@(Model.AutoApproveOwn ? "Selecciona tareas vencidas y revisa la propuesta antes de aplicarla." : "Selecciona tareas vencidas para solicitar su posposición. El supervisor inmediato debe autorizar el cambio.")</p></div><partial name="_SectionNavigation" model='@("my-work")' /></header>
 <link rel="stylesheet" href="~/css/carryover.css" asp-append-version="true" />
 @if(Model.Error != null) { <p class="alerta alerta--peligro" role="alert">@Model.Error</p> }
 @if(Model.Success != null) { <p class="alerta alerta--exito" role="status">@Model.Success</p> }
 <form method="post" id="postponement-form" data-postponement class="panel-seccion">
     <h2>Tareas vencidas</h2>
+    @if(Model.AutoApproveOwn) { <p>Al confirmar tu petición como Dirección, se autoriza y aplica automáticamente. No requiere otra aprobación en Supervisión.</p> }
     <p>La propuesta buscará espacios desde mañana: hasta un mes desde la solicitud para tareas mensuales y hasta siete días para las demás. El límite adicional elegido se respeta en ambos casos. Los días sin plan semanal usarán como estimación la carga del último día equivalente hasta hoy.</p>
     @if(Model.Overdue.Length == 0) { <p>No tienes tareas vencidas pendientes.</p> }
     else {
@@ -48,7 +49,7 @@
         <button asp-page-handler="PreviewPostponement" class="boton boton--secundario">Preparar petición</button>
         @if(Model.Postponement is { Conflicts.Length: 0 }) {
             <input asp-for="PostponeFingerprint" type="hidden" />
-            <button asp-page-handler="SubmitPostponement" data-postponement-submit class="boton boton--primario">Enviar petición al supervisor</button>
+            <button asp-page-handler="SubmitPostponement" data-postponement-submit class="boton boton--primario">@(Model.AutoApproveOwn ? "Confirmar y aplicar arrastre" : "Enviar petición al supervisor")</button>
         }
         <small data-selection-changed hidden>La selección o el motivo cambió. Prepara otra vez la petición.</small>
     </aside>
@@ -67,8 +68,8 @@
         @foreach(var conflict in preview.Conflicts) { <p class="alerta alerta--peligro" role="alert">@conflict</p> }
         <partial name="~/Pages/Shared/_CarryoverItems.cshtml" model="preview.Items" />
         @if(preview.Conflicts.Length == 0) {
-            <p>Enviar no cambia cierres ni estados. Las tareas pueden seguir vencidas incluso con el plazo propuesto.</p>
-            <input asp-for="Fingerprint" type="hidden" /><button asp-page-handler="Submit" class="boton boton--primario">Aceptar y enviar</button>
+            <p>@(Model.AutoApproveOwn ? "Confirmar autoriza y aplica los vencimientos propuestos." : "Enviar no cambia cierres ni estados.") Las tareas pueden seguir vencidas incluso con el plazo propuesto.</p>
+            <input asp-for="Fingerprint" type="hidden" /><button asp-page-handler="Submit" class="boton boton--primario">@(Model.AutoApproveOwn ? "Confirmar y aplicar arrastre" : "Aceptar y enviar")</button>
         }
     }
 </form>

@@ -52,8 +52,16 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
         var preparedAssignments = capturedAgenda == null ? null : JsonSerializer.Deserialize<OperationalAssignment[]>(capturedAgenda);
         var preparedRates = preparedPlanId is {} ratesPlan ? await db.Set<PreparedProcessStart>().AsNoTracking().Where(p => p.PlanId == ratesPlan && p.StartKey == startKey).Select(p => p.ItemRatesJson).SingleOrDefaultAsync(token) : null;
         var itemRates = preparedPlanId != null ? preparedRates == null ? [] : JsonSerializer.Deserialize<Dictionary<int, ProcessItemSnapshot>>(preparedRates)! : await ProcessItemRules.CaptureAsync(db, steps, token);
+        var sourceJson = preparedPlanId is {} sourcePlan ? await db.Set<PreparedProcessStart>().AsNoTracking()
+            .Where(p => p.PlanId == sourcePlan && p.StartKey == startKey).Select(p => p.CountSourcesJson).SingleOrDefaultAsync(token) : null;
+        var countSources = version.CountSemanticsVersion >= ProcessCountSources.CurrentVersion
+            ? ProcessCountSources.Validate(steps, ProcessCountSources.Read(sourceJson)) : new Dictionary<Guid, Guid>();
+        if (version.CountSemanticsVersion >= ProcessCountSources.CurrentVersion &&
+            !countSources.OrderBy(p => p.Key).SequenceEqual(ProcessCountSources.FromSteps(steps).OrderBy(p => p.Key)))
+            throw ProcessCountSources.Invalid("El plan no conserva los orígenes de la versión publicada. Vuelve a preparar el plan antes de iniciar.");
         if(preparedPlanId==null) db.Add(plan);
         var run = new OperationalSequenceRun { Id = Guid.CreateVersion7(), VersionId = version.Id, PlanId = plan.Id,
+            CountSemanticsVersion = version.CountSemanticsVersion,
             UsesTaskEvidence = tasks.Any(t => t.Requirement != "DOCUMENTO"),
             Name = version.Name, StartKey = startKey, PlannedStartsAt = starts, CreatedAt = clock.UtcNow, CreatedBy = actor }; db.Add(run);
         var ledger = await OperationalCapacityService.LedgerAsync(db, clock.UtcNow, token);
@@ -65,6 +73,7 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
         {
             var task = tasks[i]; var rule=steps[i]; task.Validate();
             var stage = new OperationalSequenceStage { Id=Guid.CreateVersion7(), RunId=run.Id, VersionId=version.Id, Position=rule.Position,
+                InputCountSourceTaskId = countSources.TryGetValue(task.Id, out var countSource) ? countSource : null,
                 TaskId=task.Id, TaskRevision=task.Revision, DefinitionSnapshotJson=AssignmentDefinition.Capture(task), TaskCode=task.TaskCode, Name=task.Name, Description=task.Description, Role=task.AssignedRole, Requirement=task.Requirement, ChecklistJson = task.ChecklistJson,
                 SpecializationId=task.SpecializationId, LoadMinutes=task.LoadMinutes, MinimumPhotos=task.MinimumPhotos, MaximumPhotos=task.MaximumPhotos,
                 MaximumPhotoBytes=task.MaximumPhotoBytes, PlannedStartsAt=planned, PlannedDueAt=planned.AddHours(rule.DeadlineHours),
@@ -199,8 +208,20 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
         if (capacityResolution is "LOWEST" or "FORCE" && !ProcessItemRules.CanResolve(stage.Role)) throw Error("ACCESO_DENEGADO",403);
         if (decision != "DEVOLUCION" && stage.OutputItemRateId != null) ProcessItemRules.Calculate(itemQuantity, stage.OutputItemMinutes!.Value);
         else if (decision != "DEVOLUCION" && (itemQuantity != null || !string.IsNullOrEmpty(capacityResolution))) throw Error("PROCESS_ITEM_QUANTITY_INVALID");
+        var selectedCountFingerprint = run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion && stage.OutputItemRateId != null
+            ? await SelectedCountFingerprint(run, attempt, itemQuantity, token) : null;
+        var correctionReviewed = decision != "DEVOLUCION" && await ReviewSelectedCorrection(run, stage, attempt, actor, itemQuantity, capacityResolution, capacityFingerprint, token);
         var inputDocument=attempt.InputDocumentId;
-        if(decision=="DEVOLUCION")
+        if (decision == "DEVOLUCION" && run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion &&
+            rules.Any(s => s.Position == rule.ReturnToPosition && s.OutputItemId != null))
+        {
+            OperationalSequenceRules.RequireReturn(run.Status,run.ActivePosition,stage.Position,rule.ReturnToPosition??0,rule.ReturnToPosition,conclusion,true);
+            var view = await ReadAsync(actor, runId, token);
+            var target = view.Stages.Single(s => s.Position == rule.ReturnToPosition);
+            db.Add(Event(run,stage,attempt,"DEVOLUCION",eventKey,actor,clock.UtcNow,inputDocument,conclusion.Trim()));
+            await ReturnSelectedCount(run, view, view.Attempts.Single(a => a.Id == target.CurrentAttemptId), actor, key, conclusion.Trim(), token);
+        }
+        else if(decision=="DEVOLUCION")
         {
             OperationalSequenceRules.RequireReturn(run.Status,run.ActivePosition,stage.Position,rule.ReturnToPosition??0,rule.ReturnToPosition,conclusion,true);
             db.Add(Event(run,stage,attempt,"DEVOLUCION",eventKey,actor,clock.UtcNow,inputDocument,conclusion.Trim()));
@@ -264,10 +285,19 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
             if (run.UsesTaskEvidence && stage.Position > 1)
             {
                 var previousStage = await db.Set<OperationalSequenceStage>().Where(s => s.RunId == runId && s.Position < stage.Position && s.Status == "CONCLUIDA").OrderByDescending(s => s.Position).FirstAsync(token);
-                var previousAttempt = await db.Set<OperationalSequenceAttempt>().SingleAsync(a => a.Id == previousStage.CurrentAttemptId, token);
-                var previousAssignment = await db.OperationalAssignments.SingleAsync(a => a.Id == previousAttempt.AssignmentId, token);
-                previousAssignment.ReviewStatus = "CONCLUIDA"; previousAssignment.ReviewDecision = "CONCLUIDA";
-                previousAssignment.ReviewedAt = clock.UtcNow; previousAssignment.ReviewedBy = actor; previousAssignment.ReviewComment = conclusion.Trim(); previousAssignment.Revision++;
+                var previousAttemptId = run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion && stage.DependencyEventId != null
+                    ? await db.Set<OperationalSequenceEvent>().Where(e => e.Id == stage.DependencyEventId && e.RunId == runId).Select(e => e.AttemptId).SingleAsync(token)
+                    : previousStage.CurrentAttemptId;
+                foreach (var reviewedAttemptId in new[] { previousAttemptId, previousStage.CurrentAttemptId }.Distinct())
+                {
+                    var previousAttempt = await db.Set<OperationalSequenceAttempt>().SingleAsync(a => a.Id == reviewedAttemptId, token);
+                    var previousAssignment = await db.OperationalAssignments.SingleAsync(a => a.Id == previousAttempt.AssignmentId, token);
+                    if (run.CountSemanticsVersion < ProcessCountSources.CurrentVersion || previousAssignment.ReviewStatus != "CONCLUIDA")
+                    {
+                        previousAssignment.ReviewStatus = "CONCLUIDA"; previousAssignment.ReviewDecision = "CONCLUIDA";
+                        previousAssignment.ReviewedAt = clock.UtcNow; previousAssignment.ReviewedBy = actor; previousAssignment.ReviewComment = conclusion.Trim(); previousAssignment.Revision++;
+                    }
+                }
             }
             // Accept the exact input submission in the same transaction as the reviewer's output.
             if(inputDocument!=null)
@@ -283,10 +313,16 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
             {
                 var next=await ApplyItemCount(run, stage, attempt, actor, itemQuantity, capacityResolution, token)
                     ?? await db.Set<OperationalSequenceStage>().SingleAsync(s=>s.RunId==runId && s.Position==stage.Position+1,token);
-                if(next.OmittedByAttemptId == null && itemQuantity != 0 && !OperationalSequenceRules.Satisfies(rules[next.Position-1].ReleaseCondition,decision,"ENTREGA",true,true)) throw Error("PROCESS_RULES_INVALID");
+                var skippedByCount = run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion && next.Position > stage.Position + 1 &&
+                    await db.Set<OperationalSequenceStage>().AnyAsync(s => s.RunId == runId && s.Position > stage.Position && s.Position < next.Position && s.OmittedByAttemptId != null, token);
+                if(!skippedByCount && next.OmittedByAttemptId == null && itemQuantity != 0 && !OperationalSequenceRules.Satisfies(rules[next.Position-1].ReleaseCondition,decision,"ENTREGA",true,true)) throw Error("PROCESS_RULES_INVALID");
                 next.DependencySatisfiedAt=clock.UtcNow; next.DependencyEventId=evt.Id;
                 var nextAttempt=await db.Set<OperationalSequenceAttempt>().SingleAsync(a=>a.Id==next.CurrentAttemptId,token); nextAttempt.InputDocumentId=document; nextAttempt.UnresolvedDifferences=attempt.UnresolvedDifferences;
-                run.ActivePosition=next.Position; await db.SaveChangesAsync(token); await EnableItemRecipient(run, stage, next, attempt, actor, capacityResolution, capacityFingerprint, token);
+                run.ActivePosition=next.Position; await db.SaveChangesAsync(token);
+                if (run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion && stage.OutputItemRateId != null)
+                    await EnableSelectedRecipients(run, stage, attempt, capacityResolution, capacityFingerprint, token, correctionReviewed, selectedCountFingerprint!);
+                else if (run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion) await EnableActive(run, token);
+                else await EnableItemRecipient(run, stage, next, attempt, actor, capacityResolution, capacityFingerprint, token);
             }
         }
         db.AuditEvents.Add(new AuditEvent { Id=Guid.CreateVersion7(),OccurredAt=clock.UtcNow,ActorUserId=actor,ActorType="USER",
@@ -306,6 +342,7 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
 
     public async Task TickAsync(CancellationToken token)
     {
+        await new ProcessPlanningService(db, direction, clock, validator, scanner).AssignAutomaticAsync(token);
         await using var tx=await db.Database.BeginTransactionAsync(token); await OperationalTaskService.LockAsync(db,token);
         foreach(var run in await db.Set<OperationalSequenceRun>().Where(r=>r.Status=="EN_CURSO").ToArrayAsync(token)) await EnableActive(run,token);
         await db.SaveChangesAsync(token); await tx.CommitAsync(token);
@@ -399,9 +436,12 @@ public sealed partial class OperationalProcessService(SgolDbContext db, IDirecti
     private async Task EnableActiveCore(OperationalSequenceRun run, OperationalSequenceStage stage, CancellationToken token)
     {
         if(stage.Status is "DISPONIBLE" or "CONCLUIDA" or "CANCELADA" or "OMITIDA" or "PENDIENTE_REPROGRAMACION") return;
+        if (!await HasSelectedCount(run, stage, token)) return;
         if (stage.CalculatedLoadMinutes > 4800) { stage.Status="PENDIENTE_ASIGNACION"; stage.BlockReason=$"{stage.Name}: demanda de {stage.CalculatedLoadMinutes} min; excede el límite programable. Requiere resolución de planificación sin dividir ni ampliar turno."; return; }
         var rule=await db.Set<OperationalSequenceStep>().AsNoTracking().SingleAsync(s=>s.VersionId==run.VersionId && s.Position==stage.Position,token);
         var currentAttempt=await db.Set<OperationalSequenceAttempt>().SingleAsync(a=>a.Id==stage.CurrentAttemptId,token);
+        if (run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion && currentAttempt.AssignmentId != null && currentAttempt.Status == "ACTIVO")
+        { stage.Status = "DISPONIBLE"; stage.BlockReason = null; return; }
         var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,token);
         ledger=new(ledger.Workers,ledger.Tasks.Where(a=>a.Id!=stage.Id).ToArray(),ledger.Capacities,ledger.Unavailable,ledger.Legacy,ledger.Today) { Temporal = ledger.Temporal };
         if (stage.SchedulingPolicyId != null) { await EnableScheduledStage(run, stage, currentAttempt, ledger, token); return; }

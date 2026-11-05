@@ -230,7 +230,7 @@
                     cell.dataset.mobileDay = String(Math.floor((offset - 2) / 2));
                     cell.classList.toggle('mobile-day-hidden', table.dataset.mobileDaySelection !== '' && cell.dataset.mobileDay !== table.dataset.mobileDaySelection);
                 }
-                if (!weekly && !editable && cells.length > 3 && index !== identityIndex && !actions &&
+                if (!weekly && !editable && !table.classList.contains('report-people-table') && cells.length > 3 && index !== identityIndex && !actions &&
                     !/^(Estado|Responsable|Trabajador|Vencimiento|Inicio\s*\/|Fechas)/i.test(label)) {
                     cell.classList.add('mobile-record-secondary'); identity(cell); secondary.push(cell);
                 }

@@ -54,7 +54,7 @@ internal sealed class OperationalPhotographConfiguration : IEntityTypeConfigurat
         {
             t.HasCheckConstraint("CK_operational_photo_size", "octet_length(\"Content\") BETWEEN 1 AND 15728640 AND \"ReceivedBytes\" BETWEEN 1 AND 15728640");
             t.HasCheckConstraint("CK_operational_photo_type", "\"ContentType\" IN ('image/jpeg','image/png')");
-            t.HasCheckConstraint("CK_operational_photo_position", "\"Position\" BETWEEN 0 AND 19");
+            t.HasCheckConstraint("CK_operational_photo_position", "\"Position\" BETWEEN 0 AND 49");
         });
         b.HasKey(x => x.Id);
         b.Property(x => x.FileName).HasMaxLength(255);

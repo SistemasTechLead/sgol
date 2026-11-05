@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Sgol.Identity.Contracts;
 using Sgol.Organization.Contracts;
 using Sgol.Planning.Contracts;
 
@@ -27,7 +28,7 @@ public sealed partial class OperationalCarryoverService
         var person = await Person(actor, ct);
         var request = await db.Set<OperationalCarryoverRequest>().AsNoTracking().SingleOrDefaultAsync(r =>
             r.Id == command.RequestId && r.BranchId == BranchScope.LorettaId && r.Kind == "POSPONER", ct) ?? throw Error("TASK_NOT_FOUND", 404);
-        if (request.PersonId == person) throw Error("ACCESO_DENEGADO", 403);
+        if (request.PersonId == person && await supervision.AuthorizeAsync(actor, ct) != CanonicalRole.Direction) throw Error("ACCESO_DENEGADO", 403);
         await RequireImmediateSupervisor(actor, request.PersonId, ct);
         var item = request.Items().SingleOrDefault(i => i.AssignmentId == command.AssignmentId) ?? throw Error("TASK_NOT_FOUND", 404);
         await supervision.AuthorizeAssignmentAsync(actor, item.AssignmentId, ct);

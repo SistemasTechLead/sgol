@@ -12,6 +12,18 @@ public sealed partial class OperationalProcessService
     private static OperationalSequenceAttempt? PendingCountProducer(ProcessRunView view)
     {
         var stage=view.Stages.Single(s=>s.Position==view.Run.ActivePosition);
+        if (view.Run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion)
+        {
+            if (view.Run.Status != "EN_CURSO") return null;
+            while (stage.InputCountSourceTaskId is {} source)
+            {
+                stage = view.Stages.Single(s => s.TaskId == source);
+                var selectedProducer = view.Attempts.SingleOrDefault(a => a.Id == stage.CurrentAttemptId && a.ItemQuantity != null);
+                if (stage.Status == "CONCLUIDA" && selectedProducer != null) return selectedProducer;
+                if (stage.Status != "OMITIDA") return null;
+            }
+            return null;
+        }
         var current=view.Attempts.SingleOrDefault(a=>a.Id==stage.CurrentAttemptId);
         if(view.Run.Status!="EN_CURSO" || stage.Status is not ("PENDIENTE_ASIGNACION" or "PROGRAMADA" or "FUERA_DE_PLAZO") || current?.Status!="PREPARADO" || current.AssignmentId!=null) return null;
         var id=stage.LoadSourceAttemptId ?? view.Events.SingleOrDefault(e=>e.Id==stage.DependencyEventId)?.AttemptId;
@@ -66,6 +78,14 @@ public sealed partial class OperationalProcessService
         var producer=view.Attempts.Single(a=>a.Id==view.PendingCountProducerId);
         var target=view.Stages.Single(s=>s.Id==producer.StageId);
         var run=await db.Set<OperationalSequenceRun>().SingleAsync(r=>r.Id==runId,ct);
+        if (run.CountSemanticsVersion >= ProcessCountSources.CurrentVersion)
+        {
+            await ReturnSelectedCount(run, view, producer, actor, key, reason.Trim(), ct);
+            db.Add(new AuditEvent{Id=Guid.CreateVersion7(),ActorUserId=actor,ActorType="USER",OccurredAt=clock.UtcNow,ResourceType="OPERATIONAL_PROCESS",ResourceId=runId,
+                BranchId=BranchScope.LorettaId,Action="PROCESS_PENDING_COUNT_RETURN",RequestId=key.ToString("N"),CorrelationId=key,Outcome="SUCCESS",Reason=reason.Trim(),
+                AfterData=JsonSerializer.SerializeToDocument(new{RequestHash=hash,ProducerAttemptId=producer.Id,Quantity=producer.ItemQuantity,PendingStageId=stageId,TargetStageId=target.Id})});
+            await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return;
+        }
         var stage=await db.Set<OperationalSequenceStage>().SingleAsync(s=>s.Id==stageId,ct);
         var pendingAttempt=await db.Set<OperationalSequenceAttempt>().SingleAsync(a=>a.Id==stage.CurrentAttemptId,ct);
         db.Add(Event(run,stage,pendingAttempt,"DEVOLUCION",$"pending-count-return:{key:N}",actor,clock.UtcNow,pendingAttempt.InputDocumentId,

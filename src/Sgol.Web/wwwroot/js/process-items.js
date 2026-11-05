@@ -6,8 +6,8 @@
         const update = () => {
             const quantity = Number(input.value), minutes = Number(input.dataset.itemMinutes);
             formula.textContent = input.value !== '' && Number.isSafeInteger(quantity) && quantity >= 0
-                ? quantity === 0 ? 'Cero: omitir tareas intermedias y pasar a auditoría final, conservando su carga y entregable.'
-                    : `${quantity} × ${minutes} min = ${(BigInt(quantity) * BigInt(minutes)).toString()} min de carga siguiente.`
+                ? quantity === 0 ? (input.dataset.countSelective === 'true' ? 'Cero: omitir solo las receptoras seleccionadas. Las independientes y la auditoría continúan en orden.' : 'Cero: omitir tareas intermedias y pasar a auditoría final, conservando su carga y entregable.')
+                    : `${quantity} × ${minutes} min = ${(BigInt(quantity) * BigInt(minutes)).toString()} min por receptora seleccionada.`
                 : 'Indica una cantidad entera. Vacío no significa cero.';
         };
         input.addEventListener('input', update); update();

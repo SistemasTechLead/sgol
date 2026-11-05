@@ -75,8 +75,8 @@
                     <partial name="_ChecklistEditor" model="@Model.Input.ChecklistJson" />
                     <fieldset class="task-form__group" data-photo-limits><legend>Límites de fotografías o capturas para nuevas asignaciones</legend>
                         <div class="task-form__grid">
-                            <label class="campo task-form__number"><span class="campo__etiqueta">Mínimo de imágenes</span><input class="campo__control" asp-for="Input.MinimumPhotos" type="number" min="1" max="20" required /></label>
-                            <label class="campo task-form__number"><span class="campo__etiqueta">Máximo de imágenes</span><input class="campo__control" asp-for="Input.MaximumPhotos" type="number" min="1" max="20" required /></label>
+                            <label class="campo task-form__number"><span class="campo__etiqueta">Mínimo de imágenes</span><input class="campo__control" asp-for="Input.MinimumPhotos" type="number" min="1" max="50" required /></label>
+                            <label class="campo task-form__number"><span class="campo__etiqueta">Máximo de imágenes</span><input class="campo__control" asp-for="Input.MaximumPhotos" type="number" min="1" max="50" required /></label>
                         </div>
                         <input type="hidden" asp-for="Input.MaximumPhotoBytes" /><small class="task-form__help">Hasta 15 MiB por imagen y 30 MiB en total. Las asignaciones existentes conservan sus límites.</small>
                     </fieldset>

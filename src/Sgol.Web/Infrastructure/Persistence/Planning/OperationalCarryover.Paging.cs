@@ -11,7 +11,7 @@ public sealed partial class OperationalCarryoverService
         var ids = await supervision.VisibleIdsAsync(actor, token);
         var query = db.Set<OperationalCarryoverRequest>().FromSqlInterpolated($"""
             SELECT * FROM operational_carryover_request r
-            WHERE r."BranchId" = {BranchScope.LorettaId} AND r."PersonId" <> {person}
+            WHERE r."BranchId" = {BranchScope.LorettaId} AND ({role == CanonicalRole.Direction} OR r."PersonId" <> {person})
             AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(r."SnapshotJson") i
                 WHERE i->>'AssignmentId' IS NULL OR NOT ((i->>'AssignmentId')::uuid = ANY({ids})))
             """).AsNoTracking();

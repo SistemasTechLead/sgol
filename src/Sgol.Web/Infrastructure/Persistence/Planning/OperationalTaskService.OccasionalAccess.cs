@@ -5,7 +5,7 @@ using Sgol.Planning.Contracts;
 namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed record OccasionalTaskForm(string Name, string Requirement, int LoadMinutes, int DeadlineHours,
-    int MinimumPhotos = 1, int MaximumPhotos = 20, string? Description = null, string OperationalCriticality = "FLEXIBLE", string ChecklistJson = "[]");
+    int MinimumPhotos = 1, int MaximumPhotos = 50, string? Description = null, string OperationalCriticality = "FLEXIBLE", string ChecklistJson = "[]");
 
 public sealed partial class OperationalTaskService
 {

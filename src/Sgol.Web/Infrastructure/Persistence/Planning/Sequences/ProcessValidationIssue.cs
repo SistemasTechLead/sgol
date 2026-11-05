@@ -36,12 +36,14 @@ public sealed partial class OperationalProcessCatalogService
             Stage(s.MinimumStartOffsetHours is < 0 or > 8760, "MinimumStartOffsetHours", "Las horas de inicio mínimo deben estar entre 0 y 8760.");
             Stage(s.ReturnToPosition is { } target && (target < 1 || target >= s.Position), "ReturnToPosition", "La devolución debe apuntar a una etapa anterior.");
             Stage(s.Instructions == null || s.Instructions.Length > 4000, "Instructions", "Las instrucciones admiten hasta 4000 caracteres.");
+            Stage(s.InputCountSourceTaskId is {} origin && (s.IsFinalAudit || !input.Steps.Any(p => p.TaskId == origin && p.Position < s.Position && p.OutputItemId != null)),
+                "InputCountSourceTaskId", "Elige una etapa anterior que reporte conteo o carga propia. La auditoría final siempre conserva carga propia.");
             if (publish && positionsValid && s.Position > 1)
                 Stage(s.ReleaseCondition != (input.Steps.Single(p => p.Position == s.Position - 1).Action == "ENTREGAR" ? "ENTREGA" : "APROBACION"), "ReleaseCondition", "La entrada debe corresponder a la entrega o aprobación de la etapa anterior.");
             if (input.Steps.Any(p => p.OutputItemId != null))
             {
                 Stage(s.Position == input.Steps.Count && !s.IsFinalAudit || s.IsFinalAudit && s.Position != input.Steps.Count, "IsFinalAudit", "Con conteos, marca únicamente la última tarea como auditoría final.");
-                Stage(s.OutputItemId != null && (s.IsFinalAudit || s.Position == input.Steps.Count || input.Steps.FirstOrDefault(p => p.Position == s.Position + 1)?.TaskId != s.OutputTargetTaskId), "OutputItemId", "El conteo debe ir a la tarea inmediata siguiente. Vuelve a seleccionar el ítem; la auditoría final no produce conteo.");
+                Stage(s.OutputItemId != null && (s.IsFinalAudit || s.Position == input.Steps.Count), "OutputItemId", "La auditoría final no produce conteo. Configura el ítem en una etapa anterior; sus receptoras se eligen al preparar cada plan.");
             }
             Stage(s.IsFinalAudit && s.Position != input.Steps.Count || s.OutputItemId == null && s.OutputTargetTaskId != null, "OutputItemId", "Revisa el enlace del conteo y deja la auditoría final solo en la última etapa.");
             if (publish)

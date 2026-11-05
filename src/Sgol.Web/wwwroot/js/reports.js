@@ -221,6 +221,16 @@ window.SgolReportPdf = {
             if (chart.unit === "minutos estimados") text("Azul: carga filtrada. Arena: capacidad configurada del periodo. Carga estimada, no tiempo real trabajado.",8,[107,96,85]);
             y += 5;
         }
+        if (data.people?.length) {
+            ensure(30); text("Panel por colaborador",12,[43,37,33],true);
+            text("Tareas filtradas. Capacidad configurada del periodo completo. Cumplimiento: concluidas / total; no es el Bono de tareas.",8,[107,96,85]);
+            for (const person of data.people) {
+                ensure(32); text(`${person.name} | ${person.roles}`,9,[43,37,33],true);
+                text(`Entregadas: ${person.delivered}/${person.total} | Cumplimiento: ${person.fulfillment == null ? "Sin datos" : person.fulfillment + " %"}`,8,[107,96,85]);
+                text(`Carga / capacidad: ${person.load} / ${person.capacity ?? "No disponible"} min | Ocupación: ${person.occupancy == null ? "No disponible" : person.occupancy + " %"} | Pendientes: ${person.pending} | ${person.state}`,8,[107,96,85]);
+                y += 3;
+            }
+        }
         if (!data.rows.length) text("No hay tareas para esta consulta.",11,[107,96,85],true);
         if (mode === "full" && data.rows.length) {
             // Column bands keep wide custom reports readable; long rows continue on subsequent pages.

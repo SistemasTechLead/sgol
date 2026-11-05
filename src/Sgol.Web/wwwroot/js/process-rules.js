@@ -78,13 +78,13 @@
                 FirstMonth: value('FirstMonth'), WindowFromDay: value('WindowFromDay'), WindowThroughDay: value('WindowThroughDay'),
                 PreferredWeekDay: value('PreferredWeekDay'), StartHour: value('StartHour'),
                 Steps: stages().map(row => Object.fromEntries(['TaskId', 'Position', 'Action', 'ReleaseCondition',
-                    'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions', 'OutputItemId', 'OutputTargetTaskId', 'IsFinalAudit'].map(key => [key, field(row, key)?.value ?? '']))) };
+                    'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions', 'OutputItemId', 'InputCountSourceTaskId', 'IsFinalAudit'].map(key => [key, field(row, key)?.value ?? '']))) };
         };
         const canonical = input => JSON.stringify([
             String(input.Name ?? '').trim(), String(input.Description ?? '').trim(), input.StartKind,
             ...(['SEMANAL', 'MENSUAL', 'TRIMESTRAL', 'ANUAL'].includes(input.StartKind) ? [input.Schedule?.Mode, String(input.Schedule?.Repetitions ?? 1), String(input.Schedule?.WeekDays ?? 0), input.Schedule?.MonthDays ?? '', String(input.Schedule?.Time ?? '').slice(0,5), !!input.Schedule?.WeeklyOperations] : []),
             ...(input.StartKind === 'SEMESTRAL' ? ['FirstMonth', 'WindowFromDay', 'WindowThroughDay', 'PreferredWeekDay', 'StartHour'].map(k => String(input[k] ?? '')) : []),
-            (input.Steps || []).map(row => ['TaskId', 'Position', 'Action', 'ReleaseCondition', 'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions', 'OutputItemId', 'OutputTargetTaskId', 'IsFinalAudit'].map(k => String(row[k] ?? '').trim()))
+            (input.Steps || []).map(row => ['TaskId', 'Position', 'Action', 'ReleaseCondition', 'MinimumStartOffsetHours', 'ReturnToPosition', 'Instructions', 'OutputItemId', 'InputCountSourceTaskId', 'IsFinalAudit'].map(k => String(row[k] ?? '').trim()))
         ]);
         let baseline = canonical(read());
         if (form.dataset.processSaved) baseline = canonical(JSON.parse(form.dataset.processSaved));
@@ -109,29 +109,22 @@
             const summary = form.querySelector('[data-process-settings-summary]');
             if (summary) summary.textContent = `${read().Name} · ${startKind.selectedOptions[0].textContent}`;
         };
-        form.addEventListener('change', event => {
-            if (!event.target.matches('[data-output-item]')) return;
-            const row = event.target.closest('[data-process-stage]'), ordered = stages();
-            const following = ordered[ordered.indexOf(row) + 1];
-            field(row, 'OutputTargetTaskId').value = event.target.value && following ? field(following, 'TaskId').value : '';
-            updateEntries(); updateDirty();
-        });
         const updateEntries = () => {
             const ordered = stages();
             const count = form.querySelector('[data-process-stage-count]'), load = form.querySelector('[data-process-load]');
             if (count) count.textContent = String(ordered.length);
             if (load) load.textContent = String(ordered.reduce((sum, row) => sum + Number(row.dataset.processLoadMinutes || 0), 0));
             ordered.forEach((row, index) => {
-                const item = field(row, 'OutputItemId'), destination = field(row, 'OutputTargetTaskId');
-                if (item && destination) {
-                    const nextTask = ordered[index + 1];
-                    if (!item.value) destination.value = '';
-                    // Keep the destination identity after reordering; a changed neighbour requires explicit reselection.
-                    row.querySelector('[data-output-description]').textContent = item.value
-                        ? `La cantidad reportada calculará la carga de ${nextTask?.querySelector('.process-stage-title strong')?.textContent || 'ninguna tarea: revisa el enlace'}.`
-                        : 'Sin conteo de salida. La carga estimada se conserva.';
-                    item.setCustomValidity(item.value && (!nextTask || destination.value !== field(nextTask, 'TaskId').value) ? 'El destino inmediato cambió. Vuelve a seleccionar el ítem para confirmar el nuevo enlace.' : '');
-                }
+                const item = field(row, 'OutputItemId');
+                item?.setCustomValidity(item.value && (index === ordered.length - 1 || field(row, 'IsFinalAudit').value === 'true') ? 'La auditoría final no produce conteo.' : '');
+                const source = field(row, 'InputCountSourceTaskId'), chosen = source.value;
+                const origins = ordered.slice(0, index).filter(r => field(r, 'OutputItemId').value);
+                source.replaceChildren(new Option('Sin conteo · usar carga propia', ''));
+                origins.forEach(origin => source.add(new Option(`Etapa ${ordered.indexOf(origin) + 1} · ${origin.querySelector('.process-stage-title strong').textContent} · ${field(origin, 'OutputItemId').selectedOptions[0].textContent}`, field(origin, 'TaskId').value)));
+                const validOrigin = !chosen || origins.some(origin => field(origin, 'TaskId').value === chosen);
+                if (!validOrigin) source.add(new Option('Origen no disponible: revisa la etapa seleccionada', chosen));
+                source.value = chosen;
+                source.setCustomValidity(!validOrigin ? 'El origen fue retirado, dejó de reportar conteo o ya no es anterior. Elige otro origen o carga propia.' : chosen && field(row, 'IsFinalAudit').value === 'true' ? 'La auditoría final conserva su carga propia; quita el origen de conteo.' : '');
                 const entry = field(row, 'ReleaseCondition');
                 entry.value = index === 0 ? 'INICIO' : field(ordered[index - 1], 'Action').value === 'ENTREGAR' ? 'ENTREGA' : 'APROBACION';
                 const target = field(row, 'ReturnToPosition');
@@ -215,11 +208,7 @@
                     field(item, 'Position').max = String(stages().length);
                     const target = returns.get(item);
                     field(item, 'ReturnToPosition').value = target && target !== row ? String(stages().indexOf(target) + 1) : '';
-                    // Do not redirect a count to a different recipient automatically.
-                    if (field(item, 'OutputTargetTaskId')?.value === removedId) {
-                        field(item, 'OutputItemId').value = '';
-                        field(item, 'OutputTargetTaskId').value = '';
-                    }
+                    // Preserve count source identity so affected recipients require an explicit choice.
                     item.querySelectorAll('[name], [id], label[for]').forEach(control => {
                         for (const attribute of ['name', 'id', 'for']) {
                             if (control.hasAttribute(attribute)) control.setAttribute(attribute, control.getAttribute(attribute)
@@ -229,7 +218,7 @@
                     });
                 });
                 updateEntries(); updateDirty(); updateFlow();
-                if (status) status.textContent = `${name} retirada del borrador. Se quitaron las devoluciones y conteos dirigidos a ella. Revisa las acciones inicial y final; guarda para aplicar.`;
+                if (status) status.textContent = `${name} retirada del borrador. Revisa los orígenes de conteo afectados y las acciones inicial y final antes de guardar.`;
                 (stages()[Math.min(ordered.indexOf(row), stages().length - 1)]?.querySelector('[data-process-edit]') || addSlot?.querySelector('button'))?.focus();
             });
             const position = field(row, 'Position');

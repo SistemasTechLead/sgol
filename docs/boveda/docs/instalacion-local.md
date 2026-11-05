@@ -2,7 +2,7 @@
 categoria: infraestructura
 tipo: procedimiento
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-04
+ultima_verificacion: 2026-11-05
 verificado_en: procesos-puertos-y-scripts
 ---
 
@@ -35,9 +35,9 @@ La instalación es de desarrollo y simulación operativa. Local y LAN pueden com
 
 ## Topología observada
 
-En la comprobación del 04/11/2026, el lanzador Web ejecuta `scripts/run-local.ps1 -Service web -Red -BinaryPath` con:
+En la comprobación del 05/11/2026, el lanzador Web ejecuta `scripts/run-local.ps1 -Service web -Red -BinaryPath` con:
 
-`C:\Users\siste\Dev\SistemaSGOL\.local\runtime\supervision-direct-20261104\Sgol.Web.dll`
+`C:\Users\siste\Dev\SistemaSGOL\.local\runtime\images50-20261105\Sgol.Web.dll`
 
 La Web escucha en `127.0.0.1:7241`. El proxy atiende `https://localhost:7240` y `https://192.168.1.92:7440`; el puerto LAN 7443 corresponde al circuito de almacenamiento del proxy. La dirección LAN es una observación, no una dirección garantizada permanentemente.
 
@@ -72,4 +72,4 @@ Informar qué se reinició o actualizó, publicación utilizada, comprobaciones 
 - [Proxy LAN](../../../tools/Sgol.LanProxy/Program.cs).
 - [Seguridad](funcional/seguridad.md) y [protocolo de implementación](desarrollo/PROTOCOLO_IMPLEMENTACION.md).
 
-Se verificaron procesos, listeners y scripts mediante lectura. La actualización de Web del 04/11/2026 se comprobó con el proceso efectivo y respuestas 200 de readiness interno y acceso local/LAN; el proxy se conservó. El estado efectivo debe comprobarse de nuevo al realizar la operación.
+Se verificaron procesos, listeners y scripts mediante lectura. La actualización de Web del 05/11/2026 se comprobó con el proceso efectivo y respuestas 200 de readiness interno y acceso local/LAN; el proxy se conservó. El estado efectivo debe comprobarse de nuevo al realizar la operación.

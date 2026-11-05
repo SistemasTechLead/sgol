@@ -1,0 +1,17 @@
+@model Sgol.Identity.Contracts.SessionSnapshot
+@inject Sgol.Web.Presentation.Authentication.RazorAntiforgeryBridge AntiforgeryBridge
+<details class="menu-sesion sidebar-account" data-session-menu>
+    <summary class="sidebar-account__summary" aria-label="Opciones de la cuenta de @Model.DisplayName" title="@Model.DisplayName">
+        <span class="avatar-sesion"><partial name="_PersonAvatar" model="@(new PersonAvatarViewModel(Model.PersonId, Model.DisplayName, Model.UserName))" /></span>
+        <span class="sidebar-account__identity">
+            <span class="encabezado-aplicacion__sesion">@Model.DisplayName</span>
+            <span class="encabezado-aplicacion__rol">@SessionPresentation.RoleName(Model.RoleCode)</span>
+        </span>
+    </summary>
+    <div class="menu-sesion__desplegable">
+        <form method="post" action="/mi-trabajo" asp-antiforgery="false" data-logout-form>
+            <input type="hidden" name="__RequestVerificationToken" value="@AntiforgeryBridge.Issue(Context)" />
+            <button class="boton boton--textual" type="submit"><partial name="_Icon" model='@("logout")' />Cerrar sesión</button>
+        </form>
+    </div>
+</details>

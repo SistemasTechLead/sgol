@@ -3958,7 +3958,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<int>("MaximumPhotos")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasDefaultValue(20);
+                        .HasDefaultValue(50);
 
                     b.Property<int>("MinimumPhotos")
                         .ValueGeneratedOnAdd()
@@ -4135,7 +4135,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_assignment_transfer_load", "\"TransferProgressUnits\" BETWEEN 0 AND \"ProgressUnits\" AND (\"TransferRemainingMinutes\" IS NULL OR \"TransferRemainingMinutes\" BETWEEN 1 AND 4800)");
 
-                            t.HasCheckConstraint("CK_operational_assignment_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
+                            t.HasCheckConstraint("CK_operational_assignment_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 50 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 50 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
 
                             t.HasCheckConstraint("CK_operational_assignment_progress", "\"GoalUnits\" BETWEEN 0 AND 1000000 AND \"ProgressUnits\" BETWEEN 0 AND 1000000 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND (\"TaskRevision\" IS NULL OR \"TaskRevision\" > 0)");
 
@@ -4611,7 +4611,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.ToTable("operational_photograph", null, t =>
                         {
-                            t.HasCheckConstraint("CK_operational_photo_position", "\"Position\" BETWEEN 0 AND 19");
+                            t.HasCheckConstraint("CK_operational_photo_position", "\"Position\" BETWEEN 0 AND 49");
 
                             t.HasCheckConstraint("CK_operational_photo_size", "octet_length(\"Content\") BETWEEN 1 AND 15728640 AND \"ReceivedBytes\" BETWEEN 1 AND 15728640");
 
@@ -5059,6 +5059,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<int>("CountSemanticsVersion")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -5173,6 +5176,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset?>("FixedDueAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("InputCountSourceTaskId")
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("IsFinalAudit")
                         .HasColumnType("boolean");
@@ -5299,6 +5305,8 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("RunId", "DependencyEventId");
 
+                    b.HasIndex("RunId", "InputCountSourceTaskId");
+
                     b.HasIndex("RunId", "LoadSourceAttemptId");
 
                     b.HasIndex("RunId", "Position")
@@ -5320,7 +5328,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_sequence_stage_dependency", "(\"DependencySatisfiedAt\" IS NULL AND \"DependencyEventId\" IS NULL) OR (\"DependencySatisfiedAt\" IS NOT NULL AND \"DependencyEventId\" IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
+                            t.HasCheckConstraint("CK_sequence_stage_snapshot", "\"TaskRevision\" > 0 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND \"Role\" IN ('PISO_VENTAS','SUBCOORDINACION','ADMINISTRACION','DIRECCION') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND \"MinimumPhotos\" BETWEEN 1 AND 50 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 50 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280 AND \"Revision\" > 0");
 
                             t.HasCheckConstraint("CK_sequence_stage_state", "\"Status\" IN ('EN_ESPERA','PROGRAMADA','DISPONIBLE','PENDIENTE_ASIGNACION','FUERA_DE_PLAZO','CONCLUIDA','CANCELADA','OMITIDA','PENDIENTE_REPROGRAMACION') AND (\"Status\" NOT IN ('DISPONIBLE','CONCLUIDA') OR (\"CurrentAttemptId\" IS NOT NULL AND \"EnabledAt\" IS NOT NULL))");
                         });
@@ -5346,6 +5354,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
+
+                    b.Property<Guid?>("InputCountSourceTaskId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Instructions")
                         .IsRequired()
@@ -5388,11 +5399,13 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"IsFinalAudit\"");
 
+                    b.HasIndex("VersionId", "InputCountSourceTaskId");
+
                     b.HasIndex("VersionId", "OutputTargetTaskId");
 
                     b.ToTable("operational_sequence_step", null, t =>
                         {
-                            t.HasCheckConstraint("CK_process_item_link", "(\"OutputItemId\" IS NULL AND \"OutputTargetTaskId\" IS NULL) OR (\"OutputItemId\" IS NOT NULL AND \"OutputTargetTaskId\" IS NOT NULL AND \"OutputTargetTaskId\" <> \"TaskId\" AND NOT \"IsFinalAudit\")");
+                            t.HasCheckConstraint("CK_process_item_link", "(\"OutputItemId\" IS NULL AND \"OutputTargetTaskId\" IS NULL) OR (\"OutputItemId\" IS NOT NULL AND (\"OutputTargetTaskId\" IS NULL OR \"OutputTargetTaskId\" <> \"TaskId\") AND NOT \"IsFinalAudit\")");
 
                             t.HasCheckConstraint("CK_sequence_step_position", "\"Position\" BETWEEN 1 AND 32 AND (\"ReturnToPosition\" IS NULL OR \"ReturnToPosition\" BETWEEN 1 AND \"Position\" - 1)");
 
@@ -5407,6 +5420,9 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<int?>("AgendaVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CountSemanticsVersion")
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -5541,7 +5557,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<int>("MaximumPhotos")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasDefaultValue(20);
+                        .HasDefaultValue(50);
 
                     b.Property<int>("MinimumPhotos")
                         .ValueGeneratedOnAdd()
@@ -5632,7 +5648,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_operational_task_period", "\"PeriodType\" IN ('SEMANAL','MENSUAL','TRIMESTRAL','ANUAL','OCASIONAL')");
 
-                            t.HasCheckConstraint("CK_operational_task_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
+                            t.HasCheckConstraint("CK_operational_task_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 50 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 50 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
 
                             t.HasCheckConstraint("CK_operational_task_requirement", "\"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO')");
 
@@ -6106,15 +6122,31 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                     b.Property<string>("AgendaJson")
                         .HasColumnType("jsonb");
 
+                    b.Property<bool>("Automatic")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("CountSourcesJson")
+                        .HasColumnType("jsonb");
+
                     b.Property<Guid?>("IncidenceHoldId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("ItemRatesJson")
                         .HasColumnType("jsonb");
 
+                    b.Property<DateTimeOffset?>("LastAssignmentAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("OriginalStartsAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Participants")
                         .IsRequired()
                         .HasColumnType("jsonb");
+
+                    b.Property<string>("PendingReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<Guid>("PlanId")
                         .HasColumnType("uuid");
@@ -6153,7 +6185,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
 
                     b.ToTable("operational_process_plan_start", null, t =>
                         {
-                            t.HasCheckConstraint("CK_process_plan_start", "\"Status\" IN ('PREPARADO','ACTIVADO') AND \"Revision\" > 0");
+                            t.HasCheckConstraint("CK_process_plan_start", "\"Status\" IN ('PREPARADO','ACTIVADO','PENDIENTE') AND \"Revision\" > 0");
                         });
                 });
 
@@ -7666,6 +7698,13 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .HasConstraintName("FK_sequence_stage_dependency_event");
 
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceStage", null)
+                        .WithMany()
+                        .HasForeignKey("RunId", "InputCountSourceTaskId")
+                        .HasPrincipalKey("RunId", "TaskId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_process_stage_count_source");
+
                     b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceAttempt", null)
                         .WithMany()
                         .HasForeignKey("RunId", "LoadSourceAttemptId")
@@ -7711,6 +7750,13 @@ namespace Sgol.Web.Infrastructure.Persistence.Migrations
                         .HasForeignKey("VersionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceStep", null)
+                        .WithMany()
+                        .HasForeignKey("VersionId", "InputCountSourceTaskId")
+                        .HasPrincipalKey("VersionId", "TaskId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_process_step_count_source");
 
                     b.HasOne("Sgol.Web.Infrastructure.Persistence.Planning.OperationalSequenceStep", null)
                         .WithMany()

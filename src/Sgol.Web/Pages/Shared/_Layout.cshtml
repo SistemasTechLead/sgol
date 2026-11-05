@@ -52,15 +52,10 @@
 <body data-desktop-workspace="@(shell && !systemError ? "true" : null)" class="@(systemError ? "pagina-error-sistema" : accessPage ? "pagina-acceso" : boardShell ? "board-shell" : null)">
     <a class="salto-contenido" href="#contenido-principal">Saltar al contenido principal</a>
     <div class="aplicacion @(!shell ? "aplicacion--acceso" : !hasNavigation ? "aplicacion--sin-navegacion" : null)">
+        @if (!shell || systemError)
+        {
         <header class="encabezado-aplicacion">
             @if (!shell || systemError) { <span class="encabezado-aplicacion__marca">SGOL</span> }
-            @if (shell && !systemError) {
-                <div class="desktop-screen-heading">
-                    <h1 class="desktop-screen-title">@(ViewData["ScreenTitle"] as string ?? title)</h1>
-                    <button type="button" class="desktop-screen-info" aria-label="Información de la pantalla" aria-controls="desktop-screen-help" aria-expanded="false" hidden><partial name="_Icon" model='@("info")' /></button>
-                    <div id="desktop-screen-help" class="desktop-screen-help" role="region" aria-label="Información de la pantalla" hidden></div>
-                </div>
-            }
             @if (session is not null)
             {
                 <details class="menu-sesion" data-session-menu>
@@ -83,11 +78,13 @@
                 }
             }
         </header>
+        }
         @if (hasNavigation)
         {
         <aside class="barra-lateral" id="barra-lateral">
             <div class="barra-lateral__ajuste" role="separator" tabindex="0" aria-label="Ancho de la barra lateral" aria-orientation="vertical" aria-controls="barra-lateral" aria-valuemin="72" aria-valuemax="224" aria-valuenow="224" title="Arrastra para ajustar. Usa las flechas para cambiar el ancho; Inicio para contraer y Fin para ampliar." data-sidebar-resize></div>
             <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /></div>
+            @if (!systemError) { <partial name="_SidebarAccount" model="session!" /> }
             <nav class="navegacion-lateral navegacion-lateral--escritorio" aria-label="Navegación principal">
                 <ul class="navegacion-lateral__lista">
                     @foreach (var item in visibleItems)
@@ -107,6 +104,7 @@
                 <dialog id="navegacion-movil" class="navegacion-movil" aria-label="Navegación principal">
                     <div class="marca-loretta"><img src="~/images/loretta.svg" alt="Loretta · Zapatería" class="marca-loretta__logo" /></div>
                     <form method="dialog"><button class="boton boton--secundario" type="submit" data-initial-focus><partial name="_Icon" model='@("close")' />Cerrar navegación</button></form>
+                    @if (!systemError) { <partial name="_SidebarAccount" model="session!" /> }
                     <nav aria-label="Navegación principal móvil">
                         <ul class="navegacion-lateral__lista">
                             @foreach (var item in visibleItems)
@@ -120,6 +118,10 @@
         </aside>
         }
         <main id="contenido-principal" class="contenido-principal" tabindex="-1">
+            @if (hasNavigation && !systemError)
+            {
+                <button class="boton boton--secundario navegacion-movil__abrir workspace-menu" type="button" data-dialog-open aria-controls="navegacion-movil"><partial name="_Icon" model='@("menu")' /><span class="solo-lectores">Navegación principal</span></button>
+            }
             @RenderBody()
         </main>
     </div>

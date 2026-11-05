@@ -33,6 +33,7 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
     public ReportMetric[] Metrics { get; private set; } = [];
     public List<(string Label, int Count, string Href)> ReviewQueues { get; } = [];
     public ReportChart[] Charts { get; private set; } = [];
+    public ReportPerson[] People { get; private set; } = [];
     [BindProperty(SupportsGet = true)] public string? ChartStatus { get; set; }
     [BindProperty(SupportsGet = true)] public string? ChartGroup { get; set; }
     public string ChartFocus => ReportCatalog.Statuses.GetValueOrDefault(ChartStatus ?? "", "Todos los estados");
@@ -140,7 +141,7 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
                 : r.Goal > 0 ? (int)Math.Ceiling(r.Minutes * (1m - Math.Min(1m, (decimal)r.Units / r.Goal))) : r.Minutes }).ToArray();
         Rows = ReportAnalysis.Filter(raw, F, Cutoff);
         var capacity = new Dictionary<Guid, decimal>();
-        if (F.Kind == "load") {
+        if (Rows.Length > 0) {
             var ledger = await OperationalCapacityService.LedgerAsync(db, Cutoff, token);
             foreach (var person in Rows.Select(r => r.PersonId).Distinct())
                 if (ledger.Workers.Any(w => w.Id == person)) capacity[person] = ledger.Available(person, From, Through);
@@ -153,7 +154,8 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
         var chartRows = Rows.Where(r => (ChartStatus == null || r.Status == ChartStatus) &&
             (string.IsNullOrEmpty(ChartGroup) || ChartGroup == (F.Group switch {
                 "plan" => r.PlanId.ToString(), "role" => r.Role, "task" => r.Code, _ => r.PersonId.ToString() }))).ToArray();
-        Charts = [..ReportAnalysis.Charts(chartRows, F, Cutoff, capacity), ReportAnalysis.PeopleChart(chartRows, ChartStatus)];
+        Charts = ReportAnalysis.Charts(chartRows, F, Cutoff, capacity);
+        People = ReportPerson.Summarize(chartRows, capacity);
         Templates = await db.ReportTemplates.AsNoTracking().Where(t => t.UserId == session.UserId).OrderBy(t => t.Name).ToArrayAsync(token);
         ReportFilter? applied = null;
         if (AppliedTemplate?.StartsWith("preset:") == true && ReportCatalog.Definitions.Any(d => "preset:" + d.Id == AppliedTemplate))
@@ -167,7 +169,7 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
         // Export is an explicit, authorized request. Never embed the full export into initial HTML.
         if (exporting) ExportJson = JsonSerializer.Serialize(new { title = Definition.Name, description = Definition.Description,
             period = $"{From:dd/MM/yyyy} - {Through:dd/MM/yyyy}", cutoff = ReportCatalog.Time(Cutoff), scope = Scope,
-            filters = FilterSummary() + " · Gráficas: " + ChartFocus + (string.IsNullOrEmpty(ChartGroup) ? "" : " · Grupo seleccionado"), metrics = Metrics, charts = Charts,
+            filters = FilterSummary() + " · Gráficas: " + ChartFocus + (string.IsNullOrEmpty(ChartGroup) ? "" : " · Grupo seleccionado"), metrics = Metrics, charts = Charts, people = People,
             columns = SelectedColumns.Select(c => new { key = c, label = ReportCatalog.Columns[c] }),
             rows = Rows.Select(r => SelectedColumns.Select(c => ReportCatalog.Cell(r, c)).ToArray()),
             note = "Estado actual al corte de consulta. Entrega y aprobación son momentos distintos. La carga es estimada. Los intentos reasignados se separan del total de tareas." }, JsonOptions);

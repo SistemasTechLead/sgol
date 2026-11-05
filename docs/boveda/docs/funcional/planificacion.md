@@ -2,7 +2,7 @@
 categoria: dominio
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-04
+ultima_verificacion: 2026-11-05
 verificado_en: codigo-publicado-y-pruebas-aisladas
 ---
 
@@ -14,7 +14,13 @@ La planificación combina catálogo, personas elegibles, horarios, ausencias, ca
 
 Las operaciones semanales incluyen tareas participantes y procesos semanales configurados para ello. Un proceso se representa como unidad de inicio y reserva sus etapas; no se duplican sus tareas como independientes. Véase [Procesos](procesos.md).
 
+Los calendarios de [procesos](procesos.md) se crean al activar su versión publicada: doce meses, con asignación independiente por fecha. Los conflictos quedan pendientes sin consumir capacidad; se reintentan mientras el proceso esté activo. Las fechas vencidas solo se reprograman manualmente. La pausa se muestra en el plan y deshabilita el reintento. Las ocasiones y los procesos de operaciones semanales conservan su recorrido propio.
+
 ## Carga y tiempo
+
+La capacidad global estándar es de **6 horas diarias (360 minutos)** para colaboradores actuales y nuevos sin ajuste individual. Se limita al horario disponible y respeta descansos, ausencias y vigencia laboral. Los ajustes explícitos conservan sus minutos y porcentajes; al vencer vuelve la base global. El cambio de referencia no redistribuye tareas ni altera cargas, responsables o evidencia existentes. La base no tiene vigencia fechada: las consultas de capacidad sin ajuste usan el estándar actual, también al consultar fechas anteriores.
+
+La referencia de seis horas se comprobó el 05/11/2026 con ocho pruebas de reglas y 25 comprobaciones HTTP/SQL en base aislada y sesión sintética. La DLL publicada coincide con la probada; salud y acceso local/LAN responden correctamente. No se realizó un ajuste autenticado en la simulación compartida.
 
 La carga son minutos de trabajo; el intervalo ordinario incorpora el margen capturado: duración = techo(carga × (100 + margen) / 100). El margen no aumenta la carga. Criticidad, activación nominal y política se capturan en el compromiso.
 
@@ -38,6 +44,8 @@ El reparto por [incidencia de ausencia](supervision.md#incidencias-de-ausencia) 
 
 
 ## Fuentes y alcance
+
+Calendario automático: código publicado y pruebas de servicios/formularios en PostgreSQL aislado, más Chromium/WebKit en tres tamaños y temas. La publicación compartida se comprobó por hash, salud y acceso; no se realizó una activación autenticada de prueba en ella.
 
 Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Incidencias se contrastó con el código publicado y pruebas funcionales aisladas. En el host compartido se comprobaron salud, acceso y conservación de datos al migrar; no se confirmó ninguna ausencia ni se repitió un recorrido autenticado. Las demás reglas conservan su alcance de revisión estática.
 

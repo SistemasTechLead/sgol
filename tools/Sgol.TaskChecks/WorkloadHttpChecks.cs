@@ -74,6 +74,7 @@ internal static class WorkloadHttpChecks
         string Field(string html,string name)=>WebUtility.HtmlDecode(Regex.Match(html,"name=\""+Regex.Escape(name)+"\"[^>]*value=\"([^\"]*)\"").Groups[1].Value);
         async Task<string> Get(string path) => await client.GetStringAsync(path);
         var html = await Get("/supervision/carga");
+        Check(html.Contains("Base inicial: 360 minutos"), "capacity form renders the six-hour global standard");
         Check(html.Contains("id=\"capacity\"") && html.Contains("handler=CapacityPreview") && html.Contains("capacity.js"), "new route renders capacity form and script");
         Check(!(await Get("/validaciones")).Contains("id=\"capacity\""), "supervision no longer contains capacity editor");
         var form = new Dictionary<string,string> { ["Range"]="day", ["Adjustment.PersonId"]=fixture.Person.ToString(), ["Adjustment.From"]=day.ToString("yyyy-MM-dd"), ["Adjustment.Through"]=day.ToString("yyyy-MM-dd"), ["Adjustment.Percent"]="0", ["Adjustment.DailyMinutes"]="240", ["Adjustment.Reason"]="Ajuste operativo HTTP", ["__RequestVerificationToken"]=Field(html,"__RequestVerificationToken") };
@@ -97,7 +98,7 @@ internal static class WorkloadHttpChecks
         Check(originalProtected==System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().Where(a=>a.Id==protectedTask.Id || a.Id==completedTask.Id).OrderBy(a=>a.Id).ToArrayAsync()),"progress and completed historical snapshots unchanged");
         Check(await db.AuditEvents.AnyAsync(a=>a.Action=="CAPACITY_REDISTRIBUTED" && a.ActorUserId==fixture.Director),"capacity audit records actor and redistribution");
         var ledger=await OperationalCapacityService.LedgerAsync(db,clock.UtcNow,default);
-        Check(ledger.DayCapacity(fixture.Person,day)==0 && ledger.DayCapacity(fixture.Person,day.AddDays(1))==240,"saved reduction expires and base capacity returns next day");
+        Check(ledger.DayCapacity(fixture.Person,day)==0 && ledger.DayCapacity(fixture.Person,day.AddDays(1))==360,"saved reduction expires and six-hour base capacity returns next day");
         html=await Get(applied.response.Headers.Location!.ToString());
         Check(html.Contains("Capacidad actualizada") && html.Contains("0 min disponibles"),"reopen displays persisted setting and result");
         var replay=await Post("CapacityApply",form);

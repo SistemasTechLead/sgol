@@ -56,10 +56,16 @@ public static class ProcessItemRules
         model.Entity<PreparedProcessStart>().Property(x => x.ItemRatesJson).HasColumnType("jsonb");
         var step = model.Entity<OperationalSequenceStep>();
         step.HasAlternateKey(x => new { x.VersionId, x.TaskId });
+        step.HasOne<OperationalSequenceStep>().WithMany().HasForeignKey(x => new { x.VersionId, x.InputCountSourceTaskId })
+            .HasPrincipalKey(x => new { x.VersionId, x.TaskId }).OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_process_step_count_source");
+        var stage = model.Entity<OperationalSequenceStage>();
+        stage.HasAlternateKey(x => new { x.RunId, x.TaskId });
+        stage.HasOne<OperationalSequenceStage>().WithMany().HasForeignKey(x => new { x.RunId, x.InputCountSourceTaskId })
+            .HasPrincipalKey(x => new { x.RunId, x.TaskId }).OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_process_stage_count_source");
         step.HasOne<OperationalSequenceStep>().WithMany().HasForeignKey(x => new { x.VersionId, x.OutputTargetTaskId })
             .HasPrincipalKey(x => new { x.VersionId, x.TaskId }).OnDelete(DeleteBehavior.NoAction);
         step.HasIndex(x => x.VersionId).IsUnique().HasFilter("\"IsFinalAudit\"");
-        step.ToTable("operational_sequence_step", t => t.HasCheckConstraint("CK_process_item_link", "(\"OutputItemId\" IS NULL AND \"OutputTargetTaskId\" IS NULL) OR (\"OutputItemId\" IS NOT NULL AND \"OutputTargetTaskId\" IS NOT NULL AND \"OutputTargetTaskId\" <> \"TaskId\" AND NOT \"IsFinalAudit\")"));
+        step.ToTable("operational_sequence_step", t => t.HasCheckConstraint("CK_process_item_link", "(\"OutputItemId\" IS NULL AND \"OutputTargetTaskId\" IS NULL) OR (\"OutputItemId\" IS NOT NULL AND (\"OutputTargetTaskId\" IS NULL OR \"OutputTargetTaskId\" <> \"TaskId\") AND NOT \"IsFinalAudit\")"));
         model.Entity<OperationalSequenceAttempt>().ToTable("operational_sequence_attempt", t => {
             t.HasCheckConstraint("CK_process_item_quantity", "\"ItemQuantity\" IS NULL OR \"ItemQuantity\" >= 0");
             t.HasCheckConstraint("CK_process_item_resolution", "\"CapacityResolution\" IS NULL OR \"CapacityResolution\" IN ('','PENDING','LOWEST','FORCE')");

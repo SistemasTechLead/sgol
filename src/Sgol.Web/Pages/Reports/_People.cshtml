@@ -1,0 +1,45 @@
+@model Sgol.Web.Pages.Reports.IndexModel
+@using System.Globalization
+@{
+    var people = Model.People;
+    var best = people.Where(p => p.Fulfillment.HasValue).OrderByDescending(p => p.Fulfillment).ThenBy(p => p.Name).FirstOrDefault();
+}
+<section class="panel-seccion report-people" aria-labelledby="report-people-title">
+    <header class="report-people-heading">
+        <div><h3 id="report-people-title">Panel por colaborador</h3><p>Entregas, cumplimiento y carga de las tareas filtradas · @Model.From.ToString("dd/MM/yyyy")–@Model.Through.ToString("dd/MM/yyyy")</p></div>
+        <dl class="report-people-summary">
+            <div><dt>Sobre capacidad</dt><dd>@people.Count(p => p.OverCapacity) personas</dd></div>
+            <div><dt>Con vencidas</dt><dd>@people.Count(p => p.Overdue > 0) personas</dd></div>
+            <div><dt>Pendientes</dt><dd>@people.Sum(p => p.Pending) tareas</dd></div>
+            <div><dt>Mayor cumplimiento</dt><dd>@(best == null ? "Sin datos" : $"{best.Name} · {best.Fulfillment:0.#} %")</dd></div>
+        </dl>
+    </header>
+    <div class="report-table-scroll" tabindex="0" role="region" aria-label="Indicadores por colaborador" aria-describedby="report-people-help">
+        <table class="report-table report-people-table">
+            <thead><tr><th scope="col">Colaborador</th><th scope="col">Entregadas / total</th><th scope="col">% entregado</th><th scope="col">Cumplimiento</th><th scope="col">Carga / capacidad</th><th scope="col">Ocupación</th><th scope="col">Pendientes</th><th scope="col">Estado</th></tr></thead>
+            <tbody>@foreach (var person in people) {
+                <tr data-report-person="@person.Id">
+                    <th scope="row"><span class="report-person-name">@person.Name</span><small>@person.Roles</small></th>
+                    <td>@person.Delivered / @person.Total</td>
+                    <td>@(person.Progress is {} progress ? $"{progress:0.#} %" : "Sin datos")
+                        @if (person.Progress is {} value) { <progress class="report-progress report-tone--success" value="@value.ToString(CultureInfo.InvariantCulture)" max="100" aria-label="Porcentaje entregado de @person.Name"></progress> }
+                    </td>
+                    <td><span class="report-person-fulfillment">
+                        <svg class="report-person-gauge" viewBox="0 0 64 38" aria-hidden="true" focusable="false">
+                            <path d="M6 32 A26 26 0 0 1 58 32" />
+                            @if (person.Fulfillment is {} score) { <g transform="rotate(@((score * 1.8m).ToString(CultureInfo.InvariantCulture)) 32 32)"><path d="M32 32 L9 32" /><circle cx="32" cy="32" r="2.5" /></g> }
+                        </svg><span>@(person.Fulfillment is {} fulfillment ? $"{fulfillment:0.#} %" : "Sin datos")</span>
+                    </span></td>
+                    <td>@person.Load / @(person.Capacity is {} capacity ? capacity.ToString("0.#") : "—") min</td>
+                    <td>@(person.Occupancy is {} occupancy ? $"{occupancy:0.#} %" : person.Capacity == 0 ? "Sin capacidad" : "No disponible")
+                        @if (person.Occupancy is {} used) { <progress class="report-progress report-tone--@(person.OverCapacity ? "danger" : "info")" value="@Math.Min(100, used).ToString(CultureInfo.InvariantCulture)" max="100" aria-label="Ocupación de @person.Name: @used.ToString("0.#") %"></progress> }
+                    </td>
+                    <td><span class="report-person-count">@person.Pending</span></td>
+                    <td><span class="report-status report-tone--@person.Tone">@person.State</span></td>
+                </tr>
+            }</tbody>
+        </table>
+        @if (people.Length == 0) { <p>Sin colaboradores para los filtros seleccionados.</p> }
+    </div>
+    <p class="report-caption" id="report-people-help">Cumplimiento: concluidas ÷ tareas filtradas; excluye intentos reasignados. Pendientes: sin entrega ni cierre. Carga: minutos restantes de esas tareas. Capacidad: disponibilidad configurada del periodo completo; ocupación: carga ÷ capacidad. El estado prioriza sobrecapacidad, vencidas y revisión. Estos valores no representan la carga total fuera del filtro ni el Bono de tareas.</p>
+</section>

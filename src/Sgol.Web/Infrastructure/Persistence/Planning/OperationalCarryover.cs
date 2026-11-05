@@ -187,7 +187,7 @@ public sealed partial class OperationalCarryoverService(SgolDbContext db, IClock
     {
         var now = clock.UtcNow;
         var roles = await (from u in db.AppUsers.AsNoTracking() join e in db.EmploymentVersions on u.PersonId equals e.PersonId join r in db.RoleAssignmentVersions on u.Id equals r.UserId
-            where u.PersonId != person && u.Status == AccountStatus.Active && e.BranchId == BranchScope.LorettaId && e.Status == EmploymentStatus.Active && e.ValidFrom <= now && (e.ValidTo == null || e.ValidTo > now) &&
+            where (u.PersonId != person || r.RoleCode == CanonicalRole.Direction) && u.Status == AccountStatus.Active && e.BranchId == BranchScope.LorettaId && e.Status == EmploymentStatus.Active && e.ValidFrom <= now && (e.ValidTo == null || e.ValidTo > now) &&
             r.BranchId == BranchScope.LorettaId && r.Status == RoleAssignmentStatus.Active && r.ValidFrom <= now && (r.ValidTo == null || r.ValidTo > now) select r.RoleCode).ToArrayAsync(ct);
         var definitions = await db.OperationalTasks.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
         var ids = items.Select(i => i.AssignmentId).ToArray();
@@ -211,7 +211,9 @@ public sealed partial class OperationalCarryoverService(SgolDbContext db, IClock
             Cause = cause, CauseDescription = CarryoverCauses.All[cause], Explanation = preview.Explanation, IncidentStart = end.AddMinutes(-minutes), IncidentEnd = end, Minutes = minutes,
             SubmittedAt = clock.UtcNow, Fingerprint = fingerprint, SnapshotJson = JsonSerializer.Serialize(preview.Items), ScheduleFingerprint = schedule.Hash };
         db.Add(request); Audit(actor, request, "OPERATIONAL_CARRYOVER_SUBMITTED");
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return request.Id;
+        await db.SaveChangesAsync(ct);
+        await ApproveOwnDirectionSubmissionAsync(actor, request, ct);
+        await tx.CommitAsync(ct); return request.Id;
     }
     public async Task<OperationalCarryoverRequest[]> MineAsync(Guid actor, CancellationToken ct) {
         var person = await Person(actor, ct);
@@ -222,14 +224,34 @@ public sealed partial class OperationalCarryoverService(SgolDbContext db, IClock
     }
     public async Task DecideAsync(Guid actor, Guid id, long revision, bool approve, string comment, CancellationToken ct)
     {
-        comment = comment?.Trim() ?? ""; if (comment.Length is < 1 or > 4000) throw Error("ARRASTRE_COMENTARIO_REQUERIDO", 422);
         await using var tx = await db.Database.BeginTransactionAsync(ct); await OperationalTaskService.LockAsync(db, ct);
+        await DecideWithinTransactionAsync(actor, id, revision, approve, comment, ct);
+        await tx.CommitAsync(ct);
+    }
+    public async Task<bool> AutomaticallyApprovesOwnAsync(Guid actor, CancellationToken ct)
+    {
+        await Person(actor, ct);
+        var now = clock.UtcNow;
+        var roles = await db.RoleAssignmentVersions.AsNoTracking().Where(r => r.UserId == actor && r.BranchId == BranchScope.LorettaId &&
+            r.Status == RoleAssignmentStatus.Active && r.ValidFrom <= now && (r.ValidTo == null || r.ValidTo > now)).Select(r => r.RoleCode).ToArrayAsync(ct);
+        return roles.Length == 1 && roles[0] == CanonicalRole.Direction;
+    }
+    private async Task ApproveOwnDirectionSubmissionAsync(Guid actor, OperationalCarryoverRequest request, CancellationToken ct)
+    {
+        if (!await AutomaticallyApprovesOwnAsync(actor, ct)) return;
+        // Creation and approval share the submission transaction and agenda lock: no partial request survives a conflict.
+        await DecideWithinTransactionAsync(actor, request.Id, request.Revision, true,
+            "Autorización automática al confirmar la petición propia de Dirección.", ct);
+    }
+    private async Task DecideWithinTransactionAsync(Guid actor, Guid id, long revision, bool approve, string comment, CancellationToken ct)
+    {
+        comment = comment?.Trim() ?? ""; if (comment.Length is < 1 or > 4000) throw Error("ARRASTRE_COMENTARIO_REQUERIDO", 422);
         var person = await Person(actor, ct);
         var r = await db.Set<OperationalCarryoverRequest>().SingleOrDefaultAsync(r => r.Id == id && r.BranchId == BranchScope.LorettaId, ct) ?? throw Error("TASK_NOT_FOUND", 404);
-        if (r.PersonId == person) throw Error("ACCESO_DENEGADO", 403);
+        if (r.PersonId == person && await supervision.AuthorizeAsync(actor, ct) != CanonicalRole.Direction) throw Error("ACCESO_DENEGADO", 403);
         foreach (var item in r.Items()) await supervision.AuthorizeAssignmentAsync(actor, item.AssignmentId, ct);
         if (r.State != "PENDIENTE") {
-            if (r.DecidedBy == actor && r.State == (approve ? "APROBADA" : "RECHAZADA") && r.DecisionComment == comment) { await tx.CommitAsync(ct); return; }
+            if (r.DecidedBy == actor && r.State == (approve ? "APROBADA" : "RECHAZADA") && r.DecisionComment == comment) return;
             throw Error("ARRASTRE_CONFLICTO");
         }
         if (r.Revision != revision) throw Error("ARRASTRE_CONFLICTO");
@@ -263,7 +285,7 @@ public sealed partial class OperationalCarryoverService(SgolDbContext db, IClock
         r.ResultsJson = JsonSerializer.Serialize(results); r.State = approve ? "APROBADA" : "RECHAZADA";
         r.DecidedBy = actor; r.DecidedAt = clock.UtcNow; r.DecisionComment = comment; r.Revision++;
         Audit(actor, r, approve ? "OPERATIONAL_CARRYOVER_APPROVED" : "OPERATIONAL_CARRYOVER_REJECTED");
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+        await db.SaveChangesAsync(ct);
     }
     private void Audit(Guid actor, OperationalCarryoverRequest r, string action) => db.AuditEvents.Add(new AuditEvent {
         Id = Guid.CreateVersion7(), OccurredAt = clock.UtcNow, ActorUserId = actor, ActorType = "USER", Action = action,

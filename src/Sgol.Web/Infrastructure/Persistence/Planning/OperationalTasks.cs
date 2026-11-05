@@ -19,7 +19,7 @@ public sealed class OperationalTask
     public string Name { get; set; } = "";
     public string? Description { get; set; }
     public int MinimumPhotos { get; set; } = 1;
-    public int MaximumPhotos { get; set; } = 20;
+    public int MaximumPhotos { get; set; } = 50;
     public long MaximumPhotoBytes { get; set; } = 31457280;
     public string ChecklistJson { get; set; } = "[]";
     public string Requirement { get; set; } = "NINGUNO";
@@ -76,7 +76,7 @@ public sealed class OperationalTask
         }
         if (ScheduleMode == "DIAS_FIJOS") Repetitions = System.Numerics.BitOperations.PopCount((uint)WeekDays);
         if (ScheduleMode == "PROGRESO") Repetitions = 1;
-        if (MinimumPhotos is < 1 or > 20 || MaximumPhotos < MinimumPhotos || MaximumPhotos > 20 ||
+        if (MinimumPhotos is < 1 or > 50 || MaximumPhotos < MinimumPhotos || MaximumPhotos > 50 ||
             MaximumPhotoBytes is < 1048576 or > 31457280 || Name.Length is < 1 or > 500 || Name.Any(char.IsControl) ||
             !OperationalSchedule.Periods.Contains(PeriodType) ||
             !OperationalSchedule.Requirements.Contains(Requirement) ||
@@ -116,7 +116,7 @@ public sealed class OperationalAssignment
     public string Name { get; set; } = "";
     public string? Description { get; set; }
     public int MinimumPhotos { get; set; } = 1;
-    public int MaximumPhotos { get; set; } = 20;
+    public int MaximumPhotos { get; set; } = 50;
     public long MaximumPhotoBytes { get; set; } = 31457280;
     public string ChecklistJson { get; set; } = "[]";
     public string Requirement { get; set; } = "";
@@ -256,7 +256,7 @@ internal sealed class OperationalTaskConfiguration : IEntityTypeConfiguration<Op
             t.HasCheckConstraint("CK_operational_task_time", "\"StartMinute\" BETWEEN 0 AND 59 AND (\"SundayStartMinute\" IS NULL OR \"SundayStartMinute\" BETWEEN 0 AND 1439)");
             t.HasCheckConstraint("CK_operational_task_schedule", "\"ScheduleMode\" IN ('DISTRIBUIDA','DIAS_FIJOS','PROGRESO') AND \"WeekDays\" BETWEEN 0 AND 127 AND \"StartHour\" BETWEEN 0 AND 23 AND (\"GoalUnits\" IS NULL OR \"GoalUnits\" BETWEEN 1 AND 1000000) AND length(\"ProgressUnit\") <= 60 AND ((NOT \"Active\" AND \"ScheduleMode\" = 'PROGRESO') OR (\"GoalUnits\" IS NOT NULL AND length(\"ProgressUnit\") >= 1)) AND (\"ScheduleMode\" <> 'DIAS_FIJOS' OR (\"PeriodType\" = 'SEMANAL' AND \"WeekDays\" > 0)) AND (\"ScheduleMode\" <> 'PROGRESO' OR (\"PeriodType\" = 'SEMANAL' AND (NOT \"Active\" OR NOT \"DifferentPeople\"))) AND (\"PeriodType\" <> 'OCASIONAL' OR (\"ScheduleMode\" = 'DISTRIBUIDA' AND \"WeekDays\" = 0 AND \"StartHour\" = 0 AND \"Repetitions\" = 1 AND NOT \"DifferentPeople\"))");
             t.HasCheckConstraint("CK_operational_task_parameters", "\"Repetitions\" BETWEEN 1 AND 100 AND \"DeadlineHours\" BETWEEN 1 AND 8760 AND \"LoadMinutes\" BETWEEN 1 AND 4800");
-            t.HasCheckConstraint("CK_operational_task_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
+            t.HasCheckConstraint("CK_operational_task_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 50 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 50 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
             t.HasCheckConstraint("CK_operational_task_period", "\"PeriodType\" IN ('SEMANAL','MENSUAL','TRIMESTRAL','ANUAL','OCASIONAL')");
             t.HasCheckConstraint("CK_operational_task_requirement", "\"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO')");
             t.HasCheckConstraint("CK_operational_task_role", "\"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS')");
@@ -272,7 +272,7 @@ internal sealed class OperationalTaskConfiguration : IEntityTypeConfiguration<Op
         b.Property(t => t.PreferredMonthDays).HasMaxLength(83).HasDefaultValue("");
         b.Property(t => t.AssignedRole).HasMaxLength(20).HasDefaultValue(CanonicalRole.SalesFloor);
         b.Property(t => t.MinimumPhotos).HasDefaultValue(1);
-        b.Property(t => t.MaximumPhotos).HasDefaultValue(20);
+        b.Property(t => t.MaximumPhotos).HasDefaultValue(50);
         b.Property(t => t.MaximumPhotoBytes).HasDefaultValue(31457280L);
         b.Property(t => t.Revision).IsConcurrencyToken();
         b.Property(t => t.IsWeeklyOperationsTask).HasDefaultValue(false);
@@ -295,7 +295,7 @@ internal sealed class OperationalAssignmentConfiguration : IEntityTypeConfigurat
         b.ToTable("operational_assignment", t => {
             t.HasCheckConstraint("CK_assignment_transfer_load", "\"TransferProgressUnits\" BETWEEN 0 AND \"ProgressUnits\" AND (\"TransferRemainingMinutes\" IS NULL OR \"TransferRemainingMinutes\" BETWEEN 1 AND 4800)");
             t.HasCheckConstraint("CK_assignment_scheduling", "(\"SchedulingPolicyId\" IS NULL AND \"ClosureMarginPercent\" IS NULL AND \"NominalStartsAt\" IS NULL) OR (\"SchedulingPolicyId\" IS NOT NULL AND \"ClosureMarginPercent\" IS NOT NULL AND \"ClosureMarginPercent\" BETWEEN 0 AND 500 AND \"NominalStartsAt\" IS NOT NULL AND (\"StartsAt\" >= \"NominalStartsAt\" OR \"OperationalCriticality\" = 'FLEXIBLE') AND \"OperationalCriticality\" IS NOT NULL AND \"OperationalCriticality\" IN ('CRITICA','IMPORTANTE','FLEXIBLE'))");
-            t.HasCheckConstraint("CK_operational_assignment_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 20 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 20 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
+            t.HasCheckConstraint("CK_operational_assignment_photo_limits", "\"MinimumPhotos\" BETWEEN 1 AND 50 AND \"MaximumPhotos\" BETWEEN \"MinimumPhotos\" AND 50 AND \"MaximumPhotoBytes\" BETWEEN 1048576 AND 31457280");
             t.HasCheckConstraint("CK_operational_assignment_range", "\"DueAt\" > \"StartsAt\"");
             t.HasCheckConstraint("CK_operational_assignment_progress", "\"GoalUnits\" BETWEEN 0 AND 1000000 AND \"ProgressUnits\" BETWEEN 0 AND 1000000 AND \"LoadMinutes\" BETWEEN 1 AND 4800 AND (\"TaskRevision\" IS NULL OR \"TaskRevision\" > 0)");
             t.HasCheckConstraint("CK_operational_assignment_schedule", "\"ScheduleMode\" IN ('DISTRIBUIDA','DIAS_FIJOS','PROGRESO') AND \"Requirement\" IN ('FOTOGRAFIA','CAPTURA_PANTALLA','COMENTARIO','DOCUMENTO','EXCEL','CHECKLIST','NINGUNO') AND (\"AssignedRole\" IS NULL OR \"AssignedRole\" IN ('DIRECCION','ADMINISTRACION','SUBCOORDINACION','PISO_VENTAS'))");
@@ -346,7 +346,7 @@ internal sealed class OperationalAssignmentConfiguration : IEntityTypeConfigurat
         b.Property(t => t.ReviewStatus).HasMaxLength(24);
         b.Property(t => t.PeriodType).HasMaxLength(16);
         b.Property(t => t.MinimumPhotos).HasDefaultValue(1);
-        b.Property(t => t.MaximumPhotos).HasDefaultValue(20);
+        b.Property(t => t.MaximumPhotos).HasDefaultValue(50);
         b.Property(t => t.MaximumPhotoBytes).HasDefaultValue(31457280L);
         b.Property(t => t.Revision).IsConcurrencyToken();
         b.Property(t => t.ScheduleKey).HasMaxLength(100);

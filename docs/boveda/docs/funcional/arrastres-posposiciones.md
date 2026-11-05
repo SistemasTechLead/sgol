@@ -2,7 +2,7 @@
 categoria: dominio
 tipo: referencia
 estado_documental: inspeccionado
-ultima_verificacion: 2026-11-03
+ultima_verificacion: 2026-11-05
 verificado_en: servicios-sql-y-formularios-aislados; despliegue-y-readiness-compartido
 ---
 
@@ -10,13 +10,13 @@ verificado_en: servicios-sql-y-formularios-aislados; despliegue-y-readiness-comp
 
 ## Petición y contexto
 
-La petición conserva causa, explicación y fotografía de las tareas al solicitarla. La persona revisora debe tener alcance y nivel de supervisión requeridos y no resolver su propia solicitud. Declarar falta de capacitación no cambia automáticamente especialidad ni acredita una inhabilitación técnica registrada.
+La petición conserva causa, explicación y fotografía de las tareas al solicitarla. La persona revisora debe tener alcance y nivel de supervisión requeridos. Dirección autoriza automáticamente sus nuevas peticiones propias de posposición e incidente al confirmar el envío, con cuenta, empleo y rol vigentes. La creación, aprobación y aplicación comparten una transacción: cualquier conflicto revierte el conjunto. La decisión conserva autor, fecha y motivo automático en el historial; no queda pendiente una segunda autorización en Supervisión. Las peticiones antiguas pendientes conservan su estado y pueden resolverse por el flujo existente. Los demás roles no pueden resolver sus propias solicitudes. Declarar falta de capacitación no cambia automáticamente especialidad ni acredita una inhabilitación técnica registrada.
 
 Arrastre y posposición tienen validadores propios; no toda vencida es elegible. La ruta de posposición excluye procesos, metas progresivas y dependencias de caja no admitidas. Esa restricción evita separar trabajo de su flujo.
 
 ## Arrastre por incidente de la jornada
 
-Solicitar conserva los vencimientos hasta la decisión. El incidente debe haber terminado, pertenecer a la jornada local actual y estar dentro de disponibilidad verificable; el descanso no se concede como incidente ni absorbe propagación. Se comprueba duración, alcance y solapamiento con otros incidentes.
+Para los demás roles, solicitar conserva los vencimientos hasta la decisión. Dirección aplica la autorización y los vencimientos propuestos al confirmar su propia petición. El incidente debe haber terminado, pertenecer a la jornada local actual y estar dentro de disponibilidad verificable; el descanso no se concede como incidente ni absorbe propagación. Se comprueba duración, alcance y solapamiento con otros incidentes.
 
 La aprobación integral ajusta el vencimiento de pendientes dentro del alcance, sin mover el inicio. Las tareas entregadas o revisadas durante la espera conservan sus campos y reciben reconocimiento histórico cuando corresponde. El plazo puede superar la salida dentro del mismo día con advertencia y aprobación expresa; no extiende el turno. Se rechazan dependencias de procesos, PROGRESO, ventanas de varias jornadas y cierres que crucen de día por esta ruta.
 
@@ -44,7 +44,7 @@ Relacionados: [Supervisión](supervision.md), [Planificación](planificacion.md)
 
 ## Fuentes y alcance
 
-Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Rango mensual comprobado con servicios, SQL y formularios reales en base aislada, con autenticación sustituida en el host de prueba; interacción en Chromium y WebKit. Publicación y readiness compartidos verificados. La operación autenticada con una cuenta real en el host compartido permanece sin comprobar.
+Código asociado a la app compartida según la [base documental](../../organizacion/base-documental.md). Rango mensual comprobado con servicios, SQL y formularios reales en base aislada, con autenticación sustituida en el host de prueba; interacción en Chromium y WebKit. Autorización automática de Dirección comprobada con servicios, SQL y formularios Razor reales en copia aislada con sesión sintética: aplicación conjunta, auditoría, reintentos concurrentes, propuesta obsoleta, reversión ante fallo y exclusión de otros roles. Chromium y WebKit comprobaron el aviso, el envío por teclado y la composición conjunta con cuenta lateral en tres tamaños y tres temas. La publicación coincide por SHA-256 con el ensamblado probado. Publicación y readiness compartidos verificados. La operación autenticada con una cuenta real en el host compartido permanece sin comprobar.
 
 - [OperationalCarryover.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalCarryover.cs)
 - [OperationalCarryover.Postponement.cs](../../../../src/Sgol.Web/Infrastructure/Persistence/Planning/OperationalCarryover.Postponement.cs)

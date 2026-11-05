@@ -1,49 +1,6 @@
-/* Uses the same native disclosures, spacing and surfaces as Validation. */
-.desktop-screen-heading[hidden], .desktop-screen-info[hidden], .desktop-screen-help[hidden] { display: none; }
-.desktop-screen-heading { display: flex; align-items: center; gap: var(--espacio-8); flex: 1; min-width: 0; }
-.desktop-screen-info { display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--color-info); cursor: pointer; }
-.desktop-screen-info .icono { width: 17px; height: 17px; }
-.desktop-screen-info[aria-expanded="true"] { background: var(--color-info-fondo); }
-.desktop-screen-info:focus-visible { outline: 2px solid var(--color-acento); outline-offset: 2px; }
-.desktop-screen-help { position: fixed; z-index: 100; box-sizing: border-box; padding: var(--espacio-16); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--color-borde); border-radius: var(--radio-tarjeta); background: color-mix(in srgb, var(--color-superficie) 90%, transparent); backdrop-filter: blur(10px); color: var(--color-texto-primario); box-shadow: var(--sombra-alta); font-size: .875rem; line-height: 1.6; overflow-wrap: anywhere; }
-.desktop-screen-help > :first-child { margin-top: 0; }
-.desktop-screen-help > :last-child { margin-bottom: 0; }
-.desktop-screen-help .my-work-guide, .desktop-screen-help .my-work-desktop-legend, .desktop-screen-help .my-work-legend { display: block; padding: 0; margin: var(--espacio-8) 0; }
-.desktop-screen-help .my-work-legend > span { display: block; margin-block: var(--espacio-4); }
+/* Operational workspace: navigation and account live in the sidebar. */
 .desktop-filter-field { display: contents; }
 .desktop-workspace .desktop-filter-field { display: grid; padding: var(--espacio-12); }
-.desktop-workspace .encabezado-aplicacion__marca,
-.desktop-workspace .desktop-source-title,
-.workspace-heading-ready .desktop-information-source,
-.desktop-workspace [data-desktop-redundant] { display: none; }
-.desktop-screen-title {
-    margin: 0; min-width: 0; font-family: var(--fuente-operativa, 'Poppins', sans-serif);
-    font-size: 1.5rem; font-weight: 600; line-height: 1.35; letter-spacing: normal; overflow-wrap: anywhere;
-}
-/* The server already supplies the screen title. Paint it before deferred
-   scripts run, including slow/failed downloads and full-page navigation.
-   Use the same container as the saved mobile/desktop appearance preference. */
-@media screen {
-        [data-desktop-workspace="true"] .encabezado-aplicacion__marca { display: none; }
-        [data-desktop-workspace="true"] .desktop-screen-heading { display: flex; }
-        [data-desktop-workspace="true"] #contenido-principal h1:not(dialog h1) { display: none; }
-        [data-desktop-workspace="true"] #contenido-principal .my-work-help,
-        [data-desktop-workspace="true"] #contenido-principal .mobile-info-toggle { display: none; }
-        [data-desktop-workspace="true"] .encabezado-pagina__contenido:has(> h1):not(:has(button, a, input, select)) { display: none; }
-        [data-desktop-workspace="true"] .encabezado-pagina:has(> h1):not(:has(> :not(h1))) { display: none; }
-    @container sgol-viewport (max-width: 48rem) {
-        [data-desktop-workspace="true"] .encabezado-aplicacion { grid-template-columns: 44px minmax(0, 1fr) fit-content(6rem) 44px; }
-        [data-desktop-workspace="true"] .desktop-screen-heading { grid-column: 2; grid-row: 1; gap: 0; }
-        [data-desktop-workspace="true"] .desktop-screen-title { font-size: 1.125rem; line-height: 1.3; }
-        [data-desktop-workspace="true"] .encabezado-aplicacion__identidad { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; align-self: center; gap: 4px; }
-        [data-desktop-workspace="true"] .menu-sesion { grid-column: 4; grid-row: 1; }
-    }
-}
-@media print { .desktop-screen-heading { display: none; } }
-.desktop-workspace .encabezado-aplicacion { min-width: 0; }
-.workspace-heading-ready .encabezado-pagina__contenido:not(:has(> :not(.desktop-source-title, .desktop-information-source, [data-desktop-redundant], .mobile-info-toggle))) { display: none; }
-.workspace-heading-ready .desktop-page-heading:not(:has(:not(.desktop-source-title, .desktop-information-source))) { display: none; }
-.workspace-heading-ready .desktop-page-heading:has(> .encabezado-pagina__contenido):not(:has(> :not(.encabezado-pagina__contenido, .desktop-source-title, .desktop-information-source))) { display: none; }
 .desktop-workspace form.desktop-filter-bar,
 .desktop-workspace .desktop-filter-group {
     display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--espacio-8);
@@ -82,4 +39,38 @@
     /* Retain accessible section names without another visual heading. */
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+/* No top row: keep page names available to assistive technology and print. */
+@media screen {
+    [data-desktop-workspace="true"] > .aplicacion { grid-template-areas: 'navegacion contenido'; grid-template-rows: minmax(0, 1fr); }
+    [data-desktop-workspace="true"] > .aplicacion--sin-navegacion { grid-template-areas: 'contenido'; }
+    [data-desktop-workspace="true"] #contenido-principal h1:not(dialog h1) {
+        position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+        overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+    }
+    [data-desktop-workspace="true"] #contenido-principal :is(.encabezado-pagina__descripcion, .encabezado-pagina__contenido > p, [data-desktop-information], .my-work-guide, .my-work-desktop-legend, #task-filter-calendar-help, [data-task-catalog-guidance], #task-selection-help, .my-work-help, .mobile-info-toggle, [data-desktop-redundant]) { display: none; }
+    [data-desktop-workspace="true"] .encabezado-pagina__contenido:has(> h1):not(:has(button, a, input, select)),
+    [data-desktop-workspace="true"] .encabezado-pagina:has(> h1):not(:has(> :not(h1))) { margin: 0; padding: 0; min-height: 0; }
+    @container sgol-viewport (max-width: 48rem) {
+        [data-desktop-workspace="true"] > .aplicacion { grid-template-areas: 'contenido'; grid-template-columns: minmax(0, 1fr); }
+        .barra-lateral > .sidebar-account { display: none; }
+        button.workspace-menu { display: inline-flex; margin-bottom: var(--espacio-8); }
+    }
+}
+.sidebar-account { margin: 0; min-width: 0; }
+.sidebar-account__summary { display: flex; align-items: center; gap: var(--espacio-8); min-height: 44px; cursor: pointer; list-style: none; }
+.sidebar-account__summary::-webkit-details-marker { display: none; }
+.sidebar-account__summary:focus-visible { outline: 2px solid var(--color-acento); outline-offset: 4px; border-radius: var(--radio-tarjeta); }
+.sidebar-account__summary .avatar-sesion { width: 44px; height: 44px; flex: 0 0 44px; }
+.sidebar-account__identity { display: grid; min-width: 0; gap: var(--espacio-4); overflow-wrap: anywhere; }
+.sidebar-account .menu-sesion__desplegable { inset-inline-start: 0; inset-inline-end: auto; }
+#navegacion-movil .sidebar-account { margin-block: var(--espacio-16); }
+#navegacion-movil .sidebar-account .menu-sesion__desplegable { position: static; width: auto; margin-top: var(--espacio-8); }
+@container sgol-viewport (min-width: 48.001rem) {
+    html[data-sidebar-compact="true"] .barra-lateral > .sidebar-account .sidebar-account__identity { display: none; }
+    html[data-sidebar-compact="true"] .barra-lateral > .sidebar-account .sidebar-account__summary { justify-content: center; }
+}
+@media print { .sidebar-account, button.workspace-menu { display: none; } }
+@media screen {
+    [data-desktop-workspace="true"] .encabezado-pagina:has(> .encabezado-pagina__contenido):not(:has(> :not(.encabezado-pagina__contenido))) { margin: 0; padding: 0; min-height: 0; }
 }

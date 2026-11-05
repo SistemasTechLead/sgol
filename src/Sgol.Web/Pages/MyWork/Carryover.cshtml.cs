@@ -26,12 +26,14 @@ public sealed class CarryoverModel(IRazorSessionState sessions, OperationalCarry
     public CarryoverPreview? Preview { get; private set; }
     public OperationalCarryoverRequest[] History { get; private set; } = [];
     public string? Error { get; private set; }
+    public bool AutoApproveOwn { get; private set; }
     [TempData] public string? Success { get; set; }
     public async Task<IActionResult> OnGetAsync(CancellationToken ct) {
         Response.Headers.CacheControl = "private, no-store";
         var s = await sessions.GetAsync(ct); if (s == null) return Redirect("/acceso");
+
         End = TimeZoneInfo.ConvertTime(clock.UtcNow, OperationalSchedule.Zone).DateTime;
-        try { History = await service.MineAsync(s.UserId, ct); Overdue = await service.OverdueAsync(s.UserId, ct); } catch (DirectionPlanException e) { return StatusCode(e.Status); }
+        try { AutoApproveOwn = await service.AutomaticallyApprovesOwnAsync(s.UserId, ct); History = await service.MineAsync(s.UserId, ct); Overdue = await service.OverdueAsync(s.UserId, ct); } catch (DirectionPlanException e) { return StatusCode(e.Status); }
         return Page();
     }
     public Task<IActionResult> OnPostPreviewAsync(CancellationToken ct) => Post(false, ct);
@@ -41,12 +43,14 @@ public sealed class CarryoverModel(IRazorSessionState sessions, OperationalCarry
     private async Task<IActionResult> Postpone(bool submit, CancellationToken ct) {
         Response.Headers.CacheControl = "private, no-store";
         var s = await sessions.GetAsync(ct); if (s == null) return Redirect("/acceso");
+
         foreach (var field in new[] { nameof(Cause), nameof(Minutes), nameof(End), nameof(Explanation), nameof(Fingerprint), nameof(Intent) }) ModelState.Remove(field);
         try {
+            AutoApproveOwn = await service.AutomaticallyApprovesOwnAsync(s.UserId, ct);
             if (!ModelState.IsValid) throw new DirectionPlanException("ARRASTRE_DATOS_INVALIDOS", 422);
             if (submit) {
                 await service.SubmitPostponementAsync(s.UserId, Selected, PostponeCause, PostponeExplanation, PostponeFingerprint ?? "", PostponeIntent, ct, BeforeWeekday);
-                Success = "Petición enviada al supervisor inmediato. Las tareas conservan sus fechas hasta la autorización.";
+                Success = AutoApproveOwn ? "Petición autorizada automáticamente. Se aplicaron las fechas propuestas y se guardó la decisión en el historial." : "Petición enviada al supervisor inmediato. Las tareas conservan sus fechas hasta la autorización.";
                 return RedirectToPage();
             }
             Postponement = await service.PreviewPostponementAsync(s.UserId, Selected, PostponeCause, PostponeExplanation, ct, BeforeWeekday);
@@ -64,13 +68,15 @@ public sealed class CarryoverModel(IRazorSessionState sessions, OperationalCarry
     private async Task<IActionResult> Post(bool submit, CancellationToken ct) {
         Response.Headers.CacheControl = "private, no-store";
         var s = await sessions.GetAsync(ct); if (s == null) return Redirect("/acceso");
+
         foreach (var field in new[] { nameof(Selected), nameof(BeforeWeekday), nameof(PostponeCause), nameof(PostponeExplanation), nameof(PostponeFingerprint), nameof(PostponeIntent) }) ModelState.Remove(field);
         try {
+            AutoApproveOwn = await service.AutomaticallyApprovesOwnAsync(s.UserId, ct);
             if (!ModelState.IsValid) throw new DirectionPlanException("ARRASTRE_DATOS_INVALIDOS", 422);
             var end = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(End, DateTimeKind.Unspecified), OperationalSchedule.Zone));
             if (submit) {
                 await service.SubmitAsync(s.UserId, end, Minutes, Cause, Explanation, Fingerprint ?? "", Intent, ct);
-                Success = "Petición enviada. Los vencimientos se conservan hasta que un supervisor apruebe.";
+                Success = AutoApproveOwn ? "Petición autorizada automáticamente. Se aplicaron los vencimientos propuestos y se guardó la decisión en el historial." : "Petición enviada. Los vencimientos se conservan hasta que un supervisor apruebe.";
                 return RedirectToPage();
             }
             Preview = await service.PreviewAsync(s.UserId, end, Minutes, Cause, Explanation, ct);

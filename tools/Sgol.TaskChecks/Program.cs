@@ -56,11 +56,16 @@ if (settings.Host != "localhost" || settings.Database is null || !settings.Datab
     throw new Exception("Checks only run against a dedicated localhost sgol_task_checks_* database.");
 var options = new DbContextOptionsBuilder<SgolDbContext>().UseNpgsql(connection).Options;
 await using var db = new SgolDbContext(options);
+if (args.Contains("--count-sources-migration")) { await ProcessCountSourceChecks.MigrationAsync(db); return; }
 if (args.Contains("--incidence-migration")) { await IncidenceChecks.MigrationChecks(db); return; }
 var sequenceBeforeUpgrade = args.Contains("--sequence-schema-only") || args.Contains("--process-schema-only") ? await SequenceSchemaChecks.Snapshot(db) : null;
 var carryoverBeforeMigration = args.Contains("--carryover-lifecycle") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 var bonusBeforeMigration = args.Contains("--bonus-migration") ? System.Text.Json.JsonSerializer.Serialize(await db.OperationalAssignments.IgnoreQueryFilters().AsNoTracking().OrderBy(a => a.Id).ToArrayAsync()) : null;
 await db.Database.MigrateAsync();
+if (args.Contains("--automatic-process-calendar")) { await AutomaticProcessCalendarChecks.Run(db); return; }
+if (args.Contains("--process-count-sources")) { await ProcessEditorChecks.RunAsync(db, itemsOnly:true, countSources:true); return; }
+if (args.Contains("--count-source-legacy-runtime")) { await ProcessEditorChecks.RunAsync(db, itemsMore:true, countLegacy:true); return; }
+if (args.Contains("--carryover-self-direction")) { await CarryoverSelfDirectionChecks.Run(db); return; }
 if (args.Contains("--report-overview-http")) { await ReportOverviewHttpChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--workload-http")) { await WorkloadHttpChecks.Run(db, args.Contains("--ui")); return; }
 if (args.Contains("--incidences")) { await IncidenceChecks.Run(db, args.Contains("--ui")); return; }
@@ -184,6 +189,47 @@ var director = AddPerson("DIR", CanonicalRole.Direction);
 var a = AddPerson("A", CanonicalRole.SalesFloor);
 var b = AddPerson("B", CanonicalRole.SalesFloor);
 await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+if (args.Contains("--image-limits-only"))
+{
+    var imagePlan = DirectionPreparedPlan.ForOccasion(Guid.CreateVersion7(), BranchScope.LorettaId, director.User, clock.UtcNow, "Image limits", new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 6));
+    db.DirectionPreparedPlans.Add(imagePlan);
+    var imageDefinition = await db.OperationalTasks.FirstAsync();
+    OperationalAssignment ImageAssignment(string requirement, int maximum) => new() { Id = Guid.CreateVersion7(), PlanId = imagePlan.Id, TaskId = imageDefinition.Id, TaskCode = imageDefinition.TaskCode, Name = "Image boundary", PersonId = a.Person, PersonName = "A", AssignedRole = CanonicalRole.SalesFloor, Requirement = requirement, LoadMinutes = 10, StartsAt = clock.UtcNow.AddHours(-1), DueAt = clock.UtcNow.AddDays(1), MinimumPhotos = 1, MaximumPhotos = maximum };
+    var preserved = ImageAssignment("FOTOGRAFIA", 20);
+    db.Add(preserved); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    await tasks.SaveAsync(director.User, new OperationalTask { Name = "Fifty image catalogue", Requirement = "FOTOGRAFIA", MinimumPhotos = 50, MaximumPhotos = 50, Revision = 0 }, default); db.ChangeTracker.Clear();
+    await Rejected(() => tasks.SaveAsync(director.User, new OperationalTask { Name = "Invalid image catalogue", Requirement = "FOTOGRAFIA", MaximumPhotos = 51, Revision = 0 }, default), "TASK_PARAMETERS_INVALID"); db.ChangeTracker.Clear();
+    using var bitmap = new SkiaSharp.SKBitmap(32, 32);
+    using var canvas = new SkiaSharp.SKCanvas(bitmap); canvas.Clear(SkiaSharp.SKColors.Blue);
+    using var encoded = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90);
+    var imageBytes = encoded.ToArray();
+    IFormFile Upload() => new FormFile(new MemoryStream(imageBytes), 0, imageBytes.Length, "photo", "capture.jpg") { Headers = new HeaderDictionary(), ContentType = "image/jpeg" };
+    foreach (var requirement in new[] { "FOTOGRAFIA", "CAPTURA_PANTALLA" })
+    {
+        var target = ImageAssignment(requirement, 50); target.MinimumPhotos = 50;
+        db.Add(target); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        if (requirement == "FOTOGRAFIA")
+        {
+            var session = await tasks.BeginCaptureAsync(a.User, target.Id, default); db.ChangeTracker.Clear();
+            var imageIds = new List<Guid>();
+            for (var n = 0; n < 50; n++) { imageIds.Add((await tasks.UploadPhotographAsync(a.User, target.Id, session.Id, Guid.NewGuid(), Upload(), default)).Id); db.ChangeTracker.Clear(); }
+            await Rejected(() => tasks.UploadPhotographAsync(a.User, target.Id, session.Id, Guid.NewGuid(), Upload(), default), "TASK_PHOTO_LIMIT"); db.ChangeTracker.Clear();
+            await Rejected(() => tasks.CompleteAsync(a.User, target.Id, null, null, default, "Fifty images", session.Id, imageIds.Take(49).ToArray()), "TASK_PHOTO_LIMIT"); db.ChangeTracker.Clear();
+            await tasks.CompleteAsync(a.User, target.Id, null, null, default, "Fifty images", session.Id, imageIds); db.ChangeTracker.Clear();
+        }
+        else
+        {
+            await Rejected(() => tasks.CompleteAsync(a.User, target.Id, null, null, default, screenshots: Enumerable.Range(0, 51).Select(_ => Upload()).ToArray()), "TASK_PHOTO_LIMIT"); db.ChangeTracker.Clear();
+            Check(!await db.OperationalPhotographs.AnyAsync(x => x.AssignmentId == target.Id), "Rejected 51 screenshots leave no partial evidence");
+            await tasks.CompleteAsync(a.User, target.Id, null, null, default, screenshots: Enumerable.Range(0, 50).Select(_ => Upload()).ToArray()); db.ChangeTracker.Clear();
+        }
+        Check((await tasks.PhotographsAsync(director.User, target.Id, default)).Count == 50, requirement + " persists and exposes fifty images");
+        await supervision.ReviewAsync(director.User, target.Id, target.Revision + 1, "CONCLUIDA", null, default); db.ChangeTracker.Clear();
+    }
+    Check(await db.OperationalAssignments.AnyAsync(x => x.Id == preserved.Id && x.MaximumPhotos == 20), "Existing assignment preserves maximum twenty");
+    Check(!db.Database.HasPendingModelChanges(), "Model matches migrations");
+    return;
+}
 if (args.Contains("--qa-interactions-only")) { await QaInteractionChecks.RunAsync(db,tasks,clock,director.User,director.Person); return; }
 if (args.Contains("--checklist-only")) { await ChecklistChecks.RunAsync(db,tasks,supervision,direction,clock,director.User,a.User,a.Person,b.User,b.Person); return; }
 if (args.Contains("--expired-refresh-only")) { await ExpiredAssignmentRefreshChecks.RunAsync(db,tasks,direction,clock,director.User,a.Person); return; }
@@ -444,10 +490,11 @@ if (args.Contains("--screenshots-only"))
     await tasks.CompleteAsync(a.User, screenshotsTask.Id, null, null, default, screenshots: [Image(), Image()]); db.ChangeTracker.Clear();
     Check(await db.OperationalPhotographs.CountAsync(x => x.AssignmentId == screenshotsTask.Id) == 2, "Screenshot submission retries do not duplicate evidence");
     await supervision.ReviewAsync(director.User, screenshotsTask.Id, screenshotsTask.Revision + 1, "CONCLUIDA", null, default); db.ChangeTracker.Clear();
-    var twenty = EvidenceAssignment("CAPTURA_PANTALLA"); twenty.MinimumPhotos = 20;
-    db.Add(twenty); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
-    await tasks.CompleteAsync(a.User, twenty.Id, null, null, default, screenshots: Enumerable.Range(0, 20).Select(_ => Image()).ToArray()); db.ChangeTracker.Clear();
-    Check((await tasks.PhotographsAsync(director.User, twenty.Id, default)).Count == 20, "Twenty screenshots can be delivered together");
+    var fifty = EvidenceAssignment("CAPTURA_PANTALLA"); fifty.MinimumPhotos = 50;
+    db.Add(fifty); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+    await Rejected(() => tasks.CompleteAsync(a.User, fifty.Id, null, null, default, screenshots: Enumerable.Range(0, 51).Select(_ => Image()).ToArray()), "TASK_PHOTO_LIMIT");
+    await tasks.CompleteAsync(a.User, fifty.Id, null, null, default, screenshots: Enumerable.Range(0, 50).Select(_ => Image()).ToArray()); db.ChangeTracker.Clear();
+    Check((await tasks.PhotographsAsync(director.User, fifty.Id, default)).Count == 50, "Fifty screenshots can be delivered together");
     var legacy = EvidenceAssignment("CAPTURA_PANTALLA"); legacy.CompletedAt = clock.UtcNow;
     db.Add(legacy); db.OperationalAttachments.Add(new() { AssignmentId = legacy.Id, FileName = "legacy.png", ContentType = "image/png", Content = png, CreatedAt = clock.UtcNow });
     await db.SaveChangesAsync(); db.ChangeTracker.Clear();
@@ -492,25 +539,26 @@ Check(evidence.ContentType == "image/jpeg" && evidence.FileContent![0] == 255 &&
 await tasks.CompleteAsync(a.User, photo.Id, null, null, default, "Fotografía entregada", capture.Id, [secondPhoto.Id, capturedId]); db.ChangeTracker.Clear();
 Check(await db.OperationalPhotographs.CountAsync(p => p.AssignmentId == photo.Id && p.AttachedAt != null) == 2, "Repeated completion preserves one immutable collection");
 await Rejected(() => tasks.FileAsync(b.User, photo.Id, default), "ACCESO_DENEGADO");
-await Rejected(() => tasks.SaveAsync(director.User, new OperationalTask { Name = "Too many photos", Requirement = "FOTOGRAFIA", MaximumPhotos = 21 }, default), "TASK_PARAMETERS_INVALID");
-await tasks.SaveAsync(director.User, new OperationalTask { Name = "Catalogue with 20 photos", Revision = 0, Requirement = "FOTOGRAFIA", MinimumPhotos = 20, MaximumPhotos = 20 }, default); db.ChangeTracker.Clear();
-Check((await tasks.ListAsync(director.User, default)).Single(x => x.Name == "Catalogue with 20 photos").MaximumPhotos == 20 && (await direction.ReadAsync(director.User, saved.Plan.PlanId)).Assignments!.Where(x => first.Any(original => original.Id == x.Id)).All(x => x.MaximumPhotos == 5), "Catalogue accepts twenty photos without changing saved assignment snapshots");
-var twentyPhotoTask = EvidenceAssignment("FOTOGRAFIA");
-twentyPhotoTask.MinimumPhotos = 20;
-db.Add(twentyPhotoTask); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
-var twentySession = await tasks.BeginCaptureAsync(a.User, twentyPhotoTask.Id, default); db.ChangeTracker.Clear();
-var twentyIds = new List<Guid>();
-for (var i = 0; i < 20; i++)
+await Rejected(() => tasks.SaveAsync(director.User, new OperationalTask { Name = "Too many photos", Requirement = "FOTOGRAFIA", MaximumPhotos = 51 }, default), "TASK_PARAMETERS_INVALID");
+await tasks.SaveAsync(director.User, new OperationalTask { Name = "Catalogue with 50 photos", Revision = 0, Requirement = "FOTOGRAFIA", MinimumPhotos = 50, MaximumPhotos = 50 }, default); db.ChangeTracker.Clear();
+Check((await tasks.ListAsync(director.User, default)).Single(x => x.Name == "Catalogue with 50 photos").MaximumPhotos == 50 && (await direction.ReadAsync(director.User, saved.Plan.PlanId)).Assignments!.Where(x => first.Any(original => original.Id == x.Id)).All(x => x.MaximumPhotos == 5), "Catalogue accepts fifty photos without changing saved assignment snapshots");
+var fiftyPhotoTask = EvidenceAssignment("FOTOGRAFIA");
+fiftyPhotoTask.MinimumPhotos = 50;
+db.Add(fiftyPhotoTask); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+var fiftySession = await tasks.BeginCaptureAsync(a.User, fiftyPhotoTask.Id, default); db.ChangeTracker.Clear();
+var fiftyIds = new List<Guid>();
+for (var i = 0; i < 50; i++)
 {
-    var uploaded = await tasks.UploadPhotographAsync(a.User, twentyPhotoTask.Id, twentySession.Id, Guid.NewGuid(), CameraImage(), default);
-    twentyIds.Add(uploaded.Id); db.ChangeTracker.Clear();
+    var uploaded = await tasks.UploadPhotographAsync(a.User, fiftyPhotoTask.Id, fiftySession.Id, Guid.NewGuid(), CameraImage(), default);
+    fiftyIds.Add(uploaded.Id); db.ChangeTracker.Clear();
 }
-await Rejected(() => tasks.UploadPhotographAsync(a.User, twentyPhotoTask.Id, twentySession.Id, Guid.NewGuid(), CameraImage(), default), "TASK_PHOTO_LIMIT"); db.ChangeTracker.Clear();
-await Rejected(() => tasks.CompleteAsync(a.User, twentyPhotoTask.Id, null, null, default, "Entrega de 20", twentySession.Id, twentyIds.Take(19).ToArray()), "TASK_PHOTO_LIMIT"); db.ChangeTracker.Clear();
-await tasks.CompleteAsync(a.User, twentyPhotoTask.Id, null, null, default, "Entrega de 20", twentySession.Id, twentyIds); db.ChangeTracker.Clear();
-Check((await tasks.PhotographsAsync(director.User, twentyPhotoTask.Id, default)).Select(x => x.Id).SequenceEqual(twentyIds), "Twenty photographs upload and submit in order; the twenty-first is rejected");
-await supervision.ReviewAsync(director.User, twentyPhotoTask.Id, twentyPhotoTask.Revision + 1, "CONCLUIDA", null, default); db.ChangeTracker.Clear();
+await Rejected(() => tasks.UploadPhotographAsync(a.User, fiftyPhotoTask.Id, fiftySession.Id, Guid.NewGuid(), CameraImage(), default), "TASK_PHOTO_LIMIT"); db.ChangeTracker.Clear();
+await Rejected(() => tasks.CompleteAsync(a.User, fiftyPhotoTask.Id, null, null, default, "Entrega de 50", fiftySession.Id, fiftyIds.Take(49).ToArray()), "TASK_PHOTO_LIMIT"); db.ChangeTracker.Clear();
+await tasks.CompleteAsync(a.User, fiftyPhotoTask.Id, null, null, default, "Entrega de 50", fiftySession.Id, fiftyIds); db.ChangeTracker.Clear();
+Check((await tasks.PhotographsAsync(director.User, fiftyPhotoTask.Id, default)).Select(x => x.Id).SequenceEqual(fiftyIds), "Fifty photographs upload and submit in order; the fifty-first is rejected");
+await supervision.ReviewAsync(director.User, fiftyPhotoTask.Id, fiftyPhotoTask.Revision + 1, "CONCLUIDA", null, default); db.ChangeTracker.Clear();
 Check(await db.OperationalAssignments.AnyAsync(x => x.Id == historical.Id && x.MaximumPhotos == 5), "Expanding photograph limits preserves historical assignment limits");
+if (args.Contains("--photos-only")) return;
 var expirationTask = EvidenceAssignment("FOTOGRAFIA"); db.Add(expirationTask); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
 var expiring = await tasks.BeginCaptureAsync(a.User, expirationTask.Id, default); db.ChangeTracker.Clear();
 clock.UtcNow = clock.UtcNow.AddMinutes(31);

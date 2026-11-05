@@ -18,6 +18,8 @@ No satisfecha es un cierre operativo: se conserva para consulta, al final del li
 
 ## Requisitos
 
+Fotografías y capturas admiten hasta 50 imágenes según el máximo guardado en cada asignación, con 15 MiB por imagen y 30 MiB por entrega. Las asignaciones anteriores conservan su límite. Las pruebas del rango 50/51 utilizan servicios y PostgreSQL aislados con escáner simulado; no acreditan una carga autenticada en el host compartido.
+
 Los requisitos admitidos son NINGUNO, COMENTARIO, FOTOGRAFIA, CAPTURA_PANTALLA, DOCUMENTO, EXCEL y CHECKLIST. El servidor valida contrato, identidad y revisión. Una meta progresiva debe alcanzar las unidades exigidas para entregar. El bono no añade requisitos de adjuntos.
 
 La captura fotográfica usa una sesión autorizada vinculada a la asignación y controles de cantidad y contenido. FOTOGRAFIA abre la cámara, permite revisar, repetir y conservar tomas; no selecciona fotos de galería. Subir fotografías verifica el material; Enviar a revisión confirma la entrega con el conjunto. El navegador necesita HTTPS confiable y permiso de cámara. La autoría anterior no se sustituye por el responsable actual.

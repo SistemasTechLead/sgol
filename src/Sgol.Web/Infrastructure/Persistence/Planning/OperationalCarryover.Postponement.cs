@@ -64,6 +64,8 @@ public sealed partial class OperationalCarryoverService
         var workers = await OperationalCapacityService.WorkersAsync(db, clock.UtcNow, ct);
         var own = workers.SingleOrDefault(w => w.Id == person);
         if (own == null) return [];
+        if (own.Role == CanonicalRole.Direction)
+            return await db.AppUsers.AsNoTracking().Where(u => u.PersonId == person && u.Status == AccountStatus.Active).Select(u => u.Id).ToArrayAsync(ct);
         // Existing role hierarchy: sales floor -> subcoordination -> administration -> direction.
         // Missing levels are skipped. Direction retains its branch-wide supervision authority.
         string[] levels = [CanonicalRole.SalesFloor, CanonicalRole.Subcoordination, CanonicalRole.Administration, CanonicalRole.Direction];
@@ -111,11 +113,11 @@ public sealed partial class OperationalCarryoverService
         var window = PostponementWindow.For(today, beforeWeekday, rows.Any(r => r!.Assignment.PeriodType == "MENSUAL"));
         var (ledger, days, context) = await PostponementContext(person, selected, window.From, window.Through, ct);
         var conflicts = new List<string>();
-        if ((await ImmediateSupervisors(person, ct)).Length == 0) conflicts.Add("No hay un supervisor inmediato activo para resolver esta petición.");
+        var immediate = await ImmediateSupervisors(person, ct);
+        if (immediate.Length == 0) conflicts.Add("No hay un supervisor inmediato activo para resolver esta petición.");
         var (items, loads, failures) = PostponementAllocator.Calculate(rows.Select(r => r!.Assignment).ToArray(), ledger, days, today);
         if (window.BeforeDate != null) items = items.Select(i => i with { BeforeDate = window.BeforeDate }).ToArray();
         conflicts.AddRange(failures);
-        var immediate = await ImmediateSupervisors(person, ct);
         var authorized = false;
         foreach (var supervisor in immediate) {
             var supervised = (await supervision.ListAsync(supervisor, ct)).Select(t => t.Assignment.Id).ToHashSet();
@@ -182,7 +184,9 @@ public sealed partial class OperationalCarryoverService
             IncidentStart = clock.UtcNow, IncidentEnd = clock.UtcNow, SubmittedAt = clock.UtcNow,
             Fingerprint = fingerprint, ScheduleFingerprint = preview.ContextFingerprint, SnapshotJson = JsonSerializer.Serialize(preview.Items) };
         db.Add(r); Audit(actor, r, "OPERATIONAL_POSTPONEMENT_SUBMITTED");
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return r.Id;
+        await db.SaveChangesAsync(ct);
+        await ApproveOwnDirectionSubmissionAsync(actor, r, ct);
+        await tx.CommitAsync(ct); return r.Id;
     }
 
     private async Task<CarryoverResult[]> ApplyPostponement(OperationalCarryoverRequest request, CancellationToken ct)

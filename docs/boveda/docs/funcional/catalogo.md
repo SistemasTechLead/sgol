@@ -22,6 +22,8 @@ Los filtros combinan búsqueda, pertenencia a proceso, requisito, periodicidad, 
 
 ## Instrucciones y evidencia
 
+Fotografías y capturas admiten mínimo y máximo configurables entre 1 y 50. El máximo predeterminado de nuevas tareas es 50. Editar una tarea conserva su límite anterior hasta cambiarlo explícitamente; ampliar el rango admitido no actualiza asignaciones ni versiones existentes.
+
 Las descripciones se guardan como Markdown y se presentan con formato seguro: HTML deshabilitado, enlaces HTTP/HTTPS/mailto y sin carga de imágenes remotas. La edición conserva el texto original. Los requisitos se explican en [Ejecución y evidencias](ejecucion-evidencias.md).
 
 Desactivar una definición no borra por sí solo entregas ni historias. Quitar tareas de un proceso exige conciliar pertenencia, orden y publicación. El retiro de pendientes se decide explícitamente en la actualización.

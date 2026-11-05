@@ -27,6 +27,8 @@ Fuentes: [Tareas](../../../../src/Sgol.Web/Pages/Tasks/Index.cshtml), [acciones 
 
 Las tarjetas de Validación y la revisión individual de Supervisión guardan mediante Validar en un solo envío, sin propuesta ni confirmación adicional. Las comprobaciones del servidor y la atomicidad del grupo permanecen; un rechazo identifica la tarea y conserva la intención.
 
+Activar versión publicada asigna directamente el calendario de doce meses en los procesos aplicables. El resultado enlaza a fechas, responsables y conflictos pendientes; no requiere preparar y activar otra vez el plan generado. Reintentar fechas pendientes y Reprogramar fecha son acciones directas de Dirección. El calendario en pausa deshabilita el reintento y enlaza al proceso.
+
 ## Preparar y confirmar
 
 Las acciones que necesitan revisar consecuencias presentan una propuesta y una confirmación diferenciadas. La vista previa expone responsables, fechas, carga o registros afectados según el recorrido. Los cambios a la intención pueden invalidar la propuesta antes de confirmar.
@@ -35,7 +37,7 @@ Las acciones que necesitan revisar consecuencias presentan una propuesta y una c
 |---|---|
 | Asignar tarea ocasional | Destinatarios y horarios propuestos. |
 | Planificación | Tareas, responsables, capacidad, incidencias y ajustes que se guardarán. |
-| Plan de proceso | Fechas y capacidad antes de guardar; activación posterior del plan preparado. |
+| Plan de proceso manual | Fechas y capacidad antes de guardar; activación posterior del plan preparado. |
 | Actualizar Asignaciones | Casos que requieren decisión, cambios agrupados y asignaciones afectadas. |
 | Transferir responsabilidad | Persona, carga, fechas y conservación de lo realizado. |
 | Reprogramación de corrección en Supervisión | Decisión, motivo y programación aplicable a la corrección. |

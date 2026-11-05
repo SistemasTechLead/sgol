@@ -5,9 +5,14 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed class PreparedProcessStart
 {
+    public bool Automatic { get; set; }
+    public string? PendingReason { get; set; }
+    public DateTimeOffset? LastAssignmentAttemptAt { get; set; }
+    public DateTimeOffset? OriginalStartsAt { get; set; }
     public Guid? IncidenceHoldId { get; set; }
     public string? AgendaJson { get; set; }
     public string? ItemRatesJson { get; set; }
+    public string? CountSourcesJson { get; set; }
     public Guid Id { get; set; }
     public Guid PlanId { get; set; }
     public Guid ProcessId { get; set; }
@@ -20,9 +25,11 @@ public sealed class PreparedProcessStart
     public static void Configure(ModelBuilder model)
     {
         var b=model.Entity<PreparedProcessStart>();
-        b.ToTable("operational_process_plan_start",t=>t.HasCheckConstraint("CK_process_plan_start","\"Status\" IN ('PREPARADO','ACTIVADO') AND \"Revision\" > 0"));
+        b.ToTable("operational_process_plan_start",t=>t.HasCheckConstraint("CK_process_plan_start","\"Status\" IN ('PREPARADO','ACTIVADO','PENDIENTE') AND \"Revision\" > 0"));
+        b.Property(p=>p.PendingReason).HasMaxLength(2000);
         b.HasKey(p=>p.Id); b.HasIndex(p=>p.StartKey).IsUnique(); b.Property(p=>p.StartKey).HasMaxLength(160);
         b.Property(p=>p.AgendaJson).HasColumnType("jsonb");
+        b.Property(p=>p.CountSourcesJson).HasColumnType("jsonb");
         b.Property(p=>p.Participants).HasColumnType("jsonb"); b.Property(p=>p.Status).HasMaxLength(16); b.Property(p=>p.Revision).IsConcurrencyToken();
         b.HasOne<DirectionPreparedPlan>().WithMany().HasForeignKey(p=>p.PlanId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<OperationalSequenceVersion>().WithMany().HasForeignKey(p=>new {p.ProcessId,p.VersionId}).HasPrincipalKey(v=>new {v.SequenceId,v.Id}).OnDelete(DeleteBehavior.Restrict);

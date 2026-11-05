@@ -16,7 +16,7 @@ namespace Sgol.Web.Infrastructure.Persistence.Planning;
 
 public sealed class OperationalCapacity
 {
-    public const int DefaultDailyMinutes = 240;
+    public const int DefaultDailyMinutes = 360;
     public Guid Id { get; set; }
     public Guid PersonId { get; set; }
     public DateOnly From { get; set; }
