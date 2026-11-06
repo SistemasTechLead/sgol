@@ -29,6 +29,18 @@ internal static class ReportOverviewHttpChecks
         var historical=await CorrectionSchedulingChecks.Source(db,fixture,clock);
         await db.OperationalAssignments.Where(a=>a.Id==sub.Id).ExecuteUpdateAsync(x=>x.SetProperty(a=>a.AssignedRole,CanonicalRole.Subcoordination));
         await db.OperationalAssignments.Where(a=>a.Id==historical.Id).ExecuteUpdateAsync(x=>x.SetProperty(a=>a.StartsAt,clock.UtcNow.AddMonths(-1)));
+        // Historical requests with multiple tasks must count once, beyond the first inbox page.
+        var snapshot = System.Text.Json.JsonSerializer.Serialize(new[] { sales, historical }.Select(a =>
+            new CarryoverItem(a.Id, a.PersonId, a.PlanId, a.Revision, a.Name, a.AssignedRole,
+                a.StartsAt, a.DueAt, a.DueAt.AddMinutes(10), true, a.Id, a.ReviewStatus, "", "fixture", a.PersonName)));
+        for (var i = 0; i < 13; i++) db.Add(new OperationalCarryoverRequest {
+            Id = Guid.CreateVersion7(), BranchId = Sgol.Organization.Contracts.BranchScope.LorettaId,
+            PersonId = fixture.Person, RequestedBy = fixture.Worker, IntentKey = Guid.NewGuid(),
+            SubmittedAt = clock.UtcNow.AddMonths(-1), IncidentStart = clock.UtcNow.AddHours(-1),
+            IncidentEnd = clock.UtcNow, Minutes = 60, SnapshotJson = snapshot, State = i == 12 ? "RECHAZADA" : "PENDIENTE",
+            DecidedBy = i == 12 ? fixture.Director : null, DecidedAt = i == 12 ? clock.UtcNow : null
+        });
+        await db.SaveChangesAsync();
         var service=CorrectionSchedulingChecks.Service(db,clock);
         foreach(var reviewer in new[]{CanonicalRole.Direction,CanonicalRole.Subcoordination}) {
             var count=await service.ReviewQueueCountAsync(fixture.Director,reviewer,default);
@@ -59,6 +71,16 @@ internal static class ReportOverviewHttpChecks
 
         var before=await db.OperationalAssignments.CountAsync();
         var html=WebUtility.HtmlDecode(await client.GetStringAsync("/reportes"));
+        Check(html.Contains("data-report-carryovers") && html.Contains("href=\"/validaciones#carryovers\"") && !html.Contains("Cubiertas por arrastre"), "carryover card replaces covered deliveries and links to inbox");
+        using (var scope = app.Services.CreateScope()) {
+            var inbox = scope.ServiceProvider.GetRequiredService<OperationalCarryoverService>();
+            var count = await inbox.PendingInboxCountAsync(fixture.Director, default);
+            Check(count == 12, "counts requests once across pages, excludes resolved history");
+            Check(count == (await inbox.InboxPageAsync(fixture.Director, false, 1, default)).Total, "carryover count equals authorized pending inbox total");
+            Check(Regex.IsMatch(html, @"data-report-carryovers[^>]*><span>Peticiones de arrastre</span><strong>" + count + "</strong>"), "Razor renders pending request count");
+            var filtered = WebUtility.HtmlDecode(await client.GetStringAsync("/reportes?F.Range=custom&F.From=2020-01-01&F.To=2020-01-02"));
+            Check(Regex.IsMatch(filtered, @"data-report-carryovers[^>]*><span>Peticiones de arrastre</span><strong>" + count + "</strong>"), "carryover queue ignores report date filters");
+        }
         Check(html.Contains("Resumen operativo") && html.Contains("report-metric--queue"),"default real Razor report contains queues");
         Check(html.IndexOf("report-result") < html.IndexOf("data-report-save"),"export and save below report");
         foreach(var reviewer in new[]{CanonicalRole.Direction,CanonicalRole.Subcoordination}) {
@@ -68,6 +90,7 @@ internal static class ReportOverviewHttpChecks
         using var worker=new HttpRequestMessage(HttpMethod.Get,"/reportes"); worker.Headers.Add("X-QA-Worker","1");
         var workerHtml=await (await client.SendAsync(worker)).Content.ReadAsStringAsync();
         Check(!workerHtml.Contains("report-metric--queue"),"worker cannot see supervisor queue counts or links");
+        Check(!workerHtml.Contains("data-report-carryovers"), "worker cannot see carryover review queue");
         Check((await client.GetStringAsync("/reportes?handler=Export")).Contains("metrics"),"export still responds");
         Check(await db.OperationalAssignments.CountAsync()==before,"read-only report and navigation preserve assignment count");
         if(ui) { Console.WriteLine("REPORT_UI_READY https://localhost:7297/reportes"); await app.WaitForShutdownAsync(); }

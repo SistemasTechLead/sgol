@@ -89,7 +89,7 @@ Fuentes: [Supervisión](../../../../src/Sgol.Web/Pages/Validations/Index.cshtml)
 
 ## Tablero y Rol de tareas
 
-Tablero muestra contexto de fecha y conexión, filtros por plan/tarea/estado, progreso diario y semanal, progreso por colaborador y tarjetas de tareas. El área de tareas permite desplazamiento por teclado. Los colores indican situación temporal y entrega, con etiquetas y leyenda.
+Tablero muestra contexto de fecha y conexión, filtros por plan/tarea/estado, progreso diario y semanal, progreso por colaborador y tarjetas de tareas. El área de tareas permite desplazamiento por teclado. En escritorio, el contenedor ocupa la altura completa de la ventana sin reservar espacio para la antigua cabecera superior; conserva un margen interior inferior de 24 px. En móvil mantiene altura natural y desplazamiento del documento. Este ajuste de altura se comprobó en la app compartida el 05/11/2026 con Brave, en los tres temas y tamaños de escritorio y móvil. Los colores indican situación temporal y entrega, con etiquetas y leyenda.
 
 En móvil, Tablero y Rol de tareas comparten una fila de destinos; Filtros y Personas se sitúan debajo. Las tarjetas se leen en una columna. Rol de tareas muestra semana, actividad, carga y asignaciones por día, con persona y estado; ofrece semana anterior, actual y siguiente.
 
@@ -108,6 +108,8 @@ La ficha de sucursal permanece como ruta de consulta implementada y restringida 
 Fuentes: [personas](../../../../src/Sgol.Web/Pages/People/Index.cshtml), [detalle](../../../../src/Sgol.Web/Pages/People/Details.cshtml), [horarios](../../../../src/Sgol.Web/Pages/People/_Schedule.cshtml), [especializaciones](../../../../src/Sgol.Web/Pages/People/Specializations.cshtml), [sucursal](../../../../src/Sgol.Web/Pages/Branches/Details.cshtml).
 
 ## Reportes
+
+La tarjeta Peticiones de arrastre sustituye a Cubiertas por arrastre. Cuenta solicitudes pendientes autorizadas, una vez por petición aunque incluya varias tareas o tenga resolución parcial; incluye todas las fechas y no cambia con los filtros del reporte. Ir abre /validaciones#carryovers en Supervisión. Solo aparece para quienes pueden supervisar; las solicitudes resueltas quedan fuera. Es una cola operativa, como las de revisión, y no se incorpora al PDF. Conteo y navegación comprobados con PostgreSQL y Razor reales en entorno aislado con sesión sintética; presentación y teclado en Chromium/WebKit, tres temas y cuatro tamaños. Publicación compartida comprobada por artefacto y salud, sin recorrido autenticado compartido.
 
 La búsqueda dentro del detalle aparece directamente, según el patrón de [buscador único](03-componentes.md#filtros); conserva los parámetros ocultos del reporte.
 

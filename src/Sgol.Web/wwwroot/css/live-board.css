@@ -1,7 +1,7 @@
 .board-page { background: var(--color-superficie-elevada); font: var(--tipografia-base); }
 .board-card[hidden], .board-empty[hidden] { display: none; }
 .board-page main { padding: var(--espacio-24); height: 100dvh; }
-.board-shell .contenido-principal { max-width: none; height: calc(100dvh - var(--alto-encabezado)); padding: var(--espacio-24); }
+.board-shell .contenido-principal { max-width: none; height: 100dvh; padding: var(--espacio-24); }
 #live-board, .board-content { height: 100%; }
 .board-content { display: flex; flex-direction: column; gap: var(--espacio-16); }
 .board-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--color-borde); border-radius: 20px; background: linear-gradient(145deg, color-mix(in srgb, var(--color-info-fondo) 40%, var(--color-superficie)), var(--color-superficie)); box-shadow: var(--sombra-media); }

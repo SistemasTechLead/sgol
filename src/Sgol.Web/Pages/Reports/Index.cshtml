@@ -64,6 +64,9 @@
         <header class="report-result-heading"><div><span class="report-eyebrow">LORETTA · GESTIÓN OPERATIVA</span><h2 id="report-title">@Model.Definition.Name</h2><p>@Model.Definition.Description</p></div><div class="report-period"><strong>@Model.From.ToString("dd/MM/yyyy") — @Model.Through.ToString("dd/MM/yyyy")</strong><span>Corte: @ReportCatalog.Time(Model.Cutoff) · Ciudad de México</span><span>@Model.Scope</span></div></header>
         <p class="report-filter-summary">@Model.FilterSummary()</p>
         <div class="report-metrics">@foreach (var metric in Model.Metrics) { <button type="button" class="report-metric report-tone--@metric.Tone" data-report-status="@metric.Status" aria-pressed="@((metric.Status != null && Model.ChartStatus == metric.Status).ToString().ToLowerInvariant())" disabled="@(metric.Status == null)"><span>@metric.Label</span><strong>@metric.Value</strong><small>@metric.Hint</small></button> }
+            @if (Model.PendingCarryoverRequests is {} pendingCarryovers) {
+                <article class="report-metric report-metric--queue report-tone--info" data-report-carryovers title="Peticiones pendientes que puedes revisar. No cambia con los filtros del reporte."><span>Peticiones de arrastre</span><strong>@pendingCarryovers</strong><small>Pendientes · Todas las fechas</small><a class="boton boton--secundario" href="/validaciones#carryovers" aria-label="Ir a peticiones de arrastre">Ir</a></article>
+            }
             @foreach (var queue in Model.ReviewQueues) {
                 <article class="report-metric report-metric--queue report-tone--warning" title="Solo tareas que puedes supervisar. Las colas pueden coincidir y no se suman; no cambian con los filtros del reporte."><span>@queue.Label</span><strong>@queue.Count</strong><small>Todas las fechas · Cola actual</small><a class="boton boton--secundario" href="@queue.Href" aria-label="Ir a @queue.Label.ToLowerInvariant()">Ir</a></article>
             }

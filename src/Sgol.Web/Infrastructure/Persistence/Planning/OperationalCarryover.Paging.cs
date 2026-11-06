@@ -24,6 +24,9 @@ public sealed partial class OperationalCarryoverService
         }
         return query;
     }
+    public async Task<int> PendingInboxCountAsync(Guid actor, CancellationToken token) =>
+        await (await AuthorizedInboxAsync(actor, token)).CountAsync(r => r.State == "PENDIENTE", token);
+
     public async Task<(OperationalCarryoverRequest[] Items, int Total, int Page)> InboxPageAsync(Guid actor, bool history, int page, CancellationToken token)
     {
         var query = await AuthorizedInboxAsync(actor, token);

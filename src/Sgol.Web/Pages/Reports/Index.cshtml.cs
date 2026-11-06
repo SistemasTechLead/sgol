@@ -13,7 +13,7 @@ using Sgol.Web.Presentation.Navigation;
 
 namespace Sgol.Web.Pages.Reports;
 
-public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IClock clock, OperationalCarryoverReader carryovers, OperationalSupervisionService supervision) : PageModel
+public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IClock clock, OperationalCarryoverReader carryovers, OperationalSupervisionService supervision, OperationalCarryoverService carryoverRequests) : PageModel
 {
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     [BindProperty(SupportsGet = true)] public ReportFilter F { get; set; } = new();
@@ -32,6 +32,7 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
     public ReportRow[] Rows { get; private set; } = [];
     public ReportMetric[] Metrics { get; private set; } = [];
     public List<(string Label, int Count, string Href)> ReviewQueues { get; } = [];
+    public int? PendingCarryoverRequests { get; private set; }
     public ReportChart[] Charts { get; private set; } = [];
     public ReportPerson[] People { get; private set; } = [];
     [BindProperty(SupportsGet = true)] public string? ChartStatus { get; set; }
@@ -79,6 +80,8 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
                 r.ValidFrom <= at && (r.ValidTo == null || r.ValidTo > at), token)) return StatusCode(403);
         var allowed = session.Permissions.Contains("PER-SUPERVISION-VER") ? OperationalSupervisionService.RolesFor(session.RoleCode) : [];
         Scope = allowed.Length > 0 ? "Tus tareas y los niveles que puedes supervisar" : "Solo tus tareas";
+        if (!exporting && allowed.Length > 0)
+            PendingCarryoverRequests = await carryoverRequests.PendingInboxCountAsync(session.UserId, token);
         if (!exporting && F.Kind == "overview" && allowed.Length > 0)
             foreach (var reviewer in new[] { CanonicalRole.Subcoordination, CanonicalRole.Direction })
                 ReviewQueues.Add(($"Por revisar por {ReportCatalog.RoleName(reviewer)}",
@@ -148,8 +151,7 @@ public sealed class IndexModel(IRazorSessionState sessions, SgolDbContext db, IC
         }
         Metrics = ReportAnalysis.Metrics(Rows, F.Kind, Cutoff);
         Metrics = Metrics.Concat(new[] {
-            new ReportMetric("Con arrastre autorizado", Rows.Count(r => r.Status != "REASIGNADA" && r.Delivered > r.Due && r.Carryover.ApprovedCount > 0).ToString(), "Entregas tardías; una vez por asignación", "info"),
-            new ReportMetric("Cubiertas por arrastre", Rows.Count(r => r.Status != "REASIGNADA" && r.Delivered > r.Due && r.Carryover.ApprovedCount > 0 && r.Delivered <= r.Carryover.RecognizedDue).ToString(), "Dentro del plazo reconocido", "info") }).ToArray();
+            new ReportMetric("Con arrastre autorizado", Rows.Count(r => r.Status != "REASIGNADA" && r.Delivered > r.Due && r.Carryover.ApprovedCount > 0).ToString(), "Entregas tardías; una vez por asignación", "info") }).ToArray();
         if (!ReportCatalog.Statuses.ContainsKey(ChartStatus ?? "")) ChartStatus = null;
         var chartRows = Rows.Where(r => (ChartStatus == null || r.Status == ChartStatus) &&
             (string.IsNullOrEmpty(ChartGroup) || ChartGroup == (F.Group switch {

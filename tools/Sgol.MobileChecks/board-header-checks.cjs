@@ -53,6 +53,13 @@ const assert = require('assert/strict');
             assert.equal(await page.locator('[data-mobile-control="board-filters"]').isVisible(), false);
             assert(await form.isVisible());
             assert.deepEqual(await values(), original);
+            const height = await page.locator('.board-viewport').evaluate(e => ({
+                bottom: e.getBoundingClientRect().bottom,
+                viewport: innerHeight,
+                padding: parseFloat(getComputedStyle(document.querySelector('main')).paddingBottom)
+            }));
+            assert(Math.abs(height.viewport - height.bottom - height.padding) < 1,
+                'Board must fill the available height without reserving the removed application header');
         } finally { await browser.close(); }
     }
     fs.writeFileSync(`${dir}/board-header-results.json`, JSON.stringify(results, null, 2));
